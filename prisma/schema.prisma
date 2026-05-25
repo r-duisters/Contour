@@ -1,0 +1,57 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Alert {
+  id            String       @id @default(cuid())
+  symbol        String
+  timeframe     String
+  params        String       // JSON-encoded indicator params
+  enabled       Boolean      @default(true)
+  lastEvaluated DateTime?
+  lastBarTime   BigInt?      // ms timestamp of the last bar we evaluated
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  events        AlertEvent[]
+
+  @@index([enabled])
+}
+
+model AlertEvent {
+  id        String   @id @default(cuid())
+  alertId   String
+  alert     Alert    @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  barTime   BigInt
+  signal    String   // e.g. "long" | "short" | "exit"
+  price     Float
+  payload   String   // JSON of full signal context
+  delivered Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@unique([alertId, barTime, signal])
+  @@index([alertId, createdAt])
+}
+
+model BacktestRun {
+  id        String   @id @default(cuid())
+  symbol    String
+  timeframe String
+  fromTime  BigInt
+  toTime    BigInt
+  params    String   // JSON
+  stats     String   // JSON: pnl, winRate, maxDrawdown, trades, ...
+  createdAt DateTime @default(now())
+}
+
+model Settings {
+  id              Int     @id @default(1)
+  haUrl           String?
+  haWebhookId     String?
+  mqttBrokerUrl   String?
+  mqttTopicPrefix String?
+}

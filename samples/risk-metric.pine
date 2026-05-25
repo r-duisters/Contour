@@ -1,0 +1,163 @@
+//@version=5
+// Oakley Wood
+
+strategy(title='Risk Metric Strategy', shorttitle='Risk Metric', overlay=false, default_qty_value=20, precision=2, pyramiding=5, default_qty_type=strategy.cash, currency=currency.USD)
+
+compoundingSelected         = input.bool(defval = true, title = "Compounding", tooltip = "Select this option if you want to compound your net profits.", group = "Compounding")
+//take profit and stop loss
+takeProfitSelected          = input.bool(defval = true, title = "Use Take Profit", tooltip = "Select this to enable take profits.", group = "Take Profit and Stop Loss")
+takeProfitPercent           = input.float(defval = 1.0, title = "Take Profit %", tooltip = "Set the value of take profits here.", minval = 0.1, step = 0.1, group = "Take Profit and Stop Loss")
+stopLossSelected            = input.bool(defval = true, title = "Use Stop Loss", tooltip = "Select this to enable stop losses.", group = "Take Profit and Stop Loss")
+stopLossPercent             = input.float(defval = 1.0, title = "Stop Loss %", tooltip = "Set the value of stop losses here.", minval = 0.1, step = 0.1, group = "Take Profit and Stop Loss")
+
+//trading window
+startDate                   = input.time(defval = timestamp("1 Jan 2020 00:00:00"), title = "Start Date", tooltip = "Use this to set the date and time when strategy will start placing trades.  Set this to a time just after the last candle when activating auto trading.", group = "TRADING WINDOW")
+endDate                     = input.time(defval = timestamp("1 Jan 2030 00:00:00"), title = "End Date", tooltip = "Use this to set the date and time when strategy will stop placing trades.", group = "TRADING WINDOW")
+
+
+//VARIABLES
+var float tradingCapital    = na //trading capital is used to calculate position size based on the intitial capital and, if compounding is selected, also the net profit
+var float positionSize      = na //position size is used to set the quantity of the asset you want to buy.  It is based on the initial capital and the net profit if compounding is selected.
+var float takeProfitPrice   = na //this is used for take profit targets if selected
+var float stopLossPrice     = na //this is used for stop loss if selected
+
+var bool filled30 = false
+var bool filled25 = false
+var bool filled20 = false
+var bool filled10 = false
+var bool sold80 = false
+var bool sold90 = false
+
+inTradeWindow  = (time >= startDate) and (time < endDate) //calculate the trading/backtesting window
+
+//COMPOUNDING
+if compoundingSelected // set the tradingCapital available to the strategy based on wither Compounding has been selected or not.  This will be used to determine the position size.
+    //tradingCapital := strategy.initial_capital + strategy.grossprofit
+    //tradingCapital := 10000 + strategy.netprofit
+    tradingCapital := strategy.initial_capital + strategy.netprofit
+else
+    tradingCapital := strategy.initial_capital
+
+
+//METRIC 1, (btc - 4 year sma)/ std dev. Logic inspired by my internet buddy Andy's work.
+d1460_sma = request.security(syminfo.tickerid, 'D', ta.sma(close, 1460))
+stdev1 = request.security(syminfo.tickerid, 'D', ta.stdev(close, 1460))
+btc = request.security(syminfo.tickerid, 'D', close)
+maxRiskOne = -38.12 * math.log(time) + 1078.5  // Hard coded function of time. Dubious indeed.
+riskOne = ((btc - d1460_sma) / stdev1) / maxRiskOne
+
+// METRIC 2, ln(btc / 20 wma). Logic inspired by Ben Cowen's work.
+w20_sma = request.security(syminfo.tickerid, "W", ta.sma(close, 20))
+minRiskTwo = -3.719*math.log(time) + 105  // Hard coded function of time. Dubious indeed.
+maxRiskTwo = -6*math.pow(10, -12)*time + 10.93  // Hard coded function of time. Dubious indeed.
+riskTwo = (math.log(btc/w20_sma) + minRiskTwo)/maxRiskTwo
+
+// METRIC 3, 50D MA / 50W MA. Logic inspired by work of Ben Cowen and trader "wugamlo".
+// Very useful and well made 50D MA / 50W MA metric by wugamlo on tradingview: https://www.tradingview.com/script/SurDJbyu-Risk-50DMA-50WMA/
+d50_sma = request.security(syminfo.tickerid, 'D', ta.sma(close, 50))
+w50_sma = request.security(syminfo.tickerid, 'W', ta.sma(close, 50))
+maxRiskThree = -12.55*math.log(time) + 355.15 // Hard coded function of time. Dubious indeed.
+riskThree = (d50_sma/w50_sma)/maxRiskThree
+
+// FINAL METRIC
+riskMetric = (riskOne+riskTwo+riskThree)/3
+
+
+// LONG AND SHORT CONDITIONS
+longCondition30 = (riskMetric < 0.30 )
+longCondition25 = (riskMetric < 0.25 )
+longCondition20 = (riskMetric < 0.20 )
+longCondition10 = (riskMetric < 0.10 )
+closeCondition80 = (riskMetric > 0.8 )
+closeCondition90 = (riskMetric > 0.9 )
+closeCondition95 = (riskMetric > 0.95 )
+
+
+if ( longCondition10 and (filled10 == false) and inTradeWindow )
+    positionSize := tradingCapital / close * 0.8
+    strategy.entry("Buy", strategy.long, qty = positionSize, comment="10% risk - Buy 80% of capital" )
+    //enter long position
+    //log.info("RiskMetric below 0.1 - {0}", riskMetric)
+    //log.info("Strategy tradingcapital and profit - {0} {1}", tradingCapital,  strategy.netprofit)
+    //label.new(bar_index,low, "🟢 Buy - 10% risk", style = label.style_label_up, color = #9cff87)
+    filled10 := true
+    sold80 := false
+    sold90 := false
+
+if ( longCondition20 and (filled20 == false) and inTradeWindow )
+    positionSize := tradingCapital  / close * 0.4 // Buy 40% of available capital
+    strategy.entry("Buy", strategy.long, qty = positionSize, comment="20% risk - Buy 40% of capital" )
+    //label.new(bar_index,low, "🟢 Buy - 20% risk", style = label.style_label_up, color = #9cff87)
+    filled20 := true
+    sold80 := false
+    sold90 := false
+
+
+if ( longCondition25 and (filled25 == false) and inTradeWindow )
+    positionSize := tradingCapital / close * 0.3 // Buy 30% of available capital
+    strategy.entry("Buy", strategy.long, qty = positionSize, comment="25% risk - Buy 30% of capital" )
+    //label.new(bar_index,low, "🟢 Buy - 25% risk", style = label.style_label_up, color = #9cff87)
+    filled25 := true
+    sold80 := false
+    sold90 := false
+
+
+if ( longCondition30 and (filled30 == false) and inTradeWindow )
+    positionSize := tradingCapital / close * 0.3 // Buy 30% of available capital
+    strategy.entry("Buy", strategy.long, qty = positionSize, comment="30% risk - Buy 30% of capital" )
+    //label.new(bar_index,low, "🟢 Buy - 30% risk", style = label.style_label_up, color = #9cff87)
+    filled30 := true
+    sold80 := false
+    sold90 := false
+
+
+
+//Close position
+if ( closeCondition80 and not sold80 and inTradeWindow )
+    positionSize := tradingCapital / close * 0.5
+    log.info("Closing position - 80% risk - {0}", positionSize)
+    strategy.close("Buy", qty = positionSize, comment="80% risk - Sell 50% of position" )
+    //label.new(bar_index, high, "🔴 Sell - 80% risk", style = label.style_label_down, color = #f9396a, textcolor = color.white)
+    sold80 := true
+    filled30 := false
+    filled25 := false
+    filled20 := false
+    filled10 := false
+
+if ( closeCondition90 and not sold90 and inTradeWindow )
+    positionSize := tradingCapital / close * 0.5
+    log.info("Closing position - 90% risk - {0}", positionSize)
+    strategy.close("Buy", qty = positionSize, comment="90% risk - Sell 50% of position" )
+    //label.new(bar_index, high, "🔴 Sell - 90% risk", style = label.style_label_down, color = #f9396a, textcolor = color.white)
+    sold90 := true
+    filled30 := false
+    filled25 := false
+    filled20 := false
+    filled10 := false
+
+if ( closeCondition95 and inTradeWindow )
+    positionSize := tradingCapital / close * 0.5
+    log.info("Closing position - 90% risk - {0}", positionSize)
+    strategy.close("Buy", qty = positionSize, comment="95% risk - Keep selling 50% of position" )
+    //label.new(bar_index, high, "🔴 Sell - 95% risk", style = label.style_label_down, color = #f9396a, textcolor = color.white)
+
+    filled30 := false
+    filled25 := false
+    filled20 := false
+    filled10 := false
+
+
+
+// PLOTTING
+buy = input(0.25, title='Buy Limit')
+sell = input(0.8, title='Sell Limit')
+
+sellLimit = plot(sell, title='Sell Limit', color=color.new(#FF5252, 0), linewidth=1, style=plot.style_line)
+buyLimit = plot(buy, title='Buy Limit', color=color.new(#65C36B, 0), linewidth=1, style=plot.style_line)
+riskMetricPlot = plot(riskMetric, title='Risk', color=color.new(color.white, 0), linewidth=2)
+
+bullColor = riskMetric < buy ? color.green : na
+bearColor = riskMetric > sell ? color.red : na
+fill(riskMetricPlot, buyLimit, color=bullColor, transp=50)
+fill(riskMetricPlot, sellLimit, color=bearColor, transp=50)
+fill(riskMetricPlot, sellLimit, color=color.new(color.gray, 80))
