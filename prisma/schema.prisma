@@ -78,6 +78,7 @@ model Transaction {
 
 model Settings {
   id              Int     @id @default(1)
+  passwordHash    String?
   haUrl           String?
   haWebhookId     String?
   mqttBrokerUrl   String?
