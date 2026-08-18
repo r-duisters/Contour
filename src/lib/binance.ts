@@ -79,6 +79,21 @@ export async function fetchPrices(symbols: string[]): Promise<Record<string, num
   return Object.fromEntries(raw.map((r) => [r.symbol, Number(r.price)]));
 }
 
+/** Like fetchPrices, but tolerant: one bad symbol 400s the whole batch, so fall back to per-symbol lookups. */
+export async function fetchPricesSafe(symbols: string[]): Promise<Record<string, number>> {
+  if (symbols.length === 0) return {};
+  try {
+    return await fetchPrices(symbols);
+  } catch {
+    const out: Record<string, number> = {};
+    const results = await Promise.allSettled(symbols.map((s) => fetchPrices([s])));
+    for (const r of results) {
+      if (r.status === "fulfilled") Object.assign(out, r.value);
+    }
+    return out;
+  }
+}
+
 type StreamKline = {
   e: "kline";
   E: number;

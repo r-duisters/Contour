@@ -9,9 +9,12 @@ datasource db {
 
 model Alert {
   id            String       @id @default(cuid())
-  symbol        String
+  kind          String       @default("indicator") // "indicator" | "price_target" | "pct_move"
+  symbol        String? // null for portfolio-scoped alerts
+  portfolioId   String? // pct_move only: evaluate every held symbol in this portfolio
+  portfolio     Portfolio?   @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
   timeframe     String
-  params        String       // JSON-encoded indicator params
+  params        String       // JSON-encoded params for the kind
   enabled       Boolean      @default(true)
   lastEvaluated DateTime?
   lastBarTime   BigInt?      // ms timestamp of the last bar we evaluated
@@ -54,6 +57,7 @@ model Portfolio {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   transactions Transaction[]
+  alerts       Alert[]
 }
 
 model Transaction {

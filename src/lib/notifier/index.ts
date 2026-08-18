@@ -1,9 +1,8 @@
-import type { Signal } from "../types";
-
 export type NotifierPayload = {
   symbol: string;
   timeframe: string;
-  signal: Signal["kind"];
+  /** Indicator signal kind ("long" | "short" | "exit") or a descriptive tag like "target_above:BTCUSDT". */
+  signal: string;
   price: number;
   time: number;
   alertId: string;

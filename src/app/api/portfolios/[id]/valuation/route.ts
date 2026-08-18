@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { fetchKlinesRange, fetchPrices } from "@/lib/binance";
+import { fetchKlinesRange, fetchPricesSafe } from "@/lib/binance";
 import {
   computeHoldings, portfolioValueSeries, valueHoldings, type Tx, type TxSide,
 } from "@/lib/portfolio";
@@ -45,21 +45,6 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   };
 
   return NextResponse.json({ holdings: valued, totals, series });
-}
-
-/** Batch ticker lookup; one bad symbol 400s the whole batch, so fall back to per-symbol. */
-async function fetchPricesSafe(symbols: string[]): Promise<Record<string, number>> {
-  if (symbols.length === 0) return {};
-  try {
-    return await fetchPrices(symbols);
-  } catch {
-    const out: Record<string, number> = {};
-    const results = await Promise.allSettled(symbols.map((s) => fetchPrices([s])));
-    for (const r of results) {
-      if (r.status === "fulfilled") Object.assign(out, r.value);
-    }
-    return out;
-  }
 }
 
 async function fetchDailyCandles(txs: Tx[]): Promise<Record<string, Bar[]>> {
