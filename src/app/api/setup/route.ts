@@ -12,6 +12,9 @@ export async function POST(req: NextRequest) {
   const body = Body.safeParse(await req.json());
   if (!body.success) return NextResponse.json({ error: body.error.flatten() }, { status: 400 });
 
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) return NextResponse.json({ error: "SESSION_SECRET not configured" }, { status: 500 });
+
   const existing = await prisma.settings.findUnique({ where: { id: 1 } });
   if (existing?.passwordHash) {
     return NextResponse.json({ error: "already set up" }, { status: 409 });
@@ -23,8 +26,6 @@ export async function POST(req: NextRequest) {
     create: { id: 1, passwordHash },
   });
 
-  const secret = process.env.SESSION_SECRET;
-  if (!secret) return NextResponse.json({ error: "SESSION_SECRET not configured" }, { status: 500 });
   const res = NextResponse.json({ ok: true });
   res.cookies.set(SESSION_COOKIE, await createSessionToken(secret), sessionCookieOptions());
   return res;
