@@ -67,6 +67,18 @@ export async function fetchKlinesRange(opts: {
   return out;
 }
 
+/** Current spot prices for the given symbols, as symbol -> price. Unknown symbols are omitted. */
+export async function fetchPrices(symbols: string[]): Promise<Record<string, number>> {
+  if (symbols.length === 0) return {};
+  const params = new URLSearchParams({
+    symbols: JSON.stringify(symbols.map((s) => s.toUpperCase())),
+  });
+  const res = await fetch(`${REST}/api/v3/ticker/price?${params}`);
+  if (!res.ok) throw new Error(`Binance ticker ${res.status}: ${await res.text()}`);
+  const raw = (await res.json()) as { symbol: string; price: string }[];
+  return Object.fromEntries(raw.map((r) => [r.symbol, Number(r.price)]));
+}
+
 type StreamKline = {
   e: "kline";
   E: number;

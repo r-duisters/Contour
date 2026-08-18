@@ -9,6 +9,7 @@ export default function Home() {
       </p>
       <ul className="space-y-2 text-sm">
         <li><Link className="text-blue-600 underline" href="/chart">Live chart</Link></li>
+        <li><Link className="text-blue-600 underline" href="/portfolio">Portfolio</Link></li>
         <li><Link className="text-blue-600 underline" href="/backtest">Backtest</Link></li>
         <li><Link className="text-blue-600 underline" href="/alerts">Alerts</Link></li>
         <li><Link className="text-blue-600 underline" href="/analyze">PineScript review</Link></li>

@@ -48,6 +48,30 @@ model BacktestRun {
   createdAt DateTime @default(now())
 }
 
+model Portfolio {
+  id           String        @id @default(cuid())
+  name         String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  transactions Transaction[]
+}
+
+model Transaction {
+  id          String    @id @default(cuid())
+  portfolioId String
+  portfolio   Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  symbol      String    // Binance pair, e.g. BTCUSDT
+  side        String    // "buy" | "sell" | "transfer_in" | "transfer_out"
+  quantity    Float
+  price       Float     // quote units per base unit; for transfers this is the cost-basis price
+  fee         Float     @default(0) // in quote units
+  time        BigInt    // ms timestamp
+  note        String?
+  createdAt   DateTime  @default(now())
+
+  @@index([portfolioId, time])
+}
+
 model Settings {
   id              Int     @id @default(1)
   haUrl           String?
