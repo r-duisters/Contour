@@ -4,10 +4,11 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 // Only follow same-origin, relative paths for post-login redirects. Anything
-// else (absolute URLs, protocol-relative "//host" paths) falls back to the
+// else (absolute URLs, protocol-relative "//host" paths, backslash variants
+// like "/\host" that URL parsing normalizes to "//host") falls back to the
 // default destination to prevent an open redirect via ?next=.
 function safeNextPath(next: string | null): string {
-  if (next && next.startsWith("/") && !next.startsWith("//")) return next;
+  if (next && next.startsWith("/") && !next.startsWith("//") && !next.includes("\\")) return next;
   return "/portfolio";
 }
 
