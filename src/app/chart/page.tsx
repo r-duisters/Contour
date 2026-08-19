@@ -34,6 +34,14 @@ export default function ChartPage() {
       grid: { vertLines: { color: "#1f1f1f" }, horzLines: { color: "#1f1f1f" } },
       autoSize: true,
       timeScale: { timeVisible: true, secondsVisible: false },
+      // Vertical swipes must scroll the page on touch devices; horizontal
+      // drag still pans and pinch still zooms the chart.
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: false,
+      },
     } as const;
     const top = createChart(priceContainer.current, common);
     const bot = createChart(riskContainer.current, common);
@@ -144,8 +152,8 @@ export default function ChartPage() {
           )}
         </span>
       </header>
-      <div ref={priceContainer} className="flex-1 min-h-[300px]" />
-      <div ref={riskContainer} className="flex-1 min-h-[200px] border-t border-neutral-800" />
+      <div ref={priceContainer} className="h-[45vh] min-h-[260px] md:h-auto md:flex-1 md:min-h-[300px]" />
+      <div ref={riskContainer} className="h-[30vh] min-h-[180px] md:h-auto md:flex-1 md:min-h-[200px] border-t border-neutral-800" />
     </main>
   );
 }
