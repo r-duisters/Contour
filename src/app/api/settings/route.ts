@@ -12,8 +12,16 @@ const Body = z.object({
   haWebhookId: z.string().nullable().optional(),
 });
 
+const SETTINGS_SELECT = {
+  id: true,
+  haUrl: true,
+  haWebhookId: true,
+  mqttBrokerUrl: true,
+  mqttTopicPrefix: true,
+} as const;
+
 export async function GET() {
-  const s = await prisma.settings.findUnique({ where: { id: 1 } });
+  const s = await prisma.settings.findUnique({ where: { id: 1 }, select: SETTINGS_SELECT });
   return NextResponse.json({ settings: s ?? null });
 }
 
@@ -24,6 +32,7 @@ export async function PUT(req: NextRequest) {
     where: { id: 1 },
     update: body.data,
     create: { id: 1, ...body.data },
+    select: SETTINGS_SELECT,
   });
   return NextResponse.json({ settings: s });
 }

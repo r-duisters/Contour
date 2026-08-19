@@ -3,6 +3,14 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
+// Only follow same-origin, relative paths for post-login redirects. Anything
+// else (absolute URLs, protocol-relative "//host" paths) falls back to the
+// default destination to prevent an open redirect via ?next=.
+function safeNextPath(next: string | null): string {
+  if (next && next.startsWith("/") && !next.startsWith("//")) return next;
+  return "/portfolio";
+}
+
 export default function LoginForm({ mode }: { mode: "login" | "setup" }) {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -28,7 +36,7 @@ export default function LoginForm({ mode }: { mode: "login" | "setup" }) {
       setError(typeof d.error === "string" ? d.error : "Failed. Try again.");
       return;
     }
-    router.replace(params.get("next") ?? "/portfolio");
+    router.replace(safeNextPath(params.get("next")));
     router.refresh();
   }
 
