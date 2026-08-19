@@ -75,6 +75,19 @@ export function parseCsv(text: string): string[][] {
   return rows.filter((r) => r.some((f) => f.trim() !== ""));
 }
 
+/**
+ * Delta writes currencies as "ETH (ETHEREUM)" or "DOT* (POLKADOT)"; reduce to
+ * the bare ticker. Asterisks are Delta's duplicate-ticker markers.
+ */
+export function normalizeAsset(raw: string): string {
+  return raw.split("(")[0]!.trim().replace(/\*+$/, "").toUpperCase();
+}
+
+/** Exchange-suffixed tickers (SHELL.AS, UBI.PA) are equities, not crypto. */
+function isSecurityTicker(ticker: string): boolean {
+  return /\.[A-Z]{1,4}$/.test(ticker);
+}
+
 /** Tolerant numeric parse: strips thousands separators, accepts "0,5" decimals. */
 function num(raw: string | undefined): number {
   if (!raw) return NaN;
@@ -139,9 +152,16 @@ export function parseDeltaCsv(text: string): DeltaImport {
     const mapped = SIDE_MAP[rawType];
     if (!mapped) { skipped.push({ line, reason: `unsupported type "${cell(cols.type)}"` }); continue; }
 
-    const baseCurrency = cell(cols.baseCurrency).toUpperCase();
+    const baseCurrency = normalizeAsset(cell(cols.baseCurrency));
     if (!baseCurrency) { skipped.push({ line, reason: "missing base currency" }); continue; }
-    if (STABLES.has(baseCurrency)) { skipped.push({ line, reason: `cash row (${baseCurrency})` }); continue; }
+    if (STABLES.has(baseCurrency) || baseCurrency === "EUR" || baseCurrency === "GBP") {
+      skipped.push({ line, reason: `cash row (${baseCurrency})` });
+      continue;
+    }
+    if (isSecurityTicker(baseCurrency)) {
+      skipped.push({ line, reason: `stock/ETF row (${baseCurrency}) — not supported yet` });
+      continue;
+    }
 
     const rawAmount = num(cell(cols.baseAmount));
     const quantity = Math.abs(rawAmount);
@@ -158,9 +178,9 @@ export function parseDeltaCsv(text: string): DeltaImport {
     // importer to convert via historical rates.
     let price = 0;
     let pendingQuote: { currency: string; total: number } | undefined;
-    const quoteCurrency = cell(cols.quoteCurrency).toUpperCase();
+    const quoteCurrency = normalizeAsset(cell(cols.quoteCurrency));
     const quoteAmount = Math.abs(num(cell(cols.quoteAmount)));
-    const costsCurrency = cell(cols.costsCurrency).toUpperCase();
+    const costsCurrency = normalizeAsset(cell(cols.costsCurrency));
     const costsAmount = Math.abs(num(cell(cols.costs)));
     if (STABLES.has(quoteCurrency) && Number.isFinite(quoteAmount) && quoteAmount > 0) {
       price = quoteAmount / quantity;
@@ -184,7 +204,7 @@ export function parseDeltaCsv(text: string): DeltaImport {
 
     let fee = 0;
     let feeRaw: { currency: string; amount: number } | undefined;
-    const feeCurrency = cell(cols.feeCurrency).toUpperCase();
+    const feeCurrency = normalizeAsset(cell(cols.feeCurrency));
     const feeAmount = Math.abs(num(cell(cols.feeAmount)));
     if (Number.isFinite(feeAmount) && feeAmount > 0) {
       if (STABLES.has(feeCurrency)) fee = feeAmount;

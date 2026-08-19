@@ -129,6 +129,26 @@ describe("parseDeltaCsv", () => {
     expect(skipped[0]!.reason).toContain("missing required column");
   });
 
+  it("normalizes Delta's verbose currency names and asterisk markers", () => {
+    const { rows } = parseDeltaCsv(
+      csv('2024-01-15,BUY,Binance,10,"DOT* (POLKADOT)",70,"USDT (TETHER)",,,,,'),
+    );
+    expect(rows[0]!.symbol).toBe("DOTUSDT");
+    expect(rows[0]!.price).toBe(7); // USDT (TETHER) recognized as a stable
+  });
+
+  it("skips verbose cash rows and exchange-suffixed stock rows", () => {
+    const { rows, skipped } = parseDeltaCsv(
+      csv(
+        '2024-01-01,DEPOSIT,Bank,1000,"EUR (EURO)",,,,,,,',
+        '2024-01-02,BUY,DeGiro,10,"SHELL.AS (SHELL PLC)",300,EUR,,,,,',
+      ),
+    );
+    expect(rows).toEqual([]);
+    expect(skipped[0]!.reason).toContain("cash row (EUR)");
+    expect(skipped[1]!.reason).toContain("stock/ETF row (SHELL.AS)");
+  });
+
   it("accepts the 'Way' header variant for the type column", () => {
     const { rows } = parseDeltaCsv(
       "Date,Way,Base amount,Base currency,Quote amount,Quote currency\n2024-01-15,BUY,1,BTC,40000,USDT",

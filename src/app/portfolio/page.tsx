@@ -203,6 +203,12 @@ export default function PortfolioPage() {
                 <Stat label="Realized P&L" value={fmtUsd(valuation.totals.realizedPnl)} signed={valuation.totals.realizedPnl} />
                 <Stat label="Fees paid" value={fmtUsd(valuation.totals.fees)} />
               </div>
+              {valuation.holdings.some((h) => h.quantity > 0 && h.price === null) && (
+                <p className="text-xs text-amber-500/80 -mt-6 mb-8">
+                  {valuation.holdings.filter((h) => h.quantity > 0 && h.price === null).length} holding(s) have
+                  no Binance USDT market and are excluded from the total value.
+                </p>
+              )}
 
               <div className="grid md:grid-cols-[1fr_260px] gap-8 mb-8 items-start">
                 <ValueChart series={valuation.series} />
