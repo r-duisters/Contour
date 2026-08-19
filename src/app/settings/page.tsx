@@ -61,17 +61,22 @@ export default function SettingsPage() {
 
   async function disablePush() {
     setPushState("busy");
-    const reg = await navigator.serviceWorker.ready;
-    const sub = await reg.pushManager.getSubscription();
-    if (sub) {
-      await fetch("/api/push/subscribe", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ endpoint: sub.endpoint }),
-      });
-      await sub.unsubscribe();
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        await fetch("/api/push/subscribe", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endpoint: sub.endpoint }),
+        });
+        await sub.unsubscribe();
+      }
+      setPushState("off");
+    } catch (e) {
+      setMsg(`Push: ${(e as Error).message}`);
+      setPushState("on");
     }
-    setPushState("off");
   }
 
   async function save() {
