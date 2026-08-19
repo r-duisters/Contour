@@ -1,9 +1,14 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 // Shared across all picker instances in the session; the list rarely changes.
 let cachedSymbols: string[] | null = null;
+
+const POPULAR = [
+  "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT",
+  "ADAUSDT", "DOGEUSDT", "LINKUSDT", "AVAXUSDT", "LTCUSDT",
+];
 
 export default function SymbolPicker({
   value,
@@ -14,11 +19,13 @@ export default function SymbolPicker({
   onChange: (symbol: string) => void;
   className?: string;
 }) {
-  const listId = useId();
   const [symbols, setSymbols] = useState<string[]>(cachedSymbols ?? []);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState<string | null>(null); // null = not editing
+  const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (cachedSymbols) return;
+    if (cachedSymbols) { setSymbols(cachedSymbols); return; }
     fetch("/api/symbols")
       .then((r) => (r.ok ? r.json() : { symbols: [] }))
       .then((d: { symbols?: string[] }) => {
@@ -28,26 +35,89 @@ export default function SymbolPicker({
       .catch(() => {});
   }, []);
 
+  // Close when tapping/clicking anywhere outside.
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) { setOpen(false); setQuery(null); }
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [open]);
+
+  const shown = useMemo(() => {
+    const q = (query ?? "").trim().toUpperCase();
+    if (!q) {
+      const popular = POPULAR.filter((s) => symbols.length === 0 || symbols.includes(s));
+      const rest = symbols.filter((s) => !popular.includes(s));
+      return [...popular, ...rest].slice(0, 50);
+    }
+    const starts = symbols.filter((s) => s.startsWith(q));
+    const contains = symbols.filter((s) => !s.startsWith(q) && s.includes(q));
+    return [...starts, ...contains].slice(0, 50);
+  }, [symbols, query]);
+
+  function pick(s: string) {
+    onChange(s);
+    setQuery(null);
+    setOpen(false);
+  }
+
   return (
-    <>
+    <div ref={wrapRef} className="relative inline-block">
       <input
-        list={listId}
-        className={
+        className={`${
           className ??
-          "bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm uppercase w-32"
-        }
-        value={value}
-        onChange={(e) => onChange(e.target.value.toUpperCase())}
-        placeholder="Symbol"
+          "bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm uppercase w-36"
+        } pr-7`}
+        value={query ?? value}
+        onFocus={() => { setOpen(true); setQuery(""); }}
+        onChange={(e) => { setQuery(e.target.value.toUpperCase()); setOpen(true); }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && query) { pick(shown[0] ?? query); }
+          if (e.key === "Escape") { setQuery(null); setOpen(false); }
+        }}
+        placeholder={value || "Symbol"}
         autoCapitalize="characters"
         autoCorrect="off"
         spellCheck={false}
       />
-      <datalist id={listId}>
-        {symbols.map((s) => (
-          <option key={s} value={s} />
-        ))}
-      </datalist>
-    </>
+      <button
+        type="button"
+        aria-label="Choose symbol"
+        className="absolute right-1 top-1/2 -translate-y-1/2 text-neutral-400 px-1"
+        onClick={() => {
+          if (open) { setOpen(false); setQuery(null); }
+          else { setOpen(true); setQuery(""); }
+        }}
+      >
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      {open && (
+        <ul className="absolute left-0 top-full mt-1 z-50 w-48 max-h-64 overflow-y-auto bg-neutral-900 border border-neutral-700 rounded shadow-lg shadow-black/50">
+          {shown.map((s) => (
+            <li key={s}>
+              <button
+                type="button"
+                className={`w-full text-left px-3 py-1.5 text-sm hover:bg-neutral-800 ${
+                  s === value ? "text-blue-400" : "text-neutral-200"
+                }`}
+                onClick={() => pick(s)}
+              >
+                {s}
+              </button>
+            </li>
+          ))}
+          {shown.length === 0 && (
+            <li className="px-3 py-2 text-sm text-neutral-500">
+              {symbols.length === 0 ? "Loading symbols…" : "No matches"}
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
   );
 }
