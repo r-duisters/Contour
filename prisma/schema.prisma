@@ -76,6 +76,15 @@ model Transaction {
   @@index([portfolioId, time])
 }
 
+model WebAuthnCredential {
+  id         String   @id // credential id, base64url
+  publicKey  Bytes
+  counter    BigInt   @default(0)
+  transports String? // JSON array of AuthenticatorTransport
+  label      String?
+  createdAt  DateTime @default(now())
+}
+
 model Settings {
   id              Int     @id @default(1)
   passwordHash    String?

@@ -6,6 +6,7 @@ export const SESSION_TTL_S = 2_592_000; // 30 days
 const PUBLIC_EXACT = new Set([
   "/login", "/setup", "/api/login", "/api/setup",
   "/api/cron/evaluate", // guarded by its own bearer token
+  "/api/webauthn/login/options", "/api/webauthn/login/verify", // passkey login (challenge + signature verified in-route)
   "/manifest.webmanifest", "/sw.js", "/favicon.ico",
 ]);
 const PUBLIC_PREFIXES = ["/_next/", "/icons/"];

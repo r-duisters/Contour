@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import {
-  BellOff, BellRing, KeyRound, LogOut, Save, Send, Settings as SettingsIcon,
+  BellOff, BellRing, Fingerprint, KeyRound, LogOut, Save, Send, Settings as SettingsIcon, Trash2,
 } from "lucide-react";
+import { browserSupportsWebAuthn, startRegistration } from "@simplewebauthn/browser";
 
 export default function SettingsPage() {
   const [haUrl, setHaUrl] = useState("");
@@ -13,6 +14,42 @@ export default function SettingsPage() {
   const [newPw, setNewPw] = useState("");
   const [pwMsg, setPwMsg] = useState<string | null>(null);
   const [pushState, setPushState] = useState<"unsupported" | "off" | "on" | "busy">("busy");
+  const [passkeys, setPasskeys] = useState<{ id: string; label: string | null; createdAt: string }[]>([]);
+  const [passkeySupported, setPasskeySupported] = useState(false);
+  const [passkeyMsg, setPasskeyMsg] = useState<string | null>(null);
+
+  async function loadPasskeys() {
+    const d = await fetch("/api/webauthn/credentials").then((r) => r.json()).catch(() => null);
+    if (d) setPasskeys(d.credentials);
+  }
+
+  async function addPasskey() {
+    setPasskeyMsg(null);
+    try {
+      const options = await fetch("/api/webauthn/register/options", { method: "POST" }).then((r) => r.json());
+      const attestation = await startRegistration({ optionsJSON: options });
+      const label = window.prompt("Name this passkey (e.g. \u201ciPhone\u201d):") ?? undefined;
+      const res = await fetch("/api/webauthn/register/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ response: attestation, label }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "verification failed");
+      setPasskeyMsg("Passkey added.");
+      await loadPasskeys();
+    } catch (e) {
+      if ((e as Error).name !== "NotAllowedError") setPasskeyMsg(`Passkey: ${(e as Error).message}`);
+    }
+  }
+
+  async function removePasskey(id: string) {
+    await fetch("/api/webauthn/credentials", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    await loadPasskeys();
+  }
 
   useEffect(() => {
     fetch("/api/settings").then((r) => r.json()).then((d) => {
@@ -24,6 +61,8 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
+    setPasskeySupported(browserSupportsWebAuthn() && window.isSecureContext);
+    loadPasskeys();
     (async () => {
       if (!("serviceWorker" in navigator) || !("PushManager" in window)) { setPushState("unsupported"); return; }
       const reg = await navigator.serviceWorker.ready;
@@ -159,6 +198,37 @@ export default function SettingsPage() {
         )}
         <p className="text-xs text-neutral-500">“Send test” above exercises both Home Assistant and Web Push.</p>
       </section>
+      <section className="space-y-4 mt-10">
+        <h2 className="text-sm font-semibold">Passkeys (fingerprint / device PIN)</h2>
+        {!passkeySupported && (
+          <p className="text-sm text-neutral-500">
+            Passkeys need a secure context — available on localhost or once the app runs behind HTTPS.
+          </p>
+        )}
+        {passkeySupported && (
+          <button onClick={addPasskey}
+                  className="bg-blue-600 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1">
+            <Fingerprint size={14} aria-hidden />Add passkey
+          </button>
+        )}
+        <ul className="divide-y divide-neutral-800">
+          {passkeys.map((k) => (
+            <li key={k.id} className="py-2 flex items-center gap-3 text-sm">
+              <Fingerprint size={14} aria-hidden className="text-neutral-500" />
+              <span>{k.label ?? "Unnamed passkey"}</span>
+              <span className="text-xs text-neutral-500">added {new Date(k.createdAt).toLocaleDateString()}</span>
+              <span className="flex-1" />
+              <button onClick={() => removePasskey(k.id)}
+                      className="text-xs underline text-red-500 inline-flex items-center gap-1">
+                <Trash2 size={12} aria-hidden />remove
+              </button>
+            </li>
+          ))}
+          {passkeys.length === 0 && <li className="text-sm text-neutral-500 py-2">No passkeys yet.</li>}
+        </ul>
+        {passkeyMsg && <p className="text-sm text-neutral-400">{passkeyMsg}</p>}
+      </section>
+
       <section className="space-y-4 mt-10">
         <h2 className="text-sm font-semibold">Account</h2>
         <label className="block text-sm">

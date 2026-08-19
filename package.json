@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
+    "@simplewebauthn/browser": "^13.3.0",
+    "@simplewebauthn/server": "^13.3.2",
     "jose": "^6.2.9",
     "lightweight-charts": "^5.2.0",
     "lucide-react": "^1.33.0",
