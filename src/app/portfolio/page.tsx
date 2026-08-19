@@ -158,7 +158,24 @@ export default function PortfolioPage() {
               </div>
 
               <h2 className="text-lg font-medium mb-3">Holdings</h2>
-              <div className="overflow-x-auto mb-10">
+              <ul className="md:hidden space-y-2 mb-10">
+                {valuation.holdings.map((h) => (
+                  <li key={h.symbol} className="bg-neutral-900 border border-neutral-800 rounded p-3 text-sm">
+                    <div className="flex justify-between items-baseline">
+                      <span className="font-mono font-medium">{h.symbol}</span>
+                      <span>{h.value !== null ? fmtUsd(h.value) : "?"}</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-neutral-500 mt-1">
+                      <span>{fmtQty(h.quantity)} @ {h.quantity > 0 ? fmtUsd(h.avgCost) : "—"}</span>
+                      <Pnl value={h.unrealizedPnl} />
+                    </div>
+                  </li>
+                ))}
+                {valuation.holdings.length === 0 && (
+                  <li className="text-sm text-neutral-500 py-2">No holdings yet — add a transaction below.</li>
+                )}
+              </ul>
+              <div className="overflow-x-auto mb-10 hidden md:block">
                 <table className="w-full text-sm">
                   <thead className="text-neutral-500 text-xs text-left">
                     <tr>

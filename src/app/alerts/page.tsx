@@ -154,8 +154,8 @@ export default function AlertsPage() {
 
       <ul className="divide-y divide-neutral-800">
         {alerts.map((a) => (
-          <li key={a.id} className="py-3 flex items-center gap-3 text-sm">
-            <span className="font-mono">{describe(a)}</span>
+          <li key={a.id} className="py-3 flex items-center gap-3 text-sm flex-wrap">
+            <span className="font-mono break-all">{describe(a)}</span>
             <span className={`text-xs px-2 py-0.5 rounded ${a.enabled ? "bg-green-700" : "bg-neutral-700"}`}>
               {a.enabled ? "enabled" : a.kind === "price_target" ? "fired/paused" : "paused"}
             </span>

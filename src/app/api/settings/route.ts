@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { HomeAssistantNotifier } from "@/lib/notifier/home-assistant";
+import type { Notifier } from "@/lib/notifier";
+import { makeWebPushNotifier } from "@/lib/notifier/web-push";
 
 export const dynamic = "force-dynamic";
 
@@ -10,8 +12,16 @@ const Body = z.object({
   haWebhookId: z.string().nullable().optional(),
 });
 
+const SETTINGS_SELECT = {
+  id: true,
+  haUrl: true,
+  haWebhookId: true,
+  mqttBrokerUrl: true,
+  mqttTopicPrefix: true,
+} as const;
+
 export async function GET() {
-  const s = await prisma.settings.findUnique({ where: { id: 1 } });
+  const s = await prisma.settings.findUnique({ where: { id: 1 }, select: SETTINGS_SELECT });
   return NextResponse.json({ settings: s ?? null });
 }
 
@@ -22,25 +32,34 @@ export async function PUT(req: NextRequest) {
     where: { id: 1 },
     update: body.data,
     create: { id: 1, ...body.data },
+    select: SETTINGS_SELECT,
   });
   return NextResponse.json({ settings: s });
 }
 
-// POST sends a synthetic signal so you can verify the HA automation end-to-end.
+// POST sends a synthetic signal through every configured notifier (HA + Web Push).
 export async function POST() {
   const s = await prisma.settings.findUnique({ where: { id: 1 } });
-  if (!s?.haUrl || !s?.haWebhookId) {
-    return NextResponse.json({ error: "Home Assistant URL or webhook id not configured" }, { status: 400 });
+  const notifiers: { name: string; n: Notifier }[] = [];
+  if (s?.haUrl && s?.haWebhookId) {
+    notifiers.push({ name: "home-assistant", n: new HomeAssistantNotifier(s.haUrl, s.haWebhookId) });
   }
-  const notifier = new HomeAssistantNotifier(s.haUrl, s.haWebhookId);
-  await notifier.send({
-    alertId: "test",
-    symbol: "BTCUSDT",
-    timeframe: "1h",
-    signal: "long",
-    price: 0,
-    time: Date.now(),
-    meta: { test: true },
-  });
-  return NextResponse.json({ ok: true });
+  const wp = makeWebPushNotifier();
+  if (wp) notifiers.push({ name: "web-push", n: wp });
+  if (notifiers.length === 0) {
+    return NextResponse.json({ error: "no notifier configured" }, { status: 400 });
+  }
+  const results: Record<string, string> = {};
+  for (const { name, n } of notifiers) {
+    try {
+      await n.send({
+        alertId: "test", symbol: "BTCUSDT", timeframe: "1h",
+        signal: "test", price: 0, time: Date.now(), meta: { test: true },
+      });
+      results[name] = "ok";
+    } catch (e) {
+      results[name] = (e as Error).message;
+    }
+  }
+  return NextResponse.json({ ok: Object.values(results).some((v) => v === "ok"), results });
 }

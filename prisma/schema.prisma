@@ -78,8 +78,17 @@ model Transaction {
 
 model Settings {
   id              Int     @id @default(1)
+  passwordHash    String?
   haUrl           String?
   haWebhookId     String?
   mqttBrokerUrl   String?
   mqttTopicPrefix String?
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
 }
