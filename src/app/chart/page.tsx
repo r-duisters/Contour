@@ -128,14 +128,15 @@ export default function ChartPage() {
 
   return (
     <main className="min-h-screen flex flex-col">
-      <header className="p-4 flex gap-2 items-center border-b border-neutral-800">
+      <header className="p-3 md:p-4 flex gap-2 items-center border-b border-neutral-800">
         <input
           className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm uppercase w-32"
           value={symbol}
           onChange={(e) => setSymbol(e.target.value.toUpperCase())}
         />
         <span className="text-xs text-neutral-500">
-          1d · {status} · {bars.length} bars · {signals.length} signals
+          1d · {status}
+          <span className="hidden sm:inline"> · {bars.length} bars · {signals.length} signals</span>
           {latestRisk !== null && (
             <> · risk: <span className={latestRisk < BUY_LIMIT ? "text-green-500" : latestRisk > SELL_LIMIT ? "text-red-500" : "text-neutral-300"}>
               {latestRisk.toFixed(3)}

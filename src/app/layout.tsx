@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import PwaSetup from "@/components/PwaSetup";
+import TabBar from "@/components/TabBar";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -38,7 +39,8 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <PwaSetup />
-        {children}
+        <div className="pb-12 md:pb-0">{children}</div>
+        <TabBar />
       </body>
     </html>
   );
