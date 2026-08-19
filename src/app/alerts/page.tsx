@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import SymbolPicker from "@/components/SymbolPicker";
+import { Bell, Pause, Play, Plus, Trash2 } from "lucide-react";
 
 type Alert = {
   id: string;
@@ -93,7 +94,7 @@ export default function AlertsPage() {
 
   return (
     <main className="min-h-screen p-8 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-semibold mb-6">Alerts</h1>
+      <h1 className="text-2xl font-semibold mb-6 flex items-center gap-2"><Bell size={20} aria-hidden className="text-neutral-400" />Alerts</h1>
 
       <div className="flex gap-2 mb-2 flex-wrap items-center">
         <select className={input} value={kind} onChange={(e) => setKind(e.target.value as Alert["kind"])}>
@@ -141,9 +142,9 @@ export default function AlertsPage() {
           </label>
         )}
 
-        <button onClick={create} className="bg-blue-600 text-white rounded px-3 py-1 text-sm">Create</button>
-        <button onClick={evaluateNow} className="bg-neutral-700 text-white rounded px-3 py-1 text-sm">
-          Evaluate now
+        <button onClick={create} className="bg-blue-600 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1"><Plus size={14} aria-hidden />Create</button>
+        <button onClick={evaluateNow} className="bg-neutral-700 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1">
+          <Play size={14} aria-hidden />Evaluate now
         </button>
       </div>
       {error && <p className="text-xs text-red-500 mb-4">{error}</p>}
@@ -163,10 +164,11 @@ export default function AlertsPage() {
               {a.lastEvaluated ? `last: ${new Date(a.lastEvaluated).toLocaleString()}` : "never evaluated"}
             </span>
             <span className="flex-1" />
-            <button onClick={() => toggle(a)} className="text-xs underline text-neutral-400">
+            <button onClick={() => toggle(a)} className="text-xs underline text-neutral-400 inline-flex items-center gap-1">
+              {a.enabled ? <Pause size={12} aria-hidden /> : <Play size={12} aria-hidden />}
               {a.enabled ? "pause" : "enable"}
             </button>
-            <button onClick={() => remove(a)} className="text-xs underline text-red-500">delete</button>
+            <button onClick={() => remove(a)} className="text-xs underline text-red-500 inline-flex items-center gap-1"><Trash2 size={12} aria-hidden />delete</button>
           </li>
         ))}
         {alerts.length === 0 && <li className="text-sm text-neutral-500 py-4">No alerts yet.</li>}

@@ -1,5 +1,6 @@
 "use client";
 
+import { FlaskConical } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 type Severity = "warning" | "info" | "suggestion";
@@ -148,7 +149,7 @@ export default function AnalyzePage() {
 
   return (
     <main className="min-h-screen p-8 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-semibold mb-2">PineScript review</h1>
+      <h1 className="text-2xl font-semibold mb-2 flex items-center gap-2"><FlaskConical size={20} aria-hidden className="text-neutral-400" />PineScript review</h1>
       <p className="text-sm text-neutral-500 mb-6">
         Pick a script from the library or paste your own. Run the analyzer, choose which fixes to
         apply, preview the result, and save as a new version.

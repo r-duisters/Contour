@@ -1,4 +1,16 @@
 import Link from "next/link";
+import {
+  Bell, CandlestickChart, FlaskConical, History, Settings, Wallet,
+} from "lucide-react";
+
+const LINKS = [
+  { href: "/chart", label: "Live chart", Icon: CandlestickChart },
+  { href: "/portfolio", label: "Portfolio", Icon: Wallet },
+  { href: "/backtest", label: "Backtest", Icon: History },
+  { href: "/alerts", label: "Alerts", Icon: Bell },
+  { href: "/analyze", label: "PineScript review", Icon: FlaskConical },
+  { href: "/settings", label: "Settings", Icon: Settings },
+];
 
 export default function Home() {
   return (
@@ -8,12 +20,14 @@ export default function Home() {
         TradingView-style charting and alerts for a specific PineScript, with notifications via Home Assistant.
       </p>
       <ul className="space-y-2 text-sm">
-        <li><Link className="text-blue-600 underline" href="/chart">Live chart</Link></li>
-        <li><Link className="text-blue-600 underline" href="/portfolio">Portfolio</Link></li>
-        <li><Link className="text-blue-600 underline" href="/backtest">Backtest</Link></li>
-        <li><Link className="text-blue-600 underline" href="/alerts">Alerts</Link></li>
-        <li><Link className="text-blue-600 underline" href="/analyze">PineScript review</Link></li>
-        <li><Link className="text-blue-600 underline" href="/settings">Settings</Link></li>
+        {LINKS.map(({ href, label, Icon }) => (
+          <li key={href}>
+            <Link className="inline-flex items-center gap-2 text-blue-600 underline" href={href}>
+              <Icon size={16} aria-hidden className="text-neutral-400" />
+              {label}
+            </Link>
+          </li>
+        ))}
       </ul>
     </main>
   );

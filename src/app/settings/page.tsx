@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  BellOff, BellRing, KeyRound, LogOut, Save, Send, Settings as SettingsIcon,
+} from "lucide-react";
 
 export default function SettingsPage() {
   const [haUrl, setHaUrl] = useState("");
@@ -113,7 +116,7 @@ export default function SettingsPage() {
 
   return (
     <main className="min-h-screen p-8 max-w-xl mx-auto">
-      <h1 className="text-2xl font-semibold mb-6">Settings</h1>
+      <h1 className="text-2xl font-semibold mb-6 flex items-center gap-2"><SettingsIcon size={20} aria-hidden className="text-neutral-400" />Settings</h1>
       <section className="space-y-4">
         <h2 className="text-sm font-semibold">Home Assistant</h2>
         <label className="block text-sm">
@@ -132,8 +135,8 @@ export default function SettingsPage() {
           </span>
         </label>
         <div className="flex gap-2">
-          <button onClick={save} className="bg-blue-600 text-white rounded px-3 py-1 text-sm">Save</button>
-          <button onClick={test} className="bg-neutral-700 text-white rounded px-3 py-1 text-sm">Send test</button>
+          <button onClick={save} className="bg-blue-600 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1"><Save size={14} aria-hidden />Save</button>
+          <button onClick={test} className="bg-neutral-700 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1"><Send size={14} aria-hidden />Send test</button>
         </div>
         {msg && <p className="text-sm text-neutral-400">{msg}</p>}
       </section>
@@ -148,8 +151,9 @@ export default function SettingsPage() {
           <button
             disabled={pushState === "busy"}
             onClick={pushState === "on" ? disablePush : enablePush}
-            className="bg-blue-600 disabled:opacity-50 text-white rounded px-3 py-1 text-sm"
+            className="bg-blue-600 disabled:opacity-50 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1"
           >
+            {pushState === "on" ? <BellOff size={14} aria-hidden /> : <BellRing size={14} aria-hidden />}
             {pushState === "on" ? "Disable notifications" : "Enable notifications"}
           </button>
         )}
@@ -168,8 +172,8 @@ export default function SettingsPage() {
                  value={newPw} onChange={(e) => setNewPw(e.target.value)} />
         </label>
         <div className="flex gap-2">
-          <button onClick={changePassword} className="bg-blue-600 text-white rounded px-3 py-1 text-sm">Change password</button>
-          <button onClick={logout} className="bg-neutral-700 text-white rounded px-3 py-1 text-sm">Log out</button>
+          <button onClick={changePassword} className="bg-blue-600 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1"><KeyRound size={14} aria-hidden />Change password</button>
+          <button onClick={logout} className="bg-neutral-700 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1"><LogOut size={14} aria-hidden />Log out</button>
         </div>
         {pwMsg && <p className="text-sm text-neutral-400">{pwMsg}</p>}
       </section>

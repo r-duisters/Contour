@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Bell, CandlestickChart, Menu, Wallet } from "lucide-react";
 
 const TABS = [
-  { href: "/portfolio", label: "Portfolio" },
-  { href: "/chart", label: "Chart" },
-  { href: "/alerts", label: "Alerts" },
-  { href: "/more", label: "More" },
+  { href: "/portfolio", label: "Portfolio", Icon: Wallet },
+  { href: "/chart", label: "Chart", Icon: CandlestickChart },
+  { href: "/alerts", label: "Alerts", Icon: Bell },
+  { href: "/more", label: "More", Icon: Menu },
 ];
 
 export default function TabBar() {
@@ -16,15 +17,16 @@ export default function TabBar() {
   return (
     <nav className="fixed bottom-0 inset-x-0 md:hidden bg-neutral-950/95 border-t border-neutral-800 backdrop-blur pb-[env(safe-area-inset-bottom)]">
       <ul className="grid grid-cols-4">
-        {TABS.map((t) => {
-          const active = pathname === t.href || pathname.startsWith(t.href + "/");
+        {TABS.map(({ href, label, Icon }) => {
+          const active = pathname === href || pathname.startsWith(href + "/");
           return (
-            <li key={t.href}>
+            <li key={href}>
               <Link
-                href={t.href}
-                className={`block text-center text-xs py-3 ${active ? "text-blue-500" : "text-neutral-400"}`}
+                href={href}
+                className={`flex flex-col items-center gap-0.5 text-center text-xs py-2 ${active ? "text-blue-500" : "text-neutral-400"}`}
               >
-                {t.label}
+                <Icon size={20} aria-hidden />
+                {label}
               </Link>
             </li>
           );

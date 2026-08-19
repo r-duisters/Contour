@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import SymbolPicker from "@/components/SymbolPicker";
+import { Plus, Trash2, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import {
   AreaSeries, createChart, type IChartApi, type ISeriesApi, type Time,
 } from "lightweight-charts";
@@ -112,7 +113,7 @@ export default function PortfolioPage() {
 
   return (
     <main className="min-h-screen p-8 max-w-6xl mx-auto">
-      <h1 className="text-2xl font-semibold mb-6">Portfolio</h1>
+      <h1 className="text-2xl font-semibold mb-6 flex items-center gap-2"><Wallet size={20} aria-hidden className="text-neutral-400" />Portfolio</h1>
 
       <div className="flex gap-2 mb-8 items-center flex-wrap">
         <select
@@ -126,7 +127,7 @@ export default function PortfolioPage() {
           ))}
         </select>
         {selectedId && (
-          <button onClick={deletePortfolio} className="text-xs underline text-red-500">delete</button>
+          <button onClick={deletePortfolio} className="text-xs underline text-red-500 inline-flex items-center gap-1"><Trash2 size={12} aria-hidden />delete</button>
         )}
         <span className="flex-1" />
         <input
@@ -136,8 +137,8 @@ export default function PortfolioPage() {
           onChange={(e) => setNewName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && createPortfolio()}
         />
-        <button onClick={createPortfolio} className="bg-blue-600 text-white rounded px-3 py-1 text-sm">
-          Create
+        <button onClick={createPortfolio} className="bg-blue-600 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1">
+          <Plus size={14} aria-hidden />Create
         </button>
       </div>
 
@@ -226,8 +227,8 @@ export default function PortfolioPage() {
                 {tx.fee > 0 && <span className="text-neutral-500 text-xs">fee {fmtUsd(tx.fee)}</span>}
                 <span className="text-neutral-500 text-xs">{new Date(tx.time).toLocaleString()}</span>
                 <span className="flex-1" />
-                <button onClick={() => deleteTransaction(tx.id)} className="text-xs underline text-red-500">
-                  delete
+                <button onClick={() => deleteTransaction(tx.id)} className="text-xs underline text-red-500 inline-flex items-center gap-1">
+                  <Trash2 size={12} aria-hidden />delete
                 </button>
               </li>
             ))}
@@ -253,7 +254,11 @@ function Stat({ label, value, signed }: { label: string; value: string; signed?:
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded p-3">
       <div className="text-xs text-neutral-500 mb-1">{label}</div>
-      <div className={`text-base font-medium ${color}`}>{value}</div>
+      <div className={`text-base font-medium ${color} flex items-center gap-1.5`}>
+        {signed !== undefined && signed > 0 && <TrendingUp size={16} aria-hidden />}
+        {signed !== undefined && signed < 0 && <TrendingDown size={16} aria-hidden />}
+        {value}
+      </div>
     </div>
   );
 }
@@ -384,7 +389,7 @@ function TxForm({
         <input className={`${input} w-24`} value={fee} onChange={(e) => setFee(e.target.value)}
                placeholder="Fee" inputMode="decimal" />
         <input className={input} type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />
-        <button onClick={submit} className="bg-blue-600 text-white rounded px-3 py-1 text-sm">Add</button>
+        <button onClick={submit} className="bg-blue-600 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1"><Plus size={14} aria-hidden />Add</button>
       </div>
       {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
     </div>
