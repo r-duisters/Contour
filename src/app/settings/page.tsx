@@ -9,6 +9,7 @@ export default function SettingsPage() {
   const [curPw, setCurPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [pwMsg, setPwMsg] = useState<string | null>(null);
+  const [pushState, setPushState] = useState<"unsupported" | "off" | "on" | "busy">("busy");
 
   useEffect(() => {
     fetch("/api/settings").then((r) => r.json()).then((d) => {
@@ -18,6 +19,60 @@ export default function SettingsPage() {
       }
     });
   }, []);
+
+  useEffect(() => {
+    (async () => {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) { setPushState("unsupported"); return; }
+      const reg = await navigator.serviceWorker.ready;
+      setPushState((await reg.pushManager.getSubscription()) ? "on" : "off");
+    })();
+  }, []);
+
+  function urlBase64ToUint8Array(base64: string): Uint8Array {
+    const padding = "=".repeat((4 - (base64.length % 4)) % 4);
+    const b64 = (base64 + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const raw = window.atob(b64);
+    return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+  }
+
+  async function enablePush() {
+    setPushState("busy"); setMsg(null);
+    try {
+      const { publicKey } = await fetch("/api/push/vapid").then((r) => r.json());
+      if (!publicKey) throw new Error("VAPID keys not configured on the server");
+      if ((await Notification.requestPermission()) !== "granted") throw new Error("permission denied");
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
+      });
+      const json = sub.toJSON();
+      await fetch("/api/push/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint: sub.endpoint, keys: { p256dh: json.keys!.p256dh, auth: json.keys!.auth } }),
+      });
+      setPushState("on");
+    } catch (e) {
+      setMsg(`Push: ${(e as Error).message}`);
+      setPushState("off");
+    }
+  }
+
+  async function disablePush() {
+    setPushState("busy");
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) {
+      await fetch("/api/push/subscribe", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint: sub.endpoint }),
+      });
+      await sub.unsubscribe();
+    }
+    setPushState("off");
+  }
 
   async function save() {
     setMsg(null);
@@ -76,6 +131,24 @@ export default function SettingsPage() {
           <button onClick={test} className="bg-neutral-700 text-white rounded px-3 py-1 text-sm">Send test</button>
         </div>
         {msg && <p className="text-sm text-neutral-400">{msg}</p>}
+      </section>
+      <section className="space-y-4 mt-10">
+        <h2 className="text-sm font-semibold">Notifications on this device</h2>
+        {pushState === "unsupported" && (
+          <p className="text-sm text-neutral-500">
+            Web Push not supported here. On iPhone, install the app to the Home Screen first (Share → Add to Home Screen).
+          </p>
+        )}
+        {pushState !== "unsupported" && (
+          <button
+            disabled={pushState === "busy"}
+            onClick={pushState === "on" ? disablePush : enablePush}
+            className="bg-blue-600 disabled:opacity-50 text-white rounded px-3 py-1 text-sm"
+          >
+            {pushState === "on" ? "Disable notifications" : "Enable notifications"}
+          </button>
+        )}
+        <p className="text-xs text-neutral-500">“Send test” above exercises both Home Assistant and Web Push.</p>
       </section>
       <section className="space-y-4 mt-10">
         <h2 className="text-sm font-semibold">Account</h2>
