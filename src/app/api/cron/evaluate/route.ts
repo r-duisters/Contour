@@ -9,6 +9,7 @@ import {
 } from "@/lib/alerts";
 import { computeHoldings, type Tx, type TxSide } from "@/lib/portfolio";
 import { HomeAssistantNotifier } from "@/lib/notifier/home-assistant";
+import { makeWebPushNotifier } from "@/lib/notifier/web-push";
 import type { Notifier } from "@/lib/notifier";
 import type { Timeframe } from "@/lib/types";
 
@@ -26,15 +27,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const settings = await prisma.settings.findUnique({ where: { id: 1 } });
-  const notifier = makeNotifier(settings);
+  const notifiers = makeNotifiers(settings);
   const alerts = await prisma.alert.findMany({ where: { enabled: true } });
   const summary: Summary[] = [];
 
   for (const a of alerts) {
     try {
-      if (a.kind === "price_target") summary.push(await evalPriceTarget(a, notifier));
-      else if (a.kind === "pct_move") summary.push(await evalPctMove(a, notifier));
-      else summary.push(await evalIndicator(a, notifier));
+      if (a.kind === "price_target") summary.push(await evalPriceTarget(a, notifiers));
+      else if (a.kind === "pct_move") summary.push(await evalPctMove(a, notifiers));
+      else summary.push(await evalIndicator(a, notifiers));
     } catch (e) {
       summary.push({ alertId: a.id, fired: 0, skipped: 0, error: (e as Error).message });
     }
@@ -49,7 +50,7 @@ export async function GET(req: NextRequest) {
  */
 async function dispatch(
   a: Alert,
-  notifier: Notifier | null,
+  notifiers: Notifier[],
   ev: { barTime: number; signal: string; symbol: string; price: number; meta?: Record<string, unknown> },
 ): Promise<boolean> {
   try {
@@ -66,16 +67,24 @@ async function dispatch(
     if ((e as { code?: string }).code === "P2002") return false;
     throw e;
   }
-  if (notifier) {
-    await notifier.send({
-      alertId: a.id,
-      symbol: ev.symbol,
-      timeframe: a.timeframe,
-      signal: ev.signal,
-      price: ev.price,
-      time: ev.barTime,
-      meta: ev.meta,
-    });
+  let deliveredToAny = false;
+  for (const n of notifiers) {
+    try {
+      await n.send({
+        alertId: a.id,
+        symbol: ev.symbol,
+        timeframe: a.timeframe,
+        signal: ev.signal,
+        price: ev.price,
+        time: ev.barTime,
+        meta: ev.meta,
+      });
+      deliveredToAny = true;
+    } catch {
+      // one notifier failing must not block the others; delivered stays false if all fail
+    }
+  }
+  if (deliveredToAny) {
     await prisma.alertEvent.updateMany({
       where: { alertId: a.id, barTime: BigInt(ev.barTime), signal: ev.signal },
       data: { delivered: true },
@@ -84,7 +93,7 @@ async function dispatch(
   return true;
 }
 
-async function evalIndicator(a: Alert, notifier: Notifier | null): Promise<Summary> {
+async function evalIndicator(a: Alert, notifiers: Notifier[]): Promise<Summary> {
   if (!a.symbol) return { alertId: a.id, fired: 0, skipped: 0, error: "indicator alert has no symbol" };
   const bars = await fetchKlines({
     symbol: a.symbol, interval: a.timeframe as Timeframe, limit: 500,
@@ -96,7 +105,7 @@ async function evalIndicator(a: Alert, notifier: Notifier | null): Promise<Summa
   let fired = 0, skipped = 0;
   for (const s of signals) {
     if (a.lastBarTime && BigInt(s.barTime) <= a.lastBarTime) { skipped++; continue; }
-    const ok = await dispatch(a, notifier, {
+    const ok = await dispatch(a, notifiers, {
       barTime: s.barTime, signal: s.kind, symbol: a.symbol, price: s.price,
     });
     if (ok) fired++; else skipped++;
@@ -113,7 +122,7 @@ async function evalIndicator(a: Alert, notifier: Notifier | null): Promise<Summa
 }
 
 /** One-shot: checks the live ticker price and disables the alert after it fires. */
-async function evalPriceTarget(a: Alert, notifier: Notifier | null): Promise<Summary> {
+async function evalPriceTarget(a: Alert, notifiers: Notifier[]): Promise<Summary> {
   if (!a.symbol) return { alertId: a.id, fired: 0, skipped: 0, error: "price_target alert has no symbol" };
   const params = PriceTargetParams.parse(JSON.parse(a.params));
   const price = (await fetchPricesSafe([a.symbol]))[a.symbol];
@@ -123,7 +132,7 @@ async function evalPriceTarget(a: Alert, notifier: Notifier | null): Promise<Sum
 
   let fired = 0, skipped = 0;
   if (evaluatePriceTarget(params, price)) {
-    const ok = await dispatch(a, notifier, {
+    const ok = await dispatch(a, notifiers, {
       barTime: utcDayOpen(Date.now()),
       signal: `target_${params.direction}:${a.symbol}`,
       symbol: a.symbol,
@@ -144,7 +153,7 @@ async function evalPriceTarget(a: Alert, notifier: Notifier | null): Promise<Sum
  * Live price vs. previous daily close, for one symbol or every held symbol of a portfolio.
  * Fires at most once per direction per symbol per UTC day (event dedupe).
  */
-async function evalPctMove(a: Alert, notifier: Notifier | null): Promise<Summary> {
+async function evalPctMove(a: Alert, notifiers: Notifier[]): Promise<Summary> {
   const params = PctMoveParams.parse(JSON.parse(a.params));
   const symbols = a.symbol ? [a.symbol] : await heldSymbols(a.portfolioId);
   if (symbols.length === 0) {
@@ -161,7 +170,7 @@ async function evalPctMove(a: Alert, notifier: Notifier | null): Promise<Summary
     const prevClose = daily.length >= 2 ? daily[daily.length - 2]!.c : NaN;
     const hit = evaluatePctMove(params, prevClose, price);
     if (!hit) continue;
-    const ok = await dispatch(a, notifier, {
+    const ok = await dispatch(a, notifiers, {
       barTime: utcDayOpen(Date.now()),
       signal: `move_${hit.direction}:${symbol}`,
       symbol,
@@ -189,9 +198,12 @@ async function heldSymbols(portfolioId: string | null): Promise<string[]> {
   return computeHoldings(txs).filter((h) => h.quantity > 0).map((h) => h.symbol);
 }
 
-function makeNotifier(s: { haUrl: string | null; haWebhookId: string | null } | null): Notifier | null {
-  if (!s?.haUrl || !s?.haWebhookId) return null;
-  return new HomeAssistantNotifier(s.haUrl, s.haWebhookId);
+function makeNotifiers(s: { haUrl: string | null; haWebhookId: string | null } | null): Notifier[] {
+  const out: Notifier[] = [];
+  if (s?.haUrl && s?.haWebhookId) out.push(new HomeAssistantNotifier(s.haUrl, s.haWebhookId));
+  const wp = makeWebPushNotifier();
+  if (wp) out.push(wp);
+  return out;
 }
 
 async function authorized(req: NextRequest): Promise<boolean> {
