@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import type { Alert } from "@prisma/client";
+import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { fetchKlines, fetchPricesSafe } from "@/lib/binance";
 import { run } from "@/lib/indicator";
@@ -20,7 +21,10 @@ type Summary = { alertId: string; fired: number; skipped: number; error?: string
  * via the configured notifier. Idempotent: a (alertId, barTime, signal)
  * unique constraint prevents duplicate dispatch across cron ticks.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
+  if (!(await authorized(req))) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
   const settings = await prisma.settings.findUnique({ where: { id: 1 } });
   const notifier = makeNotifier(settings);
   const alerts = await prisma.alert.findMany({ where: { enabled: true } });
@@ -188,4 +192,13 @@ async function heldSymbols(portfolioId: string | null): Promise<string[]> {
 function makeNotifier(s: { haUrl: string | null; haWebhookId: string | null } | null): Notifier | null {
   if (!s?.haUrl || !s?.haWebhookId) return null;
   return new HomeAssistantNotifier(s.haUrl, s.haWebhookId);
+}
+
+async function authorized(req: NextRequest): Promise<boolean> {
+  const cronSecret = process.env.CRON_SECRET;
+  const header = req.headers.get("authorization");
+  if (cronSecret && header === `Bearer ${cronSecret}`) return true;
+  const sessionSecret = process.env.SESSION_SECRET;
+  const token = req.cookies.get(SESSION_COOKIE)?.value;
+  return !!(sessionSecret && token && (await verifySessionToken(token, sessionSecret)));
 }
