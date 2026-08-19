@@ -79,6 +79,19 @@ export async function fetchPrices(symbols: string[]): Promise<Record<string, num
   return Object.fromEntries(raw.map((r) => [r.symbol, Number(r.price)]));
 }
 
+/** All actively trading spot symbols quoted in USDT, sorted alphabetically. */
+export async function fetchUsdtSymbols(): Promise<string[]> {
+  const res = await fetch(`${REST}/api/v3/exchangeInfo`);
+  if (!res.ok) throw new Error(`Binance exchangeInfo ${res.status}: ${await res.text()}`);
+  const raw = (await res.json()) as {
+    symbols: { symbol: string; status: string; quoteAsset: string; isSpotTradingAllowed: boolean }[];
+  };
+  return raw.symbols
+    .filter((s) => s.status === "TRADING" && s.quoteAsset === "USDT" && s.isSpotTradingAllowed)
+    .map((s) => s.symbol)
+    .sort();
+}
+
 /** Like fetchPrices, but tolerant: one bad symbol 400s the whole batch, so fall back to per-symbol lookups. */
 export async function fetchPricesSafe(symbols: string[]): Promise<Record<string, number>> {
   if (symbols.length === 0) return {};

@@ -7,6 +7,7 @@ import {
 } from "lightweight-charts";
 import { run } from "@/lib/indicator";
 import type { Bar } from "@/lib/types";
+import SymbolPicker from "@/components/SymbolPicker";
 
 const BUY_LIMIT = 0.25;
 const SELL_LIMIT = 0.80;
@@ -137,11 +138,7 @@ export default function ChartPage() {
   return (
     <main className="min-h-screen flex flex-col">
       <header className="p-3 md:p-4 flex gap-2 items-center border-b border-neutral-800">
-        <input
-          className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm uppercase w-32"
-          value={symbol}
-          onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-        />
+        <SymbolPicker value={symbol} onChange={setSymbol} />
         <span className="text-xs text-neutral-500">
           1d · {status}
           <span className="hidden sm:inline"> · {bars.length} bars · {signals.length} signals</span>

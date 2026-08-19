@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import SymbolPicker from "@/components/SymbolPicker";
 import {
   AreaSeries, createChart, type IChartApi, type ISeriesApi, type Time,
 } from "lightweight-charts";
@@ -369,8 +370,7 @@ function TxForm({
   return (
     <div className="mb-4">
       <div className="flex gap-2 flex-wrap items-center">
-        <input className={`${input} uppercase w-28`} value={symbol}
-               onChange={(e) => setSymbol(e.target.value.toUpperCase())} placeholder="Symbol" />
+        <SymbolPicker className={`${input} uppercase w-28`} value={symbol} onChange={setSymbol} />
         <select className={input} value={side} onChange={(e) => setSide(e.target.value as Tx["side"])}>
           <option value="buy">buy</option>
           <option value="sell">sell</option>

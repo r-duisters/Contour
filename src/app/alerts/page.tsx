@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import SymbolPicker from "@/components/SymbolPicker";
 
 type Alert = {
   id: string;
@@ -109,8 +110,7 @@ export default function AlertsPage() {
         )}
 
         {(kind !== "pct_move" || scope === "symbol") && (
-          <input className={`${input} uppercase w-28`}
-                 value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} />
+          <SymbolPicker className={`${input} uppercase w-28`} value={symbol} onChange={setSymbol} />
         )}
         {kind === "pct_move" && scope === "portfolio" && (
           <select className={input} value={portfolioId} onChange={(e) => setPortfolioId(e.target.value)}>
