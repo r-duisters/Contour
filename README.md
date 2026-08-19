@@ -34,3 +34,43 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Deployment (public domain + PWA)
+
+1. **Env**: copy `.env.example` to `.env`, fill `SESSION_SECRET`/`CRON_SECRET`
+   (`openssl rand -hex 32`) and VAPID keys (`npx web-push generate-vapid-keys`).
+2. **Build & run**: `npm run build && npm run start` (port 3000). Example systemd unit:
+
+   ```ini
+   [Unit]
+   Description=Trader
+   After=network.target
+
+   [Service]
+   WorkingDirectory=/home/roy/Trader
+   ExecStart=/usr/bin/npm run start
+   Restart=on-failure
+   User=roy
+
+   [Install]
+   WantedBy=multi-user.target
+   ```
+
+3. **Reverse proxy (Caddy)** — automatic Let's Encrypt:
+
+   ```
+   trader.example.com {
+       reverse_proxy localhost:3000
+   }
+   ```
+
+4. **First run**: open the domain → you're redirected to `/setup` → set the app password.
+5. **Cron** (alert evaluation every 5 minutes):
+
+   ```
+   */5 * * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://trader.example.com/api/cron/evaluate
+   ```
+
+6. **Install on iPhone**: open the site in Safari → Share → *Add to Home Screen*.
+   Then Settings → *Enable notifications* (Web Push needs the installed app, iOS 16.4+).
+   Home Assistant keeps working as a second notification path.
