@@ -58,12 +58,41 @@ describe("parseDeltaCsv", () => {
     expect(rows[2]!.price).toBe(0); // income is always zero-cost
   });
 
-  it("warns on buys with no derivable USD price but still imports them", () => {
+  it("emits a pendingQuote for non-USD quotes instead of warning", () => {
     const { rows, warnings } = parseDeltaCsv(csv("2024-01-15,BUY,Binance,10,ETH,0.5,BTC,,,,,"));
     expect(rows).toHaveLength(1);
     expect(rows[0]!.price).toBe(0);
+    expect(rows[0]!.pendingQuote).toEqual({ currency: "BTC", total: 0.5 });
+    expect(warnings).toEqual([]); // the importer resolves or warns, not the parser
+  });
+
+  it("emits a pendingQuote for EUR-priced rows", () => {
+    const { rows } = parseDeltaCsv(csv("2024-01-15,BUY,Bitvavo,2,ETH,4000,EUR,,,,,"));
+    expect(rows[0]!.pendingQuote).toEqual({ currency: "EUR", total: 4000 });
+  });
+
+  it("warns only when a buy/sell has no quote information at all", () => {
+    const { rows, warnings } = parseDeltaCsv(csv("2024-01-15,BUY,Binance,10,ETH,,,,,,,"));
+    expect(rows).toHaveLength(1);
     expect(warnings).toHaveLength(1);
     expect(warnings[0]!.reason).toContain("no USD price");
+  });
+
+  it("maps bare TRANSFER by the sign of the base amount", () => {
+    const { rows, skipped } = parseDeltaCsv(
+      csv(
+        "2024-01-01,TRANSFER,Wallet,1.5,BTC,,,,,,,",
+        "2024-01-02,TRANSFER,Wallet,-0.5,BTC,,,,,,,",
+      ),
+    );
+    expect(skipped).toEqual([]);
+    expect(rows.map((r) => r.side)).toEqual(["transfer_in", "transfer_out"]);
+  });
+
+  it("passes unresolvable fees through as feeRaw", () => {
+    const { rows } = parseDeltaCsv(csv("2024-01-15,BUY,Bitvavo,2,ETH,4000,EUR,4,EUR,,,"));
+    expect(rows[0]!.fee).toBe(0);
+    expect(rows[0]!.feeRaw).toEqual({ currency: "EUR", amount: 4 });
   });
 
   it("converts base-currency fees using the derived price", () => {

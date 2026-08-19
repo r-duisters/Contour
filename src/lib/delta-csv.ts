@@ -7,6 +7,11 @@ export type ParsedTx = {
   price: number;
   fee: number;
   time: number; // ms
+  /** Set when the row is priced in a non-USD currency (EUR, BTC, ...); the
+   *  importer resolves it to USD via the <currency>USDT daily close. */
+  pendingQuote?: { currency: string; total: number };
+  /** Fee that could not be expressed in USD at parse time. */
+  feeRaw?: { currency: string; amount: number };
 };
 
 export type SkippedRow = { line: number; reason: string };
@@ -20,7 +25,8 @@ export type DeltaImport = {
 
 const STABLES = new Set(["USD", "USDT", "USDC", "BUSD", "DAI", "FDUSD", "TUSD"]);
 
-const SIDE_MAP: Record<string, TxSide | "income"> = {
+const SIDE_MAP: Record<string, TxSide | "income" | "transfer"> = {
+  TRANSFER: "transfer", // direction comes from the sign of the base amount
   BUY: "buy",
   SELL: "sell",
   DEPOSIT: "transfer_in",
@@ -137,7 +143,8 @@ export function parseDeltaCsv(text: string): DeltaImport {
     if (!baseCurrency) { skipped.push({ line, reason: "missing base currency" }); continue; }
     if (STABLES.has(baseCurrency)) { skipped.push({ line, reason: `cash row (${baseCurrency})` }); continue; }
 
-    const quantity = Math.abs(num(cell(cols.baseAmount)));
+    const rawAmount = num(cell(cols.baseAmount));
+    const quantity = Math.abs(rawAmount);
     if (!Number.isFinite(quantity) || quantity <= 0) {
       skipped.push({ line, reason: `invalid base amount "${cell(cols.baseAmount)}"` });
       continue;
@@ -146,8 +153,11 @@ export function parseDeltaCsv(text: string): DeltaImport {
     const time = parseDate(cell(cols.date));
     if (!Number.isFinite(time)) { skipped.push({ line, reason: `unparseable date "${cell(cols.date)}"` }); continue; }
 
-    // Prefer quote-side pricing, fall back to costs/proceeds — USD stables only.
+    // Prefer quote-side pricing, fall back to costs/proceeds. USD stables
+    // resolve immediately; other currencies become a pendingQuote for the
+    // importer to convert via historical rates.
     let price = 0;
+    let pendingQuote: { currency: string; total: number } | undefined;
     const quoteCurrency = cell(cols.quoteCurrency).toUpperCase();
     const quoteAmount = Math.abs(num(cell(cols.quoteAmount)));
     const costsCurrency = cell(cols.costsCurrency).toUpperCase();
@@ -156,23 +166,33 @@ export function parseDeltaCsv(text: string): DeltaImport {
       price = quoteAmount / quantity;
     } else if (STABLES.has(costsCurrency) && Number.isFinite(costsAmount) && costsAmount > 0) {
       price = costsAmount / quantity;
+    } else if (quoteCurrency && Number.isFinite(quoteAmount) && quoteAmount > 0) {
+      pendingQuote = { currency: quoteCurrency, total: quoteAmount };
+    } else if (costsCurrency && Number.isFinite(costsAmount) && costsAmount > 0) {
+      pendingQuote = { currency: costsCurrency, total: costsAmount };
     }
 
-    const side: TxSide = mapped === "income" ? "transfer_in" : mapped;
-    if (mapped === "income") price = 0;
-    else if (price === 0 && (side === "buy" || side === "sell")) {
+    let side: TxSide;
+    if (mapped === "income") side = "transfer_in";
+    else if (mapped === "transfer") side = rawAmount < 0 ? "transfer_out" : "transfer_in";
+    else side = mapped;
+
+    if (mapped === "income") { price = 0; pendingQuote = undefined; }
+    else if (price === 0 && !pendingQuote && (side === "buy" || side === "sell")) {
       warnings.push({ line, reason: `no USD price for ${baseCurrency} ${rawType.toLowerCase()} — imported with price 0` });
     }
 
     let fee = 0;
+    let feeRaw: { currency: string; amount: number } | undefined;
     const feeCurrency = cell(cols.feeCurrency).toUpperCase();
     const feeAmount = Math.abs(num(cell(cols.feeAmount)));
     if (Number.isFinite(feeAmount) && feeAmount > 0) {
       if (STABLES.has(feeCurrency)) fee = feeAmount;
       else if (feeCurrency === baseCurrency && price > 0) fee = feeAmount * price;
+      else if (feeCurrency) feeRaw = { currency: feeCurrency, amount: feeAmount };
     }
 
-    rows.push({ symbol: `${baseCurrency}USDT`, side, quantity, price, fee, time });
+    rows.push({ symbol: `${baseCurrency}USDT`, side, quantity, price, fee, time, pendingQuote, feeRaw });
   }
 
   return { rows, skipped, warnings };

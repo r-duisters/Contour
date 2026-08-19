@@ -114,6 +114,15 @@ export default function PortfolioPage() {
     await loadPortfolios();
   }
 
+  async function clearImported() {
+    if (!selectedId) return;
+    if (!window.confirm("Remove ALL transactions added by Delta imports from this portfolio?")) return;
+    const d = await fetch(`/api/portfolios/${selectedId}/import`, { method: "DELETE" }).then((r) => r.json());
+    setImportMsg(`Removed ${d.deleted} imported transactions.`);
+    await loadSelected();
+    await loadPortfolios();
+  }
+
   async function importCsv(file: File) {
     if (!selectedId) return;
     setImportMsg("Importing…");
@@ -127,6 +136,7 @@ export default function PortfolioPage() {
       const d = await res.json();
       if (!res.ok) { setImportMsg(`Import failed: ${JSON.stringify(d.error ?? res.status)}`); return; }
       const parts = [`Imported ${d.imported} transactions`];
+      if (d.duplicates) parts.push(`${d.duplicates} already present (skipped)`);
       if (d.skipped.length) parts.push(`skipped ${d.skipped.length} (${d.skipped.slice(0, 3).map((x: { line: number; reason: string }) => `line ${x.line}: ${x.reason}`).join("; ")}${d.skipped.length > 3 ? "; …" : ""})`);
       if (d.warnings.length) parts.push(`${d.warnings.length} without USD price`);
       setImportMsg(parts.join(" · "));
@@ -173,6 +183,9 @@ export default function PortfolioPage() {
             <button onClick={() => fileRef.current?.click()}
                     className="bg-neutral-700 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1">
               <Upload size={14} aria-hidden />Import Delta CSV
+            </button>
+            <button onClick={clearImported} className="text-xs underline text-red-500 inline-flex items-center gap-1">
+              <Trash2 size={12} aria-hidden />clear imported
             </button>
           </>
         )}
