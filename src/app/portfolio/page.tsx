@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import SymbolPicker from "@/components/SymbolPicker";
-import { Plus, Trash2, TrendingDown, TrendingUp, Wallet } from "lucide-react";
+import { Plus, Trash2, TrendingDown, TrendingUp, Upload, Wallet } from "lucide-react";
+import CoinIcon from "@/components/CoinIcon";
 import {
   AreaSeries, createChart, type IChartApi, type ISeriesApi, type Time,
 } from "lightweight-charts";
@@ -52,6 +53,8 @@ export default function PortfolioPage() {
   const [valuation, setValuation] = useState<Valuation | null>(null);
   const [valuationLoading, setValuationLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const loadPortfolios = useCallback(async () => {
     const d = await fetch("/api/portfolios").then((r) => r.json());
@@ -111,6 +114,29 @@ export default function PortfolioPage() {
     await loadPortfolios();
   }
 
+  async function importCsv(file: File) {
+    if (!selectedId) return;
+    setImportMsg("Importing…");
+    try {
+      const csv = await file.text();
+      const res = await fetch(`/api/portfolios/${selectedId}/import`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ csv }),
+      });
+      const d = await res.json();
+      if (!res.ok) { setImportMsg(`Import failed: ${JSON.stringify(d.error ?? res.status)}`); return; }
+      const parts = [`Imported ${d.imported} transactions`];
+      if (d.skipped.length) parts.push(`skipped ${d.skipped.length} (${d.skipped.slice(0, 3).map((x: { line: number; reason: string }) => `line ${x.line}: ${x.reason}`).join("; ")}${d.skipped.length > 3 ? "; …" : ""})`);
+      if (d.warnings.length) parts.push(`${d.warnings.length} without USD price`);
+      setImportMsg(parts.join(" · "));
+      await loadSelected();
+      await loadPortfolios();
+    } catch (e) {
+      setImportMsg(`Import failed: ${(e as Error).message}`);
+    }
+  }
+
   return (
     <main className="min-h-screen p-8 max-w-6xl mx-auto">
       <h1 className="text-2xl font-semibold mb-6 flex items-center gap-2"><Wallet size={20} aria-hidden className="text-neutral-400" />Portfolio</h1>
@@ -140,7 +166,18 @@ export default function PortfolioPage() {
         <button onClick={createPortfolio} className="bg-blue-600 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1">
           <Plus size={14} aria-hidden />Create
         </button>
+        {selectedId && (
+          <>
+            <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden"
+                   onChange={(e) => { const f = e.target.files?.[0]; if (f) importCsv(f); e.target.value = ""; }} />
+            <button onClick={() => fileRef.current?.click()}
+                    className="bg-neutral-700 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1">
+              <Upload size={14} aria-hidden />Import Delta CSV
+            </button>
+          </>
+        )}
       </div>
+      {importMsg && <p className="text-xs text-neutral-400 -mt-6 mb-6">{importMsg}</p>}
 
       {selectedId && (
         <>
@@ -164,7 +201,7 @@ export default function PortfolioPage() {
                 {valuation.holdings.map((h) => (
                   <li key={h.symbol} className="bg-neutral-900 border border-neutral-800 rounded p-3 text-sm">
                     <div className="flex justify-between items-baseline">
-                      <span className="font-mono font-medium">{h.symbol}</span>
+                      <span className="font-mono font-medium inline-flex items-center gap-2"><CoinIcon symbol={h.symbol} size={18} />{h.symbol}</span>
                       <span>{h.value !== null ? fmtUsd(h.value) : "?"}</span>
                     </div>
                     <div className="flex justify-between text-xs text-neutral-500 mt-1">
@@ -193,7 +230,7 @@ export default function PortfolioPage() {
                   <tbody className="divide-y divide-neutral-800">
                     {valuation.holdings.map((h) => (
                       <tr key={h.symbol}>
-                        <td className="py-2 pr-4 font-mono">{h.symbol}</td>
+                        <td className="py-2 pr-4 font-mono"><span className="inline-flex items-center gap-2"><CoinIcon symbol={h.symbol} size={18} />{h.symbol}</span></td>
                         <td className="py-2 pr-4 text-right">{fmtQty(h.quantity)}</td>
                         <td className="py-2 pr-4 text-right">{h.quantity > 0 ? fmtUsd(h.avgCost) : "—"}</td>
                         <td className="py-2 pr-4 text-right">{h.price !== null ? fmtUsd(h.price) : "?"}</td>
@@ -222,7 +259,7 @@ export default function PortfolioPage() {
                 <span className={`text-xs px-2 py-0.5 rounded w-24 text-center ${
                   tx.side === "buy" || tx.side === "transfer_in" ? "bg-green-900 text-green-300" : "bg-red-900 text-red-300"
                 }`}>{tx.side.replace("_", " ")}</span>
-                <span className="font-mono">{tx.symbol}</span>
+                <span className="font-mono inline-flex items-center gap-1.5"><CoinIcon symbol={tx.symbol} size={16} />{tx.symbol}</span>
                 <span>{fmtQty(tx.quantity)} @ {fmtUsd(tx.price)}</span>
                 {tx.fee > 0 && <span className="text-neutral-500 text-xs">fee {fmtUsd(tx.fee)}</span>}
                 <span className="text-neutral-500 text-xs">{new Date(tx.time).toLocaleString()}</span>
@@ -339,6 +376,7 @@ function AllocationDonut({ holdings }: { holdings: ValuedHolding[] }) {
           <li key={h.symbol} className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-sm inline-block"
                   style={{ background: SLICE_COLORS[i % SLICE_COLORS.length] }} />
+            <CoinIcon symbol={h.symbol} size={14} />
             <span className="font-mono">{h.symbol}</span>
             <span className="text-neutral-500">{((h.value! / total) * 100).toFixed(1)}%</span>
           </li>
