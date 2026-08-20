@@ -177,8 +177,8 @@ export default function InsightsPage() {
           </Section>
 
           <Section title="Balance between assets">
-            <div className="grid sm:grid-cols-2 gap-6">
-              <div>
+            <div className="grid sm:grid-cols-[1fr_240px] gap-6 mb-6 items-start">
+              <div className="space-y-4">
                 <ul className="space-y-2">
                   {split.map((c) => (
                     <li key={c.label}>
@@ -196,7 +196,6 @@ export default function InsightsPage() {
                   ))}
                   {split.length === 0 && <li className="text-sm text-neutral-500">No priced holdings.</li>}
                 </ul>
-              </div>
               <dl className="text-sm space-y-2">
                 <Row label="Priced positions" value={conc?.pricedCount ?? "—"} />
                 <Row
@@ -214,6 +213,8 @@ export default function InsightsPage() {
                     : "—"}
                 />
               </dl>
+              </div>
+              {holdings && <AllocationDonut holdings={holdings} />}
             </div>
           </Section>
 
@@ -354,6 +355,58 @@ function ContribList({
           </li>
         ))}
         {rows.length === 0 && <li className="text-sm text-neutral-500">Nothing here yet.</li>}
+      </ul>
+    </div>
+  );
+}
+
+const SLICE_COLORS = ["#3b82f6", "#22c55e", "#eab308", "#a855f7", "#ef4444", "#14b8a6", "#f97316", "#64748b"];
+
+/** Per-asset allocation. Lives here rather than on the daily dashboard.
+ */
+function AllocationDonut({ holdings }: { holdings: Holding[] }) {
+  const slices = holdings
+    .filter((h) => (h.value ?? 0) > 0)
+    .sort((a, b) => b.value! - a.value!);
+  const total = slices.reduce((a, h) => a + h.value!, 0);
+  if (total <= 0) return null;
+
+  const R = 70;
+  const C = 2 * Math.PI * R;
+  let offset = 0;
+
+  return (
+    <div>
+      <svg viewBox="0 0 200 200" className="w-full max-w-[260px]">
+        {slices.map((h, i) => {
+          const frac = h.value! / total;
+          const dash = frac * C;
+          const el = (
+            <circle
+              key={h.symbol}
+              cx="100" cy="100" r={R}
+              fill="none"
+              stroke={SLICE_COLORS[i % SLICE_COLORS.length]}
+              strokeWidth="28"
+              strokeDasharray={`${dash} ${C - dash}`}
+              strokeDashoffset={-offset}
+              transform="rotate(-90 100 100)"
+            />
+          );
+          offset += dash;
+          return el;
+        })}
+      </svg>
+      <ul className="mt-3 space-y-1 text-xs hidden md:block">
+        {slices.map((h, i) => (
+          <li key={h.symbol} className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-sm inline-block"
+                  style={{ background: SLICE_COLORS[i % SLICE_COLORS.length] }} />
+            <CoinIcon symbol={h.symbol} size={14} />
+            <span className="font-mono">{h.symbol}</span>
+            <span className="text-neutral-500">{((h.value! / total) * 100).toFixed(1)}%</span>
+          </li>
+        ))}
       </ul>
     </div>
   );

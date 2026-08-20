@@ -63,8 +63,6 @@ type Valuation = {
   rate?: number;
 };
 
-const SLICE_COLORS = ["#3b82f6", "#22c55e", "#eab308", "#a855f7", "#ef4444", "#14b8a6", "#f97316", "#64748b"];
-
 // The server already returns figures in the display currency.
 let displayCurrency: "USD" | "EUR" = "USD";
 const fmtUsd = (n: number) =>
@@ -83,6 +81,7 @@ export default function PortfolioPage() {
   const [series, setSeries] = useState<{ t: number; value: number }[] | null>(null);
   const [range, setRange] = useState<RangeKey>("all");
   const [rangeChange, setRangeChange] = useState<{ abs: number; pct: number | null } | null>(null);
+  const [assetChanges, setAssetChanges] = useState<Record<string, number>>({});
   const [mwr, setMwr] = useState<{ annualPct: number | null; investedNet: number; closing: number } | null>(null);
   const [window_, setWindow] = useState<{ from: number; barMs: number } | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -218,6 +217,21 @@ export default function PortfolioPage() {
     }
   }
 
+  // Per-asset price change over the selected period, so the rows speak about
+  // the same window as the chart above them.
+  useEffect(() => {
+    if (!selectedId) return;
+    let cancelled = false;
+    setAssetChanges({});
+    fetch(`/api/portfolios/${selectedId}/changes?range=${range}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { changes?: Record<string, number> } | null) => {
+        if (!cancelled) setAssetChanges(d?.changes ?? {});
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [selectedId, range]);
+
   const holdings = valuation?.holdings ?? [];
   const totalValue = valuation?.totals.value ?? 0;
   const sortedHoldings = [...holdings].sort((a, b) => {
@@ -232,6 +246,11 @@ export default function PortfolioPage() {
       default: return (b.value ?? -Infinity) - (a.value ?? -Infinity);
     }
   });
+
+  const rangeLabel = {
+    "1d": "today", "1w": "this week", "1m": "1M", ytd: "YTD",
+    "1y": "1Y", "2y": "2Y", "5y": "5Y", all: "all time",
+  }[range];
 
   const crypto = sortedHoldings.filter((h) => (h.assetType ?? "crypto") === "crypto");
   const equities = sortedHoldings.filter((h) => h.assetType === "equity");
@@ -400,9 +419,8 @@ export default function PortfolioPage() {
                   {" "}on {fmtUsd(mwr.investedNet)} net invested, now worth {fmtUsd(mwr.closing)}
                 </p>
               )}
-              <div className="grid md:grid-cols-[1fr_260px] gap-4 md:gap-8 mb-6 md:mb-8 items-start">
+              <div className="mb-6 md:mb-8">
                 <ValueChart series={series} />
-                <AllocationDonut holdings={valuation.holdings} />
               </div>
 
               <div className="flex items-center gap-2 mb-3 flex-wrap">
@@ -453,6 +471,7 @@ export default function PortfolioPage() {
               <ul className="space-y-1 mb-6">
                 {visibleHoldings.map((h) => {
                   const share = totalValue > 0 && h.value !== null ? (h.value / totalValue) * 100 : null;
+                  const periodChange = assetChanges[h.symbol];
                   const pct = h.costBasis > 0 && h.unrealizedPnl !== null
                     ? (h.unrealizedPnl / h.costBasis) * 100 : null;
                   return (
@@ -473,17 +492,17 @@ export default function PortfolioPage() {
                         <span className="text-right">
                           <span className="block">{h.value !== null ? fmtUsd(h.value) : "—"}</span>
                           <span className="text-xs flex items-center justify-end gap-2">
-                            {h.dayChange && (
-                              <span className={h.dayChange.pct >= 0 ? "text-green-500" : "text-red-500"}>
-                                {h.dayChange.pct >= 0 ? "+" : ""}{h.dayChange.pct.toFixed(1)}% today
+                            {periodChange !== undefined ? (
+                              <span className={periodChange >= 0 ? "text-green-500" : "text-red-500"}>
+                                {periodChange >= 0 ? "+" : ""}{periodChange.toFixed(1)}% {rangeLabel}
                               </span>
-                            )}
-                            {pct !== null ? (
-                              <span className="text-neutral-500">
-                                {pct >= 0 ? "+" : ""}{pct.toFixed(1)}% all
-                              </span>
-                            ) : (
+                            ) : h.price === null ? (
                               <span className="text-neutral-500">no price</span>
+                            ) : null}
+                            {pct !== null && (
+                              <span className="text-neutral-500">
+                                {pct >= 0 ? "+" : ""}{pct.toFixed(1)}% held
+                              </span>
                             )}
                           </span>
                         </span>
@@ -602,54 +621,6 @@ function ValueChart({ series }: { series: { t: number; value: number }[] | null 
           building value history…
         </span>
       )}
-    </div>
-  );
-}
-
-function AllocationDonut({ holdings }: { holdings: ValuedHolding[] }) {
-  const slices = holdings
-    .filter((h) => (h.value ?? 0) > 0)
-    .sort((a, b) => b.value! - a.value!);
-  const total = slices.reduce((a, h) => a + h.value!, 0);
-  if (total <= 0) return null;
-
-  const R = 70;
-  const C = 2 * Math.PI * R;
-  let offset = 0;
-
-  return (
-    <div>
-      <svg viewBox="0 0 200 200" className="w-full max-w-[260px]">
-        {slices.map((h, i) => {
-          const frac = h.value! / total;
-          const dash = frac * C;
-          const el = (
-            <circle
-              key={h.symbol}
-              cx="100" cy="100" r={R}
-              fill="none"
-              stroke={SLICE_COLORS[i % SLICE_COLORS.length]}
-              strokeWidth="28"
-              strokeDasharray={`${dash} ${C - dash}`}
-              strokeDashoffset={-offset}
-              transform="rotate(-90 100 100)"
-            />
-          );
-          offset += dash;
-          return el;
-        })}
-      </svg>
-      <ul className="mt-3 space-y-1 text-xs hidden md:block">
-        {slices.map((h, i) => (
-          <li key={h.symbol} className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-sm inline-block"
-                  style={{ background: SLICE_COLORS[i % SLICE_COLORS.length] }} />
-            <CoinIcon symbol={h.symbol} size={14} />
-            <span className="font-mono">{h.symbol}</span>
-            <span className="text-neutral-500">{((h.value! / total) * 100).toFixed(1)}%</span>
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }
