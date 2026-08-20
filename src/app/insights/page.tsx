@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { BarChart3, TrendingDown, TrendingUp } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
 import { classSplit, concentration, contributions, type TradeStats } from "@/lib/insights";
@@ -339,12 +340,17 @@ function ContribList({
       </h3>
       <ul className="space-y-1">
         {rows.map((r) => (
-          <li key={r.symbol} className="flex items-center gap-2 text-sm">
-            <CoinIcon symbol={r.symbol} size={16} />
-            <span className="font-mono truncate">{r.symbol}</span>
+          <li key={r.symbol}>
+            <Link
+              href={`/portfolio/${encodeURIComponent(r.symbol)}`}
+              className="flex items-center gap-2 text-sm"
+            >
+              <CoinIcon symbol={r.symbol} size={16} />
+              <span className="font-mono truncate">{r.symbol}</span>
             <span className="flex-1" />
-            <span className={r.total >= 0 ? "text-green-500" : "text-red-500"}>{money(r.total)}</span>
-            {r.pct !== null && <span className="text-xs text-neutral-500 w-16 text-right">{pct(r.pct)}</span>}
+              <span className={r.total >= 0 ? "text-green-500" : "text-red-500"}>{money(r.total)}</span>
+              {r.pct !== null && <span className="text-xs text-neutral-500 w-16 text-right">{pct(r.pct)}</span>}
+            </Link>
           </li>
         ))}
         {rows.length === 0 && <li className="text-sm text-neutral-500">Nothing here yet.</li>}

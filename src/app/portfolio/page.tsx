@@ -2,14 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import SymbolPicker from "@/components/SymbolPicker";
+import Link from "next/link";
 import {
-  Activity, ArrowUpDown, BarChart3, ChevronDown, Plus, SlidersHorizontal, Trash2, TrendingDown, TrendingUp,
+  Activity, ArrowUpDown, BarChart3, ChevronRight, Plus, SlidersHorizontal, Trash2, TrendingDown, TrendingUp,
   Upload, Wallet,
 } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
 import {
-  AreaSeries, createChart, createSeriesMarkers, LineSeries,
-  type IChartApi, type ISeriesApi, type ISeriesMarkersPluginApi, type Time,
+  AreaSeries, createChart, type IChartApi, type ISeriesApi, type Time,
 } from "lightweight-charts";
 
 type PortfolioRow = { id: string; name: string; transactionCount: number };
@@ -50,15 +50,6 @@ const RANGES = [
 ] as const;
 type RangeKey = (typeof RANGES)[number]["key"];
 
-const BENCHMARKS = [
-  { key: "", label: "no benchmark" },
-  { key: "sp500", label: "S&P 500" },
-  { key: "aex", label: "AEX" },
-  { key: "nasdaq", label: "Nasdaq 100" },
-  { key: "world", label: "MSCI World" },
-  { key: "btc", label: "Bitcoin" },
-  { key: "eth", label: "Ethereum" },
-] as const;
 
 type IndexPoint = { t: number; index: number };
 
@@ -92,19 +83,11 @@ export default function PortfolioPage() {
   const [series, setSeries] = useState<{ t: number; value: number }[] | null>(null);
   const [range, setRange] = useState<RangeKey>("all");
   const [rangeChange, setRangeChange] = useState<{ abs: number; pct: number | null } | null>(null);
-  const [twr, setTwr] = useState<{ points: IndexPoint[]; totalPct: number | null } | null>(null);
-  const [benchKey, setBenchKey] = useState("");
-  const [bench, setBench] = useState<{
-    label: string;
-    points: IndexPoint[];
-    sameFlows?: { finalValue: number; annualPct: number | null } | null;
-  } | null>(null);
   const [mwr, setMwr] = useState<{ annualPct: number | null; investedNet: number; closing: number } | null>(null);
   const [window_, setWindow] = useState<{ from: number; barMs: number } | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("value");
-  const [selected, setSelected] = useState<string | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -150,18 +133,16 @@ export default function PortfolioPage() {
       .then((d: {
         series?: { t: number; value: number }[];
         change?: { abs: number; pct: number | null } | null;
-        twr?: { points: IndexPoint[]; totalPct: number | null };
         mwr?: { annualPct: number | null; investedNet: number; closing: number };
         windowFrom?: number; barMs?: number;
       } | null) => {
         if (cancelled) return;
         setSeries(d?.series ?? []);
         setRangeChange(d?.change ?? null);
-        setTwr(d?.twr ?? null);
         setMwr(d?.mwr ?? null);
         setWindow(d?.windowFrom && d?.barMs ? { from: d.windowFrom, barMs: d.barMs } : null);
       })
-      .catch(() => { if (!cancelled) { setSeries([]); setRangeChange(null); setTwr(null); } });
+      .catch(() => { if (!cancelled) { setSeries([]); setRangeChange(null); } });
     return () => { cancelled = true; };
   }, [selectedId, range]);
   useEffect(() => { loadSelected(); }, [loadSelected]);
@@ -237,25 +218,6 @@ export default function PortfolioPage() {
     }
   }
 
-  useEffect(() => {
-    if (!benchKey || !window_) { setBench(null); return; }
-    let cancelled = false;
-    fetch(`/api/benchmark?key=${benchKey}&from=${window_.from}&barMs=${window_.barMs}&portfolioId=${selectedId}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: {
-        label?: string; points?: IndexPoint[];
-        sameFlows?: { finalValue: number; annualPct: number | null } | null;
-      } | null) => {
-        if (!cancelled) {
-          setBench(d?.points?.length
-            ? { label: d.label ?? benchKey, points: d.points, sameFlows: d.sameFlows }
-            : null);
-        }
-      })
-      .catch(() => { if (!cancelled) setBench(null); });
-    return () => { cancelled = true; };
-  }, [benchKey, window_, selectedId]);
-
   const holdings = valuation?.holdings ?? [];
   const totalValue = valuation?.totals.value ?? 0;
   const sortedHoldings = [...holdings].sort((a, b) => {
@@ -299,7 +261,7 @@ export default function PortfolioPage() {
           <select
             className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm"
             value={selectedId ?? ""}
-            onChange={(e) => { setSelectedId(e.target.value || null); setSelected(null); }}
+            onChange={(e) => { setSelectedId(e.target.value || null); }}
           >
             {portfolios.map((p) => (
               <option key={p.id} value={p.id}>{p.name} ({p.transactionCount})</option>
@@ -410,38 +372,8 @@ export default function PortfolioPage() {
                     </button>
                   ))}
                 </div>
-                <select
-                  className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-xs text-neutral-300"
-                  value={benchKey}
-                  onChange={(e) => setBenchKey(e.target.value)}
-                >
-                  {BENCHMARKS.map((b) => (
-                    <option key={b.key} value={b.key}>{b.label}</option>
-                  ))}
-                </select>
                 <span className="flex-1" />
-                {benchKey && twr?.totalPct !== null && twr && (
-                  <span
-                    className="text-sm inline-flex items-center gap-2"
-                    title="Time-weighted return: deposits and withdrawals removed, so this compares like for like against the index."
-                  >
-                    <span className={twr.totalPct! >= 0 ? "text-green-500" : "text-red-500"}>
-                      you {twr.totalPct! >= 0 ? "+" : ""}{twr.totalPct!.toFixed(2)}%
-                    </span>
-                    {bench && bench.points.length > 0 && (
-                      <span className="text-neutral-400">
-                        vs {bench.label}{" "}
-                        <span className={
-                          bench.points[bench.points.length - 1]!.index >= 100 ? "text-green-500" : "text-red-500"
-                        }>
-                          {bench.points[bench.points.length - 1]!.index >= 100 ? "+" : ""}
-                          {(bench.points[bench.points.length - 1]!.index - 100).toFixed(2)}%
-                        </span>
-                      </span>
-                    )}
-                  </span>
-                )}
-                {!benchKey && rangeChange && (
+                {rangeChange && (
                   <span
                     title="Value movement over the period. Money added or withdrawn in that time counts towards it."
                     className={`text-sm inline-flex items-center gap-1 ${
@@ -466,19 +398,10 @@ export default function PortfolioPage() {
                     {mwr.annualPct >= 0 ? "+" : ""}{mwr.annualPct.toFixed(2)}%/yr
                   </span>
                   {" "}on {fmtUsd(mwr.investedNet)} net invested, now worth {fmtUsd(mwr.closing)}
-                  {bench?.sameFlows && (
-                    <>
-                      {` · the same money into ${bench.label} would be `}
-                      <span className="text-neutral-300">{fmtUsd(bench.sameFlows.finalValue)}</span>
-                      {bench.sameFlows.annualPct !== null && (
-                        <> ({bench.sameFlows.annualPct >= 0 ? "+" : ""}{bench.sameFlows.annualPct.toFixed(2)}%/yr)</>
-                      )}
-                    </>
-                  )}
                 </p>
               )}
               <div className="grid md:grid-cols-[1fr_260px] gap-4 md:gap-8 mb-6 md:mb-8 items-start">
-                <ValueChart series={series} twr={twr?.points ?? null} bench={bench} />
+                <ValueChart series={series} />
                 <AllocationDonut holdings={valuation.holdings} />
               </div>
 
@@ -509,7 +432,7 @@ export default function PortfolioPage() {
                   {tabs.map((t) => (
                     <button
                       key={t.key}
-                      onClick={() => { setAssetTab(t.key); setSelected(null); }}
+                      onClick={() => { setAssetTab(t.key); }}
                       className={`px-3 py-2 text-sm whitespace-nowrap border-b-2 -mb-px ${
                         assetTab === t.key
                           ? "border-blue-500 text-neutral-100"
@@ -532,11 +455,10 @@ export default function PortfolioPage() {
                   const share = totalValue > 0 && h.value !== null ? (h.value / totalValue) * 100 : null;
                   const pct = h.costBasis > 0 && h.unrealizedPnl !== null
                     ? (h.unrealizedPnl / h.costBasis) * 100 : null;
-                  const open = selected === h.symbol;
                   return (
                     <li key={h.symbol} className="bg-neutral-900 border border-neutral-800 rounded">
-                      <button
-                        onClick={() => setSelected(open ? null : h.symbol)}
+                      <Link
+                        href={`/portfolio/${encodeURIComponent(h.symbol)}`}
                         className="w-full text-left p-3 flex items-center gap-3"
                       >
                         <CoinIcon symbol={h.symbol} size={22} />
@@ -565,18 +487,8 @@ export default function PortfolioPage() {
                             )}
                           </span>
                         </span>
-                        <ChevronDown
-                          size={16} aria-hidden
-                          className={`text-neutral-500 transition-transform ${open ? "rotate-180" : ""}`}
-                        />
-                      </button>
-                      {open && (
-                        <HoldingDetail
-                          holding={h}
-                          transactions={transactions.filter((t) => t.symbol === h.symbol)}
-                          onDeleteTx={deleteTransaction}
-                        />
-                      )}
+                        <ChevronRight size={16} aria-hidden className="text-neutral-500" />
+                      </Link>
                     </li>
                   );
                 })}
@@ -651,23 +563,11 @@ function Pnl({ value }: { value: number | null }) {
   return <span className={color}>{fmtUsd(value)}</span>;
 }
 
-/**
- * Portfolio value over time. With a benchmark selected it switches to an
- * indexed view: the portfolio's time-weighted return and the index, both
- * rebased to 100, which is the only way the two are comparable.
- */
-function ValueChart({
-  series, twr, bench,
-}: {
-  series: { t: number; value: number }[] | null;
-  twr: IndexPoint[] | null;
-  bench: { label: string; points: IndexPoint[] } | null;
-}) {
+/** Portfolio value over the selected period. */
+function ValueChart({ series }: { series: { t: number; value: number }[] | null }) {
   const container = useRef<HTMLDivElement>(null);
   const chart = useRef<IChartApi | null>(null);
   const area = useRef<ISeriesApi<"Area"> | null>(null);
-  const meLine = useRef<ISeriesApi<"Line"> | null>(null);
-  const benchLine = useRef<ISeriesApi<"Line"> | null>(null);
 
   useEffect(() => {
     if (!container.current) return;
@@ -685,31 +585,14 @@ function ValueChart({
       bottomColor: "rgba(59, 130, 246, 0.0)",
       lineWidth: 2,
     });
-    meLine.current = c.addSeries(LineSeries, { color: "#3b82f6", lineWidth: 2, visible: false });
-    benchLine.current = c.addSeries(LineSeries, { color: "#eab308", lineWidth: 2, visible: false });
-    return () => {
-      c.remove();
-      chart.current = null; area.current = null; meLine.current = null; benchLine.current = null;
-    };
+    return () => { c.remove(); chart.current = null; area.current = null; };
   }, []);
 
   useEffect(() => {
-    if (!area.current || !meLine.current || !benchLine.current) return;
-    const t = (ms: number) => Math.floor(ms / 1000) as Time;
-    const comparing = bench !== null && twr !== null;
-
-    area.current.applyOptions({ visible: !comparing });
-    meLine.current.applyOptions({ visible: comparing });
-    benchLine.current.applyOptions({ visible: comparing });
-
-    if (comparing) {
-      meLine.current.setData(twr!.map((p) => ({ time: t(p.t), value: p.index })));
-      benchLine.current.setData(bench!.points.map((p) => ({ time: t(p.t), value: p.index })));
-    } else if (series) {
-      area.current.setData(series.map((p) => ({ time: t(p.t), value: p.value })));
-    }
+    if (!area.current || !series) return;
+    area.current.setData(series.map((p) => ({ time: Math.floor(p.t / 1000) as Time, value: p.value })));
     chart.current?.timeScale().fitContent();
-  }, [series, twr, bench]);
+  }, [series]);
 
   return (
     <div className="relative">
@@ -718,17 +601,6 @@ function ValueChart({
         <span className="absolute inset-0 flex items-center justify-center text-xs text-neutral-500">
           building value history…
         </span>
-      )}
-      {bench && twr && (
-        <div className="flex gap-4 mt-2 text-xs">
-          <span className="inline-flex items-center gap-1.5 text-neutral-400">
-            <span className="w-3 h-0.5 bg-blue-500 inline-block" />you
-          </span>
-          <span className="inline-flex items-center gap-1.5 text-neutral-400">
-            <span className="w-3 h-0.5 bg-yellow-500 inline-block" />{bench.label}
-          </span>
-          <span className="text-neutral-600">indexed to 100 at the start of the period</span>
-        </div>
       )}
     </div>
   );
@@ -828,147 +700,4 @@ function TxForm({
       {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
     </div>
   );
-}
-
-function HoldingDetail({
-  holding, transactions, onDeleteTx,
-}: {
-  holding: ValuedHolding;
-  transactions: Tx[];
-  onDeleteTx: (id: string) => void;
-}) {
-  const [bars, setBars] = useState<{ t: number; c: number }[] | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setBars(null);
-    fetch(`/api/history?symbol=${encodeURIComponent(holding.symbol)}&assetType=${holding.assetType ?? "crypto"}`)
-      .then((r) => r.json())
-      .then((d: { bars?: { t: number; c: number }[] }) => { if (!cancelled) setBars(d.bars ?? []); })
-      .catch(() => { if (!cancelled) setBars([]); });
-    return () => { cancelled = true; };
-  }, [holding.symbol, holding.assetType]);
-
-  const pct = holding.costBasis > 0 && holding.unrealizedPnl !== null
-    ? (holding.unrealizedPnl / holding.costBasis) * 100 : null;
-
-  return (
-    <div className="border-t border-neutral-800 p-3 space-y-3 md:space-y-4">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 md:gap-3 text-sm">
-        <Field label="Quantity" value={fmtQty(holding.quantity)} />
-        <Field label="Avg cost" value={holding.quantity > 0 ? fmtUsd(holding.avgCost) : "—"} />
-        <Field label="Last price" value={holding.price !== null ? fmtUsd(holding.price) : "no price"} />
-        <Field
-          label="Today"
-          value={holding.dayChange
-            ? `${holding.dayChange.pct >= 0 ? "+" : ""}${holding.dayChange.pct.toFixed(2)}% (${fmtUsd(holding.dayChange.abs)})`
-            : "—"}
-          signed={holding.dayChange?.abs}
-        />
-        <Field label="Cost basis" value={fmtUsd(holding.costBasis)} />
-        <Field label="Value" value={holding.value !== null ? fmtUsd(holding.value) : "—"} />
-        <Field
-          label="Unrealized"
-          value={holding.unrealizedPnl !== null
-            ? `${fmtUsd(holding.unrealizedPnl)}${pct !== null ? ` (${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%)` : ""}`
-            : "—"}
-          signed={holding.unrealizedPnl ?? undefined}
-        />
-        <Field label="Realized" value={fmtUsd(holding.realizedPnl)} signed={holding.realizedPnl} />
-        <Field label="Fees" value={fmtUsd(holding.fees)} />
-      </div>
-
-      <PriceChart bars={bars} transactions={transactions} />
-
-      <div>
-        <h3 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
-          Transactions ({transactions.length})
-        </h3>
-        <ul className="divide-y divide-neutral-800 max-h-64 overflow-y-auto">
-          {transactions.map((tx) => (
-            <li key={tx.id} className="py-2 flex items-center gap-3 text-sm flex-wrap">
-              <span className={`text-xs px-2 py-0.5 rounded w-24 text-center ${
-                tx.side === "buy" || tx.side === "transfer_in"
-                  ? "bg-green-900 text-green-300" : "bg-red-900 text-red-300"
-              }`}>{tx.side.replace("_", " ")}</span>
-              <span>{fmtQty(tx.quantity)} @ {fmtUsd(tx.price)}</span>
-              {tx.fee > 0 && <span className="text-neutral-500 text-xs">fee {fmtUsd(tx.fee)}</span>}
-              <span className="text-neutral-500 text-xs">{new Date(tx.time).toLocaleDateString()}</span>
-              <span className="flex-1" />
-              <button onClick={() => onDeleteTx(tx.id)}
-                      className="text-xs underline text-red-500 inline-flex items-center gap-1">
-                <Trash2 size={12} aria-hidden />delete
-              </button>
-            </li>
-          ))}
-          {transactions.length === 0 && (
-            <li className="py-2 text-sm text-neutral-500">No transactions for this asset.</li>
-          )}
-        </ul>
-      </div>
-    </div>
-  );
-}
-
-function Field({ label, value, signed }: { label: string; value: string; signed?: number }) {
-  const color =
-    signed === undefined ? "text-neutral-200"
-    : signed > 0 ? "text-green-500"
-    : signed < 0 ? "text-red-500"
-    : "text-neutral-200";
-  return (
-    <div>
-      <div className="text-xs text-neutral-500">{label}</div>
-      <div className={color}>{value}</div>
-    </div>
-  );
-}
-
-/** Price history for one asset, with the portfolio's buys and sells marked. */
-function PriceChart({ bars, transactions }: { bars: { t: number; c: number }[] | null; transactions: Tx[] }) {
-  const container = useRef<HTMLDivElement>(null);
-  const chart = useRef<IChartApi | null>(null);
-  const line = useRef<ISeriesApi<"Line"> | null>(null);
-  const markers = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
-
-  useEffect(() => {
-    if (!container.current) return;
-    const c = createChart(container.current, {
-      layout: { background: { color: "#0a0a0a" }, textColor: "#d4d4d4" },
-      grid: { vertLines: { color: "#171717" }, horzLines: { color: "#171717" } },
-      autoSize: true,
-      timeScale: { timeVisible: false },
-      handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
-    });
-    chart.current = c;
-    line.current = c.addSeries(LineSeries, { color: "#3b82f6", lineWidth: 2 });
-    markers.current = createSeriesMarkers(line.current);
-    return () => { c.remove(); chart.current = null; line.current = null; markers.current = null; };
-  }, []);
-
-  useEffect(() => {
-    if (!line.current || !bars) return;
-    line.current.setData(bars.map((b) => ({ time: Math.floor(b.t / 1000) as Time, value: b.c })));
-    if (bars.length > 0) {
-      const first = bars[0]!.t;
-      markers.current?.setMarkers(
-        transactions
-          .filter((tx) => tx.time >= first && (tx.side === "buy" || tx.side === "sell"))
-          .sort((a, b) => a.time - b.time)
-          .map((tx) => ({
-            time: Math.floor(tx.time / 1000) as Time,
-            position: tx.side === "buy" ? "belowBar" as const : "aboveBar" as const,
-            color: tx.side === "buy" ? "#22c55e" : "#ef4444",
-            shape: tx.side === "buy" ? "arrowUp" as const : "arrowDown" as const,
-            text: tx.side === "buy" ? "B" : "S",
-          })),
-      );
-    }
-    chart.current?.timeScale().fitContent();
-  }, [bars, transactions]);
-
-  if (bars !== null && bars.length === 0) {
-    return <p className="text-xs text-neutral-500">No price history available for this asset.</p>;
-  }
-  return <div ref={container} className="h-48 border border-neutral-800 rounded" />;
 }
