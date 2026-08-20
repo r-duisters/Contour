@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import SymbolPicker from "@/components/SymbolPicker";
-import { ArrowUpDown, ChevronDown, Plus, Trash2, TrendingDown, TrendingUp, Upload, Wallet } from "lucide-react";
+import {
+  ArrowUpDown, ChevronDown, Plus, SlidersHorizontal, Trash2, TrendingDown, TrendingUp, Upload, Wallet,
+} from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
 import {
   AreaSeries, createChart, createSeriesMarkers, LineSeries,
@@ -67,6 +69,9 @@ export default function PortfolioPage() {
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("value");
   const [selected, setSelected] = useState<string | null>(null);
+  const [manageOpen, setManageOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loadPortfolios = useCallback(async () => {
@@ -179,66 +184,93 @@ export default function PortfolioPage() {
     }
   });
 
+  const crypto = sortedHoldings.filter((h) => (h.assetType ?? "crypto") === "crypto");
+  const equities = sortedHoldings.filter((h) => h.assetType === "equity");
+  const holdingGroups = equities.length > 0 && crypto.length > 0
+    ? [{ label: "Crypto", items: crypto }, { label: "Stocks & ETFs", items: equities }]
+    : [{ label: "All", items: sortedHoldings }];
+
   return (
     <main className="min-h-screen p-8 max-w-6xl mx-auto">
       <h1 className="text-2xl font-semibold mb-6 flex items-center gap-2"><Wallet size={20} aria-hidden className="text-neutral-400" />Portfolio</h1>
 
-      <div className="flex gap-2 mb-8 items-center flex-wrap">
-        <select
-          className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm"
-          value={selectedId ?? ""}
-          onChange={(e) => setSelectedId(e.target.value || null)}
-        >
-          {portfolios.length === 0 && <option value="">— no portfolios —</option>}
-          {portfolios.map((p) => (
-            <option key={p.id} value={p.id}>{p.name} ({p.transactionCount})</option>
-          ))}
-        </select>
-        {selectedId && (
-          <button onClick={deletePortfolio} className="text-xs underline text-red-500 inline-flex items-center gap-1"><Trash2 size={12} aria-hidden />delete</button>
+      {/* Data lives above the fold; portfolio administration hides behind Manage. */}
+      <div className="flex gap-2 mb-4 items-center flex-wrap">
+        {portfolios.length > 1 && (
+          <select
+            className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm"
+            value={selectedId ?? ""}
+            onChange={(e) => { setSelectedId(e.target.value || null); setSelected(null); }}
+          >
+            {portfolios.map((p) => (
+              <option key={p.id} value={p.id}>{p.name} ({p.transactionCount})</option>
+            ))}
+          </select>
         )}
         <span className="flex-1" />
-        <input
-          className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm"
-          placeholder="New portfolio name"
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && createPortfolio()}
-        />
-        <button onClick={createPortfolio} className="bg-blue-600 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1">
-          <Plus size={14} aria-hidden />Create
+        <button onClick={() => setManageOpen((v) => !v)}
+                className="text-xs text-neutral-400 inline-flex items-center gap-1 border border-neutral-800 rounded px-2 py-1">
+          <SlidersHorizontal size={12} aria-hidden />Manage
         </button>
-        {selectedId && (
-          <>
-            <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden"
-                   onChange={(e) => { const f = e.target.files?.[0]; if (f) importCsv(f); e.target.value = ""; }} />
-            <button onClick={() => fileRef.current?.click()}
-                    className="bg-neutral-700 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1">
-              <Upload size={14} aria-hidden />Import Delta CSV
-            </button>
-            <button onClick={clearImported} className="text-xs underline text-red-500 inline-flex items-center gap-1">
-              <Trash2 size={12} aria-hidden />clear imported
-            </button>
-          </>
-        )}
       </div>
-      {importMsg && <p className="text-xs text-neutral-400 -mt-6 mb-6">{importMsg}</p>}
+
+      {manageOpen && (
+        <div className="bg-neutral-900 border border-neutral-800 rounded p-3 mb-6 space-y-3">
+          <div className="flex gap-2 items-center flex-wrap">
+            <input
+              className="bg-neutral-950 border border-neutral-700 rounded px-2 py-1 text-sm"
+              placeholder="New portfolio name"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && createPortfolio()}
+            />
+            <button onClick={createPortfolio} className="bg-blue-600 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1">
+              <Plus size={14} aria-hidden />Create portfolio
+            </button>
+          </div>
+          {selectedId && (
+            <div className="flex gap-2 items-center flex-wrap">
+              <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden"
+                     onChange={(e) => { const f = e.target.files?.[0]; if (f) importCsv(f); e.target.value = ""; }} />
+              <button onClick={() => fileRef.current?.click()}
+                      className="bg-neutral-700 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1">
+                <Upload size={14} aria-hidden />Import Delta CSV
+              </button>
+              <button onClick={clearImported} className="text-xs underline text-red-500 inline-flex items-center gap-1">
+                <Trash2 size={12} aria-hidden />Remove CSV-imported transactions…
+              </button>
+              <span className="flex-1" />
+              <button onClick={deletePortfolio} className="text-xs underline text-red-500 inline-flex items-center gap-1">
+                <Trash2 size={12} aria-hidden />Delete portfolio…
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      {importMsg && <p className="text-xs text-neutral-400 mb-6">{importMsg}</p>}
 
       {selectedId && (
         <>
           {valuation && (
             <>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
-                <Stat label="Value" value={fmtUsd(valuation.totals.value)} />
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <Stat label="Value" value={fmtUsd(valuation.totals.value)} big />
+                <Stat label="Unrealized P&L" value={fmtUsd(valuation.totals.unrealizedPnl)}
+                      signed={valuation.totals.unrealizedPnl} big />
+              </div>
+              <div className={`${statsOpen ? "grid" : "hidden"} md:grid grid-cols-2 md:grid-cols-3 gap-3 mb-3`}>
                 <Stat label="Cost basis" value={fmtUsd(valuation.totals.costBasis)} />
-                <Stat label="Unrealized P&L" value={fmtUsd(valuation.totals.unrealizedPnl)} signed={valuation.totals.unrealizedPnl} />
                 <Stat label="Realized P&L" value={fmtUsd(valuation.totals.realizedPnl)} signed={valuation.totals.realizedPnl} />
                 <Stat label="Fees paid" value={fmtUsd(valuation.totals.fees)} />
               </div>
+              <button onClick={() => setStatsOpen((v) => !v)}
+                      className="md:hidden text-xs text-neutral-500 underline mb-6">
+                {statsOpen ? "Hide details" : "Show cost basis, realized P&L, fees"}
+              </button>
               {valuation.holdings.some((h) => h.quantity > 0 && h.price === null) && (
-                <p className="text-xs text-amber-500/80 -mt-6 mb-8">
+                <p className="text-xs text-amber-500/80 mb-8">
                   {valuation.holdings.filter((h) => h.quantity > 0 && h.price === null).length} holding(s) have
-                  no Binance USDT market and are excluded from the total value.
+                  no live price and aren&apos;t counted in Value.
                 </p>
               )}
 
@@ -269,8 +301,13 @@ export default function PortfolioPage() {
                 </label>
               </div>
 
-              <ul className="space-y-1 mb-10">
-                {sortedHoldings.map((h) => {
+              {holdingGroups.map(({ label, items }) => (
+              <div key={label}>
+              {holdingGroups.length > 1 && (
+                <h3 className="text-xs uppercase tracking-wide text-neutral-500 mb-2 mt-4">{label}</h3>
+              )}
+              <ul className="space-y-1 mb-6">
+                {items.map((h) => {
                   const share = totalValue > 0 && h.value !== null ? (h.value / totalValue) * 100 : null;
                   const pct = h.costBasis > 0 && h.unrealizedPnl !== null
                     ? (h.unrealizedPnl / h.costBasis) * 100 : null;
@@ -317,18 +354,27 @@ export default function PortfolioPage() {
                     </li>
                   );
                 })}
-                {sortedHoldings.length === 0 && (
-                  <li className="text-sm text-neutral-500 py-2">No holdings yet — add a transaction below.</li>
-                )}
               </ul>
+              </div>
+              ))}
+              {sortedHoldings.length === 0 && (
+                <p className="text-sm text-neutral-500 py-2 mb-6">No holdings yet — add a transaction below.</p>
+              )}
             </>
           )}
           {valuationLoading && !valuation && (
             <p className="text-sm text-neutral-500 mb-8">Loading valuation…</p>
           )}
 
-          <h2 className="text-lg font-medium mb-3">Transactions</h2>
-          <TxForm onSubmit={addTransaction} error={formError} />
+          <div className="flex items-center gap-2 mb-3">
+            <h2 className="text-lg font-medium">Transactions</h2>
+            <span className="flex-1" />
+            <button onClick={() => setAddOpen((v) => !v)}
+                    className="bg-blue-600 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1">
+              <Plus size={14} aria-hidden />{addOpen ? "Close" : "Add transaction"}
+            </button>
+          </div>
+          {addOpen && <TxForm onSubmit={addTransaction} error={formError} />}
           <ul className="divide-y divide-neutral-800">
             {transactions.map((tx) => (
               <li key={tx.id} className="py-2 flex items-center gap-3 text-sm">
@@ -358,7 +404,7 @@ export default function PortfolioPage() {
   );
 }
 
-function Stat({ label, value, signed }: { label: string; value: string; signed?: number }) {
+function Stat({ label, value, signed, big }: { label: string; value: string; signed?: number; big?: boolean }) {
   const color =
     signed === undefined ? "text-neutral-200"
     : signed > 0 ? "text-green-500"
@@ -367,7 +413,7 @@ function Stat({ label, value, signed }: { label: string; value: string; signed?:
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded p-3">
       <div className="text-xs text-neutral-500 mb-1">{label}</div>
-      <div className={`text-base font-medium ${color} flex items-center gap-1.5`}>
+      <div className={`${big ? "text-xl" : "text-base"} font-medium ${color} flex items-center gap-1.5`}>
         {signed !== undefined && signed > 0 && <TrendingUp size={16} aria-hidden />}
         {signed !== undefined && signed < 0 && <TrendingDown size={16} aria-hidden />}
         {value}
@@ -447,7 +493,7 @@ function AllocationDonut({ holdings }: { holdings: ValuedHolding[] }) {
           return el;
         })}
       </svg>
-      <ul className="mt-3 space-y-1 text-xs">
+      <ul className="mt-3 space-y-1 text-xs hidden md:block">
         {slices.map((h, i) => (
           <li key={h.symbol} className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-sm inline-block"
