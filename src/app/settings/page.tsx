@@ -9,6 +9,7 @@ import { browserSupportsWebAuthn, startRegistration } from "@simplewebauthn/brow
 export default function SettingsPage() {
   const [haUrl, setHaUrl] = useState("");
   const [haWebhookId, setHaWebhookId] = useState("");
+  const [displayCurrency, setDisplayCurrency] = useState<"USD" | "EUR">("USD");
   const [msg, setMsg] = useState<string | null>(null);
   const [curPw, setCurPw] = useState("");
   const [newPw, setNewPw] = useState("");
@@ -56,6 +57,7 @@ export default function SettingsPage() {
       if (d.settings) {
         setHaUrl(d.settings.haUrl ?? "");
         setHaWebhookId(d.settings.haWebhookId ?? "");
+        setDisplayCurrency(d.settings.displayCurrency === "EUR" ? "EUR" : "USD");
       }
     });
   }, []);
@@ -126,7 +128,7 @@ export default function SettingsPage() {
     const r = await fetch("/api/settings", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ haUrl: haUrl || null, haWebhookId: haWebhookId || null }),
+      body: JSON.stringify({ haUrl: haUrl || null, haWebhookId: haWebhookId || null, displayCurrency }),
     });
     setMsg(r.ok ? "Saved." : `Error: ${await r.text()}`);
   }
@@ -156,6 +158,22 @@ export default function SettingsPage() {
   return (
     <main className="min-h-screen p-8 max-w-xl mx-auto">
       <h1 className="text-2xl font-semibold mb-6 flex items-center gap-2"><SettingsIcon size={20} aria-hidden className="text-neutral-400" />Settings</h1>
+      <section className="space-y-4 mb-10">
+        <h2 className="text-sm font-semibold">Display</h2>
+        <label className="block text-sm">
+          <span className="text-neutral-400">Portfolio currency</span>
+          <select className="mt-1 w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1"
+                  value={displayCurrency}
+                  onChange={(e) => setDisplayCurrency(e.target.value as "USD" | "EUR")}>
+            <option value="USD">USD ($)</option>
+            <option value="EUR">EUR (€)</option>
+          </select>
+          <span className="text-xs text-neutral-500">
+            Prices come from Binance in USDT; EUR converts at the live ECB reference rate. Save to apply.
+          </span>
+        </label>
+      </section>
+
       <section className="space-y-4">
         <h2 className="text-sm font-semibold">Home Assistant</h2>
         <label className="block text-sm">

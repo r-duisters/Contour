@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { parseDeltaCsv, type ParsedTx, type SkippedRow } from "@/lib/delta-csv";
 import { fetchKlinesRange } from "@/lib/binance";
+import { fetchEcbRates } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,7 @@ const Body = z.object({ csv: z.string().min(1).max(5_000_000) });
 
 const DAY_MS = 86_400_000;
 const utcDay = (t: number) => Math.floor(t / DAY_MS) * DAY_MS;
+const FIAT = new Set(["EUR", "GBP", "CHF", "JPY", "AUD", "CAD", "SEK", "NOK", "PLN"]);
 
 /**
  * Resolve non-USD quotes (EUR, BTC, ...) to USD using the <currency>USDT
@@ -31,19 +33,36 @@ async function resolvePendingQuotes(rows: ParsedTx[]): Promise<SkippedRow[]> {
     );
     const from = Math.min(...relevant.map((r) => r.time)) - 3 * DAY_MS;
     const to = Math.max(...relevant.map((r) => r.time)) + DAY_MS;
+    const byDay = new Map<number, number>();
     try {
       const bars = await fetchKlinesRange({ symbol: `${c}USDT`, interval: "1d", from, to });
-      rates.set(c, new Map(bars.map((b) => [b.t, b.c])));
+      for (const b of bars) byDay.set(b.t, b.c);
     } catch {
-      rates.set(c, new Map()); // no USDT market for this currency
+      // no Binance market for this currency
     }
+    // Fiat: fill dates Binance cannot cover (EURUSDT only lists from late 2020)
+    // with ECB reference rates.
+    if (FIAT.has(c)) {
+      const earliestNeeded = Math.min(...relevant.map((r) => utcDay(r.time)));
+      const earliestBinance = byDay.size > 0 ? Math.min(...byDay.keys()) : Infinity;
+      if (earliestNeeded < earliestBinance) {
+        try {
+          const ecb = await fetchEcbRates(c, "USD", earliestNeeded - 5 * DAY_MS,
+            Math.min(earliestBinance, to));
+          for (const [day, rate] of ecb) if (!byDay.has(day)) byDay.set(day, rate);
+        } catch {
+          // ECB unavailable; those rows stay unpriced and get warned about
+        }
+      }
+    }
+    rates.set(c, byDay);
   }
 
   const rateFor = (currency: string, time: number): number | null => {
     const byDay = rates.get(currency);
     if (!byDay) return null;
     // fall back up to 3 days for weekend/holiday gaps in fiat pairs
-    for (let d = 0; d <= 3; d++) {
+    for (let d = 0; d <= 5; d++) {
       const close = byDay.get(utcDay(time) - d * DAY_MS);
       if (close !== undefined) return close;
     }

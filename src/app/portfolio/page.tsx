@@ -37,12 +37,19 @@ type Valuation = {
   holdings: ValuedHolding[];
   totals: { value: number; costBasis: number; unrealizedPnl: number; realizedPnl: number; fees: number };
   series: { t: number; value: number }[];
+  currency?: "USD" | "EUR";
+  rate?: number;
 };
 
 const SLICE_COLORS = ["#3b82f6", "#22c55e", "#eab308", "#a855f7", "#ef4444", "#14b8a6", "#f97316", "#64748b"];
 
+// All server figures are USD; `rate` converts to the chosen display currency.
+let displayCurrency: "USD" | "EUR" = "USD";
+let displayRate = 1;
 const fmtUsd = (n: number) =>
-  n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
+  (n * displayRate).toLocaleString(displayCurrency === "EUR" ? "de-DE" : "en-US", {
+    style: "currency", currency: displayCurrency, maximumFractionDigits: 2,
+  });
 const fmtQty = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 8 });
 
 export default function PortfolioPage() {
@@ -71,6 +78,10 @@ export default function PortfolioPage() {
       fetch(`/api/portfolios/${selectedId}/valuation`).then((r) => (r.ok ? r.json() : null)),
     ]);
     setTransactions(detail?.portfolio.transactions ?? []);
+    if (val) {
+      displayCurrency = val.currency ?? "USD";
+      displayRate = val.rate ?? 1;
+    }
     setValuation(val);
     setValuationLoading(false);
   }, [selectedId]);
@@ -350,7 +361,7 @@ function ValueChart({ series }: { series: { t: number; value: number }[] }) {
 
   useEffect(() => {
     if (!area.current) return;
-    area.current.setData(series.map((p) => ({ time: Math.floor(p.t / 1000) as Time, value: p.value })));
+    area.current.setData(series.map((p) => ({ time: Math.floor(p.t / 1000) as Time, value: p.value * displayRate })));
     chart.current?.timeScale().fitContent();
   }, [series]);
 

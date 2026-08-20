@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 const Body = z.object({
   haUrl: z.string().url().nullable().optional(),
   haWebhookId: z.string().nullable().optional(),
+  displayCurrency: z.enum(["USD", "EUR"]).optional(),
 });
 
 const SETTINGS_SELECT = {
@@ -18,6 +19,7 @@ const SETTINGS_SELECT = {
   haWebhookId: true,
   mqttBrokerUrl: true,
   mqttTopicPrefix: true,
+  displayCurrency: true,
 } as const;
 
 export async function GET() {

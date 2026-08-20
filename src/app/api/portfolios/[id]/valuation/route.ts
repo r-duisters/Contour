@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { fetchKlinesRange, fetchPricesSafe } from "@/lib/binance";
+import { fetchLatestEurUsd } from "@/lib/fx";
 import {
   computeHoldings, portfolioValueSeries, valueHoldings, type Tx, type TxSide,
 } from "@/lib/portfolio";
@@ -44,7 +45,21 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     fees: sum(valued.map((h) => h.fees)),
   };
 
-  return NextResponse.json({ holdings: valued, totals, series });
+  // Display currency: values stay in USD internally; the client multiplies
+  // by this rate. EUR uses the live ECB reference rate.
+  const settings = await prisma.settings.findUnique({
+    where: { id: 1 },
+    select: { displayCurrency: true },
+  });
+  const currency = settings?.displayCurrency === "EUR" ? "EUR" : "USD";
+  let rate = 1;
+  if (currency === "EUR") {
+    const eurUsd = await fetchLatestEurUsd();
+    if (eurUsd && eurUsd > 0) rate = 1 / eurUsd;
+    else return NextResponse.json({ holdings: valued, totals, series, currency: "USD", rate: 1 });
+  }
+
+  return NextResponse.json({ holdings: valued, totals, series, currency, rate });
 }
 
 async function fetchDailyCandles(txs: Tx[]): Promise<Record<string, Bar[]>> {
