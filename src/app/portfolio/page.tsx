@@ -43,6 +43,13 @@ type ValuedHolding = {
 
 type DayChange = { abs: number; pct: number };
 
+const RANGES = [
+  { key: "1d", label: "1D" }, { key: "1w", label: "1W" }, { key: "1m", label: "1M" },
+  { key: "ytd", label: "YTD" }, { key: "1y", label: "1Y" }, { key: "2y", label: "2Y" },
+  { key: "5y", label: "5Y" }, { key: "all", label: "All" },
+] as const;
+type RangeKey = (typeof RANGES)[number]["key"];
+
 type Valuation = {
   holdings: ValuedHolding[];
   totals: {
@@ -71,6 +78,8 @@ export default function PortfolioPage() {
   const [valuation, setValuation] = useState<Valuation | null>(null);
   const [valuationLoading, setValuationLoading] = useState(false);
   const [series, setSeries] = useState<{ t: number; value: number }[] | null>(null);
+  const [range, setRange] = useState<RangeKey>("all");
+  const [rangeChange, setRangeChange] = useState<{ abs: number; pct: number | null } | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("value");
@@ -107,13 +116,24 @@ export default function PortfolioPage() {
     if (val) displayCurrency = val.currency ?? "USD";
     setValuation(val);
     setValuationLoading(false);
-
-    // The value history is slow to build; let the numbers render first.
-    fetch(`/api/portfolios/${selectedId}/series`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: { series?: { t: number; value: number }[] } | null) => setSeries(d?.series ?? []))
-      .catch(() => setSeries([]));
   }, [selectedId]);
+
+  // The value history is slow to build, so it loads after the numbers and
+  // refetches only when the selected range changes.
+  useEffect(() => {
+    if (!selectedId) return;
+    let cancelled = false;
+    setSeries(null);
+    fetch(`/api/portfolios/${selectedId}/series?range=${range}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { series?: { t: number; value: number }[]; change?: { abs: number; pct: number | null } | null } | null) => {
+        if (cancelled) return;
+        setSeries(d?.series ?? []);
+        setRangeChange(d?.change ?? null);
+      })
+      .catch(() => { if (!cancelled) { setSeries([]); setRangeChange(null); } });
+    return () => { cancelled = true; };
+  }, [selectedId, range]);
   useEffect(() => { loadSelected(); }, [loadSelected]);
 
   async function createPortfolio() {
@@ -317,6 +337,41 @@ export default function PortfolioPage() {
                 </p>
               )}
 
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <div className="flex gap-1 flex-wrap">
+                  {RANGES.map((r) => (
+                    <button
+                      key={r.key}
+                      onClick={() => setRange(r.key)}
+                      className={`px-2 py-1 text-xs rounded ${
+                        range === r.key
+                          ? "bg-neutral-800 text-neutral-100"
+                          : "text-neutral-500 hover:text-neutral-300"
+                      }`}
+                    >
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+                <span className="flex-1" />
+                {rangeChange && (
+                  <span
+                    title="Value movement over the period. Money added or withdrawn in that time counts towards it."
+                    className={`text-sm inline-flex items-center gap-1 ${
+                      rangeChange.abs >= 0 ? "text-green-500" : "text-red-500"
+                    }`}
+                  >
+                    {rangeChange.abs >= 0 ? <TrendingUp size={14} aria-hidden /> : <TrendingDown size={14} aria-hidden />}
+                    {rangeChange.pct !== null && (
+                      <>{rangeChange.pct >= 0 ? "+" : ""}{rangeChange.pct.toFixed(2)}% </>
+                    )}
+                    ({fmtUsd(rangeChange.abs)})
+                    <span className="text-neutral-500">
+                      {RANGES.find((r) => r.key === range)?.label}
+                    </span>
+                  </span>
+                )}
+              </div>
               <div className="grid md:grid-cols-[1fr_260px] gap-8 mb-8 items-start">
                 <ValueChart series={series} />
                 <AllocationDonut holdings={valuation.holdings} />

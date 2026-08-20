@@ -5,7 +5,7 @@ export interface EquitySource {
   readonly name: string;
   quotes(symbols: string[]): Promise<Record<string, EquityQuote>>;
   /** Daily closes for a chart; empty when the source cannot serve history. */
-  history?(symbol: string, range: string): Promise<{ t: number; c: number }[]>;
+  history?(symbol: string, range: string, interval?: string): Promise<{ t: number; c: number }[]>;
 }
 
 /**
@@ -26,10 +26,10 @@ const YAHOO_HEADERS = {
 /** Keyless. Covers Euronext/XETRA/US via exchange-suffixed tickers. */
 export class YahooSource implements EquitySource {
   readonly name = "yahoo";
-  async history(symbol: string, range = "1y"): Promise<{ t: number; c: number }[]> {
+  async history(symbol: string, range = "1y", interval = "1d"): Promise<{ t: number; c: number }[]> {
     const res = await fetch(
       `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}` +
-        `?range=${encodeURIComponent(range)}&interval=1d`,
+        `?range=${encodeURIComponent(range)}&interval=${encodeURIComponent(interval)}`,
       { headers: YAHOO_HEADERS },
     );
     if (!res.ok) throw new Error(`yahoo history ${res.status}`);

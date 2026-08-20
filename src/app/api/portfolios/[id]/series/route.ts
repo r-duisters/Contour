@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { fetchKlinesRange } from "@/lib/binance";
+import { fetchKlines, fetchKlinesRange } from "@/lib/binance";
 import { fetchEcbRates, fetchLatestEurUsd, rateOn } from "@/lib/fx";
 import { currencyForTicker, makeEquitySource } from "@/lib/equity";
 import { portfolioValueSeries, type Tx, type TxSide } from "@/lib/portfolio";
@@ -9,13 +10,36 @@ import type { Bar } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
+const DAY_MS = 86_400_000;
+const Query = z.object({
+  range: z.enum(["1d", "1w", "1m", "ytd", "1y", "2y", "5y", "all"]).default("all"),
+});
+
+/** Window start for a range, and the candle width used to draw it. */
+function rangeWindow(range: string, firstTx: number): { from: number; barMs: number } {
+  const now = Date.now();
+  switch (range) {
+    case "1d": return { from: now - DAY_MS, barMs: 3_600_000 };
+    case "1w": return { from: now - 7 * DAY_MS, barMs: DAY_MS };
+    case "1m": return { from: now - 31 * DAY_MS, barMs: DAY_MS };
+    case "ytd": return { from: Date.UTC(new Date(now).getUTCFullYear(), 0, 1), barMs: DAY_MS };
+    case "1y": return { from: now - 365 * DAY_MS, barMs: DAY_MS };
+    case "2y": return { from: now - 2 * 365 * DAY_MS, barMs: DAY_MS };
+    case "5y": return { from: now - 5 * 365 * DAY_MS, barMs: DAY_MS };
+    default: return { from: firstTx, barMs: DAY_MS };
+  }
+}
+
 /**
  * Portfolio value over time. Split out of /valuation because it needs full
  * price history for every asset ever held — seconds of work that must not
  * delay the headline figures.
  */
-export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  const parsed = Query.safeParse({ range: req.nextUrl.searchParams.get("range") ?? "all" });
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  const { range } = parsed.data;
   const portfolio = await prisma.portfolio.findUnique({
     where: { id },
     include: { transactions: true },
@@ -41,12 +65,16 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       time: Number(t.time),
     };
   });
-  if (txs.length === 0) return NextResponse.json({ series: [], currency });
+  if (txs.length === 0) return NextResponse.json({ series: [], currency, range });
 
   const equitySymbols = new Set(
     portfolio.transactions.filter((t) => t.assetType === "equity").map((t) => t.symbol),
   );
-  const from = Math.min(...txs.map((t) => t.time));
+  const firstTx = Math.min(...txs.map((t) => t.time));
+  const { from: windowFrom, barMs } = rangeWindow(range, firstTx);
+  // Prices must cover the window, but holdings must be reconstructed from the
+  // very first transaction, so history always starts at firstTx for dailies.
+  const from = barMs === DAY_MS ? firstTx : windowFrom;
   const symbols = [...new Set(txs.map((t) => t.symbol))];
 
   // Equity closes arrive in the venue's own currency; convert each day with
@@ -67,12 +95,18 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   const histories = await Promise.allSettled(
     symbols.map(async (s): Promise<Bar[]> => {
       if (!equitySymbols.has(s)) {
-        return fetchKlinesRange({ symbol: s, interval: "1d", from, to: Date.now() });
+        return barMs === DAY_MS
+          ? fetchKlinesRange({ symbol: s, interval: "1d", from, to: Date.now() })
+          : cached(`h1:${s}:${Math.floor(Date.now() / 300_000)}`, 300_000, () =>
+              fetchKlines({ symbol: s, interval: "1h", limit: 26 }),
+            );
       }
       const rows = await cached(
-        `eqhist:${s}:${Math.floor(Date.now() / 3_600_000)}`,
+        `eqhist:${s}:${barMs}:${Math.floor(Date.now() / 3_600_000)}`,
         3_600_000,
-        async () => (source.history ? await source.history(s, "10y") : []),
+        async () => (source.history
+          ? await source.history(s, barMs === DAY_MS ? "10y" : "1d", barMs === DAY_MS ? "1d" : "60m")
+          : []),
       );
       const cur = currencyForTicker(s);
       const fx = fxByCurrency.get(cur);
@@ -82,9 +116,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
           return rate === null ? null : r.c * rate;
         })();
         if (usd === null) return [];
-        // Normalise to the UTC day so equity and crypto bars line up.
-        const day = Math.floor(r.t / 86_400_000) * 86_400_000;
-        return [{ t: day, o: usd, h: usd, l: usd, c: usd, v: 0 }];
+        // Snap to the bar grid so equity and crypto points line up.
+        const slot = Math.floor(r.t / barMs) * barMs;
+        return [{ t: slot, o: usd, h: usd, l: usd, c: usd, v: 0 }];
       });
     }),
   );
@@ -94,9 +128,36 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     if (r.status === "fulfilled") candles[symbols[i]!] = r.value;
   });
 
-  const series = portfolioValueSeries(txs, candles).map((p) => ({
-    t: p.t,
-    value: p.value * toDisplay,
-  }));
-  return NextResponse.json({ series, currency });
+  // Intraday: a market that is closed has no bars for the early part of the
+  // window. Without a seed those holdings read as worthless until the open,
+  // which would show up as a huge fake gain over the day.
+  if (barMs !== DAY_MS) {
+    for (const bars of Object.values(candles)) {
+      const first = bars[0];
+      if (first && first.t > windowFrom) {
+        bars.unshift({ ...first, t: Math.floor(windowFrom / barMs) * barMs });
+      }
+    }
+  }
+
+  const series = portfolioValueSeries(txs, candles, barMs)
+    .filter((p) => p.t >= windowFrom)
+    .map((p) => ({ t: p.t, value: p.value * toDisplay }));
+
+  // Baseline is the first point that actually holds something: the earliest
+  // bars of an "all" window predate the first fill and are legitimately zero.
+  const first = series.find((p) => p.value > 0)?.value ?? 0;
+  const last = series[series.length - 1]?.value ?? 0;
+  // Change over the window. Deposits inside it inflate this — it is portfolio
+  // value movement, not a time-weighted return.
+  // Over "all" the baseline is the first purchase, so a percentage would
+  // report every later deposit as a gain. Report the absolute move only.
+  const change = series.length >= 2 && first > 0
+    ? {
+        abs: last - first,
+        pct: range === "all" ? null : ((last - first) / first) * 100,
+      }
+    : null;
+
+  return NextResponse.json({ series, currency, range, change });
 }

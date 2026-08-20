@@ -137,3 +137,21 @@ describe("portfolioValueSeries", () => {
     expect(portfolioValueSeries([], { BTCUSDT: [bar(0, 100)] })).toEqual([]);
   });
 });
+
+describe("portfolioValueSeries with intraday bars", () => {
+  it("applies transactions within a smaller bar width", () => {
+    const HOUR = 3_600_000;
+    const candles = {
+      BTCUSDT: [bar(0, 100), bar(HOUR, 110), bar(2 * HOUR, 120)],
+    };
+    const series = portfolioValueSeries(
+      [
+        tx({ side: "buy", quantity: 1, price: 100, time: 1 }),
+        tx({ side: "buy", quantity: 1, price: 110, time: HOUR + 1 }),
+      ],
+      candles,
+      HOUR,
+    );
+    expect(series.map((p) => p.value)).toEqual([100, 220, 240]);
+  });
+});

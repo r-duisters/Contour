@@ -92,13 +92,15 @@ export function valueHoldings(
 }
 
 /**
- * Reconstruct daily portfolio value from the transaction log and daily candles per symbol.
- * For each daily bar time in the union of all candle series, values quantity-held-at-that-time
- * at that day's close. Days before the first transaction are omitted.
+ * Reconstruct portfolio value from the transaction log and candles per symbol.
+ * For each bar time in the union of all series, values quantity-held-at-that-time
+ * at that bar's close. Bars before the first transaction are omitted.
+ * `barMs` is the candle width — one day by default, smaller for intraday ranges.
  */
 export function portfolioValueSeries(
   txs: Tx[],
   candlesBySymbol: Record<string, Bar[]>,
+  barMs: number = DAY_MS,
 ): ValuePoint[] {
   if (txs.length === 0) return [];
   const sorted = [...txs].sort((a, b) => a.time - b.time);
@@ -106,7 +108,7 @@ export function portfolioValueSeries(
 
   const times = new Set<number>();
   for (const bars of Object.values(candlesBySymbol)) {
-    for (const b of bars) if (b.t + DAY_MS > firstTime) times.add(b.t);
+    for (const b of bars) if (b.t + barMs > firstTime) times.add(b.t);
   }
   const timeline = [...times].sort((a, b) => a - b);
 
@@ -123,7 +125,7 @@ export function portfolioValueSeries(
   const out: ValuePoint[] = [];
   for (const t of timeline) {
     // apply all transactions that happened before this bar closed
-    const barClose = t + DAY_MS;
+    const barClose = t + barMs;
     while (txIdx < sorted.length && sorted[txIdx]!.time < barClose) {
       const tx = sorted[txIdx]!;
       const held = qty.get(tx.symbol) ?? 0;
