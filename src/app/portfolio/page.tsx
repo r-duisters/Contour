@@ -50,6 +50,18 @@ const RANGES = [
 ] as const;
 type RangeKey = (typeof RANGES)[number]["key"];
 
+const BENCHMARKS = [
+  { key: "", label: "no benchmark" },
+  { key: "sp500", label: "S&P 500" },
+  { key: "aex", label: "AEX" },
+  { key: "nasdaq", label: "Nasdaq 100" },
+  { key: "world", label: "MSCI World" },
+  { key: "btc", label: "Bitcoin" },
+  { key: "eth", label: "Ethereum" },
+] as const;
+
+type IndexPoint = { t: number; index: number };
+
 type Valuation = {
   holdings: ValuedHolding[];
   totals: {
@@ -80,6 +92,10 @@ export default function PortfolioPage() {
   const [series, setSeries] = useState<{ t: number; value: number }[] | null>(null);
   const [range, setRange] = useState<RangeKey>("all");
   const [rangeChange, setRangeChange] = useState<{ abs: number; pct: number | null } | null>(null);
+  const [twr, setTwr] = useState<{ points: IndexPoint[]; totalPct: number | null } | null>(null);
+  const [benchKey, setBenchKey] = useState("");
+  const [bench, setBench] = useState<{ label: string; points: IndexPoint[] } | null>(null);
+  const [window_, setWindow] = useState<{ from: number; barMs: number } | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("value");
@@ -126,12 +142,19 @@ export default function PortfolioPage() {
     setSeries(null);
     fetch(`/api/portfolios/${selectedId}/series?range=${range}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((d: { series?: { t: number; value: number }[]; change?: { abs: number; pct: number | null } | null } | null) => {
+      .then((d: {
+        series?: { t: number; value: number }[];
+        change?: { abs: number; pct: number | null } | null;
+        twr?: { points: IndexPoint[]; totalPct: number | null };
+        windowFrom?: number; barMs?: number;
+      } | null) => {
         if (cancelled) return;
         setSeries(d?.series ?? []);
         setRangeChange(d?.change ?? null);
+        setTwr(d?.twr ?? null);
+        setWindow(d?.windowFrom && d?.barMs ? { from: d.windowFrom, barMs: d.barMs } : null);
       })
-      .catch(() => { if (!cancelled) { setSeries([]); setRangeChange(null); } });
+      .catch(() => { if (!cancelled) { setSeries([]); setRangeChange(null); setTwr(null); } });
     return () => { cancelled = true; };
   }, [selectedId, range]);
   useEffect(() => { loadSelected(); }, [loadSelected]);
@@ -206,6 +229,18 @@ export default function PortfolioPage() {
       setImportMsg(`Import failed: ${(e as Error).message}`);
     }
   }
+
+  useEffect(() => {
+    if (!benchKey || !window_) { setBench(null); return; }
+    let cancelled = false;
+    fetch(`/api/benchmark?key=${benchKey}&from=${window_.from}&barMs=${window_.barMs}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { label?: string; points?: IndexPoint[] } | null) => {
+        if (!cancelled) setBench(d?.points?.length ? { label: d.label ?? benchKey, points: d.points } : null);
+      })
+      .catch(() => { if (!cancelled) setBench(null); });
+    return () => { cancelled = true; };
+  }, [benchKey, window_]);
 
   const holdings = valuation?.holdings ?? [];
   const totalValue = valuation?.totals.value ?? 0;
@@ -353,8 +388,38 @@ export default function PortfolioPage() {
                     </button>
                   ))}
                 </div>
+                <select
+                  className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-xs text-neutral-300"
+                  value={benchKey}
+                  onChange={(e) => setBenchKey(e.target.value)}
+                >
+                  {BENCHMARKS.map((b) => (
+                    <option key={b.key} value={b.key}>{b.label}</option>
+                  ))}
+                </select>
                 <span className="flex-1" />
-                {rangeChange && (
+                {benchKey && twr?.totalPct !== null && twr && (
+                  <span
+                    className="text-sm inline-flex items-center gap-2"
+                    title="Time-weighted return: deposits and withdrawals removed, so this compares like for like against the index."
+                  >
+                    <span className={twr.totalPct! >= 0 ? "text-green-500" : "text-red-500"}>
+                      you {twr.totalPct! >= 0 ? "+" : ""}{twr.totalPct!.toFixed(2)}%
+                    </span>
+                    {bench && bench.points.length > 0 && (
+                      <span className="text-neutral-400">
+                        vs {bench.label}{" "}
+                        <span className={
+                          bench.points[bench.points.length - 1]!.index >= 100 ? "text-green-500" : "text-red-500"
+                        }>
+                          {bench.points[bench.points.length - 1]!.index >= 100 ? "+" : ""}
+                          {(bench.points[bench.points.length - 1]!.index - 100).toFixed(2)}%
+                        </span>
+                      </span>
+                    )}
+                  </span>
+                )}
+                {!benchKey && rangeChange && (
                   <span
                     title="Value movement over the period. Money added or withdrawn in that time counts towards it."
                     className={`text-sm inline-flex items-center gap-1 ${
@@ -373,7 +438,7 @@ export default function PortfolioPage() {
                 )}
               </div>
               <div className="grid md:grid-cols-[1fr_260px] gap-4 md:gap-8 mb-6 md:mb-8 items-start">
-                <ValueChart series={series} />
+                <ValueChart series={series} twr={twr?.points ?? null} bench={bench} />
                 <AllocationDonut holdings={valuation.holdings} />
               </div>
 
@@ -546,10 +611,23 @@ function Pnl({ value }: { value: number | null }) {
   return <span className={color}>{fmtUsd(value)}</span>;
 }
 
-function ValueChart({ series }: { series: { t: number; value: number }[] | null }) {
+/**
+ * Portfolio value over time. With a benchmark selected it switches to an
+ * indexed view: the portfolio's time-weighted return and the index, both
+ * rebased to 100, which is the only way the two are comparable.
+ */
+function ValueChart({
+  series, twr, bench,
+}: {
+  series: { t: number; value: number }[] | null;
+  twr: IndexPoint[] | null;
+  bench: { label: string; points: IndexPoint[] } | null;
+}) {
   const container = useRef<HTMLDivElement>(null);
   const chart = useRef<IChartApi | null>(null);
   const area = useRef<ISeriesApi<"Area"> | null>(null);
+  const meLine = useRef<ISeriesApi<"Line"> | null>(null);
+  const benchLine = useRef<ISeriesApi<"Line"> | null>(null);
 
   useEffect(() => {
     if (!container.current) return;
@@ -558,6 +636,7 @@ function ValueChart({ series }: { series: { t: number; value: number }[] | null 
       grid: { vertLines: { color: "#1f1f1f" }, horzLines: { color: "#1f1f1f" } },
       autoSize: true,
       timeScale: { timeVisible: false },
+      handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
     });
     chart.current = c;
     area.current = c.addSeries(AreaSeries, {
@@ -566,22 +645,50 @@ function ValueChart({ series }: { series: { t: number; value: number }[] | null 
       bottomColor: "rgba(59, 130, 246, 0.0)",
       lineWidth: 2,
     });
-    return () => { c.remove(); chart.current = null; area.current = null; };
+    meLine.current = c.addSeries(LineSeries, { color: "#3b82f6", lineWidth: 2, visible: false });
+    benchLine.current = c.addSeries(LineSeries, { color: "#eab308", lineWidth: 2, visible: false });
+    return () => {
+      c.remove();
+      chart.current = null; area.current = null; meLine.current = null; benchLine.current = null;
+    };
   }, []);
 
   useEffect(() => {
-    if (!area.current || !series) return;
-    area.current.setData(series.map((p) => ({ time: Math.floor(p.t / 1000) as Time, value: p.value })));
+    if (!area.current || !meLine.current || !benchLine.current) return;
+    const t = (ms: number) => Math.floor(ms / 1000) as Time;
+    const comparing = bench !== null && twr !== null;
+
+    area.current.applyOptions({ visible: !comparing });
+    meLine.current.applyOptions({ visible: comparing });
+    benchLine.current.applyOptions({ visible: comparing });
+
+    if (comparing) {
+      meLine.current.setData(twr!.map((p) => ({ time: t(p.t), value: p.index })));
+      benchLine.current.setData(bench!.points.map((p) => ({ time: t(p.t), value: p.index })));
+    } else if (series) {
+      area.current.setData(series.map((p) => ({ time: t(p.t), value: p.value })));
+    }
     chart.current?.timeScale().fitContent();
-  }, [series]);
+  }, [series, twr, bench]);
 
   return (
     <div className="relative">
-      <div ref={container} className="h-64 border border-neutral-800 rounded" />
+      <div ref={container} className="h-56 md:h-64 border border-neutral-800 rounded" />
       {series === null && (
         <span className="absolute inset-0 flex items-center justify-center text-xs text-neutral-500">
           building value history…
         </span>
+      )}
+      {bench && twr && (
+        <div className="flex gap-4 mt-2 text-xs">
+          <span className="inline-flex items-center gap-1.5 text-neutral-400">
+            <span className="w-3 h-0.5 bg-blue-500 inline-block" />you
+          </span>
+          <span className="inline-flex items-center gap-1.5 text-neutral-400">
+            <span className="w-3 h-0.5 bg-yellow-500 inline-block" />{bench.label}
+          </span>
+          <span className="text-neutral-600">indexed to 100 at the start of the period</span>
+        </div>
       )}
     </div>
   );

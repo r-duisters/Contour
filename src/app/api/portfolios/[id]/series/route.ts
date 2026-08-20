@@ -5,6 +5,7 @@ import { fetchKlines, fetchKlinesRange } from "@/lib/binance";
 import { fetchEcbRates, fetchLatestEurUsd, rateOn } from "@/lib/fx";
 import { currencyForTicker, makeEquitySource } from "@/lib/equity";
 import { portfolioValueSeries, type Tx, type TxSide } from "@/lib/portfolio";
+import { flowsByBar, timeWeightedSeries } from "@/lib/performance";
 import { cached } from "@/lib/cache";
 import type { Bar } from "@/lib/types";
 
@@ -159,5 +160,14 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       }
     : null;
 
-  return NextResponse.json({ series, currency, range, change });
+  // Time-weighted return over the window: what one unit invested at the start
+  // would have done, with deposits and withdrawals removed.
+  const windowTxs = txs.filter((t) => t.time >= windowFrom);
+  const twr = timeWeightedSeries(series, flowsByBar(windowTxs, barMs));
+
+  return NextResponse.json({
+    series, currency, range, change,
+    twr: { points: twr.points, totalPct: twr.totalPct },
+    windowFrom, barMs,
+  });
 }
