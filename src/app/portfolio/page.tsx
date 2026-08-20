@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import SymbolPicker from "@/components/SymbolPicker";
-import { Plus, Trash2, TrendingDown, TrendingUp, Upload, Wallet } from "lucide-react";
+import { ArrowUpDown, ChevronDown, Plus, Trash2, TrendingDown, TrendingUp, Upload, Wallet } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
 import {
-  AreaSeries, createChart, type IChartApi, type ISeriesApi, type Time,
+  AreaSeries, createChart, createSeriesMarkers, LineSeries,
+  type IChartApi, type ISeriesApi, type ISeriesMarkersPluginApi, type Time,
 } from "lightweight-charts";
 
 type PortfolioRow = { id: string; name: string; transactionCount: number };
@@ -21,8 +22,11 @@ type Tx = {
   note: string | null;
 };
 
+type SortKey = "value" | "pnlPct" | "pnl" | "realized" | "quantity" | "symbol";
+
 type ValuedHolding = {
   symbol: string;
+  assetType?: "crypto" | "equity";
   quantity: number;
   avgCost: number;
   costBasis: number;
@@ -61,6 +65,8 @@ export default function PortfolioPage() {
   const [valuationLoading, setValuationLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [importMsg, setImportMsg] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>("value");
+  const [selected, setSelected] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loadPortfolios = useCallback(async () => {
@@ -158,6 +164,21 @@ export default function PortfolioPage() {
     }
   }
 
+  const holdings = valuation?.holdings ?? [];
+  const totalValue = valuation?.totals.value ?? 0;
+  const sortedHoldings = [...holdings].sort((a, b) => {
+    const pct = (h: ValuedHolding) =>
+      h.costBasis > 0 && h.unrealizedPnl !== null ? h.unrealizedPnl / h.costBasis : -Infinity;
+    switch (sortKey) {
+      case "symbol": return a.symbol.localeCompare(b.symbol);
+      case "quantity": return b.quantity - a.quantity;
+      case "pnl": return (b.unrealizedPnl ?? -Infinity) - (a.unrealizedPnl ?? -Infinity);
+      case "realized": return b.realizedPnl - a.realizedPnl;
+      case "pnlPct": return pct(b) - pct(a);
+      default: return (b.value ?? -Infinity) - (a.value ?? -Infinity);
+    }
+  });
+
   return (
     <main className="min-h-screen p-8 max-w-6xl mx-auto">
       <h1 className="text-2xl font-semibold mb-6 flex items-center gap-2"><Wallet size={20} aria-hidden className="text-neutral-400" />Portfolio</h1>
@@ -226,55 +247,80 @@ export default function PortfolioPage() {
                 <AllocationDonut holdings={valuation.holdings} />
               </div>
 
-              <h2 className="text-lg font-medium mb-3">Holdings</h2>
-              <ul className="md:hidden space-y-2 mb-10">
-                {valuation.holdings.map((h) => (
-                  <li key={h.symbol} className="bg-neutral-900 border border-neutral-800 rounded p-3 text-sm">
-                    <div className="flex justify-between items-baseline">
-                      <span className="font-mono font-medium inline-flex items-center gap-2"><CoinIcon symbol={h.symbol} size={18} />{h.symbol}</span>
-                      <span>{h.value !== null ? fmtUsd(h.value) : "?"}</span>
-                    </div>
-                    <div className="flex justify-between text-xs text-neutral-500 mt-1">
-                      <span>{fmtQty(h.quantity)} @ {h.quantity > 0 ? fmtUsd(h.avgCost) : "—"}</span>
-                      <Pnl value={h.unrealizedPnl} />
-                    </div>
-                  </li>
-                ))}
-                {valuation.holdings.length === 0 && (
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
+                <h2 className="text-lg font-medium">Holdings</h2>
+                <span className="text-xs text-neutral-500">({sortedHoldings.length})</span>
+                <span className="flex-1" />
+                <label className="text-xs text-neutral-500 inline-flex items-center gap-1">
+                  <ArrowUpDown size={12} aria-hidden />
+                  sort
+                  <select
+                    className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-xs"
+                    value={sortKey}
+                    onChange={(e) => setSortKey(e.target.value as SortKey)}
+                  >
+                    <option value="value">value</option>
+                    <option value="pnlPct">gain %</option>
+                    <option value="pnl">unrealized P&L</option>
+                    <option value="realized">realized P&L</option>
+                    <option value="quantity">quantity</option>
+                    <option value="symbol">name</option>
+                  </select>
+                </label>
+              </div>
+
+              <ul className="space-y-1 mb-10">
+                {sortedHoldings.map((h) => {
+                  const share = totalValue > 0 && h.value !== null ? (h.value / totalValue) * 100 : null;
+                  const pct = h.costBasis > 0 && h.unrealizedPnl !== null
+                    ? (h.unrealizedPnl / h.costBasis) * 100 : null;
+                  const open = selected === h.symbol;
+                  return (
+                    <li key={h.symbol} className="bg-neutral-900 border border-neutral-800 rounded">
+                      <button
+                        onClick={() => setSelected(open ? null : h.symbol)}
+                        className="w-full text-left p-3 flex items-center gap-3"
+                      >
+                        <CoinIcon symbol={h.symbol} size={22} />
+                        <span className="min-w-0">
+                          <span className="font-mono font-medium block truncate">{h.symbol}</span>
+                          <span className="text-xs text-neutral-500">
+                            {fmtQty(h.quantity)}
+                            {share !== null && <> · {share.toFixed(1)}%</>}
+                          </span>
+                        </span>
+                        <span className="flex-1" />
+                        <span className="text-right">
+                          <span className="block">{h.value !== null ? fmtUsd(h.value) : "—"}</span>
+                          <span className="text-xs">
+                            {pct !== null ? (
+                              <span className={pct >= 0 ? "text-green-500" : "text-red-500"}>
+                                {pct >= 0 ? "+" : ""}{pct.toFixed(1)}%
+                              </span>
+                            ) : (
+                              <span className="text-neutral-500">no price</span>
+                            )}
+                          </span>
+                        </span>
+                        <ChevronDown
+                          size={16} aria-hidden
+                          className={`text-neutral-500 transition-transform ${open ? "rotate-180" : ""}`}
+                        />
+                      </button>
+                      {open && (
+                        <HoldingDetail
+                          holding={h}
+                          transactions={transactions.filter((t) => t.symbol === h.symbol)}
+                          onDeleteTx={deleteTransaction}
+                        />
+                      )}
+                    </li>
+                  );
+                })}
+                {sortedHoldings.length === 0 && (
                   <li className="text-sm text-neutral-500 py-2">No holdings yet — add a transaction below.</li>
                 )}
               </ul>
-              <div className="overflow-x-auto mb-10 hidden md:block">
-                <table className="w-full text-sm">
-                  <thead className="text-neutral-500 text-xs text-left">
-                    <tr>
-                      <th className="py-2 pr-4">Asset</th>
-                      <th className="py-2 pr-4 text-right">Quantity</th>
-                      <th className="py-2 pr-4 text-right">Avg cost</th>
-                      <th className="py-2 pr-4 text-right">Price</th>
-                      <th className="py-2 pr-4 text-right">Value</th>
-                      <th className="py-2 pr-4 text-right">Unrealized</th>
-                      <th className="py-2 text-right">Realized</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-neutral-800">
-                    {valuation.holdings.map((h) => (
-                      <tr key={h.symbol}>
-                        <td className="py-2 pr-4 font-mono"><span className="inline-flex items-center gap-2"><CoinIcon symbol={h.symbol} size={18} />{h.symbol}</span></td>
-                        <td className="py-2 pr-4 text-right">{fmtQty(h.quantity)}</td>
-                        <td className="py-2 pr-4 text-right">{h.quantity > 0 ? fmtUsd(h.avgCost) : "—"}</td>
-                        <td className="py-2 pr-4 text-right">{h.price !== null ? fmtUsd(h.price) : "?"}</td>
-                        <td className="py-2 pr-4 text-right">{h.value !== null ? fmtUsd(h.value) : "?"}</td>
-                        <td className="py-2 pr-4 text-right"><Pnl value={h.unrealizedPnl} /></td>
-                        <td className="py-2 text-right"><Pnl value={h.realizedPnl} /></td>
-                      </tr>
-                    ))}
-                    {valuation.holdings.length === 0 && (
-                      <tr><td colSpan={7} className="py-4 text-neutral-500">No holdings yet — add a transaction below.</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
             </>
           )}
           {valuationLoading && !valuation && (
@@ -462,4 +508,140 @@ function TxForm({
       {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
     </div>
   );
+}
+
+function HoldingDetail({
+  holding, transactions, onDeleteTx,
+}: {
+  holding: ValuedHolding;
+  transactions: Tx[];
+  onDeleteTx: (id: string) => void;
+}) {
+  const [bars, setBars] = useState<{ t: number; c: number }[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setBars(null);
+    fetch(`/api/history?symbol=${encodeURIComponent(holding.symbol)}&assetType=${holding.assetType ?? "crypto"}`)
+      .then((r) => r.json())
+      .then((d: { bars?: { t: number; c: number }[] }) => { if (!cancelled) setBars(d.bars ?? []); })
+      .catch(() => { if (!cancelled) setBars([]); });
+    return () => { cancelled = true; };
+  }, [holding.symbol, holding.assetType]);
+
+  const pct = holding.costBasis > 0 && holding.unrealizedPnl !== null
+    ? (holding.unrealizedPnl / holding.costBasis) * 100 : null;
+
+  return (
+    <div className="border-t border-neutral-800 p-3 space-y-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+        <Field label="Quantity" value={fmtQty(holding.quantity)} />
+        <Field label="Avg cost" value={holding.quantity > 0 ? fmtUsd(holding.avgCost) : "—"} />
+        <Field label="Last price" value={holding.price !== null ? fmtUsd(holding.price) : "no price"} />
+        <Field label="Cost basis" value={fmtUsd(holding.costBasis)} />
+        <Field label="Value" value={holding.value !== null ? fmtUsd(holding.value) : "—"} />
+        <Field
+          label="Unrealized"
+          value={holding.unrealizedPnl !== null
+            ? `${fmtUsd(holding.unrealizedPnl)}${pct !== null ? ` (${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%)` : ""}`
+            : "—"}
+          signed={holding.unrealizedPnl ?? undefined}
+        />
+        <Field label="Realized" value={fmtUsd(holding.realizedPnl)} signed={holding.realizedPnl} />
+        <Field label="Fees" value={fmtUsd(holding.fees)} />
+      </div>
+
+      <PriceChart bars={bars} transactions={transactions} />
+
+      <div>
+        <h3 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
+          Transactions ({transactions.length})
+        </h3>
+        <ul className="divide-y divide-neutral-800 max-h-64 overflow-y-auto">
+          {transactions.map((tx) => (
+            <li key={tx.id} className="py-2 flex items-center gap-3 text-sm flex-wrap">
+              <span className={`text-xs px-2 py-0.5 rounded w-24 text-center ${
+                tx.side === "buy" || tx.side === "transfer_in"
+                  ? "bg-green-900 text-green-300" : "bg-red-900 text-red-300"
+              }`}>{tx.side.replace("_", " ")}</span>
+              <span>{fmtQty(tx.quantity)} @ {fmtUsd(tx.price)}</span>
+              {tx.fee > 0 && <span className="text-neutral-500 text-xs">fee {fmtUsd(tx.fee)}</span>}
+              <span className="text-neutral-500 text-xs">{new Date(tx.time).toLocaleDateString()}</span>
+              <span className="flex-1" />
+              <button onClick={() => onDeleteTx(tx.id)}
+                      className="text-xs underline text-red-500 inline-flex items-center gap-1">
+                <Trash2 size={12} aria-hidden />delete
+              </button>
+            </li>
+          ))}
+          {transactions.length === 0 && (
+            <li className="py-2 text-sm text-neutral-500">No transactions for this asset.</li>
+          )}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, value, signed }: { label: string; value: string; signed?: number }) {
+  const color =
+    signed === undefined ? "text-neutral-200"
+    : signed > 0 ? "text-green-500"
+    : signed < 0 ? "text-red-500"
+    : "text-neutral-200";
+  return (
+    <div>
+      <div className="text-xs text-neutral-500">{label}</div>
+      <div className={color}>{value}</div>
+    </div>
+  );
+}
+
+/** Price history for one asset, with the portfolio's buys and sells marked. */
+function PriceChart({ bars, transactions }: { bars: { t: number; c: number }[] | null; transactions: Tx[] }) {
+  const container = useRef<HTMLDivElement>(null);
+  const chart = useRef<IChartApi | null>(null);
+  const line = useRef<ISeriesApi<"Line"> | null>(null);
+  const markers = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+
+  useEffect(() => {
+    if (!container.current) return;
+    const c = createChart(container.current, {
+      layout: { background: { color: "#0a0a0a" }, textColor: "#d4d4d4" },
+      grid: { vertLines: { color: "#171717" }, horzLines: { color: "#171717" } },
+      autoSize: true,
+      timeScale: { timeVisible: false },
+      handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+    });
+    chart.current = c;
+    line.current = c.addSeries(LineSeries, { color: "#3b82f6", lineWidth: 2 });
+    markers.current = createSeriesMarkers(line.current);
+    return () => { c.remove(); chart.current = null; line.current = null; markers.current = null; };
+  }, []);
+
+  useEffect(() => {
+    if (!line.current || !bars) return;
+    line.current.setData(bars.map((b) => ({ time: Math.floor(b.t / 1000) as Time, value: b.c })));
+    if (bars.length > 0) {
+      const first = bars[0]!.t;
+      markers.current?.setMarkers(
+        transactions
+          .filter((tx) => tx.time >= first && (tx.side === "buy" || tx.side === "sell"))
+          .sort((a, b) => a.time - b.time)
+          .map((tx) => ({
+            time: Math.floor(tx.time / 1000) as Time,
+            position: tx.side === "buy" ? "belowBar" as const : "aboveBar" as const,
+            color: tx.side === "buy" ? "#22c55e" : "#ef4444",
+            shape: tx.side === "buy" ? "arrowUp" as const : "arrowDown" as const,
+            text: tx.side === "buy" ? "B" : "S",
+          })),
+      );
+    }
+    chart.current?.timeScale().fitContent();
+  }, [bars, transactions]);
+
+  if (bars !== null && bars.length === 0) {
+    return <p className="text-xs text-neutral-500">No price history available for this asset.</p>;
+  }
+  return <div ref={container} className="h-48 border border-neutral-800 rounded" />;
 }

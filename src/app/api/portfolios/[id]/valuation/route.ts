@@ -47,7 +47,10 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   ]);
   const prices = { ...cryptoPrices, ...equityPrices };
 
-  const valued = valueHoldings(holdings, prices);
+  const valued = valueHoldings(holdings, prices).map((h) => ({
+    ...h,
+    assetType: equitySymbols.has(h.symbol) ? ("equity" as const) : ("crypto" as const),
+  }));
   const series = portfolioValueSeries(txs, candles);
 
   const totals = {

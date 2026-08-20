@@ -4,6 +4,8 @@ export type EquityQuote = { price: number; currency: string };
 export interface EquitySource {
   readonly name: string;
   quotes(symbols: string[]): Promise<Record<string, EquityQuote>>;
+  /** Daily closes for a chart; empty when the source cannot serve history. */
+  history?(symbol: string, range: string): Promise<{ t: number; c: number }[]>;
 }
 
 /**
@@ -24,6 +26,24 @@ const YAHOO_HEADERS = {
 /** Keyless. Covers Euronext/XETRA/US via exchange-suffixed tickers. */
 export class YahooSource implements EquitySource {
   readonly name = "yahoo";
+  async history(symbol: string, range = "1y"): Promise<{ t: number; c: number }[]> {
+    const res = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}` +
+        `?range=${encodeURIComponent(range)}&interval=1d`,
+      { headers: YAHOO_HEADERS },
+    );
+    if (!res.ok) throw new Error(`yahoo history ${res.status}`);
+    const r = (await res.json())?.chart?.result?.[0];
+    const stamps: number[] = r?.timestamp ?? [];
+    const closes: (number | null)[] = r?.indicators?.quote?.[0]?.close ?? [];
+    const out: { t: number; c: number }[] = [];
+    stamps.forEach((sec, i) => {
+      const c = closes[i];
+      if (typeof c === "number") out.push({ t: sec * 1000, c });
+    });
+    return out;
+  }
+
   async quotes(symbols: string[]): Promise<Record<string, EquityQuote>> {
     const out: Record<string, EquityQuote> = {};
     for (const symbol of symbols) {
