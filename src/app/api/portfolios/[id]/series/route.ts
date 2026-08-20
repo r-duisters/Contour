@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { toDisplayTxs } from "@/lib/display-tx";
 import { fetchKlines, fetchKlinesRange } from "@/lib/binance";
 import { fetchEcbRates, fetchLatestEurUsd, rateOn } from "@/lib/fx";
 import { currencyForTicker, makeEquitySource } from "@/lib/equity";
-import { portfolioValueSeries, type Tx, type TxSide } from "@/lib/portfolio";
+import { portfolioValueSeries } from "@/lib/portfolio";
 import { flowsByBar, moneyWeightedReturn, timeWeightedSeries } from "@/lib/performance";
 import { cached } from "@/lib/cache";
 import type { Bar } from "@/lib/types";
@@ -55,17 +56,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const displayUsd = currency === "EUR" ? ((await fetchLatestEurUsd()) ?? 0) : 1;
   const toDisplay = displayUsd > 0 ? 1 / displayUsd : 1;
 
-  const txs: Tx[] = portfolio.transactions.map((t) => {
-    const native = t.nativeCurrency === currency && t.nativePrice !== null;
-    return {
-      symbol: t.symbol,
-      side: t.side as TxSide,
-      quantity: t.quantity,
-      price: native ? t.nativePrice! : t.price * toDisplay,
-      fee: native && t.nativeFee !== null ? t.nativeFee! : t.fee * toDisplay,
-      time: Number(t.time),
-    };
-  });
+  const txs = toDisplayTxs(portfolio.transactions, currency, toDisplay);
   if (txs.length === 0) return NextResponse.json({ series: [], currency, range });
 
   const equitySymbols = new Set(

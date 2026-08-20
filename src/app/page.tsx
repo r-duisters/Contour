@@ -1,11 +1,12 @@
 import Link from "next/link";
 import {
-  Bell, CandlestickChart, FlaskConical, History, Settings, Wallet,
+  BarChart3, Bell, CandlestickChart, FlaskConical, History, Settings, Wallet,
 } from "lucide-react";
 
 const LINKS = [
   { href: "/chart", label: "Live chart", Icon: CandlestickChart },
   { href: "/portfolio", label: "Portfolio", Icon: Wallet },
+  { href: "/insights", label: "Insights", Icon: BarChart3 },
   { href: "/backtest", label: "Backtest", Icon: History },
   { href: "/alerts", label: "Alerts", Icon: Bell },
   { href: "/analyze", label: "PineScript review", Icon: FlaskConical },

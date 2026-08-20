@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { FlaskConical, History, Home, Settings } from "lucide-react";
+import { BarChart3, FlaskConical, History, Home, Settings } from "lucide-react";
 
 const LINKS = [
+  { href: "/insights", label: "Insights", Icon: BarChart3 },
   { href: "/settings", label: "Settings", Icon: Settings },
   { href: "/backtest", label: "Backtest", Icon: History },
   { href: "/analyze", label: "PineScript review", Icon: FlaskConical },

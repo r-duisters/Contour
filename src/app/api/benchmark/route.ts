@@ -7,7 +7,7 @@ import {
   flowsByBar, indexSeries, moneyWeightedReturn, simulateFlowsInto,
 } from "@/lib/performance";
 import { fetchLatestEurUsd } from "@/lib/fx";
-import type { Tx, TxSide } from "@/lib/portfolio";
+import { toDisplayTxs } from "@/lib/display-tx";
 import { cached } from "@/lib/cache";
 
 export const dynamic = "force-dynamic";
@@ -113,19 +113,11 @@ async function simulateSameFlows(
   const displayUsd = currency === "EUR" ? ((await fetchLatestEurUsd()) ?? 0) : 1;
   const toDisplay = displayUsd > 0 ? 1 / displayUsd : 1;
 
-  const txs: Tx[] = portfolio.transactions
-    .filter((t) => Number(t.time) >= from)
-    .map((t) => {
-      const native = t.nativeCurrency === currency && t.nativePrice !== null;
-      return {
-        symbol: t.symbol,
-        side: t.side as TxSide,
-        quantity: t.quantity,
-        price: native ? t.nativePrice! : t.price * toDisplay,
-        fee: native && t.nativeFee !== null ? t.nativeFee! : t.fee * toDisplay,
-        time: Number(t.time),
-      };
-    });
+  const txs = toDisplayTxs(
+    portfolio.transactions.filter((t) => Number(t.time) >= from),
+    currency,
+    toDisplay,
+  );
   if (txs.length === 0) return null;
 
   const flows = [...flowsByBar(txs, barMs).entries()].map(([t, amount]) => ({ t, amount }));

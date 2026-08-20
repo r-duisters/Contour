@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { toDisplayTxs } from "@/lib/display-tx";
 import { fetchKlines, fetchPricesSafe } from "@/lib/binance";
 import { cached } from "@/lib/cache";
 import { fetchLatestEurUsd, fetchEcbRates, rateOn } from "@/lib/fx";
 import { makeEquitySource, type EquityQuote } from "@/lib/equity";
-import { computeHoldings, valueHoldings, type Tx, type TxSide } from "@/lib/portfolio";
+import { computeHoldings, valueHoldings, type Tx } from "@/lib/portfolio";
 
 export const dynamic = "force-dynamic";
 
@@ -31,17 +32,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
    * current rate. Re-converting a 2017 EUR purchase through today's USD rate
    * would misstate the cost basis, which is what this avoids.
    */
-  const txs: Tx[] = portfolio.transactions.map((t) => {
-    const native = t.nativeCurrency === currency && t.nativePrice !== null;
-    return {
-      symbol: t.symbol,
-      side: t.side as TxSide,
-      quantity: t.quantity,
-      price: native ? t.nativePrice! : t.price * toDisplay,
-      fee: native && t.nativeFee !== null ? t.nativeFee! : t.fee * toDisplay,
-      time: Number(t.time),
-    };
-  });
+  const txs = toDisplayTxs(portfolio.transactions, currency, toDisplay);
 
   const equitySymbols = new Set(
     portfolio.transactions.filter((t) => t.assetType === "equity").map((t) => t.symbol),

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import SymbolPicker from "@/components/SymbolPicker";
 import {
-  Activity, ArrowUpDown, ChevronDown, Plus, SlidersHorizontal, Trash2, TrendingDown, TrendingUp,
+  Activity, ArrowUpDown, BarChart3, ChevronDown, Plus, SlidersHorizontal, Trash2, TrendingDown, TrendingUp,
   Upload, Wallet,
 } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
@@ -283,7 +283,15 @@ export default function PortfolioPage() {
 
   return (
     <main className="min-h-screen px-3 py-4 md:p-8 max-w-6xl mx-auto">
-      <h1 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6 flex items-center gap-2"><Wallet size={20} aria-hidden className="text-neutral-400" />Portfolio</h1>
+      <div className="flex items-center gap-2 mb-4 md:mb-6">
+        <h1 className="text-xl md:text-2xl font-semibold flex items-center gap-2">
+          <Wallet size={20} aria-hidden className="text-neutral-400" />Portfolio
+        </h1>
+        <span className="flex-1" />
+        <a href="/insights" className="text-xs text-neutral-400 inline-flex items-center gap-1 border border-neutral-800 rounded px-2 py-1">
+          <BarChart3 size={12} aria-hidden />Insights
+        </a>
+      </div>
 
       {/* Data lives above the fold; portfolio administration hides behind Manage. */}
       <div className="flex gap-2 mb-4 items-center flex-wrap">
