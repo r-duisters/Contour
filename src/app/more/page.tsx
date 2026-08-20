@@ -10,8 +10,8 @@ const LINKS = [
 
 export default function MorePage() {
   return (
-    <main className="min-h-screen p-8 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-semibold mb-6">More</h1>
+    <main className="min-h-screen px-4 py-5 md:p-8 max-w-3xl mx-auto">
+      <h1 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6">More</h1>
       <ul className="space-y-3 text-sm">
         {LINKS.map(({ href, label, Icon }) => (
           <li key={href}>

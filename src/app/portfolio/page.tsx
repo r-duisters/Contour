@@ -233,8 +233,8 @@ export default function PortfolioPage() {
   const visibleHoldings = (tabs.find((t) => t.key === assetTab) ?? tabs[0]!).items;
 
   return (
-    <main className="min-h-screen p-8 max-w-6xl mx-auto">
-      <h1 className="text-2xl font-semibold mb-6 flex items-center gap-2"><Wallet size={20} aria-hidden className="text-neutral-400" />Portfolio</h1>
+    <main className="min-h-screen px-3 py-4 md:p-8 max-w-6xl mx-auto">
+      <h1 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6 flex items-center gap-2"><Wallet size={20} aria-hidden className="text-neutral-400" />Portfolio</h1>
 
       {/* Data lives above the fold; portfolio administration hides behind Manage. */}
       <div className="flex gap-2 mb-4 items-center flex-wrap">
@@ -308,7 +308,7 @@ export default function PortfolioPage() {
           )}
           {valuation && (
             <>
-              <div className="grid grid-cols-2 gap-3 mb-3">
+              <div className="grid grid-cols-2 gap-2 md:gap-3 mb-3">
                 <Stat label="Value" value={fmtUsd(valuation.totals.value)} big
                       sub={valuation.totals.dayChange && (
                         <DayBadge change={valuation.totals.dayChange} label="today" />
@@ -372,7 +372,7 @@ export default function PortfolioPage() {
                   </span>
                 )}
               </div>
-              <div className="grid md:grid-cols-[1fr_260px] gap-8 mb-8 items-start">
+              <div className="grid md:grid-cols-[1fr_260px] gap-4 md:gap-8 mb-6 md:mb-8 items-start">
                 <ValueChart series={series} />
                 <AllocationDonut holdings={valuation.holdings} />
               </div>
@@ -706,8 +706,8 @@ function HoldingDetail({
     ? (holding.unrealizedPnl / holding.costBasis) * 100 : null;
 
   return (
-    <div className="border-t border-neutral-800 p-3 space-y-4">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+    <div className="border-t border-neutral-800 p-3 space-y-3 md:space-y-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 md:gap-3 text-sm">
         <Field label="Quantity" value={fmtQty(holding.quantity)} />
         <Field label="Avg cost" value={holding.quantity > 0 ? fmtUsd(holding.avgCost) : "—"} />
         <Field label="Last price" value={holding.price !== null ? fmtUsd(holding.price) : "no price"} />

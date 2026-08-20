@@ -160,8 +160,8 @@ export default function SettingsPage() {
   }
 
   return (
-    <main className="min-h-screen p-8 max-w-xl mx-auto">
-      <h1 className="text-2xl font-semibold mb-6 flex items-center gap-2"><SettingsIcon size={20} aria-hidden className="text-neutral-400" />Settings</h1>
+    <main className="min-h-screen px-4 py-5 md:p-8 max-w-xl mx-auto">
+      <h1 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6 flex items-center gap-2"><SettingsIcon size={20} aria-hidden className="text-neutral-400" />Settings</h1>
       <section className="space-y-4 mb-10">
         <h2 className="text-sm font-semibold">Display</h2>
         <label className="block text-sm">

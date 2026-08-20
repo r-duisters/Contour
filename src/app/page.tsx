@@ -14,8 +14,8 @@ const LINKS = [
 
 export default function Home() {
   return (
-    <main className="min-h-screen p-8 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-semibold mb-2">Trader</h1>
+    <main className="min-h-screen px-4 py-5 md:p-8 max-w-3xl mx-auto">
+      <h1 className="text-xl md:text-2xl font-semibold mb-2">Trader</h1>
       <p className="text-sm text-neutral-500 mb-8">
         TradingView-style charting and alerts for a specific PineScript, with notifications via Home Assistant.
       </p>

@@ -39,7 +39,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <PwaSetup />
-        <div className="pb-12 md:pb-0">{children}</div>
+        <div className="pb-20 md:pb-0">{children}</div>
         <TabBar />
       </body>
     </html>

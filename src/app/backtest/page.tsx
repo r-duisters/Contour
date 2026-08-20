@@ -41,8 +41,8 @@ export default function BacktestPage() {
   }
 
   return (
-    <main className="min-h-screen p-8 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-semibold mb-6 flex items-center gap-2"><History size={20} aria-hidden className="text-neutral-400" />Backtest</h1>
+    <main className="min-h-screen px-4 py-5 md:p-8 max-w-4xl mx-auto">
+      <h1 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6 flex items-center gap-2"><History size={20} aria-hidden className="text-neutral-400" />Backtest</h1>
 
       <div className="flex flex-wrap gap-2 mb-6">
         <input className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm uppercase"
