@@ -18,6 +18,10 @@ export type ParsedTx = {
   pendingQuote?: { currency: string; total: number };
   /** Fee that could not be expressed in USD at parse time. */
   feeRaw?: { currency: string; amount: number };
+  /** What the trade cost in the currency it was actually settled in. */
+  nativeCurrency?: string;
+  nativePrice?: number;
+  nativeFee?: number;
 };
 
 export type SkippedRow = { line: number; reason: string };
@@ -237,10 +241,18 @@ export function parseDeltaCsv(text: string): DeltaImport {
       else if (feeCurrency) feeRaw = { currency: feeCurrency, amount: feeAmount };
     }
 
+    // Native = the currency this trade actually settled in (EUR for a Bitvavo
+    // buy, USD for a stable-quoted one).
+    const nativeCurrency = pendingQuote?.currency
+      ?? (STABLES.has(quoteCurrency) ? "USD" : STABLES.has(costsCurrency) ? "USD" : undefined);
+    const nativePrice = pendingQuote ? pendingQuote.total / quantity : price || undefined;
+    const nativeFee = feeRaw && feeRaw.currency === nativeCurrency ? feeRaw.amount
+      : nativeCurrency === "USD" ? fee || undefined : undefined;
+
     rows.push({
       symbol: assetType === "equity" ? baseCurrency : `${baseCurrency}USDT`,
       assetType, base: baseCurrency, venue: cell(cols.venue), side, quantity, price, fee, time,
-      pendingQuote, feeRaw,
+      pendingQuote, feeRaw, nativeCurrency, nativePrice, nativeFee,
     });
   }
 

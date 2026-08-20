@@ -1,4 +1,4 @@
-export type EquityQuote = { price: number; currency: string };
+export type EquityQuote = { price: number; currency: string; prevClose?: number };
 
 /** A source of stock/ETF prices. Symbols are exchange tickers (ASML.AS, AMD). */
 export interface EquitySource {
@@ -55,7 +55,14 @@ export class YahooSource implements EquitySource {
         if (!res.ok) continue;
         const meta = (await res.json())?.chart?.result?.[0]?.meta;
         const price = meta?.regularMarketPrice;
-        if (typeof price === "number") out[symbol] = { price, currency: meta.currency ?? "USD" };
+        const prev = meta?.chartPreviousClose ?? meta?.previousClose;
+        if (typeof price === "number") {
+          out[symbol] = {
+            price,
+            currency: meta.currency ?? "USD",
+            prevClose: typeof prev === "number" ? prev : undefined,
+          };
+        }
       } catch {
         // try the next symbol
       }
@@ -80,10 +87,15 @@ export class TwelveDataSource implements EquitySource {
     // One symbol returns a bare object; several return a map keyed by symbol.
     const entries = symbols.length === 1 ? [[symbols[0]!, data] as const] : Object.entries(data);
     for (const [symbol, raw] of entries) {
-      const q = raw as { close?: string; currency?: string; code?: number };
+      const q = raw as { close?: string; currency?: string; previous_close?: string };
       const price = Number(q?.close);
+      const prev = Number(q?.previous_close);
       if (Number.isFinite(price) && price > 0) {
-        out[symbol] = { price, currency: (q.currency ?? "USD").toUpperCase() };
+        out[symbol] = {
+          price,
+          currency: (q.currency ?? "USD").toUpperCase(),
+          prevClose: Number.isFinite(prev) && prev > 0 ? prev : undefined,
+        };
       }
     }
     return out;
@@ -105,9 +117,14 @@ export class AlphaVantageSource implements EquitySource {
         if (!res.ok) continue;
         const data = (await res.json()) as { "Global Quote"?: Record<string, string> };
         const price = Number(data["Global Quote"]?.["05. price"]);
+        const prev = Number(data["Global Quote"]?.["08. previous close"]);
         // Alpha Vantage does not report the currency; infer from the suffix.
         if (Number.isFinite(price) && price > 0) {
-          out[symbol] = { price, currency: currencyForTicker(symbol) };
+          out[symbol] = {
+            price,
+            currency: currencyForTicker(symbol),
+            prevClose: Number.isFinite(prev) && prev > 0 ? prev : undefined,
+          };
         }
       } catch {
         // try the next symbol

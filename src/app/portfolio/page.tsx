@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import SymbolPicker from "@/components/SymbolPicker";
 import {
-  ArrowUpDown, ChevronDown, Plus, SlidersHorizontal, Trash2, TrendingDown, TrendingUp, Upload, Wallet,
+  Activity, ArrowUpDown, ChevronDown, Plus, SlidersHorizontal, Trash2, TrendingDown, TrendingUp,
+  Upload, Wallet,
 } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
 import {
@@ -29,6 +30,7 @@ type SortKey = "value" | "pnlPct" | "pnl" | "realized" | "quantity" | "symbol";
 type ValuedHolding = {
   symbol: string;
   assetType?: "crypto" | "equity";
+  dayChange?: DayChange | null;
   quantity: number;
   avgCost: number;
   costBasis: number;
@@ -39,9 +41,14 @@ type ValuedHolding = {
   unrealizedPnl: number | null;
 };
 
+type DayChange = { abs: number; pct: number };
+
 type Valuation = {
   holdings: ValuedHolding[];
-  totals: { value: number; costBasis: number; unrealizedPnl: number; realizedPnl: number; fees: number };
+  totals: {
+    value: number; costBasis: number; unrealizedPnl: number; realizedPnl: number; fees: number;
+    dayChange: (DayChange & { covered: number }) | null;
+  };
   series: { t: number; value: number }[];
   currency?: "USD" | "EUR";
   rate?: number;
@@ -49,11 +56,10 @@ type Valuation = {
 
 const SLICE_COLORS = ["#3b82f6", "#22c55e", "#eab308", "#a855f7", "#ef4444", "#14b8a6", "#f97316", "#64748b"];
 
-// All server figures are USD; `rate` converts to the chosen display currency.
+// The server already returns figures in the display currency.
 let displayCurrency: "USD" | "EUR" = "USD";
-let displayRate = 1;
 const fmtUsd = (n: number) =>
-  (n * displayRate).toLocaleString(displayCurrency === "EUR" ? "de-DE" : "en-US", {
+  n.toLocaleString(displayCurrency === "EUR" ? "de-DE" : "en-US", {
     style: "currency", currency: displayCurrency, maximumFractionDigits: 2,
   });
 const fmtQty = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 8 });
@@ -72,6 +78,14 @@ export default function PortfolioPage() {
   const [manageOpen, setManageOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [risk, setRisk] = useState<{ risk: number; zone: "buy" | "hold" | "sell" } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/risk?symbol=BTCUSDT")
+      .then((r) => r.json())
+      .then((d) => { if (typeof d.risk === "number" && d.zone) setRisk({ risk: d.risk, zone: d.zone }); })
+      .catch(() => {});
+  }, []);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loadPortfolios = useCallback(async () => {
@@ -89,10 +103,7 @@ export default function PortfolioPage() {
       fetch(`/api/portfolios/${selectedId}/valuation`).then((r) => (r.ok ? r.json() : null)),
     ]);
     setTransactions(detail?.portfolio.transactions ?? []);
-    if (val) {
-      displayCurrency = val.currency ?? "USD";
-      displayRate = val.rate ?? 1;
-    }
+    if (val) displayCurrency = val.currency ?? "USD";
     setValuation(val);
     setValuationLoading(false);
   }, [selectedId]);
@@ -251,12 +262,33 @@ export default function PortfolioPage() {
 
       {selectedId && (
         <>
+          {risk && (
+            <a href="/chart" className={`inline-flex items-center gap-2 mb-4 rounded px-3 py-1.5 text-sm border ${
+              risk.zone === "buy" ? "border-green-700 bg-green-950/50 text-green-400"
+              : risk.zone === "sell" ? "border-red-700 bg-red-950/50 text-red-400"
+              : "border-neutral-800 bg-neutral-900 text-neutral-400"
+            }`}>
+              <Activity size={14} aria-hidden />
+              BTC risk {risk.risk.toFixed(2)}
+              <span className="opacity-80">
+                · {risk.zone === "buy" ? "buy zone" : risk.zone === "sell" ? "sell zone" : "hold"}
+              </span>
+            </a>
+          )}
           {valuation && (
             <>
               <div className="grid grid-cols-2 gap-3 mb-3">
-                <Stat label="Value" value={fmtUsd(valuation.totals.value)} big />
+                <Stat label="Value" value={fmtUsd(valuation.totals.value)} big
+                      sub={valuation.totals.dayChange && (
+                        <DayBadge change={valuation.totals.dayChange} label="today" />
+                      )} />
                 <Stat label="Unrealized P&L" value={fmtUsd(valuation.totals.unrealizedPnl)}
-                      signed={valuation.totals.unrealizedPnl} big />
+                      signed={valuation.totals.unrealizedPnl} big
+                      sub={valuation.totals.costBasis > 0 ? (
+                        <span className="text-xs text-neutral-500">
+                          {((valuation.totals.unrealizedPnl / valuation.totals.costBasis) * 100).toFixed(1)}% on cost
+                        </span>
+                      ) : undefined} />
               </div>
               <div className={`${statsOpen ? "grid" : "hidden"} md:grid grid-cols-2 md:grid-cols-3 gap-3 mb-3`}>
                 <Stat label="Cost basis" value={fmtUsd(valuation.totals.costBasis)} />
@@ -329,10 +361,15 @@ export default function PortfolioPage() {
                         <span className="flex-1" />
                         <span className="text-right">
                           <span className="block">{h.value !== null ? fmtUsd(h.value) : "—"}</span>
-                          <span className="text-xs">
+                          <span className="text-xs flex items-center justify-end gap-2">
+                            {h.dayChange && (
+                              <span className={h.dayChange.pct >= 0 ? "text-green-500" : "text-red-500"}>
+                                {h.dayChange.pct >= 0 ? "+" : ""}{h.dayChange.pct.toFixed(1)}% today
+                              </span>
+                            )}
                             {pct !== null ? (
-                              <span className={pct >= 0 ? "text-green-500" : "text-red-500"}>
-                                {pct >= 0 ? "+" : ""}{pct.toFixed(1)}%
+                              <span className="text-neutral-500">
+                                {pct >= 0 ? "+" : ""}{pct.toFixed(1)}% all
                               </span>
                             ) : (
                               <span className="text-neutral-500">no price</span>
@@ -404,7 +441,19 @@ export default function PortfolioPage() {
   );
 }
 
-function Stat({ label, value, signed, big }: { label: string; value: string; signed?: number; big?: boolean }) {
+function DayBadge({ change, label }: { change: { abs: number; pct: number }; label: string }) {
+  const up = change.pct >= 0;
+  return (
+    <span className={`text-xs inline-flex items-center gap-1 ${up ? "text-green-500" : "text-red-500"}`}>
+      {up ? <TrendingUp size={12} aria-hidden /> : <TrendingDown size={12} aria-hidden />}
+      {up ? "+" : ""}{change.pct.toFixed(2)}% ({fmtUsd(change.abs)}) {label}
+    </span>
+  );
+}
+
+function Stat({ label, value, signed, big, sub }: {
+  label: string; value: string; signed?: number; big?: boolean; sub?: React.ReactNode;
+}) {
   const color =
     signed === undefined ? "text-neutral-200"
     : signed > 0 ? "text-green-500"
@@ -418,6 +467,7 @@ function Stat({ label, value, signed, big }: { label: string; value: string; sig
         {signed !== undefined && signed < 0 && <TrendingDown size={16} aria-hidden />}
         {value}
       </div>
+      {sub && <div className="mt-0.5">{sub}</div>}
     </div>
   );
 }
@@ -453,7 +503,7 @@ function ValueChart({ series }: { series: { t: number; value: number }[] }) {
 
   useEffect(() => {
     if (!area.current) return;
-    area.current.setData(series.map((p) => ({ time: Math.floor(p.t / 1000) as Time, value: p.value * displayRate })));
+    area.current.setData(series.map((p) => ({ time: Math.floor(p.t / 1000) as Time, value: p.value })));
     chart.current?.timeScale().fitContent();
   }, [series]);
 
@@ -584,6 +634,13 @@ function HoldingDetail({
         <Field label="Quantity" value={fmtQty(holding.quantity)} />
         <Field label="Avg cost" value={holding.quantity > 0 ? fmtUsd(holding.avgCost) : "—"} />
         <Field label="Last price" value={holding.price !== null ? fmtUsd(holding.price) : "no price"} />
+        <Field
+          label="Today"
+          value={holding.dayChange
+            ? `${holding.dayChange.pct >= 0 ? "+" : ""}${holding.dayChange.pct.toFixed(2)}% (${fmtUsd(holding.dayChange.abs)})`
+            : "—"}
+          signed={holding.dayChange?.abs}
+        />
         <Field label="Cost basis" value={fmtUsd(holding.costBasis)} />
         <Field label="Value" value={holding.value !== null ? fmtUsd(holding.value) : "—"} />
         <Field

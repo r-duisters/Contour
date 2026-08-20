@@ -70,6 +70,11 @@ model Transaction {
   quantity    Float
   price       Float     // quote units per base unit; for transfers this is the cost-basis price
   fee         Float     @default(0) // in quote units
+  // What the trade actually cost in its own currency, so a EUR investor's cost
+  // basis is not distorted by re-converting USD at today's rate.
+  nativeCurrency String?
+  nativePrice    Float?
+  nativeFee      Float?
   time        BigInt    // ms timestamp
   note        String?
   createdAt   DateTime  @default(now())

@@ -29,6 +29,7 @@ describe("parseDeltaCsv", () => {
       symbol: "BTCUSDT", assetType: "crypto", base: "BTC", venue: "Binance",
       side: "buy", quantity: 0.5, price: 42000, fee: 10,
       time: Date.parse("2024-01-15T10:30:00"), pendingQuote: undefined, feeRaw: undefined,
+      nativeCurrency: "USD", nativePrice: 42000, nativeFee: 10,
     }]);
   });
 
@@ -168,6 +169,13 @@ describe("parseDeltaCsv", () => {
     expect(venueAssetType("Interactive Brokers")).toBe("equity");
     expect(venueAssetType("")).toBeNull();
     expect(venueAssetType("Some Unknown Place")).toBeNull();
+  });
+
+  it("records what a EUR-settled trade actually cost in EUR", () => {
+    const { rows } = parseDeltaCsv(csv("2017-06-01,BUY,Bitvavo,10,ETH,2000,EUR,5,EUR,,,"));
+    expect(rows[0]!.nativeCurrency).toBe("EUR");
+    expect(rows[0]!.nativePrice).toBe(200); // 2000 EUR / 10 ETH, untouched by FX
+    expect(rows[0]!.nativeFee).toBe(5);
   });
 
   it("accepts the 'Way' header variant for the type column", () => {
