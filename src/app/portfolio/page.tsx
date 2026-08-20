@@ -431,7 +431,9 @@ export default function PortfolioPage() {
           )}
 
           <div className="flex items-center gap-2 mb-3">
-            <h2 className="text-lg font-medium">Transactions</h2>
+            <span className="text-sm text-neutral-500">
+              {transactions.length} transactions · open a holding to see its own
+            </span>
             <span className="flex-1" />
             <button onClick={() => setAddOpen((v) => !v)}
                     className="bg-blue-600 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1">
@@ -439,26 +441,6 @@ export default function PortfolioPage() {
             </button>
           </div>
           {addOpen && <TxForm onSubmit={addTransaction} error={formError} />}
-          <ul className="divide-y divide-neutral-800">
-            {transactions.map((tx) => (
-              <li key={tx.id} className="py-2 flex items-center gap-3 text-sm">
-                <span className={`text-xs px-2 py-0.5 rounded w-24 text-center ${
-                  tx.side === "buy" || tx.side === "transfer_in" ? "bg-green-900 text-green-300" : "bg-red-900 text-red-300"
-                }`}>{tx.side.replace("_", " ")}</span>
-                <span className="font-mono inline-flex items-center gap-1.5"><CoinIcon symbol={tx.symbol} size={16} />{tx.symbol}</span>
-                <span>{fmtQty(tx.quantity)} @ {fmtUsd(tx.price)}</span>
-                {tx.fee > 0 && <span className="text-neutral-500 text-xs">fee {fmtUsd(tx.fee)}</span>}
-                <span className="text-neutral-500 text-xs">{new Date(tx.time).toLocaleString()}</span>
-                <span className="flex-1" />
-                <button onClick={() => deleteTransaction(tx.id)} className="text-xs underline text-red-500 inline-flex items-center gap-1">
-                  <Trash2 size={12} aria-hidden />delete
-                </button>
-              </li>
-            ))}
-            {transactions.length === 0 && (
-              <li className="text-sm text-neutral-500 py-4">No transactions yet.</li>
-            )}
-          </ul>
         </>
       )}
       {!selectedId && portfolios.length === 0 && (
