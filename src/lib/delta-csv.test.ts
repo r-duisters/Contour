@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCsv, parseDeltaCsv } from "./delta-csv";
+import { parseCsv, parseDeltaCsv, venueAssetType } from "./delta-csv";
 
 const HEADER = "Date,Type,Exchange,Base amount,Base currency,Quote amount,Quote currency,Fee,Fee currency,Costs/Proceeds,Costs/Proceeds currency,Notes";
 
@@ -26,7 +26,8 @@ describe("parseDeltaCsv", () => {
     expect(skipped).toEqual([]);
     expect(warnings).toEqual([]);
     expect(rows).toEqual([{
-      symbol: "BTCUSDT", assetType: "crypto", base: "BTC", side: "buy", quantity: 0.5, price: 42000, fee: 10,
+      symbol: "BTCUSDT", assetType: "crypto", base: "BTC", venue: "Binance",
+      side: "buy", quantity: 0.5, price: 42000, fee: 10,
       time: Date.parse("2024-01-15T10:30:00"), pendingQuote: undefined, feeRaw: undefined,
     }]);
   });
@@ -156,6 +157,17 @@ describe("parseDeltaCsv", () => {
     const { rows } = parseDeltaCsv(csv("2024-01-15,BUY,Binance,1,BTC,40000,USDT,,,,,"));
     expect(rows[0]!.assetType).toBe("crypto");
     expect(rows[0]!.symbol).toBe("BTCUSDT");
+  });
+
+  it("captures the venue and classifies it", () => {
+    const { rows } = parseDeltaCsv(csv("2024-01-15,BUY,Binance,1,BTC,40000,USDT,,,,,"));
+    expect(rows[0]!.venue).toBe("Binance");
+    expect(venueAssetType("Binance")).toBe("crypto");
+    expect(venueAssetType("My Ledger wallet")).toBe("crypto");
+    expect(venueAssetType("DeGiro")).toBe("equity");
+    expect(venueAssetType("Interactive Brokers")).toBe("equity");
+    expect(venueAssetType("")).toBeNull();
+    expect(venueAssetType("Some Unknown Place")).toBeNull();
   });
 
   it("accepts the 'Way' header variant for the type column", () => {

@@ -6,6 +6,8 @@ export type ParsedTx = {
   /** Bare ticker (BTC, ASML.AS) — lets the importer reclassify unsuffixed
    *  tickers that are not tradable coins (e.g. AMD) as equities. */
   base: string;
+  /** Delta's exchange/venue for the row: the strongest crypto-vs-equity signal. */
+  venue: string;
   side: TxSide;
   quantity: number;
   price: number;
@@ -87,6 +89,27 @@ export function normalizeAsset(raw: string): string {
   return raw.split("(")[0]!.trim().replace(/\*+$/, "").toUpperCase();
 }
 
+const CRYPTO_VENUES = [
+  "binance", "kraken", "coinbase", "bitvavo", "kucoin", "bitfinex", "bitstamp", "bybit", "okx",
+  "huobi", "gate", "crypto.com", "bittrex", "poloniex", "gemini", "wallet", "ledger", "trezor",
+  "metamask", "trust", "exodus", "phantom", "electrum", "cold storage", "defi", "uniswap",
+  "pancake", "staking", "nexo", "celsius", "blockfi", "bitpanda", "litebit", "anycoin", "deribit",
+];
+const BROKER_VENUES = [
+  "degiro", "interactive brokers", "ibkr", "trading212", "trading 212", "etoro", "saxo", "flatex",
+  "comdirect", "scalable", "revolut", "robinhood", "schwab", "fidelity", "vanguard", "bux",
+  "lynx", "meesman", "brand new day", "abn", "ing", "rabobank", "binck", "avanza", "nordnet",
+];
+
+/** "crypto" | "equity" | null when the venue says nothing useful. */
+export function venueAssetType(venue: string): "crypto" | "equity" | null {
+  const v = venue.trim().toLowerCase();
+  if (!v) return null;
+  if (CRYPTO_VENUES.some((k) => v.includes(k))) return "crypto";
+  if (BROKER_VENUES.some((k) => v.includes(k))) return "equity";
+  return null;
+}
+
 /** Exchange-suffixed tickers (SHELL.AS, UBI.PA) are equities, not crypto. */
 function isSecurityTicker(ticker: string): boolean {
   return /\.[A-Z]{1,4}$/.test(ticker);
@@ -112,7 +135,7 @@ function parseDate(raw: string | undefined): number {
 
 type Cols = Partial<Record<
   "date" | "type" | "baseAmount" | "baseCurrency" | "quoteAmount" | "quoteCurrency" |
-  "feeAmount" | "feeCurrency" | "costs" | "costsCurrency", number>>;
+  "feeAmount" | "feeCurrency" | "costs" | "costsCurrency" | "venue", number>>;
 
 function mapHeader(header: string[]): Cols {
   const cols: Cols = {};
@@ -128,6 +151,7 @@ function mapHeader(header: string[]): Cols {
     else if (h.includes("fee")) cols.feeAmount = i;
     else if ((h.includes("costs") || h.includes("proceeds")) && h.includes("currency")) cols.costsCurrency = i;
     else if (h.includes("costs") || h.includes("proceeds")) cols.costs = i;
+    else if (cols.venue === undefined && (h.includes("exchange") || h.includes("wallet") || h.includes("service"))) cols.venue = i;
   });
   return cols;
 }
@@ -215,7 +239,8 @@ export function parseDeltaCsv(text: string): DeltaImport {
 
     rows.push({
       symbol: assetType === "equity" ? baseCurrency : `${baseCurrency}USDT`,
-      assetType, base: baseCurrency, side, quantity, price, fee, time, pendingQuote, feeRaw,
+      assetType, base: baseCurrency, venue: cell(cols.venue), side, quantity, price, fee, time,
+      pendingQuote, feeRaw,
     });
   }
 

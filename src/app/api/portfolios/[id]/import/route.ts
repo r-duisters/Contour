@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { parseDeltaCsv, type ParsedTx, type SkippedRow } from "@/lib/delta-csv";
+import { parseDeltaCsv, venueAssetType, type ParsedTx, type SkippedRow } from "@/lib/delta-csv";
 import { fetchKlinesRange, fetchUsdtSymbols } from "@/lib/binance";
 import { fetchEcbRates } from "@/lib/fx";
 
@@ -95,23 +95,28 @@ async function resolvePendingQuotes(rows: ParsedTx[]): Promise<SkippedRow[]> {
 }
 
 /**
- * Delta lists US stocks without an exchange suffix (AMD), which look like
- * coin tickers. Anything the Binance USDT market does not list is an equity.
+ * Delta lists US stocks without an exchange suffix (AMD), which look like coin
+ * tickers. "Not on Binance" alone is NOT enough to call something a stock —
+ * delisted coins (SUB, MATIC, XMR) would then match unrelated equity tickers
+ * and inject phantom value. The venue decides; ambiguity stays crypto, where
+ * an unknown asset simply shows as unpriced.
  */
 async function reclassifyNonCoins(rows: ParsedTx[]): Promise<void> {
   const candidates = rows.filter((r) => r.assetType === "crypto");
   if (candidates.length === 0) return;
-  let coins: Set<string>;
+  let coins = new Set<string>();
   try {
     coins = new Set(await fetchUsdtSymbols());
   } catch {
-    return; // leave the parser's guess when Binance is unreachable
+    // Binance unreachable: fall back to venue signal alone
   }
   for (const r of candidates) {
-    if (!coins.has(`${r.base}USDT`)) {
-      r.assetType = "equity";
-      r.symbol = r.base;
-    }
+    const venue = venueAssetType(r.venue);
+    if (venue === "crypto") continue;                   // wallet/exchange row: always a coin
+    if (coins.has(`${r.base}USDT`)) continue;           // tradable coin
+    if (venue !== "equity") continue;                   // unknown venue: keep crypto, stay unpriced
+    r.assetType = "equity";
+    r.symbol = r.base;
   }
 }
 
