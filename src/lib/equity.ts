@@ -6,10 +6,22 @@ export interface EquitySource {
   quotes(symbols: string[]): Promise<Record<string, EquityQuote>>;
 }
 
-const UA =
-  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
+/**
+ * Yahoo's chart API answers 429 to bare requests; it needs the header set a
+ * browser XHR sends (Referer/Origin/sec-fetch), not just a User-Agent.
+ */
+const YAHOO_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+  Accept: "application/json, text/plain, */*",
+  "Accept-Language": "en-US,en;q=0.9",
+  Referer: "https://finance.yahoo.com/",
+  Origin: "https://finance.yahoo.com",
+  "sec-fetch-site": "same-site",
+  "sec-fetch-mode": "cors",
+};
 
-/** Keyless, but Yahoo rate-limits datacenter and many residential IPs (HTTP 429). */
+/** Keyless. Covers Euronext/XETRA/US via exchange-suffixed tickers. */
 export class YahooSource implements EquitySource {
   readonly name = "yahoo";
   async quotes(symbols: string[]): Promise<Record<string, EquityQuote>> {
@@ -17,8 +29,8 @@ export class YahooSource implements EquitySource {
     for (const symbol of symbols) {
       try {
         const res = await fetch(
-          `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1d&interval=1d`,
-          { headers: { "User-Agent": UA, Accept: "application/json" } },
+          `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1d&interval=1d`,
+          { headers: YAHOO_HEADERS },
         );
         if (!res.ok) continue;
         const meta = (await res.json())?.chart?.result?.[0]?.meta;

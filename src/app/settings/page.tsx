@@ -180,7 +180,7 @@ export default function SettingsPage() {
           <span className="text-neutral-400">Stock / ETF price source</span>
           <select className="mt-1 w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1"
                   value={equityProvider} onChange={(e) => setEquityProvider(e.target.value)}>
-            <option value="yahoo">Yahoo Finance (no key — often rate-limited)</option>
+            <option value="yahoo">Yahoo Finance (no key needed)</option>
             <option value="twelvedata">Twelve Data (free key, 800/day)</option>
             <option value="alphavantage">Alpha Vantage (free key, 25/day)</option>
           </select>
