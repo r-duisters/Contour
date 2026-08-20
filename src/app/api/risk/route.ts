@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { fetchKlines } from "@/lib/binance";
 import { run } from "@/lib/indicator";
+import { cached } from "@/lib/cache";
 
 export const dynamic = "force-dynamic";
 
@@ -23,17 +24,26 @@ export async function GET(req: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   const { symbol } = parsed.data;
   try {
-    const bars = await warmBars(symbol);
-    const { series } = run(bars.slice(0, -1)); // drop the in-progress bar
-    for (let i = series.riskMetric.length - 1; i >= 0; i--) {
-      const risk = series.riskMetric[i];
-      if (Number.isFinite(risk)) {
-        const zone = risk! < 0.3 ? "buy" : risk! > 0.8 ? "sell" : "hold";
-        return NextResponse.json({ symbol, risk, zone });
-      }
-    }
-    return NextResponse.json({ symbol, risk: null, zone: null });
+    // Daily indicator: recomputing more than a few times an hour is wasted work.
+    return NextResponse.json(
+      await cached(`risk:${symbol}:${Math.floor(Date.now() / 900_000)}`, 900_000, () =>
+        computeRisk(symbol),
+      ),
+    );
   } catch (e) {
     return NextResponse.json({ symbol, risk: null, zone: null, error: (e as Error).message });
   }
+}
+
+async function computeRisk(symbol: string) {
+  const bars = await warmBars(symbol);
+  const { series } = run(bars.slice(0, -1)); // drop the in-progress bar
+  for (let i = series.riskMetric.length - 1; i >= 0; i--) {
+    const risk = series.riskMetric[i];
+    if (Number.isFinite(risk)) {
+      const zone = risk! < 0.3 ? "buy" : risk! > 0.8 ? "sell" : "hold";
+      return { symbol, risk, zone };
+    }
+  }
+  return { symbol, risk: null, zone: null };
 }

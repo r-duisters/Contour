@@ -45,29 +45,29 @@ export class YahooSource implements EquitySource {
   }
 
   async quotes(symbols: string[]): Promise<Record<string, EquityQuote>> {
-    const out: Record<string, EquityQuote> = {};
-    for (const symbol of symbols) {
-      try {
-        const res = await fetch(
-          `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1d&interval=1d`,
-          { headers: YAHOO_HEADERS },
-        );
-        if (!res.ok) continue;
-        const meta = (await res.json())?.chart?.result?.[0]?.meta;
-        const price = meta?.regularMarketPrice;
-        const prev = meta?.chartPreviousClose ?? meta?.previousClose;
-        if (typeof price === "number") {
-          out[symbol] = {
+    const results = await Promise.all(
+      symbols.map(async (symbol): Promise<[string, EquityQuote] | null> => {
+        try {
+          const res = await fetch(
+            `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1d&interval=1d`,
+            { headers: YAHOO_HEADERS },
+          );
+          if (!res.ok) return null;
+          const meta = (await res.json())?.chart?.result?.[0]?.meta;
+          const price = meta?.regularMarketPrice;
+          const prev = meta?.chartPreviousClose ?? meta?.previousClose;
+          if (typeof price !== "number") return null;
+          return [symbol, {
             price,
             currency: meta.currency ?? "USD",
             prevClose: typeof prev === "number" ? prev : undefined,
-          };
+          }];
+        } catch {
+          return null;
         }
-      } catch {
-        // try the next symbol
-      }
-    }
-    return out;
+      }),
+    );
+    return Object.fromEntries(results.filter((r): r is [string, EquityQuote] => r !== null));
   }
 }
 

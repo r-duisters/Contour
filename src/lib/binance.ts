@@ -1,5 +1,6 @@
 import WebSocket from "ws";
 import type { Bar, Timeframe } from "./types";
+import { cached } from "./cache";
 
 const REST = "https://api.binance.com";
 const WS_BASE = "wss://stream.binance.com:9443/ws";
@@ -41,8 +42,20 @@ export async function fetchKlines(opts: {
   return raw.map(toBar);
 }
 
-/** Paginated fetch covering [from, to] in ms. */
-export async function fetchKlinesRange(opts: {
+/** Paginated fetch covering [from, to] in ms. Cached: daily history barely moves. */
+export function fetchKlinesRange(opts: {
+  symbol: string;
+  interval: Timeframe;
+  from: number;
+  to: number;
+}): Promise<Bar[]> {
+  const bucket = Math.floor(opts.to / 900_000); // 15-minute cache buckets
+  return cached(`klines:${opts.symbol}:${opts.interval}:${opts.from}:${bucket}`, 900_000, () =>
+    fetchKlinesRangeUncached(opts),
+  );
+}
+
+async function fetchKlinesRangeUncached(opts: {
   symbol: string;
   interval: Timeframe;
   from: number;
@@ -80,7 +93,11 @@ export async function fetchPrices(symbols: string[]): Promise<Record<string, num
 }
 
 /** All actively trading spot symbols quoted in USDT, sorted alphabetically. */
-export async function fetchUsdtSymbols(): Promise<string[]> {
+export function fetchUsdtSymbols(): Promise<string[]> {
+  return cached("usdt-symbols", 3_600_000, fetchUsdtSymbolsUncached);
+}
+
+async function fetchUsdtSymbolsUncached(): Promise<string[]> {
   const res = await fetch(`${REST}/api/v3/exchangeInfo`);
   if (!res.ok) throw new Error(`Binance exchangeInfo ${res.status}: ${await res.text()}`);
   const raw = (await res.json()) as {
@@ -93,8 +110,14 @@ export async function fetchUsdtSymbols(): Promise<string[]> {
 }
 
 /** Like fetchPrices, but tolerant: one bad symbol 400s the whole batch, so fall back to per-symbol lookups. */
-export async function fetchPricesSafe(symbols: string[]): Promise<Record<string, number>> {
-  if (symbols.length === 0) return {};
+export function fetchPricesSafe(symbols: string[]): Promise<Record<string, number>> {
+  if (symbols.length === 0) return Promise.resolve({});
+  return cached(`prices:${[...symbols].sort().join(",")}`, 30_000, () =>
+    fetchPricesSafeUncached(symbols),
+  );
+}
+
+async function fetchPricesSafeUncached(symbols: string[]): Promise<Record<string, number>> {
   try {
     return await fetchPrices(symbols);
   } catch {

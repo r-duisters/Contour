@@ -49,7 +49,6 @@ type Valuation = {
     value: number; costBasis: number; unrealizedPnl: number; realizedPnl: number; fees: number;
     dayChange: (DayChange & { covered: number }) | null;
   };
-  series: { t: number; value: number }[];
   currency?: "USD" | "EUR";
   rate?: number;
 };
@@ -71,6 +70,7 @@ export default function PortfolioPage() {
   const [transactions, setTransactions] = useState<Tx[]>([]);
   const [valuation, setValuation] = useState<Valuation | null>(null);
   const [valuationLoading, setValuationLoading] = useState(false);
+  const [series, setSeries] = useState<{ t: number; value: number }[] | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("value");
@@ -78,6 +78,7 @@ export default function PortfolioPage() {
   const [manageOpen, setManageOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [assetTab, setAssetTab] = useState<"all" | "crypto" | "equity">("all");
   const [risk, setRisk] = useState<{ risk: number; zone: "buy" | "hold" | "sell" } | null>(null);
 
   useEffect(() => {
@@ -96,7 +97,7 @@ export default function PortfolioPage() {
   useEffect(() => { loadPortfolios(); }, [loadPortfolios]);
 
   const loadSelected = useCallback(async () => {
-    if (!selectedId) { setTransactions([]); setValuation(null); return; }
+    if (!selectedId) { setTransactions([]); setValuation(null); setSeries(null); return; }
     setValuationLoading(true);
     const [detail, val] = await Promise.all([
       fetch(`/api/portfolios/${selectedId}`).then((r) => (r.ok ? r.json() : null)),
@@ -106,6 +107,12 @@ export default function PortfolioPage() {
     if (val) displayCurrency = val.currency ?? "USD";
     setValuation(val);
     setValuationLoading(false);
+
+    // The value history is slow to build; let the numbers render first.
+    fetch(`/api/portfolios/${selectedId}/series`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { series?: { t: number; value: number }[] } | null) => setSeries(d?.series ?? []))
+      .catch(() => setSeries([]));
   }, [selectedId]);
   useEffect(() => { loadSelected(); }, [loadSelected]);
 
@@ -197,9 +204,13 @@ export default function PortfolioPage() {
 
   const crypto = sortedHoldings.filter((h) => (h.assetType ?? "crypto") === "crypto");
   const equities = sortedHoldings.filter((h) => h.assetType === "equity");
-  const holdingGroups = equities.length > 0 && crypto.length > 0
-    ? [{ label: "Crypto", items: crypto }, { label: "Stocks & ETFs", items: equities }]
-    : [{ label: "All", items: sortedHoldings }];
+  const classValue = (items: ValuedHolding[]) => sum(items.map((h) => h.value ?? 0));
+  const tabs = [
+    { key: "all" as const, label: "All", items: sortedHoldings },
+    { key: "crypto" as const, label: "Crypto", items: crypto },
+    { key: "equity" as const, label: "Stocks & ETFs", items: equities },
+  ].filter((t) => t.key === "all" || t.items.length > 0);
+  const visibleHoldings = (tabs.find((t) => t.key === assetTab) ?? tabs[0]!).items;
 
   return (
     <main className="min-h-screen p-8 max-w-6xl mx-auto">
@@ -307,7 +318,7 @@ export default function PortfolioPage() {
               )}
 
               <div className="grid md:grid-cols-[1fr_260px] gap-8 mb-8 items-start">
-                <ValueChart series={valuation.series} />
+                <ValueChart series={series} />
                 <AllocationDonut holdings={valuation.holdings} />
               </div>
 
@@ -333,13 +344,31 @@ export default function PortfolioPage() {
                 </label>
               </div>
 
-              {holdingGroups.map(({ label, items }) => (
-              <div key={label}>
-              {holdingGroups.length > 1 && (
-                <h3 className="text-xs uppercase tracking-wide text-neutral-500 mb-2 mt-4">{label}</h3>
+              {tabs.length > 2 && (
+                <div className="flex gap-1 mb-3 border-b border-neutral-800 overflow-x-auto">
+                  {tabs.map((t) => (
+                    <button
+                      key={t.key}
+                      onClick={() => { setAssetTab(t.key); setSelected(null); }}
+                      className={`px-3 py-2 text-sm whitespace-nowrap border-b-2 -mb-px ${
+                        assetTab === t.key
+                          ? "border-blue-500 text-neutral-100"
+                          : "border-transparent text-neutral-500"
+                      }`}
+                    >
+                      {t.label}
+                      <span className="text-xs text-neutral-500 ml-1.5">{t.items.length}</span>
+                      {t.key !== "all" && (
+                        <span className="text-xs text-neutral-500 ml-1.5">
+                          · {fmtUsd(classValue(t.items))}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
               )}
               <ul className="space-y-1 mb-6">
-                {items.map((h) => {
+                {visibleHoldings.map((h) => {
                   const share = totalValue > 0 && h.value !== null ? (h.value / totalValue) * 100 : null;
                   const pct = h.costBasis > 0 && h.unrealizedPnl !== null
                     ? (h.unrealizedPnl / h.costBasis) * 100 : null;
@@ -392,8 +421,6 @@ export default function PortfolioPage() {
                   );
                 })}
               </ul>
-              </div>
-              ))}
               {sortedHoldings.length === 0 && (
                 <p className="text-sm text-neutral-500 py-2 mb-6">No holdings yet — add a transaction below.</p>
               )}
@@ -441,6 +468,10 @@ export default function PortfolioPage() {
   );
 }
 
+function sum(xs: number[]): number {
+  return xs.reduce((a, b) => a + b, 0);
+}
+
 function DayBadge({ change, label }: { change: { abs: number; pct: number }; label: string }) {
   const up = change.pct >= 0;
   return (
@@ -478,7 +509,7 @@ function Pnl({ value }: { value: number | null }) {
   return <span className={color}>{fmtUsd(value)}</span>;
 }
 
-function ValueChart({ series }: { series: { t: number; value: number }[] }) {
+function ValueChart({ series }: { series: { t: number; value: number }[] | null }) {
   const container = useRef<HTMLDivElement>(null);
   const chart = useRef<IChartApi | null>(null);
   const area = useRef<ISeriesApi<"Area"> | null>(null);
@@ -502,12 +533,21 @@ function ValueChart({ series }: { series: { t: number; value: number }[] }) {
   }, []);
 
   useEffect(() => {
-    if (!area.current) return;
+    if (!area.current || !series) return;
     area.current.setData(series.map((p) => ({ time: Math.floor(p.t / 1000) as Time, value: p.value })));
     chart.current?.timeScale().fitContent();
   }, [series]);
 
-  return <div ref={container} className="h-64 border border-neutral-800 rounded" />;
+  return (
+    <div className="relative">
+      <div ref={container} className="h-64 border border-neutral-800 rounded" />
+      {series === null && (
+        <span className="absolute inset-0 flex items-center justify-center text-xs text-neutral-500">
+          building value history…
+        </span>
+      )}
+    </div>
+  );
 }
 
 function AllocationDonut({ holdings }: { holdings: ValuedHolding[] }) {

@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { fetchKlinesRange, fetchPricesSafe } from "@/lib/binance";
+import { fetchKlines, fetchPricesSafe } from "@/lib/binance";
+import { cached } from "@/lib/cache";
 import { fetchLatestEurUsd, fetchEcbRates, rateOn } from "@/lib/fx";
 import { makeEquitySource, type EquityQuote } from "@/lib/equity";
-import {
-  computeHoldings, portfolioValueSeries, valueHoldings, type Tx, type TxSide,
-} from "@/lib/portfolio";
-import type { Bar } from "@/lib/types";
+import { computeHoldings, valueHoldings, type Tx, type TxSide } from "@/lib/portfolio";
 
 export const dynamic = "force-dynamic";
 
@@ -53,10 +51,10 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   const cryptoSymbols = held.filter((s) => !equitySymbols.has(s));
   const heldEquities = held.filter((s) => equitySymbols.has(s));
 
-  const [cryptoPrices, equityPrices, candles] = await Promise.all([
+  const [cryptoPrices, equityPrices, cryptoPrev] = await Promise.all([
     fetchPricesSafe(cryptoSymbols),
     fetchEquityPricesUsd(heldEquities, settingsRow0?.equityProvider, settingsRow0?.equityApiKey),
-    fetchDailyCandles(txs.filter((t) => !equitySymbols.has(t.symbol))),
+    fetchCryptoPrevCloses(cryptoSymbols),
   ]);
   const prices: Record<string, number> = {};
   const prevCloses: Record<string, number> = {};
@@ -65,12 +63,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     prices[sym] = q.price * toDisplay;
     if (q.prevClose !== undefined) prevCloses[sym] = q.prevClose * toDisplay;
   }
-  // Crypto previous close: the last fully closed daily candle.
-  for (const [sym, bars] of Object.entries(candles)) {
-    const closed = bars.filter((b) => b.t + 86_400_000 <= Date.now());
-    const last = closed[closed.length - 1];
-    if (last) prevCloses[sym] = last.c * toDisplay;
-  }
+  for (const [sym, usd] of Object.entries(cryptoPrev)) prevCloses[sym] = usd * toDisplay;
 
   const valued = valueHoldings(holdings, prices).map((h) => {
     const prev = prevCloses[h.symbol];
@@ -83,11 +76,6 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       dayChange,
     };
   });
-  const series = portfolioValueSeries(txs, candles).map((p) => ({
-    t: p.t,
-    value: p.value * toDisplay, // candles are USD closes
-  }));
-
   // Day change covers only holdings with a previous close; its base is their
   // value alone, so the percentage is not diluted by unpriced assets.
   const withDay = valued.filter((h) => h.dayChange !== null && h.quantity > 0);
@@ -106,8 +94,10 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   };
 
   // Figures are already in the display currency; rate stays for compatibility.
+  // The value series is fetched separately: it needs full price history and
+  // would otherwise hold the headline numbers hostage for seconds.
   return NextResponse.json({
-    holdings: valued, totals, series,
+    holdings: valued, totals,
     currency: displayUsd > 0 ? currency : "USD",
     rate: 1,
   });
@@ -154,16 +144,22 @@ async function fetchEquityPricesUsd(
   return out;
 }
 
-async function fetchDailyCandles(txs: Tx[]): Promise<Record<string, Bar[]>> {
-  if (txs.length === 0) return {};
-  const from = Math.min(...txs.map((t) => t.time));
-  const symbols = [...new Set(txs.map((t) => t.symbol))];
+/** Last fully closed daily candle per symbol — two bars each, fetched in parallel. */
+async function fetchCryptoPrevCloses(symbols: string[]): Promise<Record<string, number>> {
+  if (symbols.length === 0) return {};
   const results = await Promise.allSettled(
-    symbols.map((s) => fetchKlinesRange({ symbol: s, interval: "1d", from, to: Date.now() })),
+    symbols.map((s) =>
+      cached(`prevclose:${s}:${Math.floor(Date.now() / 300_000)}`, 300_000, () =>
+        fetchKlines({ symbol: s, interval: "1d", limit: 2 }),
+      ),
+    ),
   );
-  const out: Record<string, Bar[]> = {};
+  const out: Record<string, number> = {};
   results.forEach((r, i) => {
-    if (r.status === "fulfilled") out[symbols[i]!] = r.value;
+    if (r.status !== "fulfilled") return;
+    const closed = r.value.filter((b) => b.t + 86_400_000 <= Date.now());
+    const last = closed[closed.length - 1];
+    if (last) out[symbols[i]!] = last.c;
   });
   return out;
 }
