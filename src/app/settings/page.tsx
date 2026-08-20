@@ -10,6 +10,8 @@ export default function SettingsPage() {
   const [haUrl, setHaUrl] = useState("");
   const [haWebhookId, setHaWebhookId] = useState("");
   const [displayCurrency, setDisplayCurrency] = useState<"USD" | "EUR">("USD");
+  const [equityProvider, setEquityProvider] = useState("yahoo");
+  const [equityApiKey, setEquityApiKey] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [curPw, setCurPw] = useState("");
   const [newPw, setNewPw] = useState("");
@@ -58,6 +60,8 @@ export default function SettingsPage() {
         setHaUrl(d.settings.haUrl ?? "");
         setHaWebhookId(d.settings.haWebhookId ?? "");
         setDisplayCurrency(d.settings.displayCurrency === "EUR" ? "EUR" : "USD");
+        setEquityProvider(d.settings.equityProvider ?? "yahoo");
+        setEquityApiKey(d.settings.equityApiKey ?? "");
       }
     });
   }, []);
@@ -128,7 +132,7 @@ export default function SettingsPage() {
     const r = await fetch("/api/settings", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ haUrl: haUrl || null, haWebhookId: haWebhookId || null, displayCurrency }),
+      body: JSON.stringify({ haUrl: haUrl || null, haWebhookId: haWebhookId || null, displayCurrency, equityProvider, equityApiKey: equityApiKey || null }),
     });
     setMsg(r.ok ? "Saved." : `Error: ${await r.text()}`);
   }
@@ -172,6 +176,23 @@ export default function SettingsPage() {
             Prices come from Binance in USDT; EUR converts at the live ECB reference rate. Save to apply.
           </span>
         </label>
+        <label className="block text-sm">
+          <span className="text-neutral-400">Stock / ETF price source</span>
+          <select className="mt-1 w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1"
+                  value={equityProvider} onChange={(e) => setEquityProvider(e.target.value)}>
+            <option value="yahoo">Yahoo Finance (no key — often rate-limited)</option>
+            <option value="twelvedata">Twelve Data (free key, 800/day)</option>
+            <option value="alphavantage">Alpha Vantage (free key, 25/day)</option>
+          </select>
+        </label>
+        {equityProvider !== "yahoo" && (
+          <label className="block text-sm">
+            <span className="text-neutral-400">API key</span>
+            <input type="password" className="mt-1 w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1"
+                   value={equityApiKey} onChange={(e) => setEquityApiKey(e.target.value)}
+                   placeholder={equityProvider === "twelvedata" ? "twelvedata.com key" : "alphavantage.co key"} />
+          </label>
+        )}
       </section>
 
       <section className="space-y-4">

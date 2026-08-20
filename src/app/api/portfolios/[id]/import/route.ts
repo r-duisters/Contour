@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { parseDeltaCsv, type ParsedTx, type SkippedRow } from "@/lib/delta-csv";
-import { fetchKlinesRange } from "@/lib/binance";
+import { fetchKlinesRange, fetchUsdtSymbols } from "@/lib/binance";
 import { fetchEcbRates } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -94,6 +94,27 @@ async function resolvePendingQuotes(rows: ParsedTx[]): Promise<SkippedRow[]> {
   return warnings;
 }
 
+/**
+ * Delta lists US stocks without an exchange suffix (AMD), which look like
+ * coin tickers. Anything the Binance USDT market does not list is an equity.
+ */
+async function reclassifyNonCoins(rows: ParsedTx[]): Promise<void> {
+  const candidates = rows.filter((r) => r.assetType === "crypto");
+  if (candidates.length === 0) return;
+  let coins: Set<string>;
+  try {
+    coins = new Set(await fetchUsdtSymbols());
+  } catch {
+    return; // leave the parser's guess when Binance is unreachable
+  }
+  for (const r of candidates) {
+    if (!coins.has(`${r.base}USDT`)) {
+      r.assetType = "equity";
+      r.symbol = r.base;
+    }
+  }
+}
+
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const body = Body.safeParse(await req.json());
@@ -103,6 +124,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!portfolio) return NextResponse.json({ error: "not found" }, { status: 404 });
 
   const { rows, skipped, warnings } = parseDeltaCsv(body.data.csv);
+  await reclassifyNonCoins(rows);
   const fxWarnings = await resolvePendingQuotes(rows);
 
   // Idempotency: skip rows that already exist in this portfolio.
@@ -119,6 +141,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       data: fresh.map((r) => ({
         portfolioId: id,
         symbol: r.symbol,
+        assetType: r.assetType,
         side: r.side,
         quantity: r.quantity,
         price: r.price,

@@ -2,6 +2,10 @@ import type { TxSide } from "./portfolio";
 
 export type ParsedTx = {
   symbol: string;
+  assetType: "crypto" | "equity";
+  /** Bare ticker (BTC, ASML.AS) — lets the importer reclassify unsuffixed
+   *  tickers that are not tradable coins (e.g. AMD) as equities. */
+  base: string;
   side: TxSide;
   quantity: number;
   price: number;
@@ -158,10 +162,7 @@ export function parseDeltaCsv(text: string): DeltaImport {
       skipped.push({ line, reason: `cash row (${baseCurrency})` });
       continue;
     }
-    if (isSecurityTicker(baseCurrency)) {
-      skipped.push({ line, reason: `stock/ETF row (${baseCurrency}) — not supported yet` });
-      continue;
-    }
+    const assetType: "crypto" | "equity" = isSecurityTicker(baseCurrency) ? "equity" : "crypto";
 
     const rawAmount = num(cell(cols.baseAmount));
     const quantity = Math.abs(rawAmount);
@@ -212,7 +213,10 @@ export function parseDeltaCsv(text: string): DeltaImport {
       else if (feeCurrency) feeRaw = { currency: feeCurrency, amount: feeAmount };
     }
 
-    rows.push({ symbol: `${baseCurrency}USDT`, side, quantity, price, fee, time, pendingQuote, feeRaw });
+    rows.push({
+      symbol: assetType === "equity" ? baseCurrency : `${baseCurrency}USDT`,
+      assetType, base: baseCurrency, side, quantity, price, fee, time, pendingQuote, feeRaw,
+    });
   }
 
   return { rows, skipped, warnings };

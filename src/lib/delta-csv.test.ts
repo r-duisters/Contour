@@ -26,8 +26,8 @@ describe("parseDeltaCsv", () => {
     expect(skipped).toEqual([]);
     expect(warnings).toEqual([]);
     expect(rows).toEqual([{
-      symbol: "BTCUSDT", side: "buy", quantity: 0.5, price: 42000, fee: 10,
-      time: Date.parse("2024-01-15T10:30:00"),
+      symbol: "BTCUSDT", assetType: "crypto", base: "BTC", side: "buy", quantity: 0.5, price: 42000, fee: 10,
+      time: Date.parse("2024-01-15T10:30:00"), pendingQuote: undefined, feeRaw: undefined,
     }]);
   });
 
@@ -137,16 +137,25 @@ describe("parseDeltaCsv", () => {
     expect(rows[0]!.price).toBe(7); // USDT (TETHER) recognized as a stable
   });
 
-  it("skips verbose cash rows and exchange-suffixed stock rows", () => {
+  it("skips verbose cash rows but imports equities with assetType", () => {
     const { rows, skipped } = parseDeltaCsv(
       csv(
         '2024-01-01,DEPOSIT,Bank,1000,"EUR (EURO)",,,,,,,',
         '2024-01-02,BUY,DeGiro,10,"SHELL.AS (SHELL PLC)",300,EUR,,,,,',
       ),
     );
-    expect(rows).toEqual([]);
+    expect(skipped).toHaveLength(1);
     expect(skipped[0]!.reason).toContain("cash row (EUR)");
-    expect(skipped[1]!.reason).toContain("stock/ETF row (SHELL.AS)");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.symbol).toBe("SHELL.AS");
+    expect(rows[0]!.assetType).toBe("equity");
+    expect(rows[0]!.pendingQuote).toEqual({ currency: "EUR", total: 300 });
+  });
+
+  it("marks coin rows as crypto and suffixes them with USDT", () => {
+    const { rows } = parseDeltaCsv(csv("2024-01-15,BUY,Binance,1,BTC,40000,USDT,,,,,"));
+    expect(rows[0]!.assetType).toBe("crypto");
+    expect(rows[0]!.symbol).toBe("BTCUSDT");
   });
 
   it("accepts the 'Way' header variant for the type column", () => {

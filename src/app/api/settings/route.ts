@@ -11,6 +11,8 @@ const Body = z.object({
   haUrl: z.string().url().nullable().optional(),
   haWebhookId: z.string().nullable().optional(),
   displayCurrency: z.enum(["USD", "EUR"]).optional(),
+  equityProvider: z.enum(["yahoo", "twelvedata", "alphavantage"]).optional(),
+  equityApiKey: z.string().max(200).nullable().optional(),
 });
 
 const SETTINGS_SELECT = {
@@ -20,6 +22,8 @@ const SETTINGS_SELECT = {
   mqttBrokerUrl: true,
   mqttTopicPrefix: true,
   displayCurrency: true,
+  equityProvider: true,
+  equityApiKey: true,
 } as const;
 
 export async function GET() {
