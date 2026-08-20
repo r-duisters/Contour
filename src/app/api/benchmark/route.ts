@@ -3,7 +3,11 @@ import { z } from "zod";
 import { fetchKlines, fetchKlinesRange } from "@/lib/binance";
 import { makeEquitySource } from "@/lib/equity";
 import { prisma } from "@/lib/db";
-import { indexSeries } from "@/lib/performance";
+import {
+  flowsByBar, indexSeries, moneyWeightedReturn, simulateFlowsInto,
+} from "@/lib/performance";
+import { fetchLatestEurUsd } from "@/lib/fx";
+import type { Tx, TxSide } from "@/lib/portfolio";
 import { cached } from "@/lib/cache";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +28,8 @@ const Query = z.object({
   key: z.enum(["sp500", "aex", "nasdaq", "world", "btc", "eth"]),
   from: z.coerce.number().int().positive(),
   barMs: z.coerce.number().int().positive().default(DAY_MS),
+  /** When given, also simulate this portfolio's cash flows into the benchmark. */
+  portfolioId: z.string().min(1).optional(),
 });
 
 /**
@@ -35,9 +41,10 @@ export async function GET(req: NextRequest) {
     key: req.nextUrl.searchParams.get("key"),
     from: req.nextUrl.searchParams.get("from"),
     barMs: req.nextUrl.searchParams.get("barMs") ?? DAY_MS,
+    portfolioId: req.nextUrl.searchParams.get("portfolioId") ?? undefined,
   });
   if (!q.success) return NextResponse.json({ error: q.error.flatten() }, { status: 400 });
-  const { key, from, barMs } = q.data;
+  const { key, from, barMs, portfolioId } = q.data;
   const bench = BENCHMARKS[key];
 
   try {
@@ -66,12 +73,66 @@ export async function GET(req: NextRequest) {
       },
     );
 
+    const sameFlows = portfolioId
+      ? await simulateSameFlows(portfolioId, bars, from, barMs)
+      : null;
+
     return NextResponse.json({
       key,
       label: bench.label,
       points: indexSeries(bars),
+      sameFlows,
     });
   } catch (e) {
     return NextResponse.json({ key, label: bench.label, points: [], error: (e as Error).message });
   }
+}
+
+/**
+ * Put the portfolio's own cash flows into the benchmark on the same days.
+ * This is the fair long-horizon comparison: an index quote assumes a lump sum
+ * on day one, which nobody actually did.
+ */
+async function simulateSameFlows(
+  portfolioId: string,
+  bars: { t: number; c: number }[],
+  from: number,
+  barMs: number,
+): Promise<{ finalValue: number; annualPct: number | null; series: { t: number; value: number }[] } | null> {
+  const portfolio = await prisma.portfolio.findUnique({
+    where: { id: portfolioId },
+    include: { transactions: true },
+  });
+  if (!portfolio || bars.length === 0) return null;
+
+  const settings = await prisma.settings.findUnique({
+    where: { id: 1 },
+    select: { displayCurrency: true },
+  });
+  const currency = settings?.displayCurrency === "EUR" ? "EUR" : "USD";
+  const displayUsd = currency === "EUR" ? ((await fetchLatestEurUsd()) ?? 0) : 1;
+  const toDisplay = displayUsd > 0 ? 1 / displayUsd : 1;
+
+  const txs: Tx[] = portfolio.transactions
+    .filter((t) => Number(t.time) >= from)
+    .map((t) => {
+      const native = t.nativeCurrency === currency && t.nativePrice !== null;
+      return {
+        symbol: t.symbol,
+        side: t.side as TxSide,
+        quantity: t.quantity,
+        price: native ? t.nativePrice! : t.price * toDisplay,
+        fee: native && t.nativeFee !== null ? t.nativeFee! : t.fee * toDisplay,
+        time: Number(t.time),
+      };
+    });
+  if (txs.length === 0) return null;
+
+  const flows = [...flowsByBar(txs, barMs).entries()].map(([t, amount]) => ({ t, amount }));
+  const prices = new Map(bars.map((b) => [b.t, b.c]));
+  const timeline = [...prices.keys()].sort((a, b) => a - b);
+  const series = simulateFlowsInto(flows, prices, timeline);
+  const finalValue = series[series.length - 1]?.value ?? 0;
+  const annualPct = moneyWeightedReturn(flows, finalValue, timeline[timeline.length - 1] ?? Date.now());
+  return { finalValue, annualPct, series };
 }

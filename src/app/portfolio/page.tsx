@@ -94,7 +94,12 @@ export default function PortfolioPage() {
   const [rangeChange, setRangeChange] = useState<{ abs: number; pct: number | null } | null>(null);
   const [twr, setTwr] = useState<{ points: IndexPoint[]; totalPct: number | null } | null>(null);
   const [benchKey, setBenchKey] = useState("");
-  const [bench, setBench] = useState<{ label: string; points: IndexPoint[] } | null>(null);
+  const [bench, setBench] = useState<{
+    label: string;
+    points: IndexPoint[];
+    sameFlows?: { finalValue: number; annualPct: number | null } | null;
+  } | null>(null);
+  const [mwr, setMwr] = useState<{ annualPct: number | null; investedNet: number; closing: number } | null>(null);
   const [window_, setWindow] = useState<{ from: number; barMs: number } | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [importMsg, setImportMsg] = useState<string | null>(null);
@@ -146,12 +151,14 @@ export default function PortfolioPage() {
         series?: { t: number; value: number }[];
         change?: { abs: number; pct: number | null } | null;
         twr?: { points: IndexPoint[]; totalPct: number | null };
+        mwr?: { annualPct: number | null; investedNet: number; closing: number };
         windowFrom?: number; barMs?: number;
       } | null) => {
         if (cancelled) return;
         setSeries(d?.series ?? []);
         setRangeChange(d?.change ?? null);
         setTwr(d?.twr ?? null);
+        setMwr(d?.mwr ?? null);
         setWindow(d?.windowFrom && d?.barMs ? { from: d.windowFrom, barMs: d.barMs } : null);
       })
       .catch(() => { if (!cancelled) { setSeries([]); setRangeChange(null); setTwr(null); } });
@@ -233,14 +240,21 @@ export default function PortfolioPage() {
   useEffect(() => {
     if (!benchKey || !window_) { setBench(null); return; }
     let cancelled = false;
-    fetch(`/api/benchmark?key=${benchKey}&from=${window_.from}&barMs=${window_.barMs}`)
+    fetch(`/api/benchmark?key=${benchKey}&from=${window_.from}&barMs=${window_.barMs}&portfolioId=${selectedId}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((d: { label?: string; points?: IndexPoint[] } | null) => {
-        if (!cancelled) setBench(d?.points?.length ? { label: d.label ?? benchKey, points: d.points } : null);
+      .then((d: {
+        label?: string; points?: IndexPoint[];
+        sameFlows?: { finalValue: number; annualPct: number | null } | null;
+      } | null) => {
+        if (!cancelled) {
+          setBench(d?.points?.length
+            ? { label: d.label ?? benchKey, points: d.points, sameFlows: d.sameFlows }
+            : null);
+        }
       })
       .catch(() => { if (!cancelled) setBench(null); });
     return () => { cancelled = true; };
-  }, [benchKey, window_]);
+  }, [benchKey, window_, selectedId]);
 
   const holdings = valuation?.holdings ?? [];
   const totalValue = valuation?.totals.value ?? 0;
@@ -437,6 +451,24 @@ export default function PortfolioPage() {
                   </span>
                 )}
               </div>
+              {mwr && mwr.annualPct !== null && (
+                <p className="text-xs text-neutral-500 mb-2">
+                  Money-weighted return{" "}
+                  <span className={mwr.annualPct >= 0 ? "text-green-500" : "text-red-500"}>
+                    {mwr.annualPct >= 0 ? "+" : ""}{mwr.annualPct.toFixed(2)}%/yr
+                  </span>
+                  {" "}on {fmtUsd(mwr.investedNet)} net invested, now worth {fmtUsd(mwr.closing)}
+                  {bench?.sameFlows && (
+                    <>
+                      {` · the same money into ${bench.label} would be `}
+                      <span className="text-neutral-300">{fmtUsd(bench.sameFlows.finalValue)}</span>
+                      {bench.sameFlows.annualPct !== null && (
+                        <> ({bench.sameFlows.annualPct >= 0 ? "+" : ""}{bench.sameFlows.annualPct.toFixed(2)}%/yr)</>
+                      )}
+                    </>
+                  )}
+                </p>
+              )}
               <div className="grid md:grid-cols-[1fr_260px] gap-4 md:gap-8 mb-6 md:mb-8 items-start">
                 <ValueChart series={series} twr={twr?.points ?? null} bench={bench} />
                 <AllocationDonut holdings={valuation.holdings} />

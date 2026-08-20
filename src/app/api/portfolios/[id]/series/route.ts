@@ -5,7 +5,7 @@ import { fetchKlines, fetchKlinesRange } from "@/lib/binance";
 import { fetchEcbRates, fetchLatestEurUsd, rateOn } from "@/lib/fx";
 import { currencyForTicker, makeEquitySource } from "@/lib/equity";
 import { portfolioValueSeries, type Tx, type TxSide } from "@/lib/portfolio";
-import { flowsByBar, timeWeightedSeries } from "@/lib/performance";
+import { flowsByBar, moneyWeightedReturn, timeWeightedSeries } from "@/lib/performance";
 import { cached } from "@/lib/cache";
 import type { Bar } from "@/lib/types";
 
@@ -163,11 +163,27 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   // Time-weighted return over the window: what one unit invested at the start
   // would have done, with deposits and withdrawals removed.
   const windowTxs = txs.filter((t) => t.time >= windowFrom);
-  const twr = timeWeightedSeries(series, flowsByBar(windowTxs, barMs));
+  const windowFlows = flowsByBar(windowTxs, barMs);
+  const twr = timeWeightedSeries(series, windowFlows);
+
+  // Money-weighted return: annualised, and sensitive to when money went in.
+  // The opening value counts as an investment made at the window's start.
+  const opening = series[0]?.value ?? 0;
+  const closing = series[series.length - 1]?.value ?? 0;
+  const closingAt = series[series.length - 1]?.t ?? Date.now();
+  const cashFlows = [
+    ...(opening > 0 ? [{ t: series[0]!.t, amount: opening }] : []),
+    ...[...windowFlows.entries()]
+      .filter(([t]) => t > (series[0]?.t ?? 0))
+      .map(([t, amount]) => ({ t, amount })),
+  ];
+  const mwrPct = moneyWeightedReturn(cashFlows, closing, closingAt);
+  const investedNet = cashFlows.reduce((a, f) => a + f.amount, 0);
 
   return NextResponse.json({
     series, currency, range, change,
     twr: { points: twr.points, totalPct: twr.totalPct },
+    mwr: { annualPct: mwrPct, investedNet, closing },
     windowFrom, barMs,
   });
 }
