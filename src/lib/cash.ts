@@ -2,46 +2,28 @@ export type CashRelevantTx = {
   assetType: string;
   side: string;
   quantity: number;
-  /** Currency the trade settled in, when known. */
+  /** Currency of the movement, for cash rows this is the currency itself. */
   nativeCurrency: string | null;
-  nativePrice: number | null;
-  nativeFee: number | null;
 };
 
 /**
- * Fiat balances per currency.
+ * Fiat balances per currency, summed from the cash movements the export
+ * records — deposits and withdrawals in, transfers out.
  *
- * Deposits and withdrawals move cash directly. Trades move it too: buying an
- * asset for euros spends euros, selling returns them. Without that second half
- * every deposit would pile up forever and the balance would be meaningless.
- *
- * A negative balance is reported as-is rather than clamped: it means the export
- * is missing deposits, and hiding that would quietly overstate nothing while
- * quietly understating the truth.
+ * Deliberately does NOT deduct what purchases cost: Delta writes the cash leg
+ * of a trade as its own fiat row, so subtracting the trade as well would count
+ * every purchase twice. Cash and invested value are separate figures, and the
+ * ledger already contains both sides.
  */
 export function cashBalances(txs: CashRelevantTx[]): Record<string, number> {
   const out: Record<string, number> = {};
-  const add = (currency: string | null, amount: number) => {
-    if (!currency || amount === 0) return;
-    out[currency] = (out[currency] ?? 0) + amount;
-  };
-
   for (const t of txs) {
-    if (t.assetType === "cash") {
-      // symbol is the currency itself; quantity is the amount moved
-      const currency = t.nativeCurrency;
-      if (t.side === "transfer_in" || t.side === "buy") add(currency, t.quantity);
-      else add(currency, -t.quantity);
-      continue;
-    }
-    // The cash leg of an asset trade, only when we know what it settled in.
-    if (t.nativePrice === null || !t.nativeCurrency) continue;
-    const gross = t.quantity * t.nativePrice;
-    const fee = t.nativeFee ?? 0;
-    if (t.side === "buy") add(t.nativeCurrency, -(gross + fee));
-    else if (t.side === "sell") add(t.nativeCurrency, gross - fee);
+    if (t.assetType !== "cash") continue;
+    const currency = t.nativeCurrency;
+    if (!currency) continue;
+    const signed = t.side === "transfer_in" || t.side === "buy" ? t.quantity : -t.quantity;
+    out[currency] = (out[currency] ?? 0) + signed;
   }
-
   for (const [currency, amount] of Object.entries(out)) {
     if (Math.abs(amount) < 0.005) delete out[currency];
   }
