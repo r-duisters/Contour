@@ -6,9 +6,10 @@ import {
   createChart, createSeriesMarkers, LineSeries,
   type IChartApi, type ISeriesApi, type ISeriesMarkersPluginApi, type Time,
 } from "lightweight-charts";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Trash2 } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
 import { money as fmtMoney, quantity, setDisplayCurrency } from "@/lib/display";
+import { annotateTransactions } from "@/lib/portfolio";
 import { usePrivacy } from "@/components/usePrivacy";
 
 type Tx = {
@@ -141,28 +142,7 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
 
           <PriceChart bars={bars} txs={txs} hideValues={hideAmounts} />
 
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mt-8 mb-2">
-            Transactions ({txs.length})
-          </h2>
-          <ul className="divide-y divide-neutral-800">
-            {txs.map((tx) => (
-              <li key={tx.id} className="py-2 flex items-center gap-3 text-sm flex-wrap">
-                <span className={`text-xs px-2 py-0.5 rounded w-24 text-center ${
-                  tx.side === "buy" || tx.side === "transfer_in"
-                    ? "bg-green-900 text-green-300" : "bg-red-900 text-red-300"
-                }`}>{tx.side.replace("_", " ")}</span>
-                <span>{qty(tx.quantity)} @ {money(tx.price)}</span>
-                {tx.fee > 0 && <span className="text-neutral-500 text-xs">fee {money(tx.fee)}</span>}
-                <span className="text-neutral-500 text-xs">{new Date(tx.time).toLocaleDateString()}</span>
-                <span className="flex-1" />
-                <button onClick={() => deleteTx(tx.id)}
-                        className="text-xs underline text-red-500 inline-flex items-center gap-1">
-                  <Trash2 size={12} aria-hidden />delete
-                </button>
-              </li>
-            ))}
-            {txs.length === 0 && <li className="py-2 text-sm text-neutral-500">No transactions.</li>}
-          </ul>
+          <TransactionTable txs={txs} onDelete={deleteTx} />
         </>
       )}
     </main>
@@ -241,4 +221,123 @@ function PriceChart({
     return <p className="text-xs text-neutral-500">No price history available for this asset.</p>;
   }
   return <div ref={container} className="h-56 md:h-72 border border-neutral-800 rounded" />;
+}
+
+/**
+ * The asset's trade log. Each row says what moved and what it left behind:
+ * the position after it, and for a sale what that sale actually made — the
+ * two questions a ledger is read for.
+ */
+function TransactionTable({ txs, onDelete }: { txs: Tx[]; onDelete: (id: string) => void }) {
+  const [newestFirst, setNewestFirst] = useState(true);
+
+  const rows = useMemo(() => {
+    const annotated = annotateTransactions(txs);
+    return newestFirst ? [...annotated].reverse() : annotated;
+  }, [txs, newestFirst]);
+
+  if (txs.length === 0) {
+    return (
+      <>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mt-8 mb-2">
+          Transactions
+        </h2>
+        <p className="text-sm text-neutral-500">No transactions.</p>
+      </>
+    );
+  }
+
+  return (
+    <section className="mt-8">
+      <div className="flex items-baseline gap-2 mb-2">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
+          Transactions
+        </h2>
+        <span className="text-xs text-neutral-500">{txs.length}</span>
+        <span className="flex-1" />
+        <button
+          onClick={() => setNewestFirst((v) => !v)}
+          className="text-xs text-neutral-400 inline-flex items-center gap-1"
+        >
+          {newestFirst ? <ArrowDown size={12} aria-hidden /> : <ArrowUp size={12} aria-hidden />}
+          {newestFirst ? "Newest first" : "Oldest first"}
+        </button>
+      </div>
+
+      {/* Column headings only where there is room to align under them. */}
+      <div className="hidden md:grid grid-cols-[6.5rem_5.5rem_1fr_1fr_1fr_1.5rem] gap-3 px-2 pb-1
+                      text-xs text-neutral-500 border-b border-neutral-800">
+        <span>Date</span>
+        <span>Type</span>
+        <span className="text-right">Quantity</span>
+        <span className="text-right">Price</span>
+        <span className="text-right">Value / result</span>
+        <span />
+      </div>
+
+      <ul className="divide-y divide-neutral-800">
+        {rows.map((tx) => {
+          const incoming = tx.side === "buy" || tx.side === "transfer_in";
+          const value = tx.quantity * tx.price;
+          return (
+            <li
+              key={tx.id}
+              className="grid grid-cols-[1fr_auto] md:grid-cols-[6.5rem_5.5rem_1fr_1fr_1fr_1.5rem]
+                         gap-x-3 gap-y-1 items-center px-2 py-2 text-sm group"
+            >
+              <span className="text-neutral-400 text-xs md:text-sm order-1">
+                {new Date(tx.time).toLocaleDateString(undefined, {
+                  year: "numeric", month: "short", day: "numeric",
+                })}
+              </span>
+
+              <span className={`order-3 md:order-2 justify-self-start text-xs px-2 py-0.5 rounded ${
+                incoming ? "bg-green-950 text-green-400" : "bg-red-950 text-red-400"
+              }`}>
+                {tx.side.replace("_", " ")}
+              </span>
+
+              <span className="order-4 md:order-3 md:text-right font-mono text-xs md:text-sm">
+                {quantity(tx.quantity)}
+              </span>
+
+              <span className="order-5 md:order-4 md:text-right text-neutral-400 text-xs md:text-sm">
+                {tx.price > 0 ? money(tx.price) : "—"}
+                {tx.fee > 0 && (
+                  <span className="text-neutral-600"> · fee {money(tx.fee)}</span>
+                )}
+              </span>
+
+              <span className="order-2 md:order-5 justify-self-end md:text-right">
+                {tx.realized !== null ? (
+                  <span className={tx.realized >= 0 ? "text-green-500" : "text-red-500"}>
+                    {tx.realized >= 0 ? "+" : ""}{money(tx.realized)}
+                  </span>
+                ) : (
+                  <span className={incoming ? "text-neutral-200" : "text-neutral-400"}>
+                    {value > 0 ? money(value) : "—"}
+                  </span>
+                )}
+                <span className="block text-xs text-neutral-600">
+                  held {quantity(tx.positionAfter)}
+                </span>
+              </span>
+
+              <button
+                onClick={() => onDelete(tx.id)}
+                aria-label="Delete transaction"
+                className="order-6 justify-self-end text-neutral-700 hover:text-red-500 md:opacity-0
+                           md:group-hover:opacity-100 transition-opacity"
+              >
+                <Trash2 size={14} aria-hidden />
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="text-xs text-neutral-600 mt-2">
+        Sales show what they realised against the average cost at the time.
+      </p>
+    </section>
+  );
 }

@@ -151,3 +151,45 @@ export function portfolioValueSeries(
 }
 
 const DAY_MS = 86_400_000;
+
+export type AnnotatedTx<T extends Tx> = T & {
+  /** Units held once this transaction settled. */
+  positionAfter: number;
+  /** Average cost of the position at that moment. */
+  avgCostAfter: number;
+  /** Profit realised by this sale, net of its fee. Null for anything else. */
+  realized: number | null;
+};
+
+/**
+ * Replay a single asset's transactions oldest-first, so each one can say what
+ * it left behind: the position after it, the average cost at that point, and
+ * for a sale what it actually made. The arithmetic matches computeHoldings —
+ * the same average-cost rules, applied one row at a time.
+ */
+export function annotateTransactions<T extends Tx>(txs: T[]): AnnotatedTx<T>[] {
+  let quantity = 0;
+  let costBasis = 0;
+  const out: AnnotatedTx<T>[] = [];
+
+  for (const tx of [...txs].sort((a, b) => a.time - b.time)) {
+    let realized: number | null = null;
+    if (tx.side === "buy" || tx.side === "transfer_in") {
+      costBasis += tx.quantity * tx.price + (tx.side === "buy" ? tx.fee : 0);
+      quantity += tx.quantity;
+    } else {
+      const avgCost = quantity > 0 ? costBasis / quantity : 0;
+      const sold = Math.min(tx.quantity, quantity);
+      if (tx.side === "sell") realized = sold * (tx.price - avgCost) - tx.fee;
+      quantity -= sold;
+      costBasis = quantity * avgCost;
+    }
+    out.push({
+      ...tx,
+      positionAfter: quantity,
+      avgCostAfter: quantity > 0 ? costBasis / quantity : 0,
+      realized,
+    });
+  }
+  return out;
+}

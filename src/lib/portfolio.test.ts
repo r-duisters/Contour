@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { computeHoldings, portfolioValueSeries, valueHoldings, type Tx } from "./portfolio";
+import {
+  annotateTransactions, computeHoldings, portfolioValueSeries, valueHoldings, type Tx,
+} from "./portfolio";
 import type { Bar } from "./types";
 
 const DAY = 86_400_000;
@@ -153,5 +155,56 @@ describe("portfolioValueSeries with intraday bars", () => {
       HOUR,
     );
     expect(series.map((p) => p.value)).toEqual([100, 220, 240]);
+  });
+});
+
+describe("annotateTransactions", () => {
+  it("tracks the position and average cost after each row", () => {
+    const rows = annotateTransactions([
+      tx({ side: "buy", quantity: 1, price: 100, time: 1 }),
+      tx({ side: "buy", quantity: 1, price: 300, time: 2 }),
+      tx({ side: "sell", quantity: 1, price: 400, time: 3 }),
+    ]);
+    expect(rows.map((r) => r.positionAfter)).toEqual([1, 2, 1]);
+    expect(rows.map((r) => r.avgCostAfter)).toEqual([100, 200, 200]);
+  });
+
+  it("reports what a sale made, net of its fee", () => {
+    const rows = annotateTransactions([
+      tx({ side: "buy", quantity: 2, price: 100, time: 1 }),
+      tx({ side: "sell", quantity: 1, price: 150, fee: 5, time: 2 }),
+    ]);
+    expect(rows[0]!.realized).toBeNull();
+    expect(rows[1]!.realized).toBe(45); // (150-100) - 5
+  });
+
+  it("replays oldest first regardless of input order", () => {
+    const rows = annotateTransactions([
+      tx({ side: "sell", quantity: 1, price: 200, time: 2 }),
+      tx({ side: "buy", quantity: 1, price: 100, time: 1 }),
+    ]);
+    expect(rows[0]!.side).toBe("buy");
+    expect(rows[1]!.realized).toBe(100);
+  });
+
+  it("agrees with computeHoldings on the final position", () => {
+    const txs = [
+      tx({ side: "buy", quantity: 3, price: 10, fee: 1, time: 1 }),
+      tx({ side: "sell", quantity: 1, price: 20, time: 2 }),
+      tx({ side: "transfer_in", quantity: 2, price: 15, time: 3 }),
+    ];
+    const rows = annotateTransactions(txs);
+    const [holding] = computeHoldings(txs);
+    expect(rows[rows.length - 1]!.positionAfter).toBeCloseTo(holding!.quantity);
+    expect(rows[rows.length - 1]!.avgCostAfter).toBeCloseTo(holding!.avgCost);
+  });
+
+  it("never goes short when a sale exceeds the position", () => {
+    const rows = annotateTransactions([
+      tx({ side: "buy", quantity: 1, price: 100, time: 1 }),
+      tx({ side: "sell", quantity: 5, price: 150, time: 2 }),
+    ]);
+    expect(rows[1]!.positionAfter).toBe(0);
+    expect(rows[1]!.realized).toBe(50);
   });
 });
