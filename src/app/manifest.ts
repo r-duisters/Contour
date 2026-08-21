@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Trader",
-    short_name: "Trader",
+    name: "Nabla",
+    short_name: "Nabla",
     description: "Portfolio tracking, risk-metric charting, and alerts.",
     start_url: "/portfolio",
     display: "standalone",

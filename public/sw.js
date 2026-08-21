@@ -6,7 +6,7 @@ self.addEventListener("push", (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch { /* non-JSON push */ }
   event.waitUntil(
-    self.registration.showNotification(data.title || "Trader", {
+    self.registration.showNotification(data.title || "Nabla", {
       body: data.body || "",
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",

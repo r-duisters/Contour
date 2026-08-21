@@ -13,7 +13,7 @@ export default async function LoginPage() {
     <main className="min-h-screen flex flex-col items-center justify-center p-4 md:p-8">
       <TradingBackdrop />
       <div className="relative z-10 flex flex-col items-center gap-5 w-full max-w-sm bg-neutral-950/70 border border-neutral-800 rounded-xl p-6 md:p-8 backdrop-blur-sm">
-        <h1 className="text-2xl font-semibold">Trader</h1>
+        <h1 className="text-2xl font-semibold">Nabla</h1>
         <Suspense><LoginForm mode="login" /></Suspense>
       </div>
     </main>

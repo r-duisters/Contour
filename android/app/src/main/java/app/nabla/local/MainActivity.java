@@ -1,4 +1,4 @@
-package app.trader.local;
+package app.nabla.local;
 
 import com.getcapacitor.BridgeActivity;
 

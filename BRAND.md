@@ -6,17 +6,17 @@ disagree, the code is probably right and this file needs updating.
 
 ## The name
 
-**Cairn.** A cairn is a pile of stones you build yourself to mark where you
-have been and which way you are going. That is the app: your own record,
-assembled transaction by transaction, on your own machine, showing where you
-stand. It is short, says itself, has no fintech baggage, and the mark — stacked
-stones — is already a bar chart.
+**Nabla.** ∇ is the delta symbol inverted — in maths the *del* operator, the
+gradient. The name says the idea plainly: the same thing Delta did, turned over
+and put back in your hands. It borrows nothing from that trademark, which
+belongs to eToro in exactly this category.
 
-Alternates considered: *Waterline* (how deep you are in — good for the risk
-metric, long as a label), *Lodestar* (guiding star, slightly grand), *Peil*
-(Dutch for gauge, opaque to everyone else).
+The mark is a single outline triangle in the accent blue: blue rather than red
+so a downward triangle does not read as a loss, outline rather than filled so
+it survives at 48 px. Nothing else — no wordmark lockup, no tagline.
 
-Write it **Cairn**, never CAIRN or cairn mid-sentence. No tagline in the UI.
+Write it **Nabla**. The symbol ∇ may stand alone as an icon but never replaces
+the word in running text.
 
 ## What the app is
 

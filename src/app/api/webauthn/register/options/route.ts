@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
   const { rpID } = relyingParty(req);
   const existing = await prisma.webAuthnCredential.findMany();
   const options = await generateRegistrationOptions({
-    rpName: "Trader",
+    rpName: "Nabla",
     rpID,
     userName: "owner",
     attestationType: "none",
