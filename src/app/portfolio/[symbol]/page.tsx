@@ -8,6 +8,8 @@ import {
 } from "lightweight-charts";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
+import { money as fmtMoney, quantity, setDisplayCurrency } from "@/lib/display";
+import { usePrivacy } from "@/components/usePrivacy";
 
 type Tx = {
   id: string;
@@ -33,12 +35,8 @@ type Holding = {
   dayChange?: { abs: number; pct: number } | null;
 };
 
-let currency: "USD" | "EUR" = "USD";
-const money = (n: number) =>
-  n.toLocaleString(currency === "EUR" ? "de-DE" : "en-US", {
-    style: "currency", currency, maximumFractionDigits: 2,
-  });
-const qty = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 8 });
+const money = fmtMoney;
+const qty = quantity;
 
 export default function SymbolPage({ params }: { params: Promise<{ symbol: string }> }) {
   const { symbol: raw } = use(params);
@@ -48,6 +46,7 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
   const [txs, setTxs] = useState<Tx[]>([]);
   const [bars, setBars] = useState<{ t: number; c: number }[] | null>(null);
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
+  const hideAmounts = usePrivacy();
 
   useEffect(() => {
     let cancelled = false;
@@ -62,7 +61,7 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
         fetch(`/api/portfolios/${id}`).then((r) => (r.ok ? r.json() : null)),
       ]);
       if (cancelled) return;
-      currency = val?.currency ?? "USD";
+      setDisplayCurrency(val?.currency ?? "USD");
       const found: Holding | undefined = val?.holdings?.find((h: Holding) => h.symbol === symbol);
       setHolding(found ?? null);
       setTxs((detail?.portfolio.transactions ?? []).filter((t: Tx) => t.symbol === symbol));
@@ -140,7 +139,7 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
             <Field label="Fees" value={money(holding.fees)} />
           </div>
 
-          <PriceChart bars={bars} txs={txs} />
+          <PriceChart bars={bars} txs={txs} hideValues={hideAmounts} />
 
           <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mt-8 mb-2">
             Transactions ({txs.length})
@@ -185,7 +184,13 @@ function Field({ label, value, signed }: { label: string; value: string; signed?
 }
 
 /** Price history with this portfolio's own buys and sells marked. */
-function PriceChart({ bars, txs }: { bars: { t: number; c: number }[] | null; txs: Tx[] }) {
+function PriceChart({
+  bars, txs, hideValues = false,
+}: {
+  bars: { t: number; c: number }[] | null;
+  txs: Tx[];
+  hideValues?: boolean;
+}) {
   const container = useRef<HTMLDivElement>(null);
   const chart = useRef<IChartApi | null>(null);
   const line = useRef<ISeriesApi<"Line"> | null>(null);
@@ -210,6 +215,11 @@ function PriceChart({ bars, txs }: { bars: { t: number; c: number }[] | null; tx
     () => txs.filter((t) => t.side === "buy" || t.side === "sell").sort((a, b) => a.time - b.time),
     [txs],
   );
+
+  // A price axis is a price: hide it with the rest of the amounts.
+  useEffect(() => {
+    chart.current?.applyOptions({ rightPriceScale: { visible: !hideValues } });
+  }, [hideValues]);
 
   useEffect(() => {
     if (!line.current || !bars) return;

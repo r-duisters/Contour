@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { BarChart3, TrendingDown, TrendingUp } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
+import { money as fmtMoney, percent, quantity, setDisplayCurrency } from "@/lib/display";
+import { usePrivacy } from "@/components/usePrivacy";
 import { classSplit, concentration, contributions, type TradeStats } from "@/lib/insights";
 import type { ValuedHolding } from "@/lib/portfolio";
 
@@ -36,12 +38,8 @@ const BENCHMARKS = [
   { key: "btc", label: "Bitcoin" },
 ] as const;
 
-let currency: "USD" | "EUR" = "USD";
-const money = (n: number) =>
-  n.toLocaleString(currency === "EUR" ? "de-DE" : "en-US", {
-    style: "currency", currency, maximumFractionDigits: 0,
-  });
-const pct = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
+const money = (n: number) => fmtMoney(n, 0);
+const pct = (n: number) => percent(n);
 
 export default function InsightsPage() {
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
@@ -58,6 +56,7 @@ export default function InsightsPage() {
     rows: { symbol: string; assetType: string; quantity: number; value: number | null }[];
   } | null>(null);
   const [snapLoading, setSnapLoading] = useState(false);
+  usePrivacy(); // re-render when amounts are hidden or shown
 
   async function loadSnapshot() {
     if (!portfolioId) return;
@@ -86,7 +85,7 @@ export default function InsightsPage() {
     if (!portfolioId) return;
     fetch(`/api/portfolios/${portfolioId}/valuation`)
       .then((r) => r.json())
-      .then((d) => { currency = d.currency ?? "USD"; setHoldings(d.holdings); setTotals(d.totals); })
+      .then((d) => { setDisplayCurrency(d.currency ?? "USD"); setHoldings(d.holdings); setTotals(d.totals); })
       .catch(() => setHoldings([]));
     fetch(`/api/portfolios/${portfolioId}/insights`)
       .then((r) => r.json())
@@ -342,7 +341,7 @@ export default function InsightsPage() {
                         <td className="py-2 pr-4 font-mono">{r.symbol}</td>
                         <td className="py-2 pr-4 text-neutral-500">{r.assetType}</td>
                         <td className="py-2 pr-4 text-right">
-                          {r.quantity.toLocaleString("en-US", { maximumFractionDigits: 8 })}
+                          {quantity(r.quantity)}
                         </td>
                         <td className="py-2 text-right">
                           {r.value !== null ? money(r.value) : <span className="text-neutral-600">no price</span>}

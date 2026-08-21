@@ -1,5 +1,6 @@
 import Link from "next/link";
 import PortfolioManager from "@/components/PortfolioManager";
+import PrivacyToggle from "@/components/PrivacyToggle";
 import { Bell, FlaskConical, History, Settings } from "lucide-react";
 
 const LINKS = [
@@ -17,6 +18,10 @@ export default function MorePage() {
   return (
     <main className="min-h-screen px-4 py-5 md:p-8 max-w-3xl mx-auto">
       <h1 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6">More</h1>
+
+      <div className="mb-6">
+        <PrivacyToggle />
+      </div>
 
       <ul className="space-y-3 text-sm mb-8">
         {LINKS.map(({ href, label, Icon, hint }) => (

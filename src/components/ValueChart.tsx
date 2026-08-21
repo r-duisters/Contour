@@ -6,7 +6,12 @@ import {
 } from "lightweight-charts";
 
 /** Portfolio value over the selected period. */
-export default function ValueChart({ series }: { series: { t: number; value: number }[] | null }) {
+export default function ValueChart({
+  series, hideValues = false,
+}: {
+  series: { t: number; value: number }[] | null;
+  hideValues?: boolean;
+}) {
   const container = useRef<HTMLDivElement>(null);
   const chart = useRef<IChartApi | null>(null);
   const area = useRef<ISeriesApi<"Area"> | null>(null);
@@ -29,6 +34,11 @@ export default function ValueChart({ series }: { series: { t: number; value: num
     });
     return () => { c.remove(); chart.current = null; area.current = null; };
   }, []);
+
+  // The price axis would print the very numbers privacy mode hides.
+  useEffect(() => {
+    chart.current?.applyOptions({ rightPriceScale: { visible: !hideValues } });
+  }, [hideValues]);
 
   useEffect(() => {
     if (!area.current || !series) return;

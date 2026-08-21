@@ -134,6 +134,14 @@ Reuse these before inventing anything:
   details and the transaction form.
 - **Empty state** — one muted sentence saying what to do, never an illustration.
 
+## Privacy mode
+
+A toggle at the top of More hides every amount — money and quantities — while
+percentages, tickers and shares stay visible, so the app can be read in public
+without showing what it is worth. Anything that reveals size must respect it:
+that includes chart price axes, not just text. Format through `lib/display`
+and it happens automatically.
+
 ## Anti-patterns
 
 Things previously removed from this app. Do not reintroduce them.

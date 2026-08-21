@@ -84,8 +84,26 @@ export default function BiometricLock({ children }: { children: React.ReactNode 
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, [state, unlock]);
 
-  if (state === "unavailable" || state === "open") return <>{children}</>;
+  const locked = state !== "unavailable" && state !== "open";
 
+  // The page always renders; the lock covers it. Replacing the children would
+  // strip every page's server-rendered HTML, leaving a blank screen until the
+  // JavaScript arrives.
+  return (
+    <>
+      {children}
+      {locked && <Overlay state={state} error={error} onUnlock={unlock} />}
+    </>
+  );
+}
+
+function Overlay({
+  state, error, onUnlock,
+}: {
+  state: State;
+  error: string | null;
+  onUnlock: () => void;
+}) {
   return (
     <div className="fixed inset-0 z-50 bg-neutral-950 flex flex-col items-center justify-center gap-6 p-8">
       <NablaMark size={64} />
@@ -96,7 +114,7 @@ export default function BiometricLock({ children }: { children: React.ReactNode 
       ) : (
         <>
           <button
-            onClick={unlock}
+            onClick={onUnlock}
             className="bg-blue-600 text-white rounded px-4 py-2 text-sm inline-flex items-center gap-2"
           >
             <Fingerprint size={16} aria-hidden />

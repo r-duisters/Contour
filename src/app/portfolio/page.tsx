@@ -7,6 +7,8 @@ import {
   ArrowUpDown, BarChart3, ChevronRight, Plus, TrendingDown, TrendingUp, Wallet,
 } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
+import { money, quantity, setDisplayCurrency } from "@/lib/display";
+import { usePrivacy } from "@/components/usePrivacy";
 import dynamic from "next/dynamic";
 
 // ~300 KB of charting: loaded after the figures are on screen, never on the
@@ -66,13 +68,9 @@ type Valuation = {
   rate?: number;
 };
 
-// The server already returns figures in the display currency.
-let displayCurrency: "USD" | "EUR" = "USD";
-const fmtUsd = (n: number) =>
-  n.toLocaleString(displayCurrency === "EUR" ? "de-DE" : "en-US", {
-    style: "currency", currency: displayCurrency, maximumFractionDigits: 2,
-  });
-const fmtQty = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 8 });
+// Formatting lives in lib/display so hiding amounts applies everywhere at once.
+const fmtUsd = money;
+const fmtQty = quantity;
 
 export default function PortfolioPage() {
   const [portfolios, setPortfolios] = useState<PortfolioRow[]>([]);
@@ -82,12 +80,14 @@ export default function PortfolioPage() {
   const [valuationLoading, setValuationLoading] = useState(false);
   const [stale, setStale] = useState<number | null>(null);
   const [series, setSeries] = useState<{ t: number; value: number }[] | null>(null);
-  const [range, setRange] = useState<RangeKey>("all");
+  // Opening the app asks "what happened today", not "how did nine years go".
+  const [range, setRange] = useState<RangeKey>("1d");
   const [rangeChange, setRangeChange] = useState<{ abs: number; pct: number | null } | null>(null);
   const [assetChanges, setAssetChanges] = useState<Record<string, number>>({});
   const [mwr, setMwr] = useState<{ annualPct: number | null; investedNet: number; closing: number } | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("value");
+  const hideAmounts = usePrivacy();
   const [statsOpen, setStatsOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [assetTab, setAssetTab] = useState<"all" | "crypto" | "equity" | "cash">("all");
@@ -107,7 +107,7 @@ export default function PortfolioPage() {
       const raw = localStorage.getItem(`valuation:${selectedId}`);
       if (!raw) return;
       const cached = JSON.parse(raw) as { at: number; valuation: Valuation };
-      displayCurrency = cached.valuation.currency ?? "USD";
+      setDisplayCurrency(cached.valuation.currency ?? "USD");
       setValuation((current) => current ?? cached.valuation);
       setStale(cached.at);
     } catch {
@@ -124,7 +124,7 @@ export default function PortfolioPage() {
     ]);
     setTransactions(detail?.portfolio.transactions ?? []);
     if (val) {
-      displayCurrency = val.currency ?? "USD";
+      setDisplayCurrency(val.currency ?? "USD");
       setValuation(val);
       setStale(null);
       try {
@@ -327,7 +327,7 @@ export default function PortfolioPage() {
                 </p>
               )}
               <div className="mb-6 md:mb-8">
-                <ValueChart series={series} />
+                <ValueChart series={series} hideValues={hideAmounts} />
               </div>
 
               <div className="flex items-center gap-2 mb-3 flex-wrap">
