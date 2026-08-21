@@ -36,6 +36,13 @@ type Holding = {
   dayChange?: { abs: number; pct: number } | null;
 };
 
+const RANGES = [
+  { key: "1d", label: "1D" }, { key: "1w", label: "1W" }, { key: "1m", label: "1M" },
+  { key: "ytd", label: "YTD" }, { key: "1y", label: "1Y" }, { key: "2y", label: "2Y" },
+  { key: "5y", label: "5Y" }, { key: "all", label: "All" },
+] as const;
+type RangeKey = (typeof RANGES)[number]["key"];
+
 const money = fmtMoney;
 const qty = quantity;
 
@@ -48,6 +55,8 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
   const [bars, setBars] = useState<{ t: number; c: number }[] | null>(null);
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
   const hideAmounts = usePrivacy();
+  const [range, setRange] = useState<RangeKey>("1y");
+  const [changePct, setChangePct] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,14 +76,26 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
       setHolding(found ?? null);
       setTxs((detail?.portfolio.transactions ?? []).filter((t: Tx) => t.symbol === symbol));
 
-      const assetType = found?.assetType ?? "crypto";
-      const hist = await fetch(
-        `/api/history?symbol=${encodeURIComponent(symbol)}&assetType=${assetType}`,
-      ).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-      if (!cancelled) setBars(hist?.bars ?? []);
     })();
     return () => { cancelled = true; };
   }, [symbol]);
+
+  // Price history reloads when the period changes, not when the page does.
+  useEffect(() => {
+    if (holding === undefined) return;
+    let cancelled = false;
+    setBars(null);
+    const assetType = holding?.assetType ?? "crypto";
+    fetch(`/api/history?symbol=${encodeURIComponent(symbol)}&assetType=${assetType}&range=${range}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { bars?: { t: number; c: number }[]; changePct?: number | null } | null) => {
+        if (cancelled) return;
+        setBars(d?.bars ?? []);
+        setChangePct(d?.changePct ?? null);
+      })
+      .catch(() => { if (!cancelled) setBars([]); });
+    return () => { cancelled = true; };
+  }, [symbol, range, holding]);
 
   async function deleteTx(id: string) {
     await fetch(`/api/transactions/${id}`, { method: "DELETE" });
@@ -140,7 +161,29 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
             <Field label="Fees" value={money(holding.fees)} />
           </div>
 
-          <PriceChart bars={bars} txs={txs} hideValues={hideAmounts} />
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <div className="flex gap-1 flex-wrap">
+          {RANGES.map((r) => (
+            <button
+              key={r.key}
+              onClick={() => setRange(r.key)}
+              className={`px-2 py-1 text-xs rounded ${
+                range === r.key ? "bg-neutral-800 text-neutral-100" : "text-neutral-500"
+              }`}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+        <span className="flex-1" />
+        {changePct !== null && (
+          <span className={`text-sm ${changePct >= 0 ? "text-green-500" : "text-red-500"}`}>
+            {changePct >= 0 ? "+" : ""}{changePct.toFixed(2)}%
+            <span className="text-neutral-500 text-xs"> price, {RANGES.find((r) => r.key === range)?.label}</span>
+          </span>
+        )}
+      </div>
+      <PriceChart bars={bars} txs={txs} hideValues={hideAmounts} />
 
           <TransactionTable txs={txs} onDelete={deleteTx} />
         </>
