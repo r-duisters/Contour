@@ -74,3 +74,27 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 6. **Install on iPhone**: open the site in Safari → Share → *Add to Home Screen*.
    Then Settings → *Enable notifications* (Web Push needs the installed app, iOS 16.4+).
    Home Assistant keeps working as a second notification path.
+
+## Android app (Capacitor shell)
+
+A thin native wrapper so the tracker runs as a real Android app. It does not
+bundle the site: the WebView loads the running Trader server, so the phone app
+and the browser always show the same thing.
+
+```bash
+# point the shell at your server (defaults to http://192.168.2.5:3001)
+export TRADER_URL="https://trader.example.com"
+npm run android:sync
+npm run android:build     # android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+Building needs a JDK 21 and the Android SDK (platform 35+, build-tools 35).
+Point Gradle at them with `android/local.properties` (`sdk.dir=/path/to/Sdk`)
+and `JAVA_HOME`.
+
+Install the APK by copying it to the phone and opening it (allow installs from
+unknown sources), or over USB with `adb install -r app-debug.apk`.
+
+`cleartext` is enabled automatically while `TRADER_URL` is plain http, which is
+what makes a LAN address work. Once the app is on HTTPS this switches itself
+off, and passkey login starts working in the shell too.

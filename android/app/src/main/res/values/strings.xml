@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Trader</string>
+    <string name="title_activity_main">Trader</string>
+    <string name="package_name">app.trader.local</string>
+    <string name="custom_url_scheme">app.trader.local</string>
+</resources>
