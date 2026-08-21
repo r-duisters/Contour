@@ -102,9 +102,15 @@ const CRYPTO_VENUES = [
   "pancake", "staking", "nexo", "celsius", "blockfi", "bitpanda", "litebit", "anycoin", "deribit",
 ];
 const BROKER_VENUES = [
+  // Brokers
   "degiro", "interactive brokers", "ibkr", "trading212", "trading 212", "etoro", "saxo", "flatex",
   "comdirect", "scalable", "revolut", "robinhood", "schwab", "fidelity", "vanguard", "bux",
   "lynx", "meesman", "brand new day", "abn", "ing", "rabobank", "binck", "avanza", "nordnet",
+  // Exchanges, which exports often name instead of the broker
+  "nasdaq", "nyse", "amex", "euronext", "amsterdam", "brussels", "lisbon", "paris", "dublin",
+  "xetra", "frankfurt", "deutsche b", "tradegate", "stuttgart", "london stock", "lse",
+  "borsa", "milan", "madrid", "bme", "six swiss", "stockholm", "oslo", "copenhagen", "helsinki",
+  "warsaw", "vienna", "toronto", "tsx", "asx", "tokyo", "hong kong",
 ];
 
 /** "crypto" | "equity" | null when the venue says nothing useful. */

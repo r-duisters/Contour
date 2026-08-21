@@ -170,6 +170,10 @@ describe("parseDeltaCsv", () => {
     expect(venueAssetType("Binance")).toBe("crypto");
     expect(venueAssetType("My Ledger wallet")).toBe("crypto");
     expect(venueAssetType("DeGiro")).toBe("equity");
+    // Exports often name the exchange rather than the broker.
+    expect(venueAssetType("Nasdaq")).toBe("equity");
+    expect(venueAssetType("Euronext Amsterdam")).toBe("equity");
+    expect(venueAssetType("XETRA")).toBe("equity");
     expect(venueAssetType("Interactive Brokers")).toBe("equity");
     expect(venueAssetType("")).toBeNull();
     expect(venueAssetType("Some Unknown Place")).toBeNull();
