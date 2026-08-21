@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PortfolioManager from "@/components/PortfolioManager";
 import { Bell, FlaskConical, History, Settings } from "lucide-react";
 
 const LINKS = [
@@ -30,6 +31,10 @@ export default function MorePage() {
           </li>
         ))}
       </ul>
+
+      <div className="mb-8">
+        <PortfolioManager />
+      </div>
 
       <h2 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">Strategy tools</h2>
       <ul className="space-y-3 text-sm">

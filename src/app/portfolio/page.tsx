@@ -1,11 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import SymbolPicker from "@/components/SymbolPicker";
 import Link from "next/link";
 import {
-  Activity, ArrowUpDown, BarChart3, ChevronRight, Download, Plus, SlidersHorizontal, Trash2, TrendingDown, TrendingUp,
-  Upload, Wallet,
+  ArrowUpDown, BarChart3, ChevronRight, Plus, TrendingDown, TrendingUp, Wallet,
 } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
 import dynamic from "next/dynamic";
@@ -56,8 +55,6 @@ const RANGES = [
 type RangeKey = (typeof RANGES)[number]["key"];
 
 
-type IndexPoint = { t: number; index: number };
-
 type Valuation = {
   holdings: ValuedHolding[];
   totals: {
@@ -80,7 +77,6 @@ const fmtQty = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits:
 export default function PortfolioPage() {
   const [portfolios, setPortfolios] = useState<PortfolioRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [newName, setNewName] = useState("");
   const [transactions, setTransactions] = useState<Tx[]>([]);
   const [valuation, setValuation] = useState<Valuation | null>(null);
   const [valuationLoading, setValuationLoading] = useState(false);
@@ -90,24 +86,11 @@ export default function PortfolioPage() {
   const [rangeChange, setRangeChange] = useState<{ abs: number; pct: number | null } | null>(null);
   const [assetChanges, setAssetChanges] = useState<Record<string, number>>({});
   const [mwr, setMwr] = useState<{ annualPct: number | null; investedNet: number; closing: number } | null>(null);
-  const [window_, setWindow] = useState<{ from: number; barMs: number } | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
-  const [importMsg, setImportMsg] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("value");
-  const [manageOpen, setManageOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [assetTab, setAssetTab] = useState<"all" | "crypto" | "equity" | "cash">("all");
-  const [risk, setRisk] = useState<{ risk: number; zone: "buy" | "hold" | "sell" } | null>(null);
-
-  useEffect(() => {
-    fetch("/api/risk?symbol=BTCUSDT")
-      .then((r) => r.json())
-      .then((d) => { if (typeof d.risk === "number" && d.zone) setRisk({ risk: d.risk, zone: d.zone }); })
-      .catch(() => {});
-  }, []);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const backupRef = useRef<HTMLInputElement>(null);
 
   const loadPortfolios = useCallback(async () => {
     const d = await fetch("/api/portfolios").then((r) => r.json());
@@ -165,38 +148,16 @@ export default function PortfolioPage() {
         series?: { t: number; value: number }[];
         change?: { abs: number; pct: number | null } | null;
         mwr?: { annualPct: number | null; investedNet: number; closing: number };
-        windowFrom?: number; barMs?: number;
       } | null) => {
         if (cancelled) return;
         setSeries(d?.series ?? []);
         setRangeChange(d?.change ?? null);
         setMwr(d?.mwr ?? null);
-        setWindow(d?.windowFrom && d?.barMs ? { from: d.windowFrom, barMs: d.barMs } : null);
       })
       .catch(() => { if (!cancelled) { setSeries([]); setRangeChange(null); } });
     return () => { cancelled = true; };
   }, [selectedId, range]);
   useEffect(() => { loadSelected(); }, [loadSelected]);
-
-  async function createPortfolio() {
-    if (!newName.trim()) return;
-    const d = await fetch("/api/portfolios", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName.trim() }),
-    }).then((r) => r.json());
-    setNewName("");
-    await loadPortfolios();
-    setSelectedId(d.portfolio.id);
-  }
-
-  async function deletePortfolio() {
-    if (!selectedId) return;
-    if (!window.confirm("Delete this portfolio and all its transactions?")) return;
-    await fetch(`/api/portfolios/${selectedId}`, { method: "DELETE" });
-    setSelectedId(null);
-    await loadPortfolios();
-  }
 
   async function addTransaction(tx: Omit<Tx, "id" | "note">) {
     setFormError(null);
@@ -208,64 +169,6 @@ export default function PortfolioPage() {
     if (!res.ok) { setFormError("Failed to add transaction — check the fields."); return; }
     await loadSelected();
     await loadPortfolios();
-  }
-
-  async function deleteTransaction(id: string) {
-    await fetch(`/api/transactions/${id}`, { method: "DELETE" });
-    await loadSelected();
-    await loadPortfolios();
-  }
-
-  async function restoreBackup(file: File) {
-    setImportMsg("Restoring…");
-    try {
-      const backup = await file.text();
-      const res = await fetch("/api/portfolios/restore", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ backup }),
-      });
-      const d = await res.json();
-      if (!res.ok) { setImportMsg(`Restore failed: ${d.error ?? res.status}`); return; }
-      setImportMsg(`Restored ${d.restored} transactions into "${d.name}".`);
-      await loadPortfolios();
-      setSelectedId(d.id);
-    } catch (e) {
-      setImportMsg(`Restore failed: ${(e as Error).message}`);
-    }
-  }
-
-  async function clearImported() {
-    if (!selectedId) return;
-    if (!window.confirm("Remove ALL transactions added by Delta imports from this portfolio?")) return;
-    const d = await fetch(`/api/portfolios/${selectedId}/import`, { method: "DELETE" }).then((r) => r.json());
-    setImportMsg(`Removed ${d.deleted} imported transactions.`);
-    await loadSelected();
-    await loadPortfolios();
-  }
-
-  async function importCsv(file: File) {
-    if (!selectedId) return;
-    setImportMsg("Importing…");
-    try {
-      const csv = await file.text();
-      const res = await fetch(`/api/portfolios/${selectedId}/import`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ csv }),
-      });
-      const d = await res.json();
-      if (!res.ok) { setImportMsg(`Import failed: ${JSON.stringify(d.error ?? res.status)}`); return; }
-      const parts = [`Imported ${d.imported} transactions`];
-      if (d.duplicates) parts.push(`${d.duplicates} already present (skipped)`);
-      if (d.skipped.length) parts.push(`skipped ${d.skipped.length} (${d.skipped.slice(0, 3).map((x: { line: number; reason: string }) => `line ${x.line}: ${x.reason}`).join("; ")}${d.skipped.length > 3 ? "; …" : ""})`);
-      if (d.warnings.length) parts.push(`${d.warnings.length} without USD price`);
-      setImportMsg(parts.join(" · "));
-      await loadSelected();
-      await loadPortfolios();
-    } catch (e) {
-      setImportMsg(`Import failed: ${(e as Error).message}`);
-    }
   }
 
   // Per-asset price change over the selected period, so the rows speak about
@@ -322,105 +225,24 @@ export default function PortfolioPage() {
           <Wallet size={20} aria-hidden className="text-neutral-400" />Portfolio
         </h1>
         <span className="flex-1" />
+        {portfolios.length > 1 && (
+          <select
+            className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-xs"
+            value={selectedId ?? ""}
+            onChange={(e) => setSelectedId(e.target.value || null)}
+          >
+            {portfolios.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        )}
         <a href="/insights" className="text-xs text-neutral-400 inline-flex items-center gap-1 border border-neutral-800 rounded px-2 py-1">
           <BarChart3 size={12} aria-hidden />Insights
         </a>
       </div>
 
-      {/* Data lives above the fold; portfolio administration hides behind Manage. */}
-      <div className="flex gap-2 mb-4 items-center flex-wrap">
-        {portfolios.length > 1 && (
-          <select
-            className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm"
-            value={selectedId ?? ""}
-            onChange={(e) => { setSelectedId(e.target.value || null); }}
-          >
-            {portfolios.map((p) => (
-              <option key={p.id} value={p.id}>{p.name} ({p.transactionCount})</option>
-            ))}
-          </select>
-        )}
-        <span className="flex-1" />
-        <button onClick={() => setManageOpen((v) => !v)}
-                className="text-xs text-neutral-400 inline-flex items-center gap-1 border border-neutral-800 rounded px-2 py-1">
-          <SlidersHorizontal size={12} aria-hidden />Manage
-        </button>
-      </div>
-
-      {manageOpen && (
-        <div className="bg-neutral-900 border border-neutral-800 rounded p-3 mb-6 space-y-3">
-          <div className="flex gap-2 items-center flex-wrap">
-            <input
-              className="bg-neutral-950 border border-neutral-700 rounded px-2 py-1 text-sm"
-              placeholder="New portfolio name"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && createPortfolio()}
-            />
-            <button onClick={createPortfolio} className="bg-blue-600 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1">
-              <Plus size={14} aria-hidden />Create portfolio
-            </button>
-          </div>
-          {selectedId && (
-            <div className="flex gap-2 items-center flex-wrap">
-              <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden"
-                     onChange={(e) => { const f = e.target.files?.[0]; if (f) importCsv(f); e.target.value = ""; }} />
-              <input ref={backupRef} type="file" accept=".json,application/json" className="hidden"
-                     onChange={(e) => { const f = e.target.files?.[0]; if (f) restoreBackup(f); e.target.value = ""; }} />
-              <button onClick={() => fileRef.current?.click()}
-                      className="bg-neutral-700 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1">
-                <Upload size={14} aria-hidden />Import Delta CSV
-              </button>
-              <button onClick={clearImported} className="text-xs underline text-red-500 inline-flex items-center gap-1">
-                <Trash2 size={12} aria-hidden />Remove CSV-imported transactions…
-              </button>
-              <span className="flex-1" />
-              <button onClick={deletePortfolio} className="text-xs underline text-red-500 inline-flex items-center gap-1">
-                <Trash2 size={12} aria-hidden />Delete portfolio…
-              </button>
-            </div>
-          )}
-          {selectedId && (
-            <div className="flex gap-2 items-center flex-wrap border-t border-neutral-800 pt-3">
-              <span className="text-xs text-neutral-500">Export</span>
-              <a href={`/api/portfolios/${selectedId}/export?format=json`}
-                 className="text-xs text-neutral-300 inline-flex items-center gap-1 border border-neutral-700 rounded px-2 py-1">
-                <Download size={12} aria-hidden />Backup (JSON)
-              </a>
-              <a href={`/api/portfolios/${selectedId}/export?format=csv`}
-                 className="text-xs text-neutral-300 inline-flex items-center gap-1 border border-neutral-700 rounded px-2 py-1">
-                <Download size={12} aria-hidden />Transactions (CSV)
-              </a>
-              <a href={`/api/portfolios/${selectedId}/export?format=ghostfolio`}
-                 className="text-xs text-neutral-300 inline-flex items-center gap-1 border border-neutral-700 rounded px-2 py-1">
-                <Download size={12} aria-hidden />Ghostfolio (CSV)
-              </a>
-              <span className="flex-1" />
-              <button onClick={() => backupRef.current?.click()}
-                      className="text-xs text-neutral-300 inline-flex items-center gap-1 border border-neutral-700 rounded px-2 py-1">
-                <Upload size={12} aria-hidden />Restore backup…
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-      {importMsg && <p className="text-xs text-neutral-400 mb-6">{importMsg}</p>}
-
       {selectedId && (
         <>
-          {risk && (
-            <a href="/chart" className={`inline-flex items-center gap-2 mb-4 rounded px-3 py-1.5 text-sm border ${
-              risk.zone === "buy" ? "border-green-700 bg-green-950/50 text-green-400"
-              : risk.zone === "sell" ? "border-red-700 bg-red-950/50 text-red-400"
-              : "border-neutral-800 bg-neutral-900 text-neutral-400"
-            }`}>
-              <Activity size={14} aria-hidden />
-              BTC risk {risk.risk.toFixed(2)}
-              <span className="opacity-80">
-                · {risk.zone === "buy" ? "buy zone" : risk.zone === "sell" ? "sell zone" : "hold"}
-              </span>
-            </a>
-          )}
           {valuation && (
             <>
               <div className="grid grid-cols-2 gap-2 md:gap-3 mb-3">
@@ -676,12 +498,6 @@ function Stat({ label, value, signed, big, sub }: {
       {sub && <div className="mt-0.5">{sub}</div>}
     </div>
   );
-}
-
-function Pnl({ value }: { value: number | null }) {
-  if (value === null) return <span className="text-neutral-500">?</span>;
-  const color = value > 0 ? "text-green-500" : value < 0 ? "text-red-500" : "text-neutral-400";
-  return <span className={color}>{fmtUsd(value)}</span>;
 }
 
 /** "now" in the shape a datetime-local input wants, in local time. */
