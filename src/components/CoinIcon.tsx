@@ -54,13 +54,13 @@ export default function CoinIcon({
     );
   }
 
-  // Company marks are drawn to their own edges and are often dark, so they sit
-  // inset on a white disc rather than being clipped by one.
+  // Equity logos are clipped to the same circle as a coin icon so the list is
+  // one column of discs. They fill it edge to edge rather than sitting inset.
   if (assetType === "equity") {
     return (
       <span
         aria-hidden
-        className="inline-flex items-center justify-center rounded-full bg-white overflow-hidden shrink-0"
+        className="inline-flex items-center justify-center rounded-full overflow-hidden shrink-0 bg-white"
         style={{ width: size, height: size }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -69,7 +69,7 @@ export default function CoinIcon({
           alt=""
           aria-hidden
           loading="lazy"
-          style={{ width: size * 0.76, height: size * 0.76, objectFit: "contain" }}
+          style={{ width: size, height: size, objectFit: "cover" }}
           onError={() => setFailed(true)}
         />
       </span>
