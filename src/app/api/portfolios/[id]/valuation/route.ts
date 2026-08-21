@@ -75,7 +75,12 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     .filter(([cur]) => cashRates.has(cur))
     .map(([cur, amount]) => {
       const value = amount * cashRates.get(cur)!;
+      // A negative balance cannot be real money: it means the export records
+      // withdrawals whose matching deposits are missing. Report it, but never
+      // let it subtract from the portfolio's worth.
+      const unreliable = amount < 0;
       return {
+        unreliable,
         symbol: cur,
         assetType: "cash" as const,
         quantity: amount,
@@ -108,7 +113,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   const dayAbs = sum(withDay.map((h) => h.dayChange!.abs));
   const dayBase = sum(withDay.map((h) => (h.value ?? 0) - h.dayChange!.abs));
 
-  const cashValue = sum(cashHoldings.map((h) => h.value));
+  const cashValue = sum(cashHoldings.filter((h) => !h.unreliable).map((h) => h.value));
   const totals = {
     dayChange: withDay.length > 0
       ? { abs: dayAbs, pct: dayBase > 0 ? (dayAbs / dayBase) * 100 : 0, covered: withDay.length }

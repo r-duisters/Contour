@@ -37,6 +37,7 @@ type ValuedHolding = {
   symbol: string;
   assetType?: "crypto" | "equity" | "cash";
   dayChange?: DayChange | null;
+  unreliable?: boolean;
   quantity: number;
   avgCost: number;
   costBasis: number;
@@ -88,6 +89,7 @@ export default function PortfolioPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("value");
   const hideAmounts = usePrivacy();
+  const [showClosed, setShowClosed] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [assetTab, setAssetTab] = useState<"all" | "crypto" | "equity" | "cash">("all");
@@ -186,7 +188,11 @@ export default function PortfolioPage() {
     return () => { cancelled = true; };
   }, [selectedId, range]);
 
-  const holdings = valuation?.holdings ?? [];
+  const allHoldings = valuation?.holdings ?? [];
+  // A closed position has nothing left to decide about; it belongs in history,
+  // not in the list you scan every morning.
+  const closed = allHoldings.filter((h) => h.quantity <= 1e-12);
+  const holdings = showClosed ? allHoldings : allHoldings.filter((h) => h.quantity > 1e-12);
   const totalValue = valuation?.totals.value ?? 0;
   const sortedHoldings = [...holdings].sort((a, b) => {
     const pct = (h: ValuedHolding) =>
@@ -236,6 +242,10 @@ export default function PortfolioPage() {
             ))}
           </select>
         )}
+        <button onClick={() => setAddOpen((v) => !v)}
+                className="text-xs text-neutral-300 inline-flex items-center gap-1 border border-neutral-700 rounded px-2 py-1">
+          <Plus size={12} aria-hidden />{addOpen ? "Close" : "Add"}
+        </button>
         <a href="/insights" className="text-xs text-neutral-400 inline-flex items-center gap-1 border border-neutral-800 rounded px-2 py-1">
           <BarChart3 size={12} aria-hidden />Insights
         </a>
@@ -352,6 +362,14 @@ export default function PortfolioPage() {
                 </label>
               </div>
 
+              {addOpen && (
+                <div className="mb-6">
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2">
+                    Add transaction
+                  </h2>
+                  <TxForm onSubmit={addTransaction} error={formError} />
+                </div>
+              )}
               {tabs.length > 2 && (
                 <div className="flex gap-1 mb-3 border-b border-neutral-800 overflow-x-auto">
                   {tabs.map((t) => (
@@ -396,14 +414,20 @@ export default function PortfolioPage() {
                             </span>
                           </span>
                           <span className="flex-1" />
-                          <span className="text-right">{h.value !== null ? fmtUsd(h.value) : "—"}</span>
+                          <span className="text-right">
+                            {h.unreliable ? (
+                              <span className="text-amber-500 text-xs">
+                                not counted · export missing deposits
+                              </span>
+                            ) : h.value !== null ? fmtUsd(h.value) : "—"}
+                          </span>
                         </div>
                       ) : (
                       <Link
                         href={`/portfolio/${encodeURIComponent(h.symbol)}`}
                         className="w-full text-left p-3 flex items-center gap-3"
                       >
-                        <CoinIcon symbol={h.symbol} size={22} />
+                        <CoinIcon symbol={h.symbol} size={22} assetType={h.assetType} />
                         <span className="min-w-0">
                           <span className="font-mono font-medium block truncate">{h.symbol}</span>
                           <span className="text-xs text-neutral-500">
@@ -420,11 +444,13 @@ export default function PortfolioPage() {
                                 {periodChange >= 0 ? "+" : ""}{periodChange.toFixed(1)}% {rangeLabel}
                               </span>
                             ) : h.price === null ? (
-                              <span className="text-neutral-500">no price</span>
+                              <span className={h.quantity > 0 ? "text-amber-500" : "text-neutral-500"}>
+                                no price
+                              </span>
                             ) : null}
                             {pct !== null && (
                               <span className="text-neutral-500">
-                                {pct >= 0 ? "+" : ""}{pct.toFixed(1)}% held
+                                {pct >= 0 ? "+" : ""}{pct.toFixed(1)}% on cost
                               </span>
                             )}
                           </span>
@@ -436,6 +462,14 @@ export default function PortfolioPage() {
                   );
                 })}
               </ul>
+              {closed.length > 0 && (
+                <button onClick={() => setShowClosed((v) => !v)}
+                        className="text-xs text-neutral-500 underline mb-6">
+                  {showClosed
+                    ? `Hide ${closed.length} closed positions`
+                    : `Show ${closed.length} closed positions`}
+                </button>
+              )}
               {sortedHoldings.length === 0 && (
                 <p className="text-sm text-neutral-500 py-2 mb-6">No holdings yet — add a transaction below.</p>
               )}
@@ -445,17 +479,9 @@ export default function PortfolioPage() {
             <p className="text-sm text-neutral-500 mb-8">Loading valuation…</p>
           )}
 
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-sm text-neutral-500">
-              {transactions.length} transactions · open a holding to see its own
-            </span>
-            <span className="flex-1" />
-            <button onClick={() => setAddOpen((v) => !v)}
-                    className="bg-blue-600 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1">
-              <Plus size={14} aria-hidden />{addOpen ? "Close" : "Add transaction"}
-            </button>
-          </div>
-          {addOpen && <TxForm onSubmit={addTransaction} error={formError} />}
+          <p className="text-xs text-neutral-500">
+            {transactions.length} transactions · open a holding to see its own
+          </p>
         </>
       )}
       {!selectedId && portfolios.length === 0 && (

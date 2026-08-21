@@ -23,11 +23,18 @@ function colorFor(ticker: string): string {
 
 const ICON_CDN = "https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color";
 
-export default function CoinIcon({ symbol, size = 20 }: { symbol: string; size?: number }) {
+export default function CoinIcon({
+  symbol, size = 20, assetType,
+}: {
+  symbol: string;
+  size?: number;
+  assetType?: "crypto" | "equity" | "cash";
+}) {
   const [failed, setFailed] = useState(false);
   const base = baseAsset(symbol);
 
-  if (failed) {
+  // The coin CDN has no ticker for Shell or for euros; asking guarantees a 404.
+  if (failed || assetType === "equity" || assetType === "cash") {
     return (
       <span
         aria-hidden

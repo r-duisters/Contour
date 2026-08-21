@@ -93,7 +93,7 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
       </Link>
 
       <div className="flex items-center gap-3 mb-6">
-        <CoinIcon symbol={symbol} size={32} />
+        <CoinIcon symbol={symbol} size={32} assetType={holding?.assetType} />
         <div>
           <h1 className="text-xl md:text-2xl font-semibold font-mono">{symbol}</h1>
           {holding && (
