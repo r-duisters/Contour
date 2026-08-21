@@ -692,6 +692,14 @@ function ValueChart({ series }: { series: { t: number; value: number }[] | null 
   );
 }
 
+/** "now" in the shape a datetime-local input wants, in local time. */
+function localNow(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 function TxForm({
   onSubmit, error,
 }: {
@@ -703,7 +711,13 @@ function TxForm({
   const [quantity, setQuantity] = useState("");
   const [price, setPrice] = useState("");
   const [fee, setFee] = useState("");
-  const [when, setWhen] = useState(() => new Date().toISOString().slice(0, 16));
+  const [when, setWhen] = useState("");
+
+  // Filled after mount: a timestamp rendered on the server would not match the
+  // client's, and it must be the phone's local time, not UTC.
+  useEffect(() => {
+    if (when === "") setWhen(localNow());
+  }, [when]);
 
   function submit() {
     const q = Number(quantity);
@@ -712,7 +726,7 @@ function TxForm({
     const t = new Date(when).getTime();
     if (!symbol || !Number.isFinite(q) || q <= 0 || !Number.isFinite(p) || p < 0 || !Number.isFinite(t)) return;
     onSubmit({ symbol: symbol.toUpperCase(), side, quantity: q, price: p, fee: f, time: t });
-    setQuantity(""); setPrice(""); setFee("");
+    setQuantity(""); setPrice(""); setFee(""); setWhen(localNow());
   }
 
   const input = "bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm";

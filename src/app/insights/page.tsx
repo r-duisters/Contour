@@ -52,7 +52,7 @@ export default function InsightsPage() {
   const [benchKey, setBenchKey] = useState<string>("sp500");
   const [rows, setRows] = useState<RangeStat[]>([]);
   const [loadingRows, setLoadingRows] = useState(false);
-  const [snapDate, setSnapDate] = useState(() => `${new Date().getUTCFullYear()}-01-01`);
+  const [snapDate, setSnapDate] = useState("");
   const [snap, setSnap] = useState<{
     date: string; total: number; unpriced: number;
     rows: { symbol: string; assetType: string; quantity: number; value: number | null }[];
@@ -68,6 +68,12 @@ export default function InsightsPage() {
     setSnap(d);
     setSnapLoading(false);
   }
+
+  // Set after mount rather than during render: anything derived from the clock
+  // differs between the server's HTML and the client's first render.
+  useEffect(() => {
+    setSnapDate(`${new Date().getFullYear()}-01-01`);
+  }, []);
 
   useEffect(() => {
     fetch("/api/portfolios")
@@ -306,8 +312,8 @@ export default function InsightsPage() {
                 value={snapDate}
                 onChange={(e) => setSnapDate(e.target.value)}
               />
-              <button onClick={loadSnapshot}
-                      className="bg-blue-600 text-white rounded px-3 py-1 text-sm">
+              <button onClick={loadSnapshot} disabled={!snapDate}
+                      className="bg-blue-600 disabled:opacity-50 text-white rounded px-3 py-1 text-sm">
                 Value it
               </button>
               {snapLoading && <span className="text-xs text-neutral-500">valuing…</span>}
