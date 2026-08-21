@@ -411,7 +411,7 @@ function ContribList({
   title, rows, up,
 }: {
   title: string;
-  rows: { symbol: string; total: number; pct: number | null }[];
+  rows: { symbol: string; total: number; pct: number | null; assetType?: "crypto" | "equity" | "cash" }[];
   up: boolean;
 }) {
   return (
@@ -427,7 +427,7 @@ function ContribList({
               href={`/portfolio/${encodeURIComponent(r.symbol)}`}
               className="flex items-center gap-2 text-sm"
             >
-              <CoinIcon symbol={r.symbol} size={16} />
+              <CoinIcon symbol={r.symbol} size={20} assetType={r.assetType} />
               <span className="font-mono truncate">{r.symbol}</span>
             <span className="flex-1" />
               <span className={r.total >= 0 ? "text-green-500" : "text-red-500"}>{money(r.total)}</span>
@@ -483,7 +483,7 @@ function AllocationDonut({ holdings }: { holdings: Holding[] }) {
           <li key={h.symbol} className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-sm inline-block"
                   style={{ background: SLICE_COLORS[i % SLICE_COLORS.length] }} />
-            <CoinIcon symbol={h.symbol} size={14} />
+            <CoinIcon symbol={h.symbol} size={16} assetType={h.assetType} />
             <span className="font-mono">{h.symbol}</span>
             <span className="text-neutral-500">{((h.value! / total) * 100).toFixed(1)}%</span>
           </li>

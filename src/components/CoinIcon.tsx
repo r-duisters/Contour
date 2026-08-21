@@ -21,7 +21,11 @@ function colorFor(ticker: string): string {
   return FALLBACK_COLORS[Math.abs(h) % FALLBACK_COLORS.length]!;
 }
 
-const ICON_CDN = "https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color";
+const COIN_CDN = "https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color";
+// Company logos by ticker, exchange suffix included (SHELL.AS, EUDF.DE).
+// Unknown tickers 404 rather than returning a placeholder, so the initials
+// fallback below still gets its turn.
+const STOCK_LOGOS = "https://assets.parqet.com/logos/symbol";
 
 export default function CoinIcon({
   symbol, size = 20, assetType,
@@ -33,8 +37,12 @@ export default function CoinIcon({
   const [failed, setFailed] = useState(false);
   const base = baseAsset(symbol);
 
-  // The coin CDN has no ticker for Shell or for euros; asking guarantees a 404.
-  if (failed || assetType === "equity" || assetType === "cash") {
+  // Cash has no logo anywhere; equities have one, but not on the coin CDN.
+  const src = assetType === "equity"
+    ? `${STOCK_LOGOS}/${encodeURIComponent(symbol.toUpperCase())}`
+    : `${COIN_CDN}/${base.toLowerCase()}.svg`;
+
+  if (failed || assetType === "cash") {
     return (
       <span
         aria-hidden
@@ -48,13 +56,14 @@ export default function CoinIcon({
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={`${ICON_CDN}/${base.toLowerCase()}.svg`}
+      src={src}
       width={size}
       height={size}
       alt=""
       aria-hidden
       loading="lazy"
-      className="rounded-full shrink-0"
+      // Company marks are drawn to their own edges; rounding would clip them.
+      className={assetType === "equity" ? "shrink-0" : "rounded-full shrink-0"}
       onError={() => setFailed(true)}
     />
   );

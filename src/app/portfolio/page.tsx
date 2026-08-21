@@ -420,7 +420,7 @@ export default function PortfolioPage() {
                         href={`/portfolio/${encodeURIComponent(h.symbol)}`}
                         className="w-full text-left p-3 flex items-center gap-3"
                       >
-                        <CoinIcon symbol={h.symbol} size={22} assetType={h.assetType} />
+                        <CoinIcon symbol={h.symbol} size={28} assetType={h.assetType} />
                         <span className="min-w-0">
                           <span className="font-mono font-medium block truncate">{h.symbol}</span>
                           <span className="text-xs text-neutral-500">
