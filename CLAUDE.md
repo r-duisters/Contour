@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Brand and layout
+
+`BRAND.md` is the guide for anything user-facing: the app's name, voice,
+colour, layout rules, established components and the anti-patterns already
+removed once. Read it before writing UI or copy.
+
 ## What this is
 
 A Next.js (App Router, TypeScript) web app that brings **one specific PineScript** to life outside
