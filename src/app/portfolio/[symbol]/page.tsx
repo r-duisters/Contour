@@ -11,6 +11,7 @@ import CoinIcon from "@/components/CoinIcon";
 import { money as fmtMoney, quantity, setDisplayCurrency } from "@/lib/display";
 import { annotateTransactions } from "@/lib/portfolio";
 import { useFitChart } from "@/components/useFitChart";
+import { useStoredRange } from "@/components/useStoredRange";
 import { usePrivacy } from "@/components/usePrivacy";
 
 type Tx = {
@@ -43,6 +44,7 @@ const RANGES = [
   { key: "5y", label: "5Y" }, { key: "all", label: "All" },
 ] as const;
 type RangeKey = (typeof RANGES)[number]["key"];
+const RANGE_KEYS = RANGES.map((r) => r.key);
 
 const money = fmtMoney;
 const qty = quantity;
@@ -56,7 +58,9 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
   const [bars, setBars] = useState<{ t: number; c: number }[] | null>(null);
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
   const hideAmounts = usePrivacy();
-  const [range, setRange] = useState<RangeKey>("1y");
+  const [range, setRange, rangeReady] = useStoredRange<RangeKey>(
+    "nabla:range:asset", "1y", RANGE_KEYS,
+  );
   const [changePct, setChangePct] = useState<number | null>(null);
 
   useEffect(() => {
@@ -83,7 +87,7 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
 
   // Price history reloads when the period changes, not when the page does.
   useEffect(() => {
-    if (holding === undefined) return;
+    if (holding === undefined || !rangeReady) return;
     let cancelled = false;
     setBars(null);
     const assetType = holding?.assetType ?? "crypto";
@@ -96,7 +100,7 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
       })
       .catch(() => { if (!cancelled) setBars([]); });
     return () => { cancelled = true; };
-  }, [symbol, range, holding]);
+  }, [symbol, range, holding, rangeReady]);
 
   async function deleteTx(id: string) {
     await fetch(`/api/transactions/${id}`, { method: "DELETE" });

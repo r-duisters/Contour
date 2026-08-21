@@ -9,6 +9,7 @@ import {
 import CoinIcon from "@/components/CoinIcon";
 import { money, quantity, setDisplayCurrency } from "@/lib/display";
 import { usePrivacy } from "@/components/usePrivacy";
+import { useStoredRange } from "@/components/useStoredRange";
 import dynamic from "next/dynamic";
 
 // ~300 KB of charting: loaded after the figures are on screen, never on the
@@ -56,6 +57,7 @@ const RANGES = [
   { key: "5y", label: "5Y" }, { key: "all", label: "All" },
 ] as const;
 type RangeKey = (typeof RANGES)[number]["key"];
+const RANGE_KEYS = RANGES.map((r) => r.key);
 
 
 type Valuation = {
@@ -81,8 +83,11 @@ export default function PortfolioPage() {
   const [valuationLoading, setValuationLoading] = useState(false);
   const [stale, setStale] = useState<number | null>(null);
   const [series, setSeries] = useState<{ t: number; value: number }[] | null>(null);
-  // Opening the app asks "what happened today", not "how did nine years go".
-  const [range, setRange] = useState<RangeKey>("1d");
+  // Opening the app asks "what happened today" — unless a period was chosen
+  // before, in which case it asks that again.
+  const [range, setRange, rangeReady] = useStoredRange<RangeKey>(
+    "nabla:range:portfolio", "1d", RANGE_KEYS,
+  );
   const [rangeChange, setRangeChange] = useState<{ abs: number; pct: number | null } | null>(null);
   const [assetChanges, setAssetChanges] = useState<Record<string, number>>({});
   const [mwr, setMwr] = useState<{ annualPct: number | null; investedNet: number; closing: number } | null>(null);
@@ -141,7 +146,7 @@ export default function PortfolioPage() {
   // The value history is slow to build, so it loads after the numbers and
   // refetches only when the selected range changes.
   useEffect(() => {
-    if (!selectedId) return;
+    if (!selectedId || !rangeReady) return;
     let cancelled = false;
     setSeries(null);
     fetch(`/api/portfolios/${selectedId}/series?range=${range}`)
@@ -158,7 +163,7 @@ export default function PortfolioPage() {
       })
       .catch(() => { if (!cancelled) { setSeries([]); setRangeChange(null); } });
     return () => { cancelled = true; };
-  }, [selectedId, range]);
+  }, [selectedId, range, rangeReady]);
   useEffect(() => { loadSelected(); }, [loadSelected]);
 
   async function addTransaction(tx: Omit<Tx, "id" | "note">) {
@@ -176,7 +181,7 @@ export default function PortfolioPage() {
   // Per-asset price change over the selected period, so the rows speak about
   // the same window as the chart above them.
   useEffect(() => {
-    if (!selectedId) return;
+    if (!selectedId || !rangeReady) return;
     let cancelled = false;
     setAssetChanges({});
     fetch(`/api/portfolios/${selectedId}/changes?range=${range}`)
@@ -186,7 +191,7 @@ export default function PortfolioPage() {
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [selectedId, range]);
+  }, [selectedId, range, rangeReady]);
 
   const allHoldings = valuation?.holdings ?? [];
   // A closed position has nothing left to decide about; it belongs in history,
