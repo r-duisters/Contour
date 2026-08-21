@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import BiometricLock from "@/components/BiometricLock";
 import PwaSetup from "@/components/PwaSetup";
 import TabBar from "@/components/TabBar";
 import "./globals.css";
@@ -39,8 +40,10 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <PwaSetup />
-        <div className="pb-20 md:pb-0">{children}</div>
-        <TabBar />
+        <BiometricLock>
+          <div className="pb-20 md:pb-0">{children}</div>
+          <TabBar />
+        </BiometricLock>
       </body>
     </html>
   );

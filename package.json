@@ -11,6 +11,7 @@
     "android:build": "cd android && ./gradlew assembleDebug"
   },
   "dependencies": {
+    "@aparajita/capacitor-biometric-auth": "^10.0.0",
     "@capacitor/android": "^8.5.0",
     "@capacitor/core": "^8.5.0",
     "@prisma/client": "^6.19.3",
