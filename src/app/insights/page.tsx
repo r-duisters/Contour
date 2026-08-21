@@ -7,7 +7,7 @@ import CoinIcon from "@/components/CoinIcon";
 import { classSplit, concentration, contributions, type TradeStats } from "@/lib/insights";
 import type { ValuedHolding } from "@/lib/portfolio";
 
-type Holding = ValuedHolding & { assetType?: "crypto" | "equity" };
+type Holding = ValuedHolding & { assetType?: "crypto" | "equity" | "cash" };
 
 type RangeStat = {
   key: string;
@@ -188,7 +188,11 @@ export default function InsightsPage() {
                       </div>
                       <div className="h-2 bg-neutral-800 rounded overflow-hidden">
                         <div
-                          className={c.label === "Crypto" ? "h-full bg-blue-500" : "h-full bg-green-500"}
+                          className={
+                            c.label === "Crypto" ? "h-full bg-blue-500"
+                            : c.label === "Cash" ? "h-full bg-neutral-500"
+                            : "h-full bg-green-500"
+                          }
                           style={{ width: `${c.share}%` }}
                         />
                       </div>

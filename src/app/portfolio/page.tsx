@@ -29,7 +29,7 @@ type SortKey = "value" | "pnlPct" | "pnl" | "realized" | "quantity" | "symbol";
 
 type ValuedHolding = {
   symbol: string;
-  assetType?: "crypto" | "equity";
+  assetType?: "crypto" | "equity" | "cash";
   dayChange?: DayChange | null;
   quantity: number;
   avgCost: number;
@@ -57,6 +57,7 @@ type Valuation = {
   holdings: ValuedHolding[];
   totals: {
     value: number; costBasis: number; unrealizedPnl: number; realizedPnl: number; fees: number;
+    cash?: number; invested?: number;
     dayChange: (DayChange & { covered: number }) | null;
   };
   currency?: "USD" | "EUR";
@@ -90,7 +91,7 @@ export default function PortfolioPage() {
   const [manageOpen, setManageOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
-  const [assetTab, setAssetTab] = useState<"all" | "crypto" | "equity">("all");
+  const [assetTab, setAssetTab] = useState<"all" | "crypto" | "equity" | "cash">("all");
   const [risk, setRisk] = useState<{ risk: number; zone: "buy" | "hold" | "sell" } | null>(null);
 
   useEffect(() => {
@@ -254,11 +255,13 @@ export default function PortfolioPage() {
 
   const crypto = sortedHoldings.filter((h) => (h.assetType ?? "crypto") === "crypto");
   const equities = sortedHoldings.filter((h) => h.assetType === "equity");
+  const cash = sortedHoldings.filter((h) => h.assetType === "cash");
   const classValue = (items: ValuedHolding[]) => sum(items.map((h) => h.value ?? 0));
   const tabs = [
     { key: "all" as const, label: "All", items: sortedHoldings },
     { key: "crypto" as const, label: "Crypto", items: crypto },
     { key: "equity" as const, label: "Stocks & ETFs", items: equities },
+    { key: "cash" as const, label: "Cash", items: cash },
   ].filter((t) => t.key === "all" || t.items.length > 0);
   const visibleHoldings = (tabs.find((t) => t.key === assetTab) ?? tabs[0]!).items;
 
@@ -351,7 +354,7 @@ export default function PortfolioPage() {
                       sub={valuation.totals.dayChange && (
                         <DayBadge change={valuation.totals.dayChange} label="today" />
                       )} />
-                <Stat label="Unrealized P&L" value={fmtUsd(valuation.totals.unrealizedPnl)}
+                <Stat label="Unrealised P&L" value={fmtUsd(valuation.totals.unrealizedPnl)}
                       signed={valuation.totals.unrealizedPnl} big
                       sub={valuation.totals.costBasis > 0 ? (
                         <span className="text-xs text-neutral-500">
@@ -359,7 +362,10 @@ export default function PortfolioPage() {
                         </span>
                       ) : undefined} />
               </div>
-              <div className={`${statsOpen ? "grid" : "hidden"} md:grid grid-cols-2 md:grid-cols-3 gap-3 mb-3`}>
+              <div className={`${statsOpen ? "grid" : "hidden"} md:grid grid-cols-2 md:grid-cols-4 gap-3 mb-3`}>
+                {typeof valuation.totals.cash === "number" && valuation.totals.cash !== 0 && (
+                  <Stat label="Cash" value={fmtUsd(valuation.totals.cash)} />
+                )}
                 <Stat label="Cost basis" value={fmtUsd(valuation.totals.costBasis)} />
                 <Stat label="Realized P&L" value={fmtUsd(valuation.totals.realizedPnl)} signed={valuation.totals.realizedPnl} />
                 <Stat label="Fees paid" value={fmtUsd(valuation.totals.fees)} />
@@ -476,6 +482,22 @@ export default function PortfolioPage() {
                     ? (h.unrealizedPnl / h.costBasis) * 100 : null;
                   return (
                     <li key={h.symbol} className="bg-neutral-900 border border-neutral-800 rounded">
+                      {h.assetType === "cash" ? (
+                        <div className="w-full p-3 flex items-center gap-3">
+                          <span className="w-[22px] h-[22px] rounded-full bg-neutral-700 text-[10px] flex items-center justify-center shrink-0">
+                            {h.symbol.slice(0, 3)}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="font-mono font-medium block truncate">{h.symbol} cash</span>
+                            <span className="text-xs text-neutral-500">
+                              {fmtQty(h.quantity)}
+                              {share !== null && <> · {share.toFixed(1)}%</>}
+                            </span>
+                          </span>
+                          <span className="flex-1" />
+                          <span className="text-right">{h.value !== null ? fmtUsd(h.value) : "—"}</span>
+                        </div>
+                      ) : (
                       <Link
                         href={`/portfolio/${encodeURIComponent(h.symbol)}`}
                         className="w-full text-left p-3 flex items-center gap-3"
@@ -508,6 +530,7 @@ export default function PortfolioPage() {
                         </span>
                         <ChevronRight size={16} aria-hidden className="text-neutral-500" />
                       </Link>
+                      )}
                     </li>
                   );
                 })}

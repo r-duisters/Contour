@@ -102,7 +102,7 @@ async function resolvePendingQuotes(rows: ParsedTx[]): Promise<SkippedRow[]> {
  * an unknown asset simply shows as unpriced.
  */
 async function reclassifyNonCoins(rows: ParsedTx[]): Promise<void> {
-  const candidates = rows.filter((r) => r.assetType === "crypto");
+  const candidates = rows.filter((r) => r.assetType === "crypto"); // cash and equities are already settled
   if (candidates.length === 0) return;
   let coins = new Set<string>();
   try {

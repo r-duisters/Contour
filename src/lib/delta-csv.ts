@@ -2,7 +2,7 @@ import type { TxSide } from "./portfolio";
 
 export type ParsedTx = {
   symbol: string;
-  assetType: "crypto" | "equity";
+  assetType: "crypto" | "equity" | "cash";
   /** Bare ticker (BTC, ASML.AS) — lets the importer reclassify unsuffixed
    *  tickers that are not tradable coins (e.g. AMD) as equities. */
   base: string;
@@ -34,6 +34,8 @@ export type DeltaImport = {
 };
 
 const STABLES = new Set(["USD", "USDT", "USDC", "BUSD", "DAI", "FDUSD", "TUSD"]);
+/** Real money the portfolio can hold as a balance, as opposed to a traded asset. */
+const FIAT_CURRENCIES = new Set(["EUR", "USD", "GBP", "CHF", "SEK", "NOK", "DKK", "PLN", "CAD", "AUD"]);
 
 const SIDE_MAP: Record<string, TxSide | "income" | "transfer"> = {
   TRANSFER: "transfer", // direction comes from the sign of the base amount
@@ -186,11 +188,11 @@ export function parseDeltaCsv(text: string): DeltaImport {
 
     const baseCurrency = normalizeAsset(cell(cols.baseCurrency));
     if (!baseCurrency) { skipped.push({ line, reason: "missing base currency" }); continue; }
-    if (STABLES.has(baseCurrency) || baseCurrency === "EUR" || baseCurrency === "GBP") {
-      skipped.push({ line, reason: `cash row (${baseCurrency})` });
-      continue;
-    }
-    const assetType: "crypto" | "equity" = isSecurityTicker(baseCurrency) ? "equity" : "crypto";
+    // Fiat rows are the cash side of the portfolio, not an asset position.
+    const isCash = FIAT_CURRENCIES.has(baseCurrency) || baseCurrency === "USD";
+    const assetType: "crypto" | "equity" | "cash" = isCash
+      ? "cash"
+      : isSecurityTicker(baseCurrency) ? "equity" : "crypto";
 
     const rawAmount = num(cell(cols.baseAmount));
     const quantity = Math.abs(rawAmount);
@@ -201,6 +203,11 @@ export function parseDeltaCsv(text: string): DeltaImport {
 
     const time = parseDate(cell(cols.date));
     if (!Number.isFinite(time)) { skipped.push({ line, reason: `unparseable date "${cell(cols.date)}"` }); continue; }
+
+    let side: TxSide;
+    if (mapped === "income") side = "transfer_in";
+    else if (mapped === "transfer") side = rawAmount < 0 ? "transfer_out" : "transfer_in";
+    else side = mapped;
 
     // Prefer quote-side pricing, fall back to costs/proceeds. USD stables
     // resolve immediately; other currencies become a pendingQuote for the
@@ -221,11 +228,6 @@ export function parseDeltaCsv(text: string): DeltaImport {
       pendingQuote = { currency: costsCurrency, total: costsAmount };
     }
 
-    let side: TxSide;
-    if (mapped === "income") side = "transfer_in";
-    else if (mapped === "transfer") side = rawAmount < 0 ? "transfer_out" : "transfer_in";
-    else side = mapped;
-
     if (mapped === "income") { price = 0; pendingQuote = undefined; }
     else if (price === 0 && !pendingQuote && (side === "buy" || side === "sell")) {
       warnings.push({ line, reason: `no USD price for ${baseCurrency} ${rawType.toLowerCase()} — imported with price 0` });
@@ -239,6 +241,24 @@ export function parseDeltaCsv(text: string): DeltaImport {
       if (STABLES.has(feeCurrency)) fee = feeAmount;
       else if (feeCurrency === baseCurrency && price > 0) fee = feeAmount * price;
       else if (feeCurrency) feeRaw = { currency: feeCurrency, amount: feeAmount };
+    }
+
+    if (isCash) {
+      // A cash movement is its own currency: one unit is worth one unit.
+      rows.push({
+        symbol: baseCurrency,
+        assetType: "cash",
+        base: baseCurrency,
+        venue: cell(cols.venue),
+        side,
+        quantity,
+        price: 0,
+        fee: 0,
+        time,
+        nativeCurrency: baseCurrency,
+        nativePrice: 1,
+      });
+      continue;
     }
 
     // Native = the currency this trade actually settled in (EUR for a Bitvavo

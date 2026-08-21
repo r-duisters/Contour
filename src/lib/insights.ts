@@ -89,7 +89,7 @@ export function concentration(holdings: ValuedHolding[]): Concentration {
 
 export type Contribution = {
   symbol: string;
-  assetType: "crypto" | "equity";
+  assetType: "crypto" | "equity" | "cash";
   realized: number;
   unrealized: number;
   total: number;
@@ -98,8 +98,12 @@ export type Contribution = {
 };
 
 /** Which holdings actually made or lost the money, best first. */
-export function contributions(holdings: (ValuedHolding & { assetType?: "crypto" | "equity" })[]): Contribution[] {
+export function contributions(
+  holdings: (ValuedHolding & { assetType?: "crypto" | "equity" | "cash" })[],
+): Contribution[] {
+  // Cash never made or lost anything; it would only dilute the ranking.
   return holdings
+    .filter((h) => h.assetType !== "cash")
     .map((h) => ({
       symbol: h.symbol,
       assetType: h.assetType ?? ("crypto" as const),
@@ -113,11 +117,11 @@ export function contributions(holdings: (ValuedHolding & { assetType?: "crypto" 
 
 /** Value split between asset classes. */
 export function classSplit(
-  holdings: (ValuedHolding & { assetType?: "crypto" | "equity" })[],
+  holdings: (ValuedHolding & { assetType?: "crypto" | "equity" | "cash" })[],
 ): { label: string; value: number; share: number }[] {
   const totals = new Map<string, number>();
   for (const h of holdings) {
-    const key = h.assetType === "equity" ? "Stocks & ETFs" : "Crypto";
+    const key = h.assetType === "equity" ? "Stocks & ETFs" : h.assetType === "cash" ? "Cash" : "Crypto";
     totals.set(key, (totals.get(key) ?? 0) + (h.value ?? 0));
   }
   const sum = [...totals.values()].reduce((a, b) => a + b, 0);

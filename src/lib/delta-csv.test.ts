@@ -102,21 +102,19 @@ describe("parseDeltaCsv", () => {
     expect(rows[0]!.fee).toBeCloseTo(0.01 * 2000);
   });
 
-  it("skips cash rows, unsupported types, bad amounts, and bad dates with reasons", () => {
+  it("skips unsupported types, bad amounts, and bad dates with reasons", () => {
     const { rows, skipped } = parseDeltaCsv(
       csv(
-        "2024-01-01,DEPOSIT,Bank,1000,USD,,,,,,,",
         "2024-01-02,LOAN,X,1,BTC,,,,,,,",
         "2024-01-03,BUY,X,zero,BTC,100,USDT,,,,,",
         "not-a-date,BUY,X,1,BTC,100,USDT,,,,,",
       ),
     );
     expect(rows).toEqual([]);
-    expect(skipped.map((s) => s.line)).toEqual([2, 3, 4, 5]);
-    expect(skipped[0]!.reason).toContain("cash row");
-    expect(skipped[1]!.reason).toContain("unsupported type");
-    expect(skipped[2]!.reason).toContain("invalid base amount");
-    expect(skipped[3]!.reason).toContain("unparseable date");
+    expect(skipped.map((s) => s.line)).toEqual([2, 3, 4]);
+    expect(skipped[0]!.reason).toContain("unsupported type");
+    expect(skipped[1]!.reason).toContain("invalid base amount");
+    expect(skipped[2]!.reason).toContain("unparseable date");
   });
 
   it("parses thousands separators and european decimals", () => {
@@ -139,19 +137,25 @@ describe("parseDeltaCsv", () => {
     expect(rows[0]!.price).toBe(7); // USDT (TETHER) recognized as a stable
   });
 
-  it("skips verbose cash rows but imports equities with assetType", () => {
+  it("imports fiat rows as cash and equities as equities", () => {
     const { rows, skipped } = parseDeltaCsv(
       csv(
         '2024-01-01,DEPOSIT,Bank,1000,"EUR (EURO)",,,,,,,',
         '2024-01-02,BUY,DeGiro,10,"SHELL.AS (SHELL PLC)",300,EUR,,,,,',
       ),
     );
-    expect(skipped).toHaveLength(1);
-    expect(skipped[0]!.reason).toContain("cash row (EUR)");
-    expect(rows).toHaveLength(1);
-    expect(rows[0]!.symbol).toBe("SHELL.AS");
-    expect(rows[0]!.assetType).toBe("equity");
-    expect(rows[0]!.pendingQuote).toEqual({ currency: "EUR", total: 300 });
+    expect(skipped).toEqual([]);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({
+      symbol: "EUR", assetType: "cash", side: "transfer_in", quantity: 1000,
+      nativeCurrency: "EUR", nativePrice: 1,
+    });
+    expect(rows[1]).toMatchObject({ symbol: "SHELL.AS", assetType: "equity" });
+  });
+
+  it("treats a fiat withdrawal as cash leaving", () => {
+    const { rows } = parseDeltaCsv(csv('2024-01-05,WITHDRAW,Bank,250,"EUR (EURO)",,,,,,,'));
+    expect(rows[0]).toMatchObject({ assetType: "cash", side: "transfer_out", quantity: 250 });
   });
 
   it("marks coin rows as crypto and suffixes them with USDT", () => {

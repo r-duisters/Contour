@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { toDisplayTxs } from "@/lib/display-tx";
+import { cashBalances } from "@/lib/cash";
 import { fetchKlines, fetchPricesSafe } from "@/lib/binance";
 import { cached } from "@/lib/cache";
 import { fetchLatestEurUsd, fetchEcbRates, rateOn } from "@/lib/fx";
@@ -32,7 +33,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
    * current rate. Re-converting a 2017 EUR purchase through today's USD rate
    * would misstate the cost basis, which is what this avoids.
    */
-  const txs = toDisplayTxs(portfolio.transactions, currency, toDisplay);
+  const assetRows = portfolio.transactions.filter((t) => t.assetType !== "cash");
+  const txs = toDisplayTxs(assetRows, currency, toDisplay);
 
   const equitySymbols = new Set(
     portfolio.transactions.filter((t) => t.assetType === "equity").map((t) => t.symbol),
@@ -56,6 +58,38 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   }
   for (const [sym, usd] of Object.entries(cryptoPrev)) prevCloses[sym] = usd * toDisplay;
 
+  // Cash balances: deposits and withdrawals, less what trades spent.
+  const balances = cashBalances(portfolio.transactions);
+  const cashRates = new Map<string, number>();
+  for (const cur of Object.keys(balances)) {
+    if (cur === currency) { cashRates.set(cur, 1); continue; }
+    try {
+      const rates = await fetchEcbRates(cur, currency, Date.now() - 10 * 86_400_000, Date.now());
+      const r = rateOn(rates, Date.now());
+      if (r) cashRates.set(cur, r);
+    } catch {
+      // leave it out rather than guess
+    }
+  }
+  const cashHoldings = Object.entries(balances)
+    .filter(([cur]) => cashRates.has(cur))
+    .map(([cur, amount]) => {
+      const value = amount * cashRates.get(cur)!;
+      return {
+        symbol: cur,
+        assetType: "cash" as const,
+        quantity: amount,
+        avgCost: 1,
+        costBasis: value,
+        realizedPnl: 0,
+        fees: 0,
+        price: cashRates.get(cur)!,
+        value,
+        unrealizedPnl: 0,
+        dayChange: null,
+      };
+    });
+
   const valued = valueHoldings(holdings, prices).map((h) => {
     const prev = prevCloses[h.symbol];
     const dayChange = h.price !== null && prev !== undefined && prev > 0
@@ -69,15 +103,20 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   });
   // Day change covers only holdings with a previous close; its base is their
   // value alone, so the percentage is not diluted by unpriced assets.
+  const all = [...valued, ...cashHoldings];
   const withDay = valued.filter((h) => h.dayChange !== null && h.quantity > 0);
   const dayAbs = sum(withDay.map((h) => h.dayChange!.abs));
   const dayBase = sum(withDay.map((h) => (h.value ?? 0) - h.dayChange!.abs));
 
+  const cashValue = sum(cashHoldings.map((h) => h.value));
   const totals = {
     dayChange: withDay.length > 0
       ? { abs: dayAbs, pct: dayBase > 0 ? (dayAbs / dayBase) * 100 : 0, covered: withDay.length }
       : null,
-    value: sum(valued.map((h) => h.value ?? 0)),
+    // Cash counts towards what the portfolio is worth, never towards its P&L.
+    value: sum(valued.map((h) => h.value ?? 0)) + cashValue,
+    cash: cashValue,
+    invested: sum(valued.map((h) => h.value ?? 0)),
     costBasis: sum(valued.filter((h) => h.quantity > 0).map((h) => h.costBasis)),
     unrealizedPnl: sum(valued.map((h) => h.unrealizedPnl ?? 0)),
     realizedPnl: sum(valued.map((h) => h.realizedPnl)),
@@ -88,7 +127,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   // The value series is fetched separately: it needs full price history and
   // would otherwise hold the headline numbers hostage for seconds.
   return NextResponse.json({
-    holdings: valued, totals,
+    holdings: all, totals,
     currency: displayUsd > 0 ? currency : "USD",
     rate: 1,
   });
