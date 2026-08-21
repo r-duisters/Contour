@@ -52,6 +52,22 @@ export default function InsightsPage() {
   const [benchKey, setBenchKey] = useState<string>("sp500");
   const [rows, setRows] = useState<RangeStat[]>([]);
   const [loadingRows, setLoadingRows] = useState(false);
+  const [snapDate, setSnapDate] = useState(() => `${new Date().getUTCFullYear()}-01-01`);
+  const [snap, setSnap] = useState<{
+    date: string; total: number; unpriced: number;
+    rows: { symbol: string; assetType: string; quantity: number; value: number | null }[];
+  } | null>(null);
+  const [snapLoading, setSnapLoading] = useState(false);
+
+  async function loadSnapshot() {
+    if (!portfolioId) return;
+    setSnapLoading(true);
+    const d = await fetch(`/api/portfolios/${portfolioId}/snapshot?date=${snapDate}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null);
+    setSnap(d);
+    setSnapLoading(false);
+  }
 
   useEffect(() => {
     fetch("/api/portfolios")
@@ -279,6 +295,62 @@ export default function InsightsPage() {
             </ul>
             <p className="text-xs text-neutral-600 mt-2">
               Positive means money went in that year; negative means you took more out than you put in.
+            </p>
+          </Section>
+
+          <Section title="Value on a date">
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              <input
+                type="date"
+                className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm"
+                value={snapDate}
+                onChange={(e) => setSnapDate(e.target.value)}
+              />
+              <button onClick={loadSnapshot}
+                      className="bg-blue-600 text-white rounded px-3 py-1 text-sm">
+                Value it
+              </button>
+              {snapLoading && <span className="text-xs text-neutral-500">valuing…</span>}
+              <span className="flex-1" />
+              {snap && (
+                <span className="text-sm">
+                  {money(snap.total)}
+                  <span className="text-neutral-500 text-xs"> on {snap.date}</span>
+                </span>
+              )}
+            </div>
+            {snap && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-neutral-500 text-xs text-left">
+                    <tr>
+                      <th className="py-2 pr-4">Asset</th>
+                      <th className="py-2 pr-4">Type</th>
+                      <th className="py-2 pr-4 text-right">Quantity</th>
+                      <th className="py-2 text-right">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-800">
+                    {snap.rows.map((r) => (
+                      <tr key={`${r.symbol}-${r.assetType}`}>
+                        <td className="py-2 pr-4 font-mono">{r.symbol}</td>
+                        <td className="py-2 pr-4 text-neutral-500">{r.assetType}</td>
+                        <td className="py-2 pr-4 text-right">
+                          {r.quantity.toLocaleString("en-US", { maximumFractionDigits: 8 })}
+                        </td>
+                        <td className="py-2 text-right">
+                          {r.value !== null ? money(r.value) : <span className="text-neutral-600">no price</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <p className="text-xs text-neutral-600 mt-2">
+              Holdings and prices as they stood on that date, converted at that date&rsquo;s exchange rate.
+              Dutch box 3 is assessed on 1 January.
+              {snap && snap.unpriced > 0 && ` ${snap.unpriced} holding(s) had no price then and are excluded.`}
             </p>
           </Section>
 

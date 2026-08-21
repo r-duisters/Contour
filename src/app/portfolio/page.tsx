@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import SymbolPicker from "@/components/SymbolPicker";
 import Link from "next/link";
 import {
-  Activity, ArrowUpDown, BarChart3, ChevronRight, Plus, SlidersHorizontal, Trash2, TrendingDown, TrendingUp,
+  Activity, ArrowUpDown, BarChart3, ChevronRight, Download, Plus, SlidersHorizontal, Trash2, TrendingDown, TrendingUp,
   Upload, Wallet,
 } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
@@ -101,6 +101,7 @@ export default function PortfolioPage() {
       .catch(() => {});
   }, []);
   const fileRef = useRef<HTMLInputElement>(null);
+  const backupRef = useRef<HTMLInputElement>(null);
 
   const loadPortfolios = useCallback(async () => {
     const d = await fetch("/api/portfolios").then((r) => r.json());
@@ -183,6 +184,25 @@ export default function PortfolioPage() {
     await fetch(`/api/transactions/${id}`, { method: "DELETE" });
     await loadSelected();
     await loadPortfolios();
+  }
+
+  async function restoreBackup(file: File) {
+    setImportMsg("Restoring…");
+    try {
+      const backup = await file.text();
+      const res = await fetch("/api/portfolios/restore", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ backup }),
+      });
+      const d = await res.json();
+      if (!res.ok) { setImportMsg(`Restore failed: ${d.error ?? res.status}`); return; }
+      setImportMsg(`Restored ${d.restored} transactions into "${d.name}".`);
+      await loadPortfolios();
+      setSelectedId(d.id);
+    } catch (e) {
+      setImportMsg(`Restore failed: ${(e as Error).message}`);
+    }
   }
 
   async function clearImported() {
@@ -315,6 +335,8 @@ export default function PortfolioPage() {
             <div className="flex gap-2 items-center flex-wrap">
               <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden"
                      onChange={(e) => { const f = e.target.files?.[0]; if (f) importCsv(f); e.target.value = ""; }} />
+              <input ref={backupRef} type="file" accept=".json,application/json" className="hidden"
+                     onChange={(e) => { const f = e.target.files?.[0]; if (f) restoreBackup(f); e.target.value = ""; }} />
               <button onClick={() => fileRef.current?.click()}
                       className="bg-neutral-700 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1">
                 <Upload size={14} aria-hidden />Import Delta CSV
@@ -325,6 +347,28 @@ export default function PortfolioPage() {
               <span className="flex-1" />
               <button onClick={deletePortfolio} className="text-xs underline text-red-500 inline-flex items-center gap-1">
                 <Trash2 size={12} aria-hidden />Delete portfolio…
+              </button>
+            </div>
+          )}
+          {selectedId && (
+            <div className="flex gap-2 items-center flex-wrap border-t border-neutral-800 pt-3">
+              <span className="text-xs text-neutral-500">Export</span>
+              <a href={`/api/portfolios/${selectedId}/export?format=json`}
+                 className="text-xs text-neutral-300 inline-flex items-center gap-1 border border-neutral-700 rounded px-2 py-1">
+                <Download size={12} aria-hidden />Backup (JSON)
+              </a>
+              <a href={`/api/portfolios/${selectedId}/export?format=csv`}
+                 className="text-xs text-neutral-300 inline-flex items-center gap-1 border border-neutral-700 rounded px-2 py-1">
+                <Download size={12} aria-hidden />Transactions (CSV)
+              </a>
+              <a href={`/api/portfolios/${selectedId}/export?format=ghostfolio`}
+                 className="text-xs text-neutral-300 inline-flex items-center gap-1 border border-neutral-700 rounded px-2 py-1">
+                <Download size={12} aria-hidden />Ghostfolio (CSV)
+              </a>
+              <span className="flex-1" />
+              <button onClick={() => backupRef.current?.click()}
+                      className="text-xs text-neutral-300 inline-flex items-center gap-1 border border-neutral-700 rounded px-2 py-1">
+                <Upload size={12} aria-hidden />Restore backup…
               </button>
             </div>
           )}
