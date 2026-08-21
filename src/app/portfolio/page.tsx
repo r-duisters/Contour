@@ -8,9 +8,14 @@ import {
   Upload, Wallet,
 } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
-import {
-  AreaSeries, createChart, type IChartApi, type ISeriesApi, type Time,
-} from "lightweight-charts";
+import dynamic from "next/dynamic";
+
+// ~300 KB of charting: loaded after the figures are on screen, never on the
+// server, so opening the app paints numbers immediately.
+const ValueChart = dynamic(() => import("@/components/ValueChart"), {
+  ssr: false,
+  loading: () => <div className="h-56 md:h-64 border border-neutral-800 rounded" />,
+});
 
 type PortfolioRow = { id: string; name: string; transactionCount: number };
 
@@ -79,6 +84,7 @@ export default function PortfolioPage() {
   const [transactions, setTransactions] = useState<Tx[]>([]);
   const [valuation, setValuation] = useState<Valuation | null>(null);
   const [valuationLoading, setValuationLoading] = useState(false);
+  const [stale, setStale] = useState<number | null>(null);
   const [series, setSeries] = useState<{ t: number; value: number }[] | null>(null);
   const [range, setRange] = useState<RangeKey>("all");
   const [rangeChange, setRangeChange] = useState<{ abs: number; pct: number | null } | null>(null);
@@ -110,6 +116,22 @@ export default function PortfolioPage() {
   }, []);
   useEffect(() => { loadPortfolios(); }, [loadPortfolios]);
 
+  // Opening the app should show last night's numbers instantly, then correct
+  // them, rather than a spinner over an empty screen.
+  useEffect(() => {
+    if (!selectedId) return;
+    try {
+      const raw = localStorage.getItem(`valuation:${selectedId}`);
+      if (!raw) return;
+      const cached = JSON.parse(raw) as { at: number; valuation: Valuation };
+      displayCurrency = cached.valuation.currency ?? "USD";
+      setValuation((current) => current ?? cached.valuation);
+      setStale(cached.at);
+    } catch {
+      // a corrupt cache is not worth reporting; the fetch will replace it
+    }
+  }, [selectedId]);
+
   const loadSelected = useCallback(async () => {
     if (!selectedId) { setTransactions([]); setValuation(null); setSeries(null); return; }
     setValuationLoading(true);
@@ -118,8 +140,16 @@ export default function PortfolioPage() {
       fetch(`/api/portfolios/${selectedId}/valuation`).then((r) => (r.ok ? r.json() : null)),
     ]);
     setTransactions(detail?.portfolio.transactions ?? []);
-    if (val) displayCurrency = val.currency ?? "USD";
-    setValuation(val);
+    if (val) {
+      displayCurrency = val.currency ?? "USD";
+      setValuation(val);
+      setStale(null);
+      try {
+        localStorage.setItem(`valuation:${selectedId}`, JSON.stringify({ at: Date.now(), valuation: val }));
+      } catch {
+        // storage full or blocked: caching is an optimisation, not a feature
+      }
+    }
     setValuationLoading(false);
   }, [selectedId]);
 
@@ -418,6 +448,11 @@ export default function PortfolioPage() {
                       className="md:hidden text-xs text-neutral-500 underline mb-6">
                 {statsOpen ? "Hide details" : "Show cost basis, realized P&L, fees"}
               </button>
+              {stale !== null && (
+                <p className="text-xs text-neutral-500 mb-3">
+                  Showing values from {new Date(stale).toLocaleTimeString()} while refreshing…
+                </p>
+              )}
               {valuation.holdings.some((h) => h.quantity > 0 && h.price === null) && (
                 <p className="text-xs text-amber-500/80 mb-8">
                   {valuation.holdings.filter((h) => h.quantity > 0 && h.price === null).length} holding(s) have
@@ -647,49 +682,6 @@ function Pnl({ value }: { value: number | null }) {
   if (value === null) return <span className="text-neutral-500">?</span>;
   const color = value > 0 ? "text-green-500" : value < 0 ? "text-red-500" : "text-neutral-400";
   return <span className={color}>{fmtUsd(value)}</span>;
-}
-
-/** Portfolio value over the selected period. */
-function ValueChart({ series }: { series: { t: number; value: number }[] | null }) {
-  const container = useRef<HTMLDivElement>(null);
-  const chart = useRef<IChartApi | null>(null);
-  const area = useRef<ISeriesApi<"Area"> | null>(null);
-
-  useEffect(() => {
-    if (!container.current) return;
-    const c = createChart(container.current, {
-      layout: { background: { color: "#0a0a0a" }, textColor: "#d4d4d4" },
-      grid: { vertLines: { color: "#1f1f1f" }, horzLines: { color: "#1f1f1f" } },
-      autoSize: true,
-      timeScale: { timeVisible: false },
-      handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
-    });
-    chart.current = c;
-    area.current = c.addSeries(AreaSeries, {
-      lineColor: "#3b82f6",
-      topColor: "rgba(59, 130, 246, 0.3)",
-      bottomColor: "rgba(59, 130, 246, 0.0)",
-      lineWidth: 2,
-    });
-    return () => { c.remove(); chart.current = null; area.current = null; };
-  }, []);
-
-  useEffect(() => {
-    if (!area.current || !series) return;
-    area.current.setData(series.map((p) => ({ time: Math.floor(p.t / 1000) as Time, value: p.value })));
-    chart.current?.timeScale().fitContent();
-  }, [series]);
-
-  return (
-    <div className="relative">
-      <div ref={container} className="h-56 md:h-64 border border-neutral-800 rounded" />
-      {series === null && (
-        <span className="absolute inset-0 flex items-center justify-center text-xs text-neutral-500">
-          building value history…
-        </span>
-      )}
-    </div>
-  );
 }
 
 /** "now" in the shape a datetime-local input wants, in local time. */
