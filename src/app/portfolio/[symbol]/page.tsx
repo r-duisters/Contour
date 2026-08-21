@@ -10,6 +10,7 @@ import { ArrowDown, ArrowLeft, ArrowUp, Trash2 } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
 import { money as fmtMoney, quantity, setDisplayCurrency } from "@/lib/display";
 import { annotateTransactions } from "@/lib/portfolio";
+import { useFitChart } from "@/components/useFitChart";
 import { usePrivacy } from "@/components/usePrivacy";
 
 type Tx = {
@@ -225,7 +226,7 @@ function PriceChart({
       layout: { background: { color: "#0a0a0a" }, textColor: "#d4d4d4" },
       grid: { vertLines: { color: "#171717" }, horzLines: { color: "#171717" } },
       autoSize: true,
-      timeScale: { timeVisible: false },
+      timeScale: { timeVisible: false, fixLeftEdge: true, fixRightEdge: true },
       handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
     });
     chart.current = c;
@@ -257,8 +258,9 @@ function PriceChart({
         text: t.side === "buy" ? "B" : "S",
       })),
     );
-    chart.current?.timeScale().fitContent();
   }, [bars, trades]);
+
+  useFitChart(chart, container, bars);
 
   if (bars !== null && bars.length === 0) {
     return <p className="text-xs text-neutral-500">No price history available for this asset.</p>;

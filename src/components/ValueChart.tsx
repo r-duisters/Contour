@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useFitChart } from "@/components/useFitChart";
 import {
   AreaSeries, createChart, type IChartApi, type ISeriesApi, type Time,
 } from "lightweight-charts";
@@ -22,7 +23,8 @@ export default function ValueChart({
       layout: { background: { color: "#0a0a0a" }, textColor: "#d4d4d4" },
       grid: { vertLines: { color: "#1f1f1f" }, horzLines: { color: "#1f1f1f" } },
       autoSize: true,
-      timeScale: { timeVisible: false },
+      // Nothing to scroll to beyond the data, so the window cannot drift off it.
+      timeScale: { timeVisible: false, fixLeftEdge: true, fixRightEdge: true },
       handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
     });
     chart.current = c;
@@ -43,8 +45,9 @@ export default function ValueChart({
   useEffect(() => {
     if (!area.current || !series) return;
     area.current.setData(series.map((p) => ({ time: Math.floor(p.t / 1000) as Time, value: p.value })));
-    chart.current?.timeScale().fitContent();
   }, [series]);
+
+  useFitChart(chart, container, series);
 
   return (
     <div className="relative">
