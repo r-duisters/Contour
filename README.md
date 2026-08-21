@@ -98,3 +98,21 @@ unknown sources), or over USB with `adb install -r app-debug.apk`.
 `cleartext` is enabled automatically while `NABLA_URL` is plain http, which is
 what makes a LAN address work. Once the app is on HTTPS this switches itself
 off, and passkey login starts working in the shell too.
+
+### Installing a new shell on the phone
+
+Most changes need no install at all: the shell loads the server, so any change
+to the app itself is live as soon as the server restarts. Only changes to the
+native wrapper — icons, permissions, plugins, the Capacitor config — need a new
+APK.
+
+```bash
+npm run android:build          # writes android/app/build/outputs/apk/debug/
+```
+
+Then on the phone, open **More → Install the latest build**, which streams that
+APK from the running server. Android asks once for permission to install from
+the browser. The build keeps the same app id, so it upgrades in place and
+nothing is lost.
+
+Over USB instead: `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`

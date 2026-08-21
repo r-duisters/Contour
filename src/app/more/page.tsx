@@ -1,7 +1,7 @@
 import Link from "next/link";
 import PortfolioManager from "@/components/PortfolioManager";
 import PrivacyToggle from "@/components/PrivacyToggle";
-import { Bell, FlaskConical, History, Settings } from "lucide-react";
+import { Bell, Download, FlaskConical, History, Settings } from "lucide-react";
 
 const LINKS = [
   { href: "/alerts", label: "Alerts", Icon: Bell, hint: "Price targets and indicator signals" },
@@ -40,6 +40,17 @@ export default function MorePage() {
       <div className="mb-8">
         <PortfolioManager />
       </div>
+
+      <h2 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">Android app</h2>
+      <a href="/api/app/download"
+         className="inline-flex items-center gap-2 text-sm text-blue-500 mb-2">
+        <Download size={16} aria-hidden className="text-neutral-400" />
+        Install the latest build
+      </a>
+      <p className="text-xs text-neutral-500 mb-8">
+        Only needed when the app shell itself changes — icons, permissions, the
+        lock screen. Everything else updates the moment the server does.
+      </p>
 
       <h2 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">Strategy tools</h2>
       <ul className="space-y-3 text-sm">
