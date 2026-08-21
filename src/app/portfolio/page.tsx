@@ -285,13 +285,6 @@ export default function PortfolioPage() {
                   Showing values from {new Date(stale).toLocaleTimeString()} while refreshing…
                 </p>
               )}
-              {valuation.holdings.some((h) => h.quantity > 0 && h.price === null) && (
-                <p className="text-xs text-amber-500/80 mb-8">
-                  {valuation.holdings.filter((h) => h.quantity > 0 && h.price === null).length} holding(s) have
-                  no live price and aren&apos;t counted in Value.
-                </p>
-              )}
-
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <div className="flex gap-1 flex-wrap">
                   {RANGES.map((r) => (
