@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
-import { createSessionToken, SESSION_COOKIE, sessionCookieOptions } from "@/lib/session";
+import {
+  createSessionToken, isSecureRequest, SESSION_COOKIE, sessionCookieOptions,
+} from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +29,6 @@ export async function POST(req: NextRequest) {
   });
 
   const res = NextResponse.json({ ok: true });
-  res.cookies.set(SESSION_COOKIE, await createSessionToken(secret), sessionCookieOptions());
+  res.cookies.set(SESSION_COOKIE, await createSessionToken(secret), sessionCookieOptions(isSecureRequest(req)));
   return res;
 }

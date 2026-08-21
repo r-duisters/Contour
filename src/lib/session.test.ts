@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  createSessionToken, isPublicPath, sessionCookieOptions, verifySessionToken,
+  createSessionToken, isPublicPath, isSecureRequest, sessionCookieOptions, verifySessionToken,
 } from "./session";
 
 const SECRET = "test-secret-at-least-32-chars-long!!";
@@ -42,10 +42,38 @@ describe("isPublicPath", () => {
 
 describe("sessionCookieOptions", () => {
   it("is httpOnly, lax, path=/", () => {
-    const o = sessionCookieOptions();
+    const o = sessionCookieOptions(true);
     expect(o.httpOnly).toBe(true);
     expect(o.sameSite).toBe("lax");
     expect(o.path).toBe("/");
     expect(o.maxAge).toBeGreaterThan(0);
+  });
+
+  it("marks the cookie Secure only when asked", () => {
+    expect(sessionCookieOptions(true).secure).toBe(true);
+    // A Secure cookie is silently dropped over plain http, which would lock
+    // the owner out of a LAN-hosted server.
+    expect(sessionCookieOptions(false).secure).toBe(false);
+  });
+});
+
+describe("isSecureRequest", () => {
+  const req = (proto: string | null, url: string) => ({
+    headers: { get: () => proto },
+    nextUrl: { protocol: url },
+  });
+
+  it("trusts the proxy's x-forwarded-proto first", () => {
+    expect(isSecureRequest(req("https", "http:"))).toBe(true);
+    expect(isSecureRequest(req("http", "https:"))).toBe(false);
+  });
+
+  it("reads the first hop of a chained x-forwarded-proto", () => {
+    expect(isSecureRequest(req("https, http", "http:"))).toBe(true);
+  });
+
+  it("falls back to the request protocol with no proxy header", () => {
+    expect(isSecureRequest(req(null, "https:"))).toBe(true);
+    expect(isSecureRequest(req(null, "http:"))).toBe(false);
   });
 });

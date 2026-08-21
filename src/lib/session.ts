@@ -35,12 +35,27 @@ export async function verifySessionToken(
   }
 }
 
-export function sessionCookieOptions() {
+/**
+ * `secure` follows the request, not the build. A production server reached
+ * over plain http on a LAN would otherwise set a Secure cookie that browsers
+ * refuse to store, locking the user out of their own app.
+ */
+export function sessionCookieOptions(secure: boolean) {
   return {
     httpOnly: true as const,
-    secure: process.env.NODE_ENV === "production",
+    secure,
     sameSite: "lax" as const,
     path: "/" as const,
     maxAge: SESSION_TTL_S,
   };
+}
+
+/** True when the browser reached us over https, directly or via a proxy. */
+export function isSecureRequest(req: {
+  headers: { get(name: string): string | null };
+  nextUrl: { protocol: string };
+}): boolean {
+  const proto = req.headers.get("x-forwarded-proto");
+  if (proto) return proto.split(",")[0]!.trim() === "https";
+  return req.nextUrl.protocol === "https:";
 }

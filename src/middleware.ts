@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  createSessionToken, isPublicPath, SESSION_COOKIE, sessionCookieOptions, verifySessionToken,
+  createSessionToken, isPublicPath, isSecureRequest, SESSION_COOKIE, sessionCookieOptions,
+  verifySessionToken,
 } from "@/lib/session";
 
 const REFRESH_AFTER_S = 7 * 24 * 3600;
@@ -16,7 +17,7 @@ export async function middleware(req: NextRequest) {
   if (payload) {
     const res = NextResponse.next();
     if (Date.now() / 1000 - payload.iat > REFRESH_AFTER_S) {
-      res.cookies.set(SESSION_COOKIE, await createSessionToken(secret!), sessionCookieOptions());
+      res.cookies.set(SESSION_COOKIE, await createSessionToken(secret!), sessionCookieOptions(isSecureRequest(req)));
     }
     return res;
   }
