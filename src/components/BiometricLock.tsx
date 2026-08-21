@@ -32,9 +32,9 @@ export default function BiometricLock({ children }: { children: React.ReactNode 
     try {
       const { BiometricAuth } = await import("@aparajita/capacitor-biometric-auth");
       await BiometricAuth.authenticate({
-        reason: "Unlock Nabla",
+        // Only the title is set: the plugin also renders `reason` and
+        // `androidSubtitle` in the same sheet, which repeated the sentence.
         androidTitle: "Unlock Nabla",
-        androidSubtitle: "Confirm it is you",
         allowDeviceCredential: true, // the screen lock is an acceptable fallback
         cancelTitle: "Cancel",
       });
@@ -107,7 +107,7 @@ function Overlay({
 }) {
   const working = state === "checking" || state === "prompting";
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-8">
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-start pt-[14vh] p-8">
       {/* The same moving market as the login screen, so both entrances to the
           app look like the same app. Skipped during "checking", which is the
           one-frame splash a browser sees before the lock bows out. */}
