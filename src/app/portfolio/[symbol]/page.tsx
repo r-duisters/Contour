@@ -1,12 +1,14 @@
 "use client";
 
-import { use, useEffect, useMemo, useRef, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   createChart, createSeriesMarkers, LineSeries, LineType,
   type IChartApi, type ISeriesApi, type ISeriesMarkersPluginApi, type Time,
 } from "lightweight-charts";
-import { ArrowDown, ArrowLeft, ArrowUp, Trash2 } from "lucide-react";
+import {
+  ArrowDown, ArrowLeft, ArrowUp, ChevronLeft, ChevronRight, Plus, Trash2,
+} from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
 import { money as fmtMoney, quantity, setDisplayCurrency } from "@/lib/display";
 import { annotateTransactions } from "@/lib/portfolio";
@@ -14,6 +16,8 @@ import { useFitChart } from "@/components/useFitChart";
 import { thin, targetPoints } from "@/lib/chart-data";
 import { useStoredRange } from "@/components/useStoredRange";
 import { usePrivacy } from "@/components/usePrivacy";
+import TxForm, { type NewTx } from "@/components/TxForm";
+import AssetInfoPanel from "@/components/AssetInfoPanel";
 
 type Tx = {
   id: string;
@@ -64,6 +68,8 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
     "nabla:range:asset", "1y", RANGE_KEYS,
   );
   const [changePct, setChangePct] = useState<number | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -104,11 +110,33 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
     return () => { cancelled = true; };
   }, [symbol, range, holding, rangeReady]);
 
+  const reload = useCallback(async () => {
+    if (!portfolioId) return;
+    const [detail, val] = await Promise.all([
+      fetch(`/api/portfolios/${portfolioId}`).then((r) => (r.ok ? r.json() : null)),
+      fetch(`/api/portfolios/${portfolioId}/valuation`).then((r) => (r.ok ? r.json() : null)),
+    ]);
+    setTxs((detail?.portfolio.transactions ?? []).filter((t: Tx) => t.symbol === symbol));
+    // The position and its cost move with every trade, so the tiles above the
+    // table have to be refetched alongside it.
+    const found: Holding | undefined = val?.holdings?.find((h: Holding) => h.symbol === symbol);
+    if (found) setHolding(found);
+  }, [portfolioId, symbol]);
+
   async function deleteTx(id: string) {
     await fetch(`/api/transactions/${id}`, { method: "DELETE" });
-    if (!portfolioId) return;
-    const detail = await fetch(`/api/portfolios/${portfolioId}`).then((r) => r.json());
-    setTxs((detail?.portfolio.transactions ?? []).filter((t: Tx) => t.symbol === symbol));
+    await reload();
+  }
+
+  async function addTransaction(tx: NewTx) {
+    setFormError(null);
+    const res = await fetch(`/api/portfolios/${portfolioId}/transactions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(tx),
+    });
+    if (!res.ok) { setFormError("Failed to add transaction — check the fields."); return; }
+    await reload();
   }
 
   const pct = holding && holding.costBasis > 0 && holding.unrealizedPnl !== null
@@ -196,7 +224,27 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
       </div>
       <PriceChart bars={bars} txs={txs} hideValues={hideAmounts} />
 
-          <TransactionTable txs={txs} onDelete={deleteTx} />
+          <AssetInfoPanel symbol={symbol} assetType={holding.assetType ?? "crypto"} />
+
+          <section className="mt-8">
+            <div className="flex items-baseline gap-2 mb-2">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
+                Transactions
+              </h2>
+              <span className="text-xs text-neutral-500">{txs.length}</span>
+              <span className="flex-1" />
+              <button
+                onClick={() => setAddOpen((v) => !v)}
+                className="text-xs text-neutral-300 inline-flex items-center gap-1"
+              >
+                <Plus size={12} aria-hidden />{addOpen ? "Close" : "Add"}
+              </button>
+            </div>
+            {addOpen && (
+              <TxForm onSubmit={addTransaction} error={formError} lockedSymbol={symbol} />
+            )}
+            <TransactionTable txs={txs} onDelete={deleteTx} />
+          </section>
         </>
       )}
     </main>
@@ -289,40 +337,46 @@ function PriceChart({
  * the position after it, and for a sale what that sale actually made — the
  * two questions a ledger is read for.
  */
+const PER_PAGE = 10;
+
 function TransactionTable({ txs, onDelete }: { txs: Tx[]; onDelete: (id: string) => void }) {
   const [newestFirst, setNewestFirst] = useState(true);
+  const [page, setPage] = useState(0);
 
   const rows = useMemo(() => {
+    // Annotation runs over the full history in order: a page's "held after"
+    // figure depends on every trade before it, not just the ten on screen.
     const annotated = annotateTransactions(txs);
     return newestFirst ? [...annotated].reverse() : annotated;
   }, [txs, newestFirst]);
 
+  const pageCount = Math.max(1, Math.ceil(rows.length / PER_PAGE));
+  // Deleting the last row of the last page, or flipping the sort, must not
+  // strand the reader on a page that no longer exists.
+  const current = Math.min(page, pageCount - 1);
+  useEffect(() => { if (page !== current) setPage(current); }, [page, current]);
+  const visible = rows.slice(current * PER_PAGE, current * PER_PAGE + PER_PAGE);
+
   if (txs.length === 0) {
-    return (
-      <>
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mt-8 mb-2">
-          Transactions
-        </h2>
-        <p className="text-sm text-neutral-500">No transactions.</p>
-      </>
-    );
+    return <p className="text-sm text-neutral-500">No transactions yet.</p>;
   }
 
   return (
-    <section className="mt-8">
+    <>
       <div className="flex items-baseline gap-2 mb-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
-          Transactions
-        </h2>
-        <span className="text-xs text-neutral-500">{txs.length}</span>
-        <span className="flex-1" />
         <button
-          onClick={() => setNewestFirst((v) => !v)}
+          onClick={() => { setNewestFirst((v) => !v); setPage(0); }}
           className="text-xs text-neutral-400 inline-flex items-center gap-1"
         >
           {newestFirst ? <ArrowDown size={12} aria-hidden /> : <ArrowUp size={12} aria-hidden />}
           {newestFirst ? "Newest first" : "Oldest first"}
         </button>
+        <span className="flex-1" />
+        {pageCount > 1 && (
+          <span className="text-xs text-neutral-500">
+            {current * PER_PAGE + 1}–{Math.min(rows.length, (current + 1) * PER_PAGE)} of {rows.length}
+          </span>
+        )}
       </div>
 
       {/* Column headings only where there is room to align under them. */}
@@ -337,7 +391,7 @@ function TransactionTable({ txs, onDelete }: { txs: Tx[]; onDelete: (id: string)
       </div>
 
       <ul className="divide-y divide-neutral-800">
-        {rows.map((tx) => {
+        {visible.map((tx) => {
           const incoming = tx.side === "buy" || tx.side === "transfer_in";
           const value = tx.quantity * tx.price;
           return (
@@ -396,9 +450,30 @@ function TransactionTable({ txs, onDelete }: { txs: Tx[]; onDelete: (id: string)
           );
         })}
       </ul>
+      {pageCount > 1 && (
+        <nav className="flex items-center justify-between gap-2 mt-3" aria-label="Transaction pages">
+          <button
+            onClick={() => setPage(current - 1)}
+            disabled={current === 0}
+            className="text-xs text-neutral-300 inline-flex items-center gap-1 px-2 py-1 rounded
+                       border border-neutral-800 disabled:opacity-30 disabled:cursor-default"
+          >
+            <ChevronLeft size={14} aria-hidden />Previous
+          </button>
+          <span className="text-xs text-neutral-500">Page {current + 1} of {pageCount}</span>
+          <button
+            onClick={() => setPage(current + 1)}
+            disabled={current >= pageCount - 1}
+            className="text-xs text-neutral-300 inline-flex items-center gap-1 px-2 py-1 rounded
+                       border border-neutral-800 disabled:opacity-30 disabled:cursor-default"
+          >
+            Next<ChevronRight size={14} aria-hidden />
+          </button>
+        </nav>
+      )}
       <p className="text-xs text-neutral-600 mt-2">
         Sales show what they realised against the average cost at the time.
       </p>
-    </section>
+    </>
   );
 }
