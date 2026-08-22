@@ -6,10 +6,10 @@ import type { CapacitorConfig } from "@capacitor/cli";
  * the wrapper that answers "does it feel right as a native app" before
  * committing to a local-first rewrite.
  *
- * NABLA_URL overrides the address at build time — set it to the HTTPS domain
+ * CONTOUR_URL overrides the address at build time — set it to the HTTPS domain
  * once the app is deployed, which also lets cleartext be turned off.
  */
-const url = process.env.NABLA_URL ?? "http://192.168.2.5:3001";
+const url = process.env.CONTOUR_URL ?? process.env.NABLA_URL ?? "http://192.168.2.5:3001";
 
 const config: CapacitorConfig = {
   appId: "app.contour.local",

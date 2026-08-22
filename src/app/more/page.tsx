@@ -47,11 +47,13 @@ export default function MorePage() {
       <a href="/api/app/download"
          className="inline-flex items-center gap-2 text-sm text-blue-500 mb-2">
         <Download size={16} aria-hidden className="text-neutral-400" />
-        Install the latest build
+        Download the latest build
       </a>
       <p className="text-xs text-neutral-500 mb-8">
         Only needed when the app shell itself changes — icons, permissions, the
-        lock screen. Everything else updates the moment the server does.
+        lock screen. Everything else updates the moment the server does, so
+        pull to refresh is usually enough. Inside the app this hands the file
+        to your browser, which installs it.
       </p>
 
       <h2 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">Strategy tools</h2>

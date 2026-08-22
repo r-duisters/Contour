@@ -1,10 +1,31 @@
 package app.contour.local;
 
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Bundle;
 import android.view.WindowManager;
 
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        // A WebView ignores downloads unless something is listening, and
+        // Capacitor installs no listener — so "Install the latest build" did
+        // nothing at all when tapped inside the app: no error, no download.
+        // Hand the URL to the system instead, which fetches the APK and offers
+        // to install it.
+        getBridge().getWebView().setDownloadListener(
+            (url, userAgent, contentDisposition, mimeType, contentLength) -> {
+                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+            }
+        );
+    }
 
     /**
      * Keep the portfolio out of the app-switcher.
@@ -16,9 +37,7 @@ public class MainActivity extends BridgeActivity {
      *
      * FLAG_SECURE tells the system not to capture the window. Setting it on
      * pause and clearing it on resume blanks the snapshot while leaving
-     * screenshots working while the app is actually in use. Setting it once in
-     * onCreate would also block screenshots and screen recording permanently —
-     * airtight, and more than was asked for.
+     * screenshots working while the app is actually in use.
      */
     @Override
     public void onPause() {
