@@ -64,7 +64,7 @@
       "entry": "src/app/insights/page.tsx",
       "device": "mobile",
       "activeDraftId": "4359be17-2576-4ddb-9d01-f5e359908738",
-      "activeVersion": 1,
+      "activeVersion": 2,
       "origin": "flow-page from /portfolio v5",
       "activeDirection": "performance only \u2014 benchmark comparison, by-period table, allocation, contributors, activity. Accounting figures deliberately excluded.",
       "contextFiles": [
@@ -85,5 +85,9 @@
       "activeDirection": "new screen: cost basis, unrealised, realised, fees, cash; net invested per year; value on a date (box 3); cash by currency.",
       "openQuestion": "navigation \u2014 no route exists yet; tab bar holds four and adding a fifth is a real cost. Candidates: behind More, or replacing Chart."
     }
+  },
+  "conventions": {
+    "timeframes": "One canonical list in src/lib/ranges.ts. Screens offer a subset via RangePicker's `only` prop \u2014 never a second list. Everyday periods (1D 1W 1M 1Y All) stay inline; the rest collapse behind More on a phone and sit inline from md: up. The selected period never collapses.",
+    "importCaveat": "import-design-draft rejects `{}` in inline handlers as an unresolved JSX expression. Write brace-free JS (arrow bodies without braces)."
   }
 }

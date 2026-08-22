@@ -12,6 +12,8 @@ import { usePrivacy } from "@/components/usePrivacy";
 import { useStoredRange } from "@/components/useStoredRange";
 import { KEYS } from "@/lib/storage-keys";
 import dynamic from "next/dynamic";
+import RangePicker from "@/components/RangePicker";
+import { RANGE_KEYS, rangeLabel, type RangeKey } from "@/lib/ranges";
 
 // ~300 KB of charting: loaded after the figures are on screen, never on the
 // server, so opening the app paints numbers immediately.
@@ -53,13 +55,7 @@ type ValuedHolding = {
 
 type DayChange = { abs: number; pct: number };
 
-const RANGES = [
-  { key: "1d", label: "1D" }, { key: "1w", label: "1W" }, { key: "1m", label: "1M" },
-  { key: "ytd", label: "YTD" }, { key: "1y", label: "1Y" }, { key: "2y", label: "2Y" },
-  { key: "5y", label: "5Y" }, { key: "all", label: "All" },
-] as const;
-type RangeKey = (typeof RANGES)[number]["key"];
-const RANGE_KEYS = RANGES.map((r) => r.key);
+
 
 
 type Valuation = {
@@ -214,7 +210,7 @@ export default function PortfolioPage() {
     }
   });
 
-  const rangeLabel = {
+  const periodWord = {
     "1d": "today", "1w": "this week", "1m": "1M", ytd: "YTD",
     "1y": "1Y", "2y": "2Y", "5y": "5Y", all: "all time",
   }[range];
@@ -293,21 +289,7 @@ export default function PortfolioPage() {
                 </p>
               )}
               <div className="flex items-center gap-2 mb-2 flex-wrap">
-                <div className="flex gap-1 flex-wrap">
-                  {RANGES.map((r) => (
-                    <button
-                      key={r.key}
-                      onClick={() => setRange(r.key)}
-                      className={`px-2 py-1 text-xs rounded ${
-                        range === r.key
-                          ? "bg-neutral-800 text-neutral-100"
-                          : "text-neutral-500 hover:text-neutral-300"
-                      }`}
-                    >
-                      {r.label}
-                    </button>
-                  ))}
-                </div>
+                <RangePicker value={range} onChange={setRange} />
                 <span className="flex-1" />
                 {rangeChange && (
                   <span
@@ -322,7 +304,7 @@ export default function PortfolioPage() {
                     )}
                     ({fmtUsd(rangeChange.abs)})
                     <span className="text-neutral-500">
-                      {RANGES.find((r) => r.key === range)?.label}
+                      {rangeLabel(range)}
                     </span>
                   </span>
                 )}
@@ -443,7 +425,7 @@ export default function PortfolioPage() {
                           <span className="text-xs flex items-center justify-end gap-2">
                             {periodChange !== undefined ? (
                               <span className={periodChange >= 0 ? "text-green-500" : "text-red-500"}>
-                                {periodChange >= 0 ? "+" : ""}{periodChange.toFixed(1)}% {rangeLabel}
+                                {periodChange >= 0 ? "+" : ""}{periodChange.toFixed(1)}% {periodWord}
                               </span>
                             ) : h.price === null ? (
                               <span className={h.quantity > 0 ? "text-amber-500" : "text-neutral-500"}>

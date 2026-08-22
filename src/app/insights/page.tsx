@@ -15,6 +15,8 @@ import { money as fmtMoney, percent, quantity, setDisplayCurrency } from "@/lib/
 import { usePrivacy } from "@/components/usePrivacy";
 import { classSplit, concentration, contributions, type TradeStats } from "@/lib/insights";
 import type { ValuedHolding } from "@/lib/portfolio";
+import RangePicker from "@/components/RangePicker";
+import { PERFORMANCE_RANGES, rangeLabel, type RangeKey } from "@/lib/ranges";
 
 type Holding = ValuedHolding & {
   assetType?: "crypto" | "equity" | "cash";
@@ -31,14 +33,7 @@ type RangeStat = {
   closing: number;
 };
 
-const RANGES = [
-  { key: "1m", label: "1 month" },
-  { key: "ytd", label: "Year to date" },
-  { key: "1y", label: "1 year" },
-  { key: "2y", label: "2 years" },
-  { key: "5y", label: "5 years" },
-  { key: "all", label: "All time" },
-] as const;
+
 
 const BENCHMARKS = [
   { key: "sp500", label: "S&P 500" },
@@ -114,7 +109,7 @@ export default function InsightsPage() {
     if (!portfolioId) return;
     setLoadingRows(true);
     const out: RangeStat[] = [];
-    for (const r of RANGES) {
+    for (const r of PERFORMANCE_RANGES.map((k) => ({ key: k, label: rangeLabel(k, true) }))) {
       const s = await fetch(`/api/portfolios/${portfolioId}/series?range=${r.key}`)
         .then((x) => (x.ok ? x.json() : null))
         .catch(() => null);
@@ -217,17 +212,11 @@ export default function InsightsPage() {
                   </button>
                 ))}
               </div>
-              {RANGES.filter((r) => r.key !== "1m").map((r) => (
-                <button
-                  key={r.key}
-                  onClick={() => setChartRange(r.key)}
-                  className={`px-2 py-1 text-xs rounded ${
-                    chartRange === r.key ? "bg-neutral-800 text-neutral-100" : "text-neutral-500"
-                  }`}
-                >
-                  {r.label}
-                </button>
-              ))}
+              <RangePicker
+                value={chartRange as RangeKey}
+                onChange={(k) => setChartRange(k)}
+                only={PERFORMANCE_RANGES}
+              />
             </div>
             <div className="mb-6">
               <ComparisonChart

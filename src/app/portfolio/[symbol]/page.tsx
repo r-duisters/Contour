@@ -19,6 +19,8 @@ import { KEYS } from "@/lib/storage-keys";
 import { usePrivacy } from "@/components/usePrivacy";
 import TxForm, { type NewTx } from "@/components/TxForm";
 import AssetInfoPanel from "@/components/AssetInfoPanel";
+import RangePicker from "@/components/RangePicker";
+import { RANGE_KEYS, rangeLabel, type RangeKey } from "@/lib/ranges";
 
 type Tx = {
   id: string;
@@ -45,13 +47,7 @@ type Holding = {
   dayChange?: { abs: number; pct: number } | null;
 };
 
-const RANGES = [
-  { key: "1d", label: "1D" }, { key: "1w", label: "1W" }, { key: "1m", label: "1M" },
-  { key: "ytd", label: "YTD" }, { key: "1y", label: "1Y" }, { key: "2y", label: "2Y" },
-  { key: "5y", label: "5Y" }, { key: "all", label: "All" },
-] as const;
-type RangeKey = (typeof RANGES)[number]["key"];
-const RANGE_KEYS = RANGES.map((r) => r.key);
+
 
 const money = fmtMoney;
 const qty = quantity;
@@ -202,24 +198,12 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
           </div>
 
           <div className="flex items-center gap-2 mb-2 flex-wrap">
-        <div className="flex gap-1 flex-wrap">
-          {RANGES.map((r) => (
-            <button
-              key={r.key}
-              onClick={() => setRange(r.key)}
-              className={`px-2 py-1 text-xs rounded ${
-                range === r.key ? "bg-neutral-800 text-neutral-100" : "text-neutral-500"
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
+        <RangePicker value={range} onChange={setRange} />
         <span className="flex-1" />
         {changePct !== null && (
           <span className={`text-sm ${changePct >= 0 ? "text-green-500" : "text-red-500"}`}>
             {changePct >= 0 ? "+" : ""}{changePct.toFixed(2)}%
-            <span className="text-neutral-500 text-xs"> price, {RANGES.find((r) => r.key === range)?.label}</span>
+            <span className="text-neutral-500 text-xs"> price, {rangeLabel(range)}</span>
           </span>
         )}
       </div>
