@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { analyzePineScript, summarize } from "../src/lib/pinescript/analyze";
+import { analyzePineScript, summarize } from "../packages/core/src/pinescript/analyze";
 
 const src = readFileSync("samples/risk-metric.pine", "utf8");
 const findings = analyzePineScript(src);

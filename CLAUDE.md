@@ -29,7 +29,7 @@ Persistence: **SQLite via Prisma 6**.
 ## The indicator
 
 `riskMetric = mean(riskOne, riskTwo, riskThree)` ∈ ~[0, 1], with three sub-metrics defined in
-`src/lib/indicator/index.ts`:
+`packages/core/src/indicator/index.ts`:
 
 | Sub-metric | Formula | Normaliser (function of bar's open-time-in-ms) |
 |---|---|---|
@@ -40,7 +40,7 @@ Persistence: **SQLite via Prisma 6**.
 The hard-coded time curves are kept verbatim from the Pine source — values will only match
 TradingView if `t` stays as **bar open time in milliseconds**.
 
-Weekly closes come from `dailyToWeekly()` in `src/lib/indicator/resample.ts` (Monday anchor, matching
+Weekly closes come from `dailyToWeekly()` in `packages/core/src/indicator/resample.ts` (Monday anchor, matching
 Binance's weekly klines). `projectWeeklyOntoDaily()` puts the most-recently-*closed* weekly value on
 each daily bar — lookahead-safe, mirroring Pine's `request.security(..., "W", ...)`.
 
@@ -56,68 +56,129 @@ Warm-up is **1460 daily bars** before `riskMetric` becomes finite. The chart pag
 
 | Task | Command |
 |---|---|
-| Dev server | `npm run dev` (default port 3000) |
-| Type-check | `npx tsc --noEmit` |
+| Dev server | `npm run dev` (delegates to the `apps/web` workspace, default port 3000) |
+| Type-check | `npm run typecheck` (root `tsconfig.json` for the packages, then `-p apps/web` for the app) |
 | Production build | `npm run build` |
-| Lint | `npm run lint` |
-| Tests (Vitest) | `npx vitest` (e.g. `npx vitest run src/lib/indicator`) |
-| Prisma migration | `npx prisma migrate dev --name <change>` |
-| Regenerate Prisma client | `npx prisma generate` |
-| Inspect DB | `npx prisma studio` |
+| Lint | `npm run lint` (loops over all three workspaces — see below) |
+| Tests (Vitest) | `npx vitest` from the repository root (e.g. `npx vitest run packages/core/src/indicator`) |
+| Prisma migration | `npx prisma migrate dev --name <change>` (run from `apps/web`, where `.env` lives) |
+| Regenerate Prisma client | `npx prisma generate` (repository root — see below) |
+| Inspect DB | `npx prisma studio` (run from `apps/web`) |
 | Manually evaluate alerts | `curl http://localhost:3000/api/cron/evaluate` |
 
 Prisma is pinned to **v6** (not v7) so the classic `datasource { url = env(...) }` setup works.
 Don't run `npm i prisma@latest` without re-doing the Prisma 7 adapter migration.
 
+The root `package.json` carries a `prisma.schema` pointer at `apps/web/prisma/schema.prisma`, so
+`npx prisma generate` finds the schema from the repository root with no `--schema` flag. `migrate`
+and `studio` also resolve the schema that way, but they additionally need `DATABASE_URL` (and the
+other secrets) from `apps/web/.env`, which only loads when the CLI's cwd is `apps/web` — run those
+two from there. A fresh clone needs `npx prisma generate` at least once before the app will start.
+
+`npm run lint` is a loop over `@contour/core`, `@contour/ui` and `@contour/web` with a sticky
+failure flag, not `--workspaces` — npm's `--workspaces` flag stops at the first failing workspace,
+which was silently skipping `apps/web`. **It currently exits non-zero**: 21 pre-existing lint errors
+(7 in `packages/ui`, 14 in `apps/web`) predate this restructuring and were deliberately left alone
+rather than fixed as a drive-by. Don't mistake that non-zero exit for something the restructuring
+broke.
+
 ## Architecture
 
 ```
-src/
-  app/
-    page.tsx              Home — links to the four screens
-    chart/page.tsx        Live candlestick chart with indicator overlay
-    backtest/page.tsx     Run backtest, view stats and trades
-    alerts/page.tsx       CRUD for alerts + "Evaluate now"
-    settings/page.tsx     HA URL + webhook ID, with "Send test"
-    analyze/page.tsx      Library selector + analyzer + apply-fixes + save-as
-    api/
-      candles/            GET — proxy Binance klines
-      backtest/           POST — run indicator over history + simulate
-      alerts/             GET/POST + [id] PATCH/DELETE
-      analyze/            POST — analyze (+ optional `apply: id[]` to rewrite)
-      scripts/            GET — list samples/*.pine; POST — save (auto-named)
-      scripts/[name]/     GET — read one
-      cron/evaluate/      GET — periodic alert evaluator (call from a cron)
-      settings/           GET/PUT settings; POST sends a test signal to HA
-  lib/
-    types.ts              Bar, Signal, Timeframe
-    binance.ts            fetchKlines, fetchKlinesRange, subscribeKlines (WS)
-    indicator/
-      primitives.ts       sma, ema, rma, stdev, highest, lowest, crossover, crossunder, change, nz
-      resample.ts         dailyToWeekly, projectWeeklyOntoDaily
-      index.ts            run(bars) → { signals, series } — Risk Metric Strategy port
-      risk-metric.test.ts Vitest specs (primitives + resampler + warm-up behaviour)
-    backtest.ts           simulate(bars, signals, { initialCapital, compounding })
+packages/core/src/       Pure logic — no I/O, no framework. Runs in the browser, on the
+                          server, and inside the Android APK.
+  types.ts                Bar, Signal, Timeframe
+  binance.ts              fetchKlines, fetchKlinesRange, fetchPrices, fetchUsdtSymbols, fetchPricesSafe
+  indicator/
+    primitives.ts           sma, ema, rma, stdev, highest, lowest, crossover, crossunder, change, nz
+    resample.ts             dailyToWeekly, projectWeeklyOntoDaily
+    index.ts                run(bars) → { signals, series } — Risk Metric Strategy port
+    risk-metric.test.ts     Vitest specs (primitives + resampler + warm-up behaviour)
+  backtest.ts              simulate(bars, signals, { initialCapital, compounding })
                           DCA-aware: signals carry sizeFraction; multiple partial buys/sells.
+  pinescript/
+    analyze.ts               analyzePineScript(source) → Finding[] (rule-based linter)
+    apply.ts                 applyImprovements(source, ids) → rewritten source + applied/skipped
+    *.test.ts                Vitest specs (rules + transforms, 23 tests)
+  boundary.test.ts         Fails the build if anything above imports Prisma, `node:fs`,
+                          `web-push`, `ws` or `next/server` — see Workspaces below.
+  portfolio.ts, delta-csv.ts, insights.ts, performance.ts, display.ts, display-tx.ts,
+  export.ts, fx.ts, cash.ts, ranges.ts, chart-data.ts, asset-info.ts, asset-names.ts,
+  alerts.ts, equity.ts, cache.ts, session.ts, storage-keys.ts
+                          Portfolio maths, the Delta-by-eToro CSV importer, benchmark and
+                          contributor insights, and the other pure logic shared by every screen.
+
+packages/ui/src/          Shared React components (18) plus useFitChart, usePrivacy and
+                          useStoredRange. Depends on packages/core, not on apps/web.
+
+apps/web/src/             The Next server app.
+  app/
+    page.tsx                Home — links to the four screens
+    chart/page.tsx          Live candlestick chart with indicator overlay
+    backtest/page.tsx       Run backtest, view stats and trades
+    alerts/page.tsx         CRUD for alerts + "Evaluate now"
+    settings/page.tsx       HA URL + webhook ID, with "Send test"
+    analyze/page.tsx        Library selector + analyzer + apply-fixes + save-as
+    globals.css             Tailwind entry point; its `@source` directive names
+                          packages/ui/src so Tailwind scans the shared components too.
+    api/
+      candles/                GET — proxy Binance klines
+      backtest/               POST — run indicator over history + simulate
+      alerts/                 GET/POST + [id] PATCH/DELETE
+      analyze/                POST — analyze (+ optional `apply: id[]` to rewrite)
+      scripts/                GET — list samples/*.pine; POST — save (auto-named)
+      scripts/[name]/         GET — read one
+      cron/evaluate/          GET — periodic alert evaluator (call from a cron)
+      settings/               GET/PUT settings; POST sends a test signal to HA
+  components/              BackgroundAlerts, PwaSetup — the only components that stayed
+                          app-local instead of moving to packages/ui.
+  lib/
+    db.ts                    Prisma client singleton (avoids HMR connection leaks)
+    auth.ts, webauthn.ts     Session and passkey auth — server-only, can't live in packages/core.
+    repo-root.ts             Resolves repository-level paths (samples/, android/, the icon
+                          cache) from this module's own location, not `process.cwd()` —
+                          the server's cwd is apps/web, but those directories stayed at the
+                          repository root. Any new root-relative path must go through it.
     notifier/
-      index.ts            Notifier interface + NotifierPayload
-      home-assistant.ts   HomeAssistantNotifier — POSTs to ${HA_URL}/api/webhook/{id}
+      index.ts                 Notifier interface + NotifierPayload
+      home-assistant.ts        HomeAssistantNotifier — POSTs to ${HA_URL}/api/webhook/{id}
     pinescript/
-      analyze.ts          analyzePineScript(source) → Finding[] (rule-based linter)
-      apply.ts            applyImprovements(source, ids) → rewritten source + applied/skipped
-      library.ts          List/read/write samples/*.pine (filesystem-backed)
-      *.test.ts           Vitest specs (rules + transforms, 23 tests)
-    db.ts                 Prisma client singleton (avoids HMR connection leaks)
+      library.ts               List/read/write samples/*.pine (filesystem-backed)
+
+apps/web/prisma/
+  schema.prisma            Alert, AlertEvent, BacktestRun, Settings
+  migrations/               Auto-generated
+  dev.db                    Local SQLite file (gitignored)
+
 samples/                  Bundled PineScripts; new versions are written here as
-                          <stem>.fixes.pine (auto-incremented on conflict)
-prisma/
-  schema.prisma           Alert, AlertEvent, BacktestRun, Settings
-  migrations/             Auto-generated
+                          <stem>.fixes.pine (auto-incremented on conflict). Stayed at the
+                          repository root — see repo-root.ts above.
+android/, scripts/, capacitor.config.ts
+                          The Capacitor shell. Also stayed at the repository root.
 ```
+
+## Workspaces
+
+Three workspaces, and the rule that keeps them apart:
+
+- `packages/core` — pure logic. Runs in a browser, on a server, and inside an
+  Android APK. `packages/core/src/boundary.test.ts` fails the build if
+  anything here imports Prisma, `node:fs`, `web-push`, `ws` or `next/server`.
+  When that test fails, the fix is to move the file to `apps/web`, never to
+  add the module to the allowed list.
+- `packages/ui` — shared React components. Tailwind only sees them because
+  `apps/web/src/app/globals.css` names them in an `@source` directive; a
+  second app needs its own.
+- `apps/web` — the Next server app: pages, API routes, Prisma, middleware,
+  and the four modules that cannot leave a server.
+
+`packages/*` are consumed through tsconfig path aliases, not node resolution.
+There is no build step and no `main` field, and `@/lib/*` and `@/components/*`
+still resolve exactly as they always did.
 
 ## The load-bearing contract
 
-`lib/indicator/index.ts` exports **`run(bars: Bar[]): { signals, series }`** — a pure function
+`packages/core/src/indicator/index.ts` exports **`run(bars: Bar[]): { signals, series }`** — a pure function
 with no I/O that expects **daily** bars. The same call is used by the chart (live), the backtester
 (historical), and the cron evaluator (alerts). Reusing one implementation everywhere is the entire
 point of porting the script.

@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- **Every task ends green.** `npx vitest run` reports **193 passed (18 files)** and `npx tsc --noEmit` is silent. A task that changes either number has gone wrong; fix it before committing rather than adjusting the expectation.
+- **Every task ends green.** `npx vitest run` starts this phase at **193 passed (18 files)**; Tasks 1 and 2 each add one test file, so the phase is expected to end at **195 passed (20 files)**. `npx tsc --noEmit` stays silent throughout. A task that lands on a *different* number than its expected step has gone wrong; fix the code before adjusting the expectation.
 - **No import statement in `src/` is edited in this phase.** If you find yourself rewriting `from "@/lib/x"`, the path aliases are wrong. Fix the config.
 - **No behaviour changes.** No renamed props, no copy edits, no restyling. Phase 1 is a move.
 - **Prisma stays pinned to v6.** Do not run `npm i prisma@latest`.
@@ -461,18 +461,20 @@ curl -s http://localhost:3001/login | grep -c 'bg-neutral-950/70'
 ```
 Expected: at least `1` — the login card's class is still emitted.
 
-Now confirm the class actually exists in the compiled stylesheet, which is the thing `@source` controls:
-
-```bash
-CSS=$(curl -s http://localhost:3001/login | grep -oE '/_next/static/css/[^"]+\.css' | head -1)
-curl -s "http://localhost:3001$CSS" | grep -c 'tabular-nums'
-```
-Expected: at least `1`. `tabular-nums` is used by `StatTile`, which now lives in `packages/ui` — if `@source` were missing this returns `0` while everything else still looks fine.
-
-Then open `http://localhost:3001` in a browser and confirm the portfolio screen is styled. Kill the server when done:
+Then open `http://localhost:3001` in a browser and confirm the portfolio screen is
+styled — a smoke check, nothing more. Kill the server when done:
 ```bash
 kill %1
 ```
+
+**`@source` cannot be isolated at this task.** The obvious test — grep the compiled
+stylesheet for a class that only a moved component uses — has no discriminating power
+here, because the build's cwd is still the repository root and Tailwind v4 auto-detects
+sources from `process.cwd()`. `packages/ui` is already inside the scan base, so the
+classes are emitted with or without the directive; a two-sided experiment at this task
+confirmed the line is a no-op today. It becomes load-bearing in Task 4, when the build
+moves into `apps/web` and the scan base narrows — and Task 4's Step 8 proves it there.
+Add the line now anyway, so the move in Task 4 has nothing left to discover.
 
 - [ ] **Step 7: Commit**
 
@@ -498,11 +500,23 @@ The last structural move, and the one with the most ways to go quietly wrong: th
 **Files:**
 - Move: `src/`, `prisma/`, `public/`, `next.config.ts`, `postcss.config.mjs`, `middleware.ts`, `next-env.d.ts`, `.env`, `.env.example` → `apps/web/`
 - Move (outside git): `prisma/dev.db` → `apps/web/prisma/dev.db`
-- Create: `apps/web/package.json`, `apps/web/tsconfig.json`
-- Modify: root `package.json` (scripts delegate to the workspace)
+- Create: `apps/web/package.json`, `apps/web/tsconfig.json`, `apps/web/eslint.config.mjs`
+  (a one-line re-export of the root config — ESLint 9 does find the root config by
+  searching ancestors, but resolves its `globalIgnores` patterns against the config
+  file's own directory, so `.next/**` stops matching `apps/web/.next` and the linter
+  walks the build output)
+- Modify: root `package.json` (scripts delegate to the workspace; `prisma.schema` pointer)
 - Modify: root `tsconfig.json` (becomes a solution file for tests only)
 - Modify: `.gitignore`
 - Modify: `apps/web/src/app/globals.css` (`@source` path)
+- Create: `apps/web/src/lib/repo-root.ts`, and use it wherever a route resolved a
+  repository-level path from `process.cwd()` — `samples/` in
+  `src/lib/pinescript/library.ts`, `android/` and the staleness inputs in
+  `api/app/download`, `.icon-cache/` in `api/icon`. The server's cwd is now `apps/web`,
+  and every one of those fails quietly: an empty script list, a "No build yet" 404, a
+  cold cache. No test catches them, because vitest still runs from the repository root.
+- Create: `packages/core/eslint.config.mjs`, `packages/ui/eslint.config.mjs` and a `lint`
+  script in each, so `npm run lint --workspaces` covers the extracted packages
 
 **Interfaces:**
 - Consumes: `packages/core`, `packages/ui` and the aliases from Tasks 2–3.
@@ -623,26 +637,27 @@ In `apps/web/src/app/globals.css`, the `@source` line added in Task 3 is now thr
 
 From `apps/web/src/app/`, four levels up is the repository root.
 
-In `.gitignore`, the Next patterns are anchored to the root and no longer match. Replace:
+In `.gitignore`, several patterns are anchored to the root and no longer match anything
+under `apps/`. Unanchor all of them — `/node_modules`, `/coverage`, `/.next/`, `/out/`,
+`/build`, `/src/generated/prisma`, `prisma/dev.db` and `prisma/dev.db-journal` become
+`node_modules/`, `coverage/`, `.next/`, `out/`, `build/`, `**/src/generated/prisma`,
+`**/prisma/dev.db` and `**/prisma/dev.db-journal`.
 
-```
-/.next/
-/out/
-```
+The database patterns are the urgent ones: `prisma/dev.db` contains a mid-pattern slash,
+which git anchors to the `.gitignore`'s own directory, so after the move the owner's real
+SQLite file is **not** ignored and the `git add -A` in Step 8 commits it. The
+`node_modules` one matters from Phase 4, when a Capacitor workspace brings native
+dependencies that do not all hoist to the root.
 
-with:
-
-```
-.next/
-out/
-```
-
-and confirm the ignore now covers the moved build directory:
+Confirm the ignore now covers both the moved build directory and the database. The
+directory has to exist for `git check-ignore` to match a `dir/` pattern, so build first
+or create it:
 
 ```bash
 git check-ignore -v apps/web/.next 2>/dev/null || echo "NOT IGNORED — fix .gitignore"
+git check-ignore -v apps/web/prisma/dev.db || echo "DATABASE NOT IGNORED — stop"
 ```
-Expected: a line naming the `.next/` rule, not the error message.
+Expected: two lines naming the `.next/` and `**/prisma/dev.db` rules, not the messages.
 
 - [ ] **Step 6: Delegate the root scripts**
 
@@ -652,13 +667,36 @@ In the root `package.json`, replace the `scripts` block with:
   "scripts": {
     "dev": "npm run dev --workspace @contour/web",
     "build": "npm run build --workspace @contour/web",
-    "start": "npm run start --workspace @contour/web",
-    "lint": "npm run lint --workspace @contour/web",
+    "start": "npm run start --workspace @contour/web --",
+    "lint": "fail=0; for w in @contour/core @contour/ui @contour/web; do npm run lint --workspace $w --if-present || fail=1; done; exit $fail",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc --noEmit -p apps/web",
     "android:sync": "npx cap sync android",
     "android:build": "cd android && ./gradlew assembleDebug"
   },
+```
+
+The `lint` loop is deliberately not `--workspaces`: npm stops that at the first workspace
+that exits non-zero, and there are pre-existing errors in `packages/ui`, so `apps/web` —
+where new code lands — would never be linted at all. The loop runs every workspace and
+still exits non-zero if any of them failed. The trailing `--` on `start` is what forwards
+`-p 3001` past npm's second hop into the workspace.
+
+Also tell the Prisma CLI where the schema went, by adding a sibling of `"scripts"`:
+
+```json
+  "prisma": { "schema": "apps/web/prisma/schema.prisma" },
+```
+
+Without it every root-level `npx prisma generate|migrate|studio` looks for
+`prisma/schema.prisma` under the cwd and no longer finds it. Worse, the *generated client*
+bakes in the schema's absolute path and resolves `file:./dev.db` against it, so a client
+generated before the move silently opens an empty database beside itself in
+`node_modules/.prisma/client` and the app reports missing tables. Regenerate after adding
+the pointer:
+
+```bash
+npx prisma generate
 ```
 
 Then re-link the workspaces:
@@ -703,9 +741,35 @@ npm run start -- -p 3001 &
 sleep 9
 curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3001/login
 ```
-Expected: `200`.
+Expected: `200`. The trailing `--` in the root `start` script is what makes this work: npm
+drops the port argument at the second hop into the workspace without it, and `next start`
+receives `3001` as a project directory.
 
-Log in through a browser and confirm the portfolio screen shows your real holdings and is fully styled. Then:
+Log in through a browser and confirm the portfolio screen shows your real holdings and is fully styled.
+
+**Now prove the `@source` line, which becomes load-bearing exactly here.** Until this task
+the build ran from the repository root, so Tailwind's auto-scan already covered
+`packages/ui` and the directive changed nothing. The build now runs in `apps/web`, and
+`packages/ui` falls outside that base. Test with two classes used by moved components and
+by nothing else — `bg-yellow-500` (only `packages/ui/src/ComparisonChart.tsx`) and `h-14`
+(only `packages/ui/src/TopNav.tsx`). Do not use `tabular-nums`: five pages that never
+moved also use it, so it is emitted either way and proves nothing.
+
+The stylesheet is a chunk, not a `/_next/static/css/` asset, so read its URL out of the
+served HTML rather than guessing the path. Always build *before* restarting the server —
+rebuilding underneath a running one leaves it serving the previous build from memory.
+
+```bash
+CSS=$(curl -s http://localhost:3001/login | grep -o '/_next/static/chunks/[^"]*\.css' | head -1)
+curl -s "http://localhost:3001$CSS" | grep -o -E '\.bg-yellow-500|\.h-14' | sort -u | wc -l
+```
+Expected: `2` (count matches, not lines — the stylesheet is minified onto one line).
+Then delete the `@source` line, rebuild, restart, and repeat: expected `0`. Restore the
+line, rebuild, restart, repeat: expected `2` again. If the classes do not
+disappear in the middle arm, `@source` is still a no-op and the finding should be reported
+as such rather than papered over.
+
+Then:
 
 ```bash
 kill %1
@@ -756,6 +820,10 @@ The commands change as follows. Update the table to match:
 | Prisma migration | `npx prisma migrate dev --schema apps/web/prisma/schema.prisma --name <change>` |
 | Regenerate Prisma client | `npx prisma generate --schema apps/web/prisma/schema.prisma` |
 | Inspect DB | `npx prisma studio --schema apps/web/prisma/schema.prisma` |
+
+The `--schema` flags are belt-and-braces: Task 4 added `"prisma": { "schema": ... }` to the
+root `package.json`, so the bare commands find it too. Keep the flags in the table — they
+are what makes the new location visible to a reader.
 
 - [ ] **Step 3: Replace the architecture map in `CLAUDE.md`**
 

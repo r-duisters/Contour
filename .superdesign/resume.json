@@ -7,13 +7,13 @@
     {
       "name": "TabBar",
       "componentId": "b14390eb-9908-43f6-afdf-b5910ea68cd7",
-      "source": "src/components/TabBar.tsx"
+      "source": "packages/ui/src/TabBar.tsx"
     }
   ],
   "targets": {
     "/portfolio": {
       "route": "/portfolio",
-      "entry": "src/app/portfolio/page.tsx",
+      "entry": "apps/web/src/app/portfolio/page.tsx",
       "device": "mobile",
       "baselineDraftId": "36eec96c-4104-4cbe-aa95-4af7e4805b1f",
       "activeDraftId": "c068a6bd-565e-49e2-ba3b-4c5c2119400e",
@@ -35,26 +35,26 @@
       "contextFiles": [
         "BRAND.md",
         ".superdesign/design-system.md",
-        "src/app/portfolio/page.tsx",
-        "src/app/layout.tsx",
-        "src/components/TabBar.tsx",
-        "src/components/CoinIcon.tsx",
-        "src/components/ValueChart.tsx",
-        "src/lib/display.ts",
-        "src/app/globals.css"
+        "apps/web/src/app/portfolio/page.tsx",
+        "apps/web/src/app/layout.tsx",
+        "packages/ui/src/TabBar.tsx",
+        "packages/ui/src/CoinIcon.tsx",
+        "packages/ui/src/ValueChart.tsx",
+        "packages/core/src/display.ts",
+        "apps/web/src/app/globals.css"
       ],
       "fingerprints": {
         ".superdesign/design-system.md": "9c2f63a9944ade62",
-        "src/app/portfolio/page.tsx": "4da2928189af8766",
-        "src/app/layout.tsx": "b8f68254c16de4a7",
-        "src/components/TabBar.tsx": "43c3327a4a1cfa0d",
-        "src/components/CoinIcon.tsx": "bff59c76884724ad",
-        "src/components/ValueChart.tsx": "96e521c30847dda8",
-        "src/lib/display.ts": "6bd62023bad005a2",
-        "src/app/globals.css": "769edf77bd0d101a"
+        "apps/web/src/app/portfolio/page.tsx": "4da2928189af8766",
+        "apps/web/src/app/layout.tsx": "b8f68254c16de4a7",
+        "packages/ui/src/TabBar.tsx": "43c3327a4a1cfa0d",
+        "packages/ui/src/CoinIcon.tsx": "bff59c76884724ad",
+        "packages/ui/src/ValueChart.tsx": "96e521c30847dda8",
+        "packages/core/src/display.ts": "6bd62023bad005a2",
+        "apps/web/src/app/globals.css": "769edf77bd0d101a"
       },
       "activeVersion": 8,
-      "activeDirection": "editorial, type-led \u2014 SHIPPED. Portfolio carries value and the period change only. Draft synced to the implementation at v7: range buttons text-xs (not 10px pills), headline 34px on the phone stepping to 42px at md:.",
+      "activeDirection": "editorial, type-led — SHIPPED. Portfolio carries value and the period change only. Draft synced to the implementation at v7: range buttons text-xs (not 10px pills), headline 34px on the phone stepping to 42px at md:.",
       "notes": [
         "The code is the source of truth for this target now; it is implemented. Sync the draft to the code, not the other way round, unless deliberately exploring a change.",
         "Versions 4-7 are hand-authored imports, not generations: all three generations dropped content they were told to keep."
@@ -63,30 +63,30 @@
     },
     "/insights": {
       "route": "/insights",
-      "entry": "src/app/insights/page.tsx",
+      "entry": "apps/web/src/app/insights/page.tsx",
       "device": "mobile",
       "activeDraftId": "4359be17-2576-4ddb-9d01-f5e359908738",
       "activeVersion": 2,
       "origin": "flow-page from /portfolio v5",
-      "activeDirection": "performance only \u2014 SHIPPED. Accounting sections (position, net invested per year, value on a date) moved to /ledger.",
+      "activeDirection": "performance only — SHIPPED. Accounting sections (position, net invested per year, value on a date) moved to /ledger.",
       "contextFiles": [
         "BRAND.md",
         ".superdesign/design-system.md",
-        "src/app/insights/page.tsx",
-        "src/components/TabBar.tsx",
-        "src/lib/display.ts"
+        "apps/web/src/app/insights/page.tsx",
+        "packages/ui/src/TabBar.tsx",
+        "packages/core/src/display.ts"
       ],
       "implemented": true
     },
     "/ledger": {
       "route": "/ledger",
-      "entry": "src/app/ledger/page.tsx",
+      "entry": "apps/web/src/app/ledger/page.tsx",
       "device": "mobile",
       "new": true,
       "activeDraftId": "640cb1bb-e716-436d-9bfc-9a54df9a1a3e",
       "activeVersion": 1,
       "origin": "flow-page from /portfolio v5",
-      "activeDirection": "SHIPPED \u2014 position economics as rows, net invested per year as centre-anchored bars, value on a date (box 3), cash per currency.",
+      "activeDirection": "SHIPPED — position economics as rows, net invested per year as centre-anchored bars, value on a date (box 3), cash per currency.",
       "implemented": true,
       "navigation": "First item under More. The tab bar stays at four; Chart was not displaced."
     },
@@ -98,15 +98,15 @@
         "inContext": "1161317e-0ab7-45ed-98f1-d58bba1cda0d"
       },
       "shipped": "A rising price line (#3b82f6, stroke 30) inside a quiet ring (#fafafa at 35%, r 160, stroke 12).",
-      "constraint": "The app frames the mark in a circle twice \u2014 BiometricLock's disc and Android's adaptive mask. A ring may nest inside them, but only a quiet one: weight and contrast relative to the enclosing frame decide it, not whether the shape is closed. An earlier rule banned closed containers outright and was wrong. Green, amber and red remain unavailable: they mean gain, degraded data and loss.",
+      "constraint": "The app frames the mark in a circle twice — BiometricLock's disc and Android's adaptive mask. A ring may nest inside them, but only a quiet one: weight and contrast relative to the enclosing frame decide it, not whether the shape is closed. An earlier rule banned closed containers outright and was wrong. Green, amber and red remain unavailable: they mean gain, degraded data and loss.",
       "authoredBy": "hand-authored SVG imported free; GRAPHIC.md's raster path is unsuitable for a mark that must be vector and legible at 24px"
     }
   },
   "conventions": {
-    "timeframes": "One canonical list in src/lib/ranges.ts. Screens offer a subset via RangePicker's `only` prop \u2014 never a second list. Everyday periods (1D 1W 1M 1Y All) stay inline; the rest collapse behind More on a phone and sit inline from md: up. The selected period never collapses.",
+    "timeframes": "One canonical list in packages/core/src/ranges.ts. Screens offer a subset via RangePicker's `only` prop — never a second list. Everyday periods (1D 1W 1M 1Y All) stay inline; the rest collapse behind More on a phone and sit inline from md: up. The selected period never collapses.",
     "importCaveat": "import-design-draft rejects `{}` in inline handlers as an unresolved JSX expression. Write brace-free JS (arrow bodies without braces).",
     "chartAxes": "Price axis only where the level is read. Portfolio value and the Insights comparison hide it; the asset price chart keeps it with axisMoney() compact labels.",
     "authority": "BRAND.md is the design authority. design-system.md defers to it and adds only agent-specific context; pass both as --context-file.",
-    "figures": "Values are set in the sans face with tabular-nums. Geist Mono is for identifiers and code only \u2014 tickers, rule ids, script source."
+    "figures": "Values are set in the sans face with tabular-nums. Geist Mono is for identifiers and code only — tickers, rule ids, script source."
   }
 }

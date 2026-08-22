@@ -2,11 +2,15 @@
   "name": "contour",
   "version": "0.1.0",
   "private": true,
+  "workspaces": ["packages/*", "apps/*"],
+  "prisma": { "schema": "apps/web/prisma/schema.prisma" },
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint",
+    "dev": "npm run dev --workspace @contour/web",
+    "build": "npm run build --workspace @contour/web",
+    "start": "npm run start --workspace @contour/web --",
+    "lint": "fail=0; for w in @contour/core @contour/ui @contour/web; do npm run lint --workspace $w --if-present || fail=1; done; exit $fail",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p apps/web",
     "android:sync": "npx cap sync android",
     "android:build": "cd android && ./gradlew assembleDebug"
   },
@@ -26,7 +30,6 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "web-push": "^3.6.7",
-    "ws": "^8.21.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -36,7 +39,6 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/web-push": "^3.6.4",
-    "@types/ws": "^8.18.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "prisma": "^6.19.3",

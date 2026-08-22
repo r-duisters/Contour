@@ -1,7 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -11,14 +11,14 @@
 !.yarn/versions
 
 # testing
-/coverage
+coverage/
 
 # next.js
-/.next/
-/out/
+.next/
+out/
 
 # production
-/build
+build/
 
 # misc
 .DS_Store
@@ -40,11 +40,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-/src/generated/prisma
+**/src/generated/prisma
 
 # SQLite (Prisma local dev DB)
-prisma/dev.db
-prisma/dev.db-journal
+**/prisma/dev.db
+**/prisma/dev.db-journal
 
 # Capacitor / Android build output
 android/.gradle/

@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "plugins": [{ "name": "next" }],
+    "paths": {
+      "@/core/*": ["../../packages/core/src/*"],
+      "@/ui/*": ["../../packages/ui/src/*"],
+      "@/lib/*": ["../../packages/core/src/*", "./src/lib/*"],
+      "@/components/*": ["../../packages/ui/src/*", "./src/components/*"],
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": ["node_modules"]
+}
