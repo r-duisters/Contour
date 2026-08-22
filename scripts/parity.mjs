@@ -12,6 +12,23 @@
  * Base URL defaults to http://localhost:3001; override with PARITY_BASE_URL.
  * `compare` uses the base URL recorded in the file unless PARITY_BASE_URL is
  * set, so a baseline can never be silently compared against a different server.
+ *
+ * ## What this cannot catch
+ *
+ * A **constant proportional shift under a tolerance**. The `rel` bounds below
+ * are per-leaf and relative, so an error that scales every number by the same
+ * small factor stays inside every one of them: `totals.value` off by 1.5%
+ * passes, and a systematic 1% error across all 365 points of `series[]` is
+ * invisible no matter how many points there are — each point individually
+ * looks like ordinary price drift. That is the most likely way a currency
+ * conversion, an FX rate, or a fee treatment goes wrong during a conversion,
+ * which makes it the highest-value regression class this tool is blind to.
+ *
+ * A green `compare` is therefore necessary, not sufficient. On any task that
+ * touches valuation or series maths, check two or three absolute figures by
+ * hand — a holding's value, the portfolio total — against the previous build.
+ *
+ * It also only issues GETs, so write paths have no coverage at all.
  */
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -121,7 +138,14 @@ function reconcile(before, after) {
     const rule = ruleFor(path);
     if (rule?.ignore) {
       stats.ignored++;
-      return [PLACEHOLDER, PLACEHOLDER];
+      // Blank the value, never the presence. This check runs before the key
+      // union below, so returning the placeholder unconditionally would render
+      // a key that exists on one side only as present-and-blank on both, and a
+      // symbol vanishing from `/changes` — exactly how a route conversion
+      // breaks — would read as "same". The same trap waits for any future
+      // `ignore` rule over a variable key set or an array: keep `undefined`
+      // meaning absent, all the way through.
+      return [a === undefined ? undefined : PLACEHOLDER, b === undefined ? undefined : PLACEHOLDER];
     }
     if (Array.isArray(a) && Array.isArray(b)) {
       const n = Math.max(a.length, b.length);
