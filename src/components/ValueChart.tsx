@@ -73,10 +73,10 @@ export default function ValueChart({ series }: {
       <div ref={container} className="h-56 md:h-64 border border-neutral-800 rounded" />
       {extent && !hidden && (
         <>
-          <span className="pointer-events-none absolute top-1.5 right-2 text-[11px] font-mono text-neutral-500">
+          <span className="pointer-events-none absolute top-1.5 right-2 text-[11px] tabular-nums text-neutral-500">
             {money(extent.hi)}
           </span>
-          <span className="pointer-events-none absolute bottom-1.5 right-2 text-[11px] font-mono text-neutral-600">
+          <span className="pointer-events-none absolute bottom-1.5 right-2 text-[11px] tabular-nums text-neutral-600">
             {money(extent.lo)}
           </span>
         </>

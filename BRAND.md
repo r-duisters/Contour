@@ -130,8 +130,9 @@ strings. Grid `#171717`/`#1f1f1f`, axis text `#d4d4d4`, ground `#0a0a0a`.
 
 ## Type and numbers
 
-**Geist Sans** for everything; **Geist Mono** for tickers, quantities and
-anything the eye scans down a column. Both are loaded in `layout.tsx` and
+**Geist Sans** for everything, values included. **Geist Mono** is for
+*identifiers and code only* — ticker symbols, rule ids, PineScript source,
+alert expressions. Both are loaded in `layout.tsx` and
 exposed as `--font-geist-sans` / `--font-geist-mono`. Never set a
 `font-family` on `body` that competes with them — an `Arial` fallback sat
 there for months and silently beat both, so the app downloaded two fonts and
@@ -143,6 +144,7 @@ rendered in neither.
 | Page label | `text-sm font-semibold uppercase tracking-widest text-neutral-500` |
 | Section heading | `text-sm font-semibold uppercase tracking-wide text-neutral-400` |
 | Body, rows | `text-sm` · row primary `text-base` |
+| Any figure in a column | add `tabular-nums` |
 | Labels, metadata | `text-xs` |
 | Sub-lines, chart annotations | `text-[11px]` |
 
@@ -155,6 +157,11 @@ Numbers:
   `Intl` puts it last for a euro in a German locale, which reads as an
   afterthought down a column, so `money()` places it by hand while grouping
   and the decimal mark still follow the locale.
+- **Figures are set in the sans face with `tabular-nums`**, not in mono.
+  Monospace was doing one useful job — keeping digits in a column from
+  shuffling — and `font-variant-numeric` does that job without the typewriter
+  texture. Any right-aligned numeric column gets it: holding values, table
+  cells, chart annotations.
 - **Format through `lib/display`.** `money()`, `quantity()`, `percent()`,
   `axisMoney()`. A bare number with a hardcoded symbol bypasses privacy mode,
   which is the whole reason the layer exists.

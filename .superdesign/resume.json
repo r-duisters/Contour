@@ -53,7 +53,7 @@
         "src/lib/display.ts": "6bd62023bad005a2",
         "src/app/globals.css": "769edf77bd0d101a"
       },
-      "activeVersion": 7,
+      "activeVersion": 8,
       "activeDirection": "editorial, type-led \u2014 SHIPPED. Portfolio carries value and the period change only. Draft synced to the implementation at v7: range buttons text-xs (not 10px pills), headline 34px on the phone stepping to 42px at md:.",
       "notes": [
         "The code is the source of truth for this target now; it is implemented. Sync the draft to the code, not the other way round, unless deliberately exploring a change.",
@@ -93,6 +93,7 @@
     "timeframes": "One canonical list in src/lib/ranges.ts. Screens offer a subset via RangePicker's `only` prop \u2014 never a second list. Everyday periods (1D 1W 1M 1Y All) stay inline; the rest collapse behind More on a phone and sit inline from md: up. The selected period never collapses.",
     "importCaveat": "import-design-draft rejects `{}` in inline handlers as an unresolved JSX expression. Write brace-free JS (arrow bodies without braces).",
     "chartAxes": "Price axis only where the level is read. Portfolio value and the Insights comparison hide it; the asset price chart keeps it with axisMoney() compact labels.",
-    "authority": "BRAND.md is the design authority. design-system.md defers to it and adds only agent-specific context; pass both as --context-file."
+    "authority": "BRAND.md is the design authority. design-system.md defers to it and adds only agent-specific context; pass both as --context-file.",
+    "figures": "Values are set in the sans face with tabular-nums. Geist Mono is for identifiers and code only \u2014 tickers, rule ids, script source."
   }
 }

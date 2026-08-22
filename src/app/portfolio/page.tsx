@@ -379,15 +379,16 @@ export default function PortfolioPage() {
                           <span className="text-base font-medium truncate">
                             {h.name ?? h.symbol}{isCash && " cash"}
                           </span>
-                          <span className="text-base font-mono tracking-tight shrink-0">
+                          <span className="text-base tabular-nums tracking-tight shrink-0">
                             {h.unreliable ? (
                               <span className="text-amber-500 text-xs">not counted</span>
                             ) : h.value !== null ? fmtUsd(h.value) : "—"}
                           </span>
                         </span>
                         <span className="flex items-baseline justify-between gap-3">
-                          <span className="text-[11px] font-mono text-neutral-500 tracking-wider truncate">
-                            {h.symbol} · {fmtQty(h.quantity)}
+                          <span className="text-[11px] text-neutral-500 tabular-nums truncate">
+                            <span className="font-mono tracking-wider">{h.symbol}</span>
+                            {" · "}{fmtQty(h.quantity)}
                             {share !== null && <> · {share.toFixed(1)}%</>}
                           </span>
                           <span className="text-[11px] shrink-0">

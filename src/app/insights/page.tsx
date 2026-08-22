@@ -252,10 +252,10 @@ export default function InsightsPage() {
                   {rows.map((r) => (
                     <tr key={r.key}>
                       <td className="py-2 pr-4">{r.label}</td>
-                      <td className="py-2 pr-4 text-right"><Signed value={r.twrPct} suffix="%" /></td>
-                      <td className="py-2 pr-4 text-right"><Signed value={r.mwrPct} suffix="%/yr" /></td>
-                      <td className="py-2 pr-4 text-right"><Signed value={r.benchPct} suffix="%" /></td>
-                      <td className="py-2 text-right text-neutral-300">
+                      <td className="py-2 pr-4 text-right tabular-nums"><Signed value={r.twrPct} suffix="%" /></td>
+                      <td className="py-2 pr-4 text-right tabular-nums"><Signed value={r.mwrPct} suffix="%/yr" /></td>
+                      <td className="py-2 pr-4 text-right tabular-nums"><Signed value={r.benchPct} suffix="%" /></td>
+                      <td className="py-2 text-right tabular-nums text-neutral-300">
                         {r.benchSameFlows !== null ? money(r.benchSameFlows) : "—"}
                         {r.benchSameFlows !== null && r.closing > 0 && (
                           <span className={`ml-2 text-xs ${r.closing >= r.benchSameFlows ? "text-green-500" : "text-red-500"}`}>
@@ -420,10 +420,10 @@ export default function InsightsPage() {
                       <tr key={`${r.symbol}-${r.assetType}`}>
                         <td className="py-2 pr-4 font-mono">{r.symbol}</td>
                         <td className="py-2 pr-4 text-neutral-500">{r.assetType}</td>
-                        <td className="py-2 pr-4 text-right">
+                        <td className="py-2 pr-4 text-right tabular-nums">
                           {quantity(r.quantity)}
                         </td>
-                        <td className="py-2 text-right">
+                        <td className="py-2 text-right tabular-nums">
                           {r.value !== null ? money(r.value) : <span className="text-neutral-600">no price</span>}
                         </td>
                       </tr>

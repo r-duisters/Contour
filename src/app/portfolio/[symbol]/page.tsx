@@ -388,18 +388,18 @@ function TransactionTable({ txs, onDelete }: { txs: Tx[]; onDelete: (id: string)
                 {tx.side.replace("_", " ")}
               </span>
 
-              <span className="order-4 md:order-3 md:text-right font-mono text-xs md:text-sm">
+              <span className="order-4 md:order-3 md:text-right tabular-nums text-xs md:text-sm">
                 {quantity(tx.quantity)}
               </span>
 
-              <span className="order-5 md:order-4 md:text-right text-neutral-400 text-xs md:text-sm">
+              <span className="order-5 md:order-4 md:text-right tabular-nums text-neutral-400 text-xs md:text-sm">
                 {tx.price > 0 ? money(tx.price) : "—"}
                 {tx.fee > 0 && (
                   <span className="text-neutral-600"> · fee {money(tx.fee)}</span>
                 )}
               </span>
 
-              <span className="order-2 md:order-5 justify-self-end md:text-right">
+              <span className="order-2 md:order-5 justify-self-end md:text-right tabular-nums">
                 {tx.realized !== null ? (
                   <span className={tx.realized >= 0 ? "text-green-500" : "text-red-500"}>
                     {tx.realized >= 0 ? "+" : ""}{money(tx.realized)}
