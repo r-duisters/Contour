@@ -3,21 +3,26 @@
 import { useEffect, useRef } from "react";
 import { createChart, LineSeries, type IChartApi, type ISeriesApi, type Time } from "lightweight-charts";
 import { useFitChart } from "@/components/useFitChart";
+import { money } from "@/lib/display";
 
-export type IndexPoint = { t: number; index: number };
+export type Point = { t: number; v: number };
 
 /**
- * Your return against an index, both rebased to 100 at the start of the
- * period. Rebasing is what makes them comparable: the portfolio line is a
- * time-weighted return, so deposits do not lift it, and the index line is a
- * price series that never had deposits to begin with.
+ * Two lines, you against an index, in one of two honest framings.
+ *
+ * "pct" plots time-weighted returns rebased to 100: deposits are stripped from
+ * both sides, so it answers "were my picks better". "money" plots the real
+ * portfolio value against what the same money, moved on the same days, would
+ * be worth in the index — timing included, which is the question a person
+ * actually asks.
  */
 export default function ComparisonChart({
-  you, bench, benchLabel,
+  you, bench, benchLabel, mode,
 }: {
-  you: IndexPoint[] | null;
-  bench: IndexPoint[] | null;
+  you: Point[] | null;
+  bench: Point[] | null;
   benchLabel: string;
+  mode: "pct" | "money";
 }) {
   const container = useRef<HTMLDivElement>(null);
   const chart = useRef<IChartApi | null>(null);
@@ -40,18 +45,21 @@ export default function ComparisonChart({
   }, []);
 
   useEffect(() => {
-    const toData = (points: IndexPoint[]) =>
-      points.map((p) => ({ time: Math.floor(p.t / 1000) as Time, value: p.index }));
+    const toData = (points: Point[]) =>
+      points.map((p) => ({ time: Math.floor(p.t / 1000) as Time, value: p.v }));
     if (you) mine.current?.setData(toData(you));
     if (bench) theirs.current?.setData(toData(bench));
   }, [you, bench]);
 
-  useFitChart(chart, container, [you, bench]);
+  useFitChart(chart, container, [you, bench, mode]);
 
-  const last = (points: IndexPoint[] | null) =>
-    points && points.length ? points[points.length - 1]!.index - 100 : null;
-  const yours = last(you);
-  const other = last(bench);
+  const end = (points: Point[] | null) =>
+    points && points.length ? points[points.length - 1]!.v : null;
+  const yours = end(you);
+  const other = end(bench);
+  const show = (v: number) => (mode === "money" ? money(v) : `${v - 100 >= 0 ? "+" : ""}${(v - 100).toFixed(1)}%`);
+  const tone = (v: number) =>
+    mode === "money" ? "text-neutral-300" : v >= 100 ? "text-green-500" : "text-red-500";
 
   return (
     <div>
@@ -63,33 +71,30 @@ export default function ComparisonChart({
           </span>
         )}
       </div>
-      <div className="flex flex-wrap gap-4 mt-2 text-xs">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs">
         <span className="inline-flex items-center gap-1.5">
           <span className="w-3 h-0.5 bg-blue-500 inline-block" />
           <span className="text-neutral-400">You</span>
-          {yours !== null && (
-            <span className={yours >= 0 ? "text-green-500" : "text-red-500"}>
-              {yours >= 0 ? "+" : ""}{yours.toFixed(1)}%
-            </span>
-          )}
+          {yours !== null && <span className={tone(yours)}>{show(yours)}</span>}
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span className="w-3 h-0.5 bg-yellow-500 inline-block" />
           <span className="text-neutral-400">{benchLabel}</span>
-          {other !== null && (
-            <span className={other >= 0 ? "text-green-500" : "text-red-500"}>
-              {other >= 0 ? "+" : ""}{other.toFixed(1)}%
-            </span>
-          )}
+          {other !== null && <span className={tone(other)}>{show(other)}</span>}
         </span>
         {yours !== null && other !== null && (
-          <span className="text-neutral-500">
-            {yours >= other
-              ? `ahead by ${(yours - other).toFixed(1)} points`
-              : `behind by ${(other - yours).toFixed(1)} points`}
+          <span className={yours >= other ? "text-green-500" : "text-red-500"}>
+            {mode === "money"
+              ? `${yours >= other ? "ahead by" : "behind by"} ${money(Math.abs(yours - other))}`
+              : `${yours >= other ? "ahead by" : "behind by"} ${Math.abs(yours - other).toFixed(1)} points`}
           </span>
         )}
       </div>
+      <p className="text-[11px] text-neutral-600 mt-1.5">
+        {mode === "money"
+          ? "Your actual value against the same deposits, made on the same days, put into the index instead. Timing counts."
+          : "Both rebased to 100, deposits removed. Measures the picks, not the timing."}
+      </p>
     </div>
   );
 }

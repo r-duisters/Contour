@@ -67,9 +67,10 @@ export default function InsightsPage() {
   } | null>(null);
   const [snapLoading, setSnapLoading] = useState(false);
   const [chartRange, setChartRange] = useState<string>("1y");
+  const [chartMode, setChartMode] = useState<"money" | "pct">("money");
   const [curve, setCurve] = useState<{
-    you: { t: number; index: number }[] | null;
-    bench: { t: number; index: number }[] | null;
+    you: { t: number; v: number }[] | null;
+    bench: { t: number; v: number }[] | null;
   }>({ you: null, bench: null });
   usePrivacy(); // re-render when amounts are hidden or shown
 
@@ -118,8 +119,10 @@ export default function InsightsPage() {
         .then((x) => (x.ok ? x.json() : null))
         .catch(() => null);
       if (!s) continue;
+      const opening = Math.max(0, Math.round(s.series?.[0]?.value ?? 0));
       const b = await fetch(
-        `/api/benchmark?key=${benchKey}&from=${s.windowFrom}&barMs=${s.barMs}&portfolioId=${portfolioId}`,
+        `/api/benchmark?key=${benchKey}&from=${s.windowFrom}&barMs=${s.barMs}` +
+          `&portfolioId=${portfolioId}&opening=${opening}`,
       ).then((x) => (x.ok ? x.json() : null)).catch(() => null);
       const benchPoints: { index: number }[] = b?.points ?? [];
       out.push({
@@ -147,14 +150,30 @@ export default function InsightsPage() {
       const series = await fetch(`/api/portfolios/${portfolioId}/series?range=${chartRange}`)
         .then((r) => (r.ok ? r.json() : null)).catch(() => null);
       if (cancelled || !series) return;
+      // The value already invested when the window opened, so the index is
+      // handed the same starting stake rather than starting from nothing.
+      const opening = series.series?.[0]?.value ?? 0;
       const bench = await fetch(
-        `/api/benchmark?key=${benchKey}&from=${series.windowFrom}&barMs=${series.barMs}`,
+        `/api/benchmark?key=${benchKey}&from=${series.windowFrom}&barMs=${series.barMs}` +
+          `&portfolioId=${portfolioId}&opening=${Math.max(0, Math.round(opening))}`,
       ).then((r) => (r.ok ? r.json() : null)).catch(() => null);
       if (cancelled) return;
-      setCurve({ you: series.twr?.points ?? [], bench: bench?.points ?? [] });
+      if (chartMode === "money") {
+        setCurve({
+          you: (series.series ?? []).map((p: { t: number; value: number }) => ({ t: p.t, v: p.value })),
+          bench: (bench?.sameFlows?.series ?? []).map(
+            (p: { t: number; value: number }) => ({ t: p.t, v: p.value }),
+          ),
+        });
+      } else {
+        setCurve({
+          you: (series.twr?.points ?? []).map((p: { t: number; index: number }) => ({ t: p.t, v: p.index })),
+          bench: (bench?.points ?? []).map((p: { t: number; index: number }) => ({ t: p.t, v: p.index })),
+        });
+      }
     })();
     return () => { cancelled = true; };
-  }, [portfolioId, chartRange, benchKey]);
+  }, [portfolioId, chartRange, benchKey, chartMode]);
 
   const split = holdings ? classSplit(holdings) : [];
   const conc = holdings ? concentration(holdings) : null;
@@ -184,7 +203,20 @@ export default function InsightsPage() {
               </select>
               {loadingRows && <span className="text-xs text-neutral-500">loading…</span>}
             </div>
-            <div className="flex gap-1 flex-wrap mb-2">
+            <div className="flex gap-1 flex-wrap mb-2 items-center">
+              <div className="flex rounded overflow-hidden border border-neutral-800 mr-2">
+                {([["money", "Your money"], ["pct", "Return %"]] as const).map(([m, label]) => (
+                  <button
+                    key={m}
+                    onClick={() => setChartMode(m)}
+                    className={`px-2 py-1 text-xs ${
+                      chartMode === m ? "bg-neutral-800 text-neutral-100" : "text-neutral-500"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
               {RANGES.filter((r) => r.key !== "1m").map((r) => (
                 <button
                   key={r.key}
@@ -202,6 +234,7 @@ export default function InsightsPage() {
                 you={curve.you}
                 bench={curve.bench}
                 benchLabel={BENCHMARKS.find((b) => b.key === benchKey)?.label ?? "Index"}
+                mode={chartMode}
               />
             </div>
 

@@ -30,6 +30,8 @@ const Query = z.object({
   barMs: z.coerce.number().int().positive().default(DAY_MS),
   /** When given, also simulate this portfolio's cash flows into the benchmark. */
   portfolioId: z.string().min(1).optional(),
+  /** Value already held when the window opened, treated as a day-one buy. */
+  opening: z.coerce.number().nonnegative().optional(),
 });
 
 /**
@@ -42,9 +44,10 @@ export async function GET(req: NextRequest) {
     from: req.nextUrl.searchParams.get("from"),
     barMs: req.nextUrl.searchParams.get("barMs") ?? DAY_MS,
     portfolioId: req.nextUrl.searchParams.get("portfolioId") ?? undefined,
+    opening: req.nextUrl.searchParams.get("opening") ?? undefined,
   });
   if (!q.success) return NextResponse.json({ error: q.error.flatten() }, { status: 400 });
-  const { key, from, barMs, portfolioId } = q.data;
+  const { key, from, barMs, portfolioId, opening } = q.data;
   const bench = BENCHMARKS[key];
 
   try {
@@ -74,7 +77,7 @@ export async function GET(req: NextRequest) {
     );
 
     const sameFlows = portfolioId
-      ? await simulateSameFlows(portfolioId, bars, from, barMs)
+      ? await simulateSameFlows(portfolioId, bars, from, barMs, opening ?? 0)
       : null;
 
     return NextResponse.json({
@@ -98,6 +101,7 @@ async function simulateSameFlows(
   bars: { t: number; c: number }[],
   from: number,
   barMs: number,
+  opening: number,
 ): Promise<{ finalValue: number; annualPct: number | null; series: { t: number; value: number }[] } | null> {
   const portfolio = await prisma.portfolio.findUnique({
     where: { id: portfolioId },
@@ -113,16 +117,29 @@ async function simulateSameFlows(
   const displayUsd = currency === "EUR" ? ((await fetchLatestEurUsd()) ?? 0) : 1;
   const toDisplay = displayUsd > 0 ? 1 / displayUsd : 1;
 
+  // Cash movements are not trades: buying euros is not investing them, and
+  // counting a deposit as a benchmark purchase bought index units with money
+  // that never left the bank.
   const txs = toDisplayTxs(
-    portfolio.transactions.filter((t) => Number(t.time) >= from),
+    portfolio.transactions.filter((t) => t.assetType !== "cash" && Number(t.time) >= from),
     currency,
     toDisplay,
   );
-  if (txs.length === 0) return null;
 
-  const flows = [...flowsByBar(txs, barMs).entries()].map(([t, amount]) => ({ t, amount }));
   const prices = new Map(bars.map((b) => [b.t, b.c]));
   const timeline = [...prices.keys()].sort((a, b) => a - b);
+  if (timeline.length === 0) return null;
+
+  // A window that opens mid-history starts with money already invested. Without
+  // seeding it, the index is handed only the last year's deposits and compared
+  // against a portfolio that had a decade's worth working for it.
+  const flows = [
+    ...(opening > 0 ? [{ t: timeline[0]!, amount: opening }] : []),
+    ...[...flowsByBar(txs, barMs).entries()]
+      .filter(([t]) => t > timeline[0]!)
+      .map(([t, amount]) => ({ t, amount })),
+  ];
+  if (flows.length === 0) return null;
   const series = simulateFlowsInto(flows, prices, timeline);
   const finalValue = series[series.length - 1]?.value ?? 0;
   const annualPct = moneyWeightedReturn(flows, finalValue, timeline[timeline.length - 1] ?? Date.now());
