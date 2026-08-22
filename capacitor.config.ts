@@ -20,6 +20,22 @@ const config: CapacitorConfig = {
     // Only needed while the server is plain http on the LAN.
     cleartext: url.startsWith("http://"),
   },
+  plugins: {
+    /**
+     * Wakes every quarter hour to check price alerts with the app closed.
+     * Android treats the interval as a target, not a promise: Doze and the
+     * manufacturer's power management can stretch it. Fine for the daily-scale
+     * rules it evaluates, and the reason the risk metric is not among them.
+     */
+    BackgroundRunner: {
+      label: "app.nabla.local.alerts",
+      src: "runner/alerts.js",
+      event: "alertCheck",
+      repeat: true,
+      interval: 15,
+      autoStart: true,
+    },
+  },
   android: {
     // Match the app's own dark background so launches don't flash white.
     backgroundColor: "#0a0a0a",
