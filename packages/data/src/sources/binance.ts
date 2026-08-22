@@ -9,9 +9,26 @@ import type { Net } from "../ports/net";
  * It stays: `candles`, `risk`, `backtest` and the alert evaluator keep their
  * inline logic permanently (they are server-only), so there is no signature to
  * migrate them to. Rather than thread a `Net` through routes that will never
- * run on a device, the portable copy lives here and the two share `cached`'s
- * process-local map under identical keys — so a converted route and an
- * unconverted one still pay for a given call once between them.
+ * run on a device, the portable copy lives here.
+ *
+ * ## The shared cache, and the trap it sets
+ *
+ * These functions memoise through `packages/core/src/cache.ts` under the
+ * **same keys as core's copies**, deliberately: one process-local map means a
+ * converted route and an unconverted one pay for a given upstream call once
+ * between them rather than twice.
+ *
+ * The cost is that a cache hit answers before the `Net` is ever consulted — so
+ * an entry written by an unconverted route through the global `fetch` will be
+ * served to a converted one, and the injected transport is bypassed entirely.
+ * Correct in production, where both would have fetched the same bytes anyway.
+ *
+ * **In a test it is a live trap.** A `FakeNet` proves nothing if a real value
+ * left over from another test — or from core — satisfies the call first, and
+ * the test still passes. Every suite exercising these must call `invalidate()`
+ * from `@/core/cache` in `beforeEach`; `services/valuation.test.ts` and
+ * `services/pricing.test.ts` both do. Adding a suite that touches `sources/`
+ * without that is how a green test starts meaning nothing.
  */
 const REST = "https://api.binance.com";
 

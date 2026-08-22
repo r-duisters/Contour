@@ -5,7 +5,7 @@ import type { Net } from "../ports/net";
 import type { Store } from "../ports/store";
 import { fetchKlines } from "../sources/binance";
 import { makeEquitySource } from "../sources/equity";
-import { fetchEcbRates } from "../sources/fx";
+import { fetchEcbRates, fetchLatestEurUsd } from "../sources/fx";
 
 const DAY_MS = 86_400_000;
 
@@ -25,28 +25,6 @@ export type DisplayContext = {
   equityProvider: string;
   equityApiKey: string | null;
 };
-
-/**
- * Latest EUR->USD rate, or null if the lookup failed for any reason. The
- * original `fx.ts#fetchLatestEurUsdUncached` wrapped its whole body in
- * try/catch, so a non-2xx, a JSON-parse error and a transport exception
- * (host unreachable, DNS failure) were all `null` to the caller — none of the
- * six routes it fed ever distinguished them, and `insights` still doesn't.
- * `net.request()` only turns the first of those into a value; the other two
- * still throw (that split is the whole reason `request()` exists — see
- * `packages/data/src/ports/net.ts`), so the try/catch here is what restores
- * the old all-failures-are-null behaviour on top of it.
- */
-async function fetchLatestEurUsd(net: Net): Promise<number | null> {
-  try {
-    const res = await net.request("https://api.frankfurter.dev/v1/latest?base=EUR&symbols=USD");
-    if (!res.ok) return null;
-    const data = await res.json<{ rates?: { USD?: number } }>();
-    return data.rates?.USD ?? null;
-  } catch {
-    return null;
-  }
-}
 
 /**
  * The part of the preamble that has nothing to do with the rate lookup.

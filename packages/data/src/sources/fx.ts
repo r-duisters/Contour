@@ -2,10 +2,13 @@ import { cached } from "@/core/cache";
 import type { Net } from "../ports/net";
 
 /**
- * Historical fiat rates from the ECB via frankfurter.app (keyless, data from
- * 1999), reached through an injected `Net`. The `packages/core/src/fx.ts`
- * original stays for the routes that keep inline logic; see the note in
- * `sources/binance.ts` for why both exist and why they share a cache key.
+ * Frankfurter/ECB rates, reached through an injected `Net` — both the dated
+ * series and the latest EUR->USD spot, so the whole of this transport lives in
+ * one place rather than half here and half in the pricing service.
+ *
+ * The `packages/core/src/fx.ts` original stays for the routes that keep inline
+ * logic; see the note in `sources/binance.ts` for why both exist and why they
+ * share a cache key.
  */
 const ISO = (t: number) => new Date(t).toISOString().slice(0, 10);
 
@@ -37,4 +40,26 @@ async function fetchEcbRatesUncached(
     if (typeof rate === "number") out.set(Date.parse(`${day}T00:00:00Z`), rate);
   }
   return out;
+}
+
+/**
+ * Latest EUR->USD rate, or null if the lookup failed for any reason. The
+ * original `fx.ts#fetchLatestEurUsdUncached` wrapped its whole body in
+ * try/catch, so a non-2xx, a JSON-parse error and a transport exception
+ * (host unreachable, DNS failure) were all `null` to the caller — none of the
+ * six routes it fed ever distinguished them, and `insights` still doesn't.
+ * `net.request()` only turns the first of those into a value; the other two
+ * still throw (that split is the whole reason `request()` exists — see
+ * `packages/data/src/ports/net.ts`), so the try/catch here is what restores
+ * the old all-failures-are-null behaviour on top of it.
+ */
+export async function fetchLatestEurUsd(net: Net): Promise<number | null> {
+  try {
+    const res = await net.request("https://api.frankfurter.dev/v1/latest?base=EUR&symbols=USD");
+    if (!res.ok) return null;
+    const data = await res.json<{ rates?: { USD?: number } }>();
+    return data.rates?.USD ?? null;
+  } catch {
+    return null;
+  }
 }
