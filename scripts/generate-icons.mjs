@@ -2,23 +2,41 @@ import { mkdir } from "node:fs/promises";
 import sharp from "sharp";
 
 /**
- * The mark is a nabla — the delta symbol inverted — as a single outline
- * triangle in the app's accent blue. Blue rather than red so a downward
- * triangle does not read as a loss, and outline rather than filled so it
- * stays legible at 48px.
+ * The mark is a nabla — the delta symbol inverted — solid, in a blue gradient,
+ * with a price line cut clean through it. Blue rather than red so a downward
+ * triangle does not read as a loss; five vertices and a reversal in the line so
+ * it does not read as a checkmark; inset from the edges so the triangle stays
+ * one shape. The cut is a true hole, taking the colour behind it.
  */
-const icon = (pad) => {
-  const r = pad ? 0 : 96;
-  const s = pad ? 0.74 : 1; // maskable art stays inside the safe area
+const TRI = "112,146 400,146 256,392";
+const LINE = "168,254 214,286 258,232 304,264 356,208";
+
+/** The mark itself, optionally scaled about the centre for a safe area. */
+const mark = (s = 1, id = "m") => {
   const t = (v) => 256 + (v - 256) * s;
+  const scale = (pts) => pts.split(" ")
+    .map((p) => p.split(",").map(Number))
+    .map(([x, y]) => `${t(x)},${t(y)}`).join(" ");
   return `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="${r}" fill="#0a0a0a"/>
-  <polygon points="${t(112)},${t(146)} ${t(400)},${t(146)} ${t(256)},${t(392)}"
-           fill="none" stroke="#3b82f6" stroke-width="${34 * s}"
-           stroke-linejoin="round"/>
-</svg>`;
+  <defs>
+    <linearGradient id="${id}f" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#60a5fa"/><stop offset="1" stop-color="#2563eb"/>
+    </linearGradient>
+    <mask id="${id}c">
+      <rect width="512" height="512" fill="#fff"/>
+      <polyline points="${scale(LINE)}" fill="none" stroke="#000"
+                stroke-width="${30 * s}" stroke-linecap="round" stroke-linejoin="round"/>
+    </mask>
+  </defs>
+  <polygon points="${scale(TRI)}" fill="url(#${id}f)" stroke="url(#${id}f)"
+           stroke-width="${30 * s}" stroke-linejoin="round" mask="url(#${id}c)"/>`;
 };
+
+const icon = (pad) => `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="${pad ? 0 : 96}" fill="#0a0a0a"/>
+  ${mark(pad ? 0.74 : 1)}
+</svg>`;
 
 /**
  * Android launcher icons are separate from the web manifest's: the adaptive
@@ -52,13 +70,12 @@ async function androidIcons() {
   }
 }
 
-/** Transparent mark for the adaptive foreground layer. */
+/**
+ * The adaptive foreground draws on the launcher's own background layer, and
+ * only the middle ~66% survives the mask.
+ */
 const foreground = () => `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <polygon points="176,196 336,196 256,332"
-           fill="none" stroke="#3b82f6" stroke-width="19"
-           stroke-linejoin="round"/>
-</svg>`;
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">${mark(0.52, "f")}</svg>`;
 
 await mkdir("public/icons", { recursive: true });
 const targets = [

@@ -11,9 +11,25 @@ gradient. The name says the idea plainly: the same thing Delta did, turned over
 and put back in your hands. It borrows nothing from that trademark, which
 belongs to eToro in exactly this category.
 
-The mark is a single outline triangle in the accent blue: blue rather than red
-so a downward triangle does not read as a loss, outline rather than filled so
-it survives at 48 px. Nothing else — no wordmark lockup, no tagline.
+The mark is a solid nabla in a blue gradient (`#60a5fa` → `#2563eb`) with a
+price line cut clean through it. Blue rather than red, so a downward triangle
+does not read as a loss. Solid rather than outline, so it keeps its weight at
+launcher sizes where a thin stroke goes faint.
+
+Three rules the line obeys, each of them a failure found by drawing it:
+
+- **Five vertices and a reversal.** Two segments meeting in a V is a
+  checkmark — a verification badge, not a portfolio.
+- **Inset from the edges.** A line that exits both sides severs the mark into
+  a cap and a wedge, and the triangle stops reading as ∇.
+- **A real hole, not a painted one.** The cut takes the colour of whatever sits
+  behind it, so the mark works on any surface.
+
+Nothing else — no wordmark lockup, no tagline.
+
+The mark lives in two places that must stay in step: `NablaMark.tsx` for the
+screen, and `scripts/generate-icons.mjs` for every icon file. Change one and
+run `node scripts/generate-icons.mjs` to redraw the rest.
 
 Write it **Nabla**. The symbol ∇ may stand alone as an icon but never replaces
 the word in running text.
