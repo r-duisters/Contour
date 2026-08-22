@@ -8,6 +8,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 colour, layout rules, established components and the anti-patterns already
 removed once. Read it before writing UI or copy.
 
+`.superdesign/design-system.md` is the machine-readable companion: the actual
+tokens, component contracts and layout scale, extracted from the shipped code.
+BRAND.md governs name, voice and copy; the design system governs tokens and
+structure. Pass the design system as `--context-file` on every Superdesign
+command.
+
 ## What this is
 
 A Next.js (App Router, TypeScript) web app that brings **one specific PineScript** to life outside

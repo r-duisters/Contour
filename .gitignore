@@ -54,3 +54,8 @@ android/local.properties
 android/capacitor-cordova-android-plugins/
 android/app/src/main/assets/public/
 .icon-cache/
+
+# Superdesign scratch: repo-analysis context and extracted site DNA are
+# regenerable. The design system itself is a real document and stays tracked.
+.superdesign/init/
+.superdesign/website/

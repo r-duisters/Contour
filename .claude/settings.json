@@ -1,0 +1,5 @@
+{
+  "enabledPlugins": {
+    "superdesign@claude-plugins-official": true
+  }
+}
