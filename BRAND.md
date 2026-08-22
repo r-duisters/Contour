@@ -14,17 +14,28 @@ healthcare company and a crypto-forex platform.
 
 Write it **Contour**. Never "Contour App", never a tagline.
 
-The mark is a rising price line drawn as two contour levels, in flat accent
-blue (`#3b82f6`) — one path and a parallel offset of itself, which is what
-contours are. Three details are load-bearing, each of them a failure found by
-drawing it:
+The mark is a rising price line inside four crop marks: the corners in the
+accent blue (`#3b82f6`), the line in white (`#fafafa`). Four details are
+load-bearing, each of them a failure found by drawing it:
 
-- **It rises.** A descending mark reads as a loss, whatever the colour.
-- **Price action, not a diagonal.** A rise, a pullback, a stronger rise. A
-  straight line up is a claim the app does not make.
-- **Two levels, not three.** Three says "contour" more plainly and goes muddy
-  at 24px. The mark is seen small far more often than large.
-- **Flat colour.** A gradient fill was tried and dropped.
+- **The container is partial, never closed.** The app frames the mark in a
+  circle twice — the unlock disc in `BiometricLock`, and Android's adaptive
+  mask, which most launchers render round and which cannot be overridden. A
+  ring, ellipse or any closed round shape of its own puts a ring inside a
+  ring, which reads as a misalignment rather than a design. Corners never
+  approach the frame's edge, so they survive circle, squircle and square.
+- **Corners, not a frame.** Lengthen the arms far enough and they close into a
+  rectangle, which is the same failure as a ring plus a checkbox reading.
+- **Two colours, not one.** The frame carries the brand and the line carries
+  the data. White also holds the strongest contrast against the near-black
+  ground, which is what keeps the line legible at 24px.
+- **It rises, and it is price action** — a rise, a pullback, a stronger rise.
+  A descending mark reads as a loss whatever the colour, and a straight
+  diagonal is a claim the app does not make.
+
+**Green, amber and red are unavailable to the mark.** They mean gain, degraded
+data and loss everywhere else in the app; a permanently green logo asserts
+"up" as a brand claim, and an amber one collides with the warning state.
 
 The mark lives in two places that must stay in step: `ContourMark.tsx` for the
 screen, and `scripts/generate-icons.mjs` for every icon file. Change one and run
@@ -298,6 +309,8 @@ Things previously removed from this app. Do not reintroduce them.
 - Gradient fills and card shadows. A gradient logo was tried and dropped.
 - A mark that reads as a checkmark — that is a verification badge — or one
   that points downward, which reads as a loss whatever its colour.
+- A mark carrying its own closed container. The app already frames it in a
+  circle in two places, one of which Android controls.
 - Type below 11px.
 - A control with nothing behind it. A "More" button was once generated with no
   hidden items; a dead control is worse than a missing one.

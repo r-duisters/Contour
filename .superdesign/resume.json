@@ -89,6 +89,17 @@
       "activeDirection": "SHIPPED \u2014 position economics as rows, net invested per year as centre-anchored bars, value on a date (box 3), cash per currency.",
       "implemented": true,
       "navigation": "First item under More. The tab bar stays at four; Chart was not displaced."
+    },
+    "logo": {
+      "kind": "mark",
+      "implemented": true,
+      "drafts": {
+        "directions": "9a69af2d-87cb-4413-94b6-f2d40c605d83 (v3 = shipped)",
+        "inContext": "1161317e-0ab7-45ed-98f1-d58bba1cda0d"
+      },
+      "shipped": "Blue crop marks (#3b82f6) around a white price line (#fafafa). inset 118, arm 60, corner stroke 24, line stroke 30.",
+      "constraint": "The app frames the mark in a circle twice \u2014 BiometricLock's disc and Android's adaptive mask \u2014 so the mark must not carry a closed round container. Corner marks pass; rings, ellipses and full frames do not. Green, amber and red are unavailable: they mean gain, degraded data and loss.",
+      "authoredBy": "hand-authored SVG imported free; GRAPHIC.md's raster path is unsuitable for a mark that must be vector and legible at 24px"
     }
   },
   "conventions": {
