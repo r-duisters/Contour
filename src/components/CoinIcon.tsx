@@ -21,11 +21,10 @@ function colorFor(ticker: string): string {
   return FALLBACK_COLORS[Math.abs(h) % FALLBACK_COLORS.length]!;
 }
 
-const COIN_CDN = "https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color";
-// Company logos by ticker, exchange suffix included (SHELL.AS, EUDF.DE).
-// Unknown tickers 404 rather than returning a placeholder, so the initials
-// fallback below still gets its turn.
-const STOCK_LOGOS = "https://assets.parqet.com/logos/symbol";
+// Icons come from our own server, which fetches and caches them once. The
+// phone never talks to an icon CDN, so nothing outside learns what is held.
+// Unknown tickers 404 there too, leaving the initials fallback its turn.
+const ICON_API = "/api/icon";
 
 export default function CoinIcon({
   symbol, size = 20, assetType,
@@ -40,10 +39,11 @@ export default function CoinIcon({
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const base = baseAsset(symbol);
 
-  // Cash has no logo anywhere; equities have one, but not on the coin CDN.
+  // Cash has no logo anywhere; equities are looked up by their full ticker,
+  // coins by the base asset of the pair.
   const src = assetType === "equity"
-    ? `${STOCK_LOGOS}/${encodeURIComponent(symbol.toUpperCase())}`
-    : `${COIN_CDN}/${base.toLowerCase()}.svg`;
+    ? `${ICON_API}?symbol=${encodeURIComponent(symbol.toUpperCase())}&type=equity`
+    : `${ICON_API}?symbol=${encodeURIComponent(base)}&type=crypto`;
 
   const failed = failedSrc === src;
 
