@@ -1,25 +1,21 @@
 /**
- * The app's mark: three contour lines descending to a point.
+ * The app's mark: a rising price line drawn as two contour levels.
  *
  * A contour line joins points of equal value, and a field of them is how a
- * gradient is drawn on a flat page — which is what the app does to a portfolio.
- * The outer level keeps the downward triangle of ∇, the gradient operator the
- * app was once named for, so the shape is inherited rather than discarded.
+ * gradient is drawn on a flat page — so the mark is one path and a parallel
+ * offset of itself, which is what contours are.
  *
- * Every level is a true parallel offset of the outer one: same angle, differing
- * only in depth. Three levels rather than four, because a fourth is too shallow
- * to read as a chevron and turns into a notch at launcher sizes. Flat accent
- * blue — a gradient fill was tried and dropped.
+ * The path is price action rather than a diagonal: a rise, a pullback, a
+ * stronger rise. A straight line up would be a claim the app does not make.
+ *
+ * Two levels rather than three. Three says "contour" more plainly but goes
+ * muddy at 24px, and the mark is seen small far more often than large.
  */
-const TOP = 150;
-const OUTER_APEX = 392;
-const OUTER_X = 108;
-const APEXES = [392, 300, 208];
-
-function level(apexY: number): string {
-  const dx = ((256 - OUTER_X) / (OUTER_APEX - TOP)) * (apexY - TOP);
-  return `${256 - dx},${TOP} 256,${apexY} ${256 + dx},${TOP}`;
-}
+const PATH: [number, number][] = [
+  [116, 300], [186, 228], [248, 268], [318, 178], [396, 130],
+];
+const GAP = 80;
+const LEVELS = 2;
 
 export default function ContourMark({ size = 48 }: { size?: number }) {
   return (
@@ -31,13 +27,13 @@ export default function ContourMark({ size = 48 }: { size?: number }) {
       aria-label="Contour"
       className="shrink-0"
     >
-      {APEXES.map((apex) => (
+      {Array.from({ length: LEVELS }, (_, i) => (
         <polyline
-          key={apex}
-          points={level(apex)}
+          key={i}
+          points={PATH.map(([x, y]) => `${x},${y + i * GAP}`).join(" ")}
           fill="none"
           stroke="#3b82f6"
-          strokeWidth="28"
+          strokeWidth="36"
           strokeLinecap="round"
           strokeLinejoin="round"
         />

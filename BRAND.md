@@ -14,17 +14,17 @@ healthcare company and a crypto-forex platform.
 
 Write it **Contour**. Never "Contour App", never a tagline.
 
-The mark is three contour lines descending to a point, in flat accent blue
-(`#3b82f6`). Every level is a true parallel offset of the outer one — same
-angle, differing only in depth. Three details are load-bearing, each of them a
-failure found by drawing it:
+The mark is a rising price line drawn as two contour levels, in flat accent
+blue (`#3b82f6`) — one path and a parallel offset of itself, which is what
+contours are. Three details are load-bearing, each of them a failure found by
+drawing it:
 
-- **Three levels, not four.** A fourth is too shallow to read as a chevron and
-  becomes a notch at launcher sizes.
-- **Parallel offsets, not scaled copies.** Scaling makes the inner level read as
-  a heart.
-- **Flat colour.** A gradient fill was tried and dropped: it added depth the
-  shape did not need.
+- **It rises.** A descending mark reads as a loss, whatever the colour.
+- **Price action, not a diagonal.** A rise, a pullback, a stronger rise. A
+  straight line up is a claim the app does not make.
+- **Two levels, not three.** Three says "contour" more plainly and goes muddy
+  at 24px. The mark is seen small far more often than large.
+- **Flat colour.** A gradient fill was tried and dropped.
 
 The mark lives in two places that must stay in step: `ContourMark.tsx` for the
 screen, and `scripts/generate-icons.mjs` for every icon file. Change one and run

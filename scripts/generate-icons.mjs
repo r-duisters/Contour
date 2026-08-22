@@ -2,22 +2,22 @@ import { mkdir } from "node:fs/promises";
 import sharp from "sharp";
 
 /**
- * Three contour lines descending to a point. A contour joins points of equal
- * value, and a field of them is how a gradient is drawn flat. Every level is a
- * true parallel offset of the outer one — same angle, differing only in depth.
- * Flat accent blue; a gradient fill was tried and dropped.
+ * A rising price line drawn as two contour levels: one path and a parallel
+ * offset of itself, which is what contours are. The path is price action — a
+ * rise, a pullback, a stronger rise — rather than a diagonal, which would be a
+ * claim the app does not make. Two levels rather than three: three goes muddy
+ * at 24px, and the mark is seen small far more often than large.
  */
-const TOP = 150, OUTER_APEX = 392, OUTER_X = 108, APEXES = [392, 300, 208];
+const PATH = [[116, 300], [186, 228], [248, 268], [318, 178], [396, 130]];
+const GAP = 80, LEVELS = 2, STROKE = 36;
 
 /** The mark, optionally scaled about the centre to sit inside a safe area. */
 const mark = (k = 1) => {
   const t = (v) => 256 + (v - 256) * k;
-  return APEXES.map((apex) => {
-    const dx = ((256 - OUTER_X) / (OUTER_APEX - TOP)) * (apex - TOP);
-    return `<polyline points="${t(256 - dx)},${t(TOP)} ${t(256)},${t(apex)} ${t(256 + dx)},${t(TOP)}"
-      fill="none" stroke="#3b82f6" stroke-width="${28 * k}"
-      stroke-linecap="round" stroke-linejoin="round"/>`;
-  }).join("");
+  return Array.from({ length: LEVELS }, (_, i) =>
+    `<polyline points="${PATH.map(([x, y]) => `${t(x)},${t(y + i * GAP)}`).join(" ")}"
+      fill="none" stroke="#3b82f6" stroke-width="${STROKE * k}"
+      stroke-linecap="round" stroke-linejoin="round"/>`).join("");
 };
 
 const icon = (pad) => `
