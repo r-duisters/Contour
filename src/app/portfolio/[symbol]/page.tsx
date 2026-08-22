@@ -3,7 +3,7 @@
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  createChart, createSeriesMarkers, LineSeries,
+  createChart, createSeriesMarkers, LineSeries, LineType,
   type IChartApi, type ISeriesApi, type ISeriesMarkersPluginApi, type Time,
 } from "lightweight-charts";
 import { ArrowDown, ArrowLeft, ArrowUp, Trash2 } from "lucide-react";
@@ -239,7 +239,9 @@ function PriceChart({
       handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
     });
     chart.current = c;
-    line.current = c.addSeries(LineSeries, { color: "#3b82f6", lineWidth: 2 });
+    line.current = c.addSeries(LineSeries, {
+      color: "#3b82f6", lineWidth: 2, lineType: LineType.Curved,
+    });
     markers.current = createSeriesMarkers(line.current);
     return () => { c.remove(); chart.current = null; line.current = null; markers.current = null; };
   }, []);

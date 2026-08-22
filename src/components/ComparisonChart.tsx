@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { createChart, LineSeries, type IChartApi, type ISeriesApi, type Time } from "lightweight-charts";
+import {
+  createChart, LineSeries, LineType, type IChartApi, type ISeriesApi, type Time,
+} from "lightweight-charts";
 import { useFitChart } from "@/components/useFitChart";
 import { money } from "@/lib/display";
 
@@ -39,8 +41,9 @@ export default function ComparisonChart({
       handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
     });
     chart.current = c;
-    mine.current = c.addSeries(LineSeries, { color: "#3b82f6", lineWidth: 2 });
-    theirs.current = c.addSeries(LineSeries, { color: "#eab308", lineWidth: 2 });
+    const line = { lineWidth: 2 as const, lineType: LineType.Curved };
+    mine.current = c.addSeries(LineSeries, { color: "#3b82f6", ...line });
+    theirs.current = c.addSeries(LineSeries, { color: "#eab308", ...line });
     return () => { c.remove(); chart.current = null; mine.current = null; theirs.current = null; };
   }, []);
 

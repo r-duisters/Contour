@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useFitChart } from "@/components/useFitChart";
 import {
-  AreaSeries, createChart, type IChartApi, type ISeriesApi, type Time,
+  AreaSeries, createChart, LineType, type IChartApi, type ISeriesApi, type Time,
 } from "lightweight-charts";
 
 /** Portfolio value over the selected period. */
@@ -33,6 +33,8 @@ export default function ValueChart({
       topColor: "rgba(59, 130, 246, 0.3)",
       bottomColor: "rgba(59, 130, 246, 0.0)",
       lineWidth: 2,
+      // Daily closes are jagged enough that the corners read as noise.
+      lineType: LineType.Curved,
     });
     return () => { c.remove(); chart.current = null; area.current = null; };
   }, []);
