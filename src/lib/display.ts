@@ -54,14 +54,23 @@ export function onPrivacyChange(listener: () => void): () => void {
 
 const MASK = "•••••";
 
-/** Money in the display currency, or a mask when amounts are hidden. */
+/**
+ * Money in the display currency, or a mask when amounts are hidden.
+ *
+ * The symbol leads, always. Intl puts it after the number for a euro in a
+ * German locale — "142.580,42 €" — which reads as an afterthought in a column
+ * of figures and disagrees with the design. Grouping and the decimal mark
+ * still follow the locale, so a euro keeps its full stops and comma.
+ */
 export function money(n: number, maximumFractionDigits = 2): string {
   if (hidden) return MASK;
-  return n.toLocaleString(currency === "EUR" ? "de-DE" : "en-US", {
-    style: "currency",
-    currency,
+  const locale = currency === "EUR" ? "de-DE" : "en-US";
+  const digits = Math.min(2, maximumFractionDigits);
+  const abs = Math.abs(n).toLocaleString(locale, {
+    minimumFractionDigits: digits,
     maximumFractionDigits,
   });
+  return `${n < 0 ? "-" : ""}${currency === "EUR" ? "\u20ac" : "$"}${abs}`;
 }
 
 /** A holding's size, which reveals as much as its value does. */

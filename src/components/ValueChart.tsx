@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { thin, targetPoints } from "@/lib/chart-data";
 import { useFitChart } from "@/components/useFitChart";
+import { usePrivacy } from "@/components/usePrivacy";
+import { money } from "@/lib/display";
 import {
   AreaSeries, createChart, LineType, type IChartApi, type ISeriesApi, type Time,
 } from "lightweight-charts";
@@ -14,6 +16,23 @@ export default function ValueChart({ series }: {
   const container = useRef<HTMLDivElement>(null);
   const chart = useRef<IChartApi | null>(null);
   const area = useRef<ISeriesApi<"Area"> | null>(null);
+  // Reading privacy here rather than as a prop: these labels are the only
+  // amounts the chart prints, so the component that draws them owns the guard.
+  const hidden = usePrivacy();
+
+  /**
+   * The period's high and low. With no price axis there is nothing to read a
+   * level off, and a shape without a scale can flatter or alarm — a 2% wobble
+   * and a 40% drawdown draw the same curve. Two labels restore the scale for
+   * the cost of two lines of text.
+   */
+  const extent = useMemo(() => {
+    if (!series || series.length === 0) return null;
+    let lo = Infinity, hi = -Infinity;
+    for (const p of series) { if (p.value < lo) lo = p.value; if (p.value > hi) hi = p.value; }
+    // A flat line has no meaningful band to label.
+    return Number.isFinite(lo) && Number.isFinite(hi) && hi > lo ? { lo, hi } : null;
+  }, [series]);
 
   useEffect(() => {
     if (!container.current) return;
@@ -52,6 +71,16 @@ export default function ValueChart({ series }: {
   return (
     <div className="relative">
       <div ref={container} className="h-56 md:h-64 border border-neutral-800 rounded" />
+      {extent && !hidden && (
+        <>
+          <span className="pointer-events-none absolute top-1.5 right-2 text-[11px] font-mono text-neutral-500">
+            {money(extent.hi)}
+          </span>
+          <span className="pointer-events-none absolute bottom-1.5 right-2 text-[11px] font-mono text-neutral-600">
+            {money(extent.lo)}
+          </span>
+        </>
+      )}
       {series === null && (
         <span className="absolute inset-0 flex items-center justify-center text-xs text-neutral-500">
           building value history…

@@ -87,7 +87,6 @@ export default function PortfolioPage() {
   );
   const [rangeChange, setRangeChange] = useState<{ abs: number; pct: number | null } | null>(null);
   const [assetChanges, setAssetChanges] = useState<Record<string, number>>({});
-  const [mwr, setMwr] = useState<{ annualPct: number | null; investedNet: number; closing: number } | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("value");
   const [showClosed, setShowClosed] = useState(false);
@@ -149,12 +148,10 @@ export default function PortfolioPage() {
       .then((d: {
         series?: { t: number; value: number }[];
         change?: { abs: number; pct: number | null } | null;
-        mwr?: { annualPct: number | null; investedNet: number; closing: number };
       } | null) => {
         if (cancelled) return;
         setSeries(d?.series ?? []);
         setRangeChange(d?.change ?? null);
-        setMwr(d?.mwr ?? null);
       })
       .catch(() => { if (!cancelled) { setSeries([]); setRangeChange(null); } });
     return () => { cancelled = true; };
@@ -304,15 +301,6 @@ export default function PortfolioPage() {
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <RangePicker value={range} onChange={setRange} />
               </div>
-              {mwr && mwr.annualPct !== null && (
-                <p className="text-xs text-neutral-500 mb-2">
-                  Money-weighted return{" "}
-                  <span className={mwr.annualPct >= 0 ? "text-green-500" : "text-red-500"}>
-                    {mwr.annualPct >= 0 ? "+" : ""}{mwr.annualPct.toFixed(2)}%/yr
-                  </span>
-                  {" "}on {fmtUsd(mwr.investedNet)} net invested, now worth {fmtUsd(mwr.closing)}
-                </p>
-              )}
               <div className="mb-6 md:mb-8">
                 <ValueChart series={series} />
               </div>
@@ -337,18 +325,24 @@ export default function PortfolioPage() {
                     ))}
                   </div>
                 )}
+              </div>
+
+              {/* Sort belongs with the list it orders, not in the heading row:
+                  the design puts the filter there, and three controls on one
+                  line at 390px leaves none of them room. */}
+              <div className="flex justify-end mb-3">
                 <label className="text-xs text-neutral-500 inline-flex items-center gap-1">
                   <ArrowUpDown size={12} aria-hidden />
-                  sort
+                  <span className="sr-only">Sort holdings by</span>
                   <select
-                    className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-xs"
+                    className="bg-transparent text-xs text-neutral-400 border-0 p-0 pr-4"
                     value={sortKey}
                     onChange={(e) => setSortKey(e.target.value as SortKey)}
                   >
                     <option value="value">value</option>
                     <option value="pnlPct">gain %</option>
-                    <option value="pnl">unrealized P&L</option>
-                    <option value="realized">realized P&L</option>
+                    <option value="pnl">unrealised P&L</option>
+                    <option value="realized">realised P&L</option>
                     <option value="quantity">quantity</option>
                     <option value="symbol">name</option>
                   </select>

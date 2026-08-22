@@ -34,3 +34,27 @@ describe("axisMoney", () => {
     expect(axisMoney(142_580.42)).not.toMatch(/\d/);
   });
 });
+
+describe("money", () => {
+  it("puts the symbol in front, whichever currency", () => {
+    setDisplayCurrency("EUR");
+    expect(money(142_580.42)).toBe("€142.580,42");
+    setDisplayCurrency("USD");
+    expect(money(142_580.42)).toBe("$142,580.42");
+  });
+
+  it("keeps the locale's grouping and decimal mark behind the symbol", () => {
+    setDisplayCurrency("EUR");
+    expect(money(1_234.5)).toBe("€1.234,50");
+  });
+
+  it("signs negatives ahead of the symbol", () => {
+    setDisplayCurrency("EUR");
+    expect(money(-8_755)).toBe("-€8.755,00");
+  });
+
+  it("masks under privacy mode", () => {
+    setAmountsHidden(true);
+    expect(money(1)).not.toMatch(/\d/);
+  });
+});
