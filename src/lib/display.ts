@@ -74,3 +74,20 @@ export function quantity(n: number): string {
 export function percent(n: number, digits = 2): string {
   return `${n >= 0 ? "+" : ""}${n.toFixed(digits)}%`;
 }
+
+/**
+ * A price-axis label. The axis is as wide as its widest label, so a chart
+ * priced in full — "€142.580,42" — spends a fifth of a 390px screen on a
+ * column of digits. Compacting to "€143k" gives that width back to the line
+ * without giving up the reading.
+ */
+export function axisMoney(n: number): string {
+  if (hidden) return MASK;
+  const sym = currency === "EUR" ? "\u20ac" : "$";
+  const abs = Math.abs(n);
+  const sign = n < 0 ? "-" : "";
+  if (abs >= 1_000_000) return `${sign}${sym}${(abs / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1)}M`;
+  if (abs >= 1_000) return `${sign}${sym}${(abs / 1_000).toFixed(abs >= 100_000 ? 0 : 1)}k`;
+  if (abs >= 1) return `${sign}${sym}${abs.toFixed(abs >= 100 ? 0 : 2)}`;
+  return `${sign}${sym}${abs.toPrecision(2)}`;
+}

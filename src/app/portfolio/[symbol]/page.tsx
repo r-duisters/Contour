@@ -10,7 +10,7 @@ import {
   ArrowDown, ArrowLeft, ArrowUp, ChevronLeft, ChevronRight, Plus, Trash2,
 } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
-import { money as fmtMoney, quantity, setDisplayCurrency } from "@/lib/display";
+import { axisMoney, money as fmtMoney, quantity, setDisplayCurrency } from "@/lib/display";
 import { annotateTransactions } from "@/lib/portfolio";
 import { useFitChart } from "@/components/useFitChart";
 import { thin, targetPoints } from "@/lib/chart-data";
@@ -257,6 +257,9 @@ function PriceChart({
       layout: { background: { color: "#0a0a0a" }, textColor: "#d4d4d4" },
       grid: { vertLines: { color: "#171717" }, horzLines: { color: "#171717" } },
       autoSize: true,
+      // The axis stays — a price chart is read against its levels — but its
+      // labels are compacted so the column does not dominate the phone.
+      localization: { priceFormatter: axisMoney },
       timeScale: { timeVisible: false, fixLeftEdge: true, fixRightEdge: true },
       handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
     });

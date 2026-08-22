@@ -38,6 +38,9 @@ export default function ComparisonChart({
       layout: { background: { color: "#0a0a0a" }, textColor: "#d4d4d4" },
       grid: { vertLines: { color: "#171717" }, horzLines: { color: "#171717" } },
       autoSize: true,
+      // Rebased lines: what matters is the gap between them, which the legend
+      // states in figures. An axis of index values would only add width.
+      rightPriceScale: { visible: false },
       timeScale: { timeVisible: false, fixLeftEdge: true, fixRightEdge: true },
       handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
     });

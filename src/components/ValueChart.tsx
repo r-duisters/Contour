@@ -8,11 +8,8 @@ import {
 } from "lightweight-charts";
 
 /** Portfolio value over the selected period. */
-export default function ValueChart({
-  series, hideValues = false,
-}: {
+export default function ValueChart({ series }: {
   series: { t: number; value: number }[] | null;
-  hideValues?: boolean;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const chart = useRef<IChartApi | null>(null);
@@ -24,6 +21,9 @@ export default function ValueChart({
       layout: { background: { color: "#0a0a0a" }, textColor: "#d4d4d4" },
       grid: { vertLines: { color: "#1f1f1f" }, horzLines: { color: "#1f1f1f" } },
       autoSize: true,
+      // No price axis: the value is printed above the chart, and on a 390px
+      // screen the column cost more width than the reading was worth.
+      rightPriceScale: { visible: false },
       // Nothing to scroll to beyond the data, so the window cannot drift off it.
       timeScale: { timeVisible: false, fixLeftEdge: true, fixRightEdge: true },
       handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
@@ -39,11 +39,6 @@ export default function ValueChart({
     });
     return () => { c.remove(); chart.current = null; area.current = null; };
   }, []);
-
-  // The price axis would print the very numbers privacy mode hides.
-  useEffect(() => {
-    chart.current?.applyOptions({ rightPriceScale: { visible: !hideValues } });
-  }, [hideValues]);
 
   useEffect(() => {
     if (!area.current || !series) return;

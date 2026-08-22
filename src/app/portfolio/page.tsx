@@ -8,7 +8,6 @@ import {
 } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
 import { money, quantity, setDisplayCurrency } from "@/lib/display";
-import { usePrivacy } from "@/components/usePrivacy";
 import { useStoredRange } from "@/components/useStoredRange";
 import { KEYS } from "@/lib/storage-keys";
 import dynamic from "next/dynamic";
@@ -91,7 +90,6 @@ export default function PortfolioPage() {
   const [mwr, setMwr] = useState<{ annualPct: number | null; investedNet: number; closing: number } | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("value");
-  const hideAmounts = usePrivacy();
   const [showClosed, setShowClosed] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [assetTab, setAssetTab] = useState<"all" | "crypto" | "equity" | "cash">("all");
@@ -305,7 +303,7 @@ export default function PortfolioPage() {
                 </p>
               )}
               <div className="mb-6 md:mb-8">
-                <ValueChart series={series} hideValues={hideAmounts} />
+                <ValueChart series={series} />
               </div>
 
               <div className="flex items-center gap-2 mb-3 flex-wrap">
