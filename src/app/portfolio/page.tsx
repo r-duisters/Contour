@@ -39,6 +39,7 @@ type ValuedHolding = {
   assetType?: "crypto" | "equity" | "cash";
   dayChange?: DayChange | null;
   unreliable?: boolean;
+  name?: string | null;
   quantity: number;
   avgCost: number;
   costBasis: number;
@@ -405,9 +406,10 @@ export default function PortfolioPage() {
                             {h.symbol.slice(0, 3)}
                           </span>
                           <span className="min-w-0">
-                            <span className="font-mono font-medium block truncate">{h.symbol} cash</span>
-                            <span className="text-xs text-neutral-500">
-                              {fmtQty(h.quantity)}
+                            <span className="font-medium block truncate">{h.name ?? h.symbol} cash</span>
+                            <span className="text-xs text-neutral-500 block truncate">
+                              <span className="font-mono">{h.symbol}</span>
+                              {" · "}{fmtQty(h.quantity)}
                               {share !== null && <> · {share.toFixed(1)}%</>}
                             </span>
                           </span>
@@ -427,9 +429,10 @@ export default function PortfolioPage() {
                       >
                         <CoinIcon symbol={h.symbol} size={28} assetType={h.assetType} />
                         <span className="min-w-0">
-                          <span className="font-mono font-medium block truncate">{h.symbol}</span>
-                          <span className="text-xs text-neutral-500">
-                            {fmtQty(h.quantity)}
+                          <span className="font-medium block truncate">{h.name ?? h.symbol}</span>
+                          <span className="text-xs text-neutral-500 block truncate">
+                            <span className="font-mono">{h.symbol}</span>
+                            {" · "}{fmtQty(h.quantity)}
                             {share !== null && <> · {share.toFixed(1)}%</>}
                           </span>
                         </span>

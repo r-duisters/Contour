@@ -26,7 +26,8 @@ type Tx = {
 
 type Holding = {
   symbol: string;
-  assetType?: "crypto" | "equity";
+  assetType?: "crypto" | "equity" | "cash";
+  name?: string | null;
   quantity: number;
   avgCost: number;
   costBasis: number;
@@ -124,10 +125,12 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
           ? <span className="w-10 h-10 rounded-full bg-neutral-900 border border-neutral-800 shrink-0" />
           : <CoinIcon symbol={symbol} size={40} assetType={holding?.assetType} />}
         <div>
-          <h1 className="text-xl md:text-2xl font-semibold font-mono">{symbol}</h1>
+          <h1 className="text-xl md:text-2xl font-semibold">{holding?.name ?? symbol}</h1>
           {holding && (
             <p className="text-xs text-neutral-500">
-              {holding.assetType === "equity" ? "Stock / ETF" : "Crypto"} · {qty(holding.quantity)} held
+              <span className="font-mono">{symbol}</span>
+              {" · "}{holding.assetType === "equity" ? "Stock / ETF" : "Crypto"}
+              {" · "}{qty(holding.quantity)} held
             </p>
           )}
         </div>

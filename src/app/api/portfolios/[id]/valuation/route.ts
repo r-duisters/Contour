@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { toDisplayTxs } from "@/lib/display-tx";
 import { cashBalances } from "@/lib/cash";
+import { assetName } from "@/lib/asset-names";
 import { fetchKlines, fetchPricesSafe } from "@/lib/binance";
 import { cached } from "@/lib/cache";
 import { fetchLatestEurUsd, fetchEcbRates, rateOn } from "@/lib/fx";
@@ -82,6 +83,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       return {
         unreliable,
         symbol: cur,
+        name: assetName(cur, "cash"),
         assetType: "cash" as const,
         quantity: amount,
         avgCost: 1,
@@ -100,9 +102,11 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     const dayChange = h.price !== null && prev !== undefined && prev > 0
       ? { abs: (h.price - prev) * h.quantity, pct: ((h.price - prev) / prev) * 100 }
       : null;
+    const assetType = equitySymbols.has(h.symbol) ? ("equity" as const) : ("crypto" as const);
     return {
       ...h,
-      assetType: equitySymbols.has(h.symbol) ? ("equity" as const) : ("crypto" as const),
+      assetType,
+      name: assetName(h.symbol, assetType, equityPrices[h.symbol]?.name),
       dayChange,
     };
   });
@@ -143,7 +147,7 @@ async function fetchEquityPricesUsd(
   symbols: string[],
   provider: string | null | undefined,
   apiKey: string | null | undefined,
-): Promise<Record<string, { price: number; prevClose?: number }>> {
+): Promise<Record<string, { price: number; prevClose?: number; name?: string }>> {
   if (symbols.length === 0) return {};
   const source = makeEquitySource(provider, apiKey);
   let quotes: Record<string, EquityQuote> = {};
@@ -152,11 +156,11 @@ async function fetchEquityPricesUsd(
   } catch {
     return {};
   }
-  const out: Record<string, { price: number; prevClose?: number }> = {};
+  const out: Record<string, { price: number; prevClose?: number; name?: string }> = {};
   const fxCache = new Map<string, number | null>();
   for (const [symbol, q] of Object.entries(quotes)) {
     const cur = q.currency.toUpperCase();
-    if (cur === "USD") { out[symbol] = { price: q.price, prevClose: q.prevClose }; continue; }
+    if (cur === "USD") { out[symbol] = { price: q.price, prevClose: q.prevClose, name: q.name }; continue; }
     // Some venues quote in minor units (GBp on LSE).
     const minor = cur === "GBP" && q.price > 1000 ? 100 : 1;
     const price = q.price / minor;
@@ -173,6 +177,7 @@ async function fetchEquityPricesUsd(
       out[symbol] = {
         price: price * rate,
         prevClose: q.prevClose !== undefined ? (q.prevClose / minor) * rate : undefined,
+        name: q.name,
       };
     }
   }

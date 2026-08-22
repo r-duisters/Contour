@@ -1,4 +1,4 @@
-export type EquityQuote = { price: number; currency: string; prevClose?: number };
+export type EquityQuote = { price: number; currency: string; prevClose?: number; name?: string };
 
 /** A source of stock/ETF prices. Symbols are exchange tickers (ASML.AS, AMD). */
 export interface EquitySource {
@@ -61,6 +61,7 @@ export class YahooSource implements EquitySource {
             price,
             currency: meta.currency ?? "USD",
             prevClose: typeof prev === "number" ? prev : undefined,
+            name: meta.longName ?? meta.shortName ?? undefined,
           }];
         } catch {
           return null;

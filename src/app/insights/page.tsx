@@ -9,7 +9,10 @@ import { usePrivacy } from "@/components/usePrivacy";
 import { classSplit, concentration, contributions, type TradeStats } from "@/lib/insights";
 import type { ValuedHolding } from "@/lib/portfolio";
 
-type Holding = ValuedHolding & { assetType?: "crypto" | "equity" | "cash" };
+type Holding = ValuedHolding & {
+  assetType?: "crypto" | "equity" | "cash";
+  name?: string | null;
+};
 
 type RangeStat = {
   key: string;
@@ -411,7 +414,10 @@ function ContribList({
   title, rows, up,
 }: {
   title: string;
-  rows: { symbol: string; total: number; pct: number | null; assetType?: "crypto" | "equity" | "cash" }[];
+  rows: {
+    symbol: string; total: number; pct: number | null;
+    assetType?: "crypto" | "equity" | "cash"; name?: string | null;
+  }[];
   up: boolean;
 }) {
   return (
@@ -428,7 +434,7 @@ function ContribList({
               className="flex items-center gap-2 text-sm"
             >
               <CoinIcon symbol={r.symbol} size={20} assetType={r.assetType} />
-              <span className="font-mono truncate">{r.symbol}</span>
+              <span className="truncate">{r.name ?? r.symbol}</span>
             <span className="flex-1" />
               <span className={r.total >= 0 ? "text-green-500" : "text-red-500"}>{money(r.total)}</span>
               {r.pct !== null && <span className="text-xs text-neutral-500 w-16 text-right">{pct(r.pct)}</span>}

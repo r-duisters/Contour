@@ -89,6 +89,7 @@ export function concentration(holdings: ValuedHolding[]): Concentration {
 
 export type Contribution = {
   symbol: string;
+  name?: string | null;
   assetType: "crypto" | "equity" | "cash";
   realized: number;
   unrealized: number;
@@ -99,13 +100,16 @@ export type Contribution = {
 
 /** Which holdings actually made or lost the money, best first. */
 export function contributions(
-  holdings: (ValuedHolding & { assetType?: "crypto" | "equity" | "cash" })[],
+  holdings: (ValuedHolding & {
+    assetType?: "crypto" | "equity" | "cash"; name?: string | null;
+  })[],
 ): Contribution[] {
   // Cash never made or lost anything; it would only dilute the ranking.
   return holdings
     .filter((h) => h.assetType !== "cash")
     .map((h) => ({
       symbol: h.symbol,
+      name: h.name,
       assetType: h.assetType ?? ("crypto" as const),
       realized: h.realizedPnl,
       unrealized: h.unrealizedPnl ?? 0,
