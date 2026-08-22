@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "projectId": "e7085f02-9cf3-4640-8719-224e267eb892",
+  "teamId": "97854bee-1afd-4a45-8bea-eed5f03b8b71",
+  "canvas": "https://superdesign.dev/teams/97854bee-1afd-4a45-8bea-eed5f03b8b71/projects/e7085f02-9cf3-4640-8719-224e267eb892",
+  "components": [
+    {
+      "name": "TabBar",
+      "componentId": "b14390eb-9908-43f6-afdf-b5910ea68cd7",
+      "source": "src/components/TabBar.tsx"
+    }
+  ],
+  "targets": {
+    "/portfolio": {
+      "route": "/portfolio",
+      "entry": "src/app/portfolio/page.tsx",
+      "device": "mobile",
+      "baselineDraftId": "36eec96c-4104-4cbe-aa95-4af7e4805b1f",
+      "activeDraftId": "c068a6bd-565e-49e2-ba3b-4c5c2119400e",
+      "branches": [
+        {
+          "draftId": "c068a6bd-565e-49e2-ba3b-4c5c2119400e",
+          "title": "Contour - Typographic Portfolio",
+          "direction": "editorial, type-led",
+          "version": 2,
+          "chosen": true
+        },
+        {
+          "draftId": "5c123408-9027-4bd8-831e-7c465eb22703",
+          "title": "Contour Terminal Mode",
+          "direction": "instrument panel, dense",
+          "rejected": "9-13px type fails the 390px one-handed test; invented labels (Net Liquidity, VAMI.INDEX) the app does not use"
+        }
+      ],
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "src/app/portfolio/page.tsx",
+        "src/app/layout.tsx",
+        "src/components/TabBar.tsx",
+        "src/components/CoinIcon.tsx",
+        "src/components/ValueChart.tsx",
+        "src/lib/display.ts",
+        "src/app/globals.css"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "9c2f63a9944ade62",
+        "src/app/portfolio/page.tsx": "92dbf8f3a2ea632b",
+        "src/app/layout.tsx": "b8f68254c16de4a7",
+        "src/components/TabBar.tsx": "43c3327a4a1cfa0d",
+        "src/components/CoinIcon.tsx": "bff59c76884724ad",
+        "src/components/ValueChart.tsx": "58905751be69db21",
+        "src/lib/display.ts": "645cd35b6a8a7da2",
+        "src/app/globals.css": "769edf77bd0d101a"
+      },
+      "activeVersion": 2,
+      "activeDirection": "editorial, type-led; refined to restore the full range picker, realised P&L, fees, cash, and the mobile disclosure"
+    }
+  }
+}

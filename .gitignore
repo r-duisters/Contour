@@ -59,3 +59,4 @@ android/app/src/main/assets/public/
 # regenerable. The design system itself is a real document and stays tracked.
 .superdesign/init/
 .superdesign/website/
+.superdesign/tmp/
