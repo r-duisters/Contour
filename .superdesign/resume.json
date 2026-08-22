@@ -44,20 +44,21 @@
       ],
       "fingerprints": {
         ".superdesign/design-system.md": "9c2f63a9944ade62",
-        "src/app/portfolio/page.tsx": "92dbf8f3a2ea632b",
+        "src/app/portfolio/page.tsx": "4da2928189af8766",
         "src/app/layout.tsx": "b8f68254c16de4a7",
         "src/components/TabBar.tsx": "43c3327a4a1cfa0d",
         "src/components/CoinIcon.tsx": "bff59c76884724ad",
-        "src/components/ValueChart.tsx": "58905751be69db21",
-        "src/lib/display.ts": "645cd35b6a8a7da2",
+        "src/components/ValueChart.tsx": "96e521c30847dda8",
+        "src/lib/display.ts": "6bd62023bad005a2",
         "src/app/globals.css": "769edf77bd0d101a"
       },
-      "activeVersion": 5,
-      "activeDirection": "editorial, type-led. Portfolio carries only value and today's change (percent and amount together); unrealised P&L, cash, cost basis, realised P&L and fees all live on Insights. Ranges: 1D/1W/1M/1Y/All with YTD/2Y/5Y behind More.",
+      "activeVersion": 7,
+      "activeDirection": "editorial, type-led \u2014 SHIPPED. Portfolio carries value and the period change only. Draft synced to the implementation at v7: range buttons text-xs (not 10px pills), headline 34px on the phone stepping to 42px at md:.",
       "notes": [
-        "v4 and v5 were authored deterministically via import-design-draft, not generated: every one of the three generations dropped content it was told to keep (ranges in v1, secondary figures in both branches, the periods behind More in v3).",
-        "Open question for implementation: range buttons are text-[10px], the same size that disqualified the terminal direction. Raise to 12px when this lands in code."
-      ]
+        "The code is the source of truth for this target now; it is implemented. Sync the draft to the code, not the other way round, unless deliberately exploring a change.",
+        "Versions 4-7 are hand-authored imports, not generations: all three generations dropped content they were told to keep."
+      ],
+      "implemented": true
     },
     "/insights": {
       "route": "/insights",
@@ -88,6 +89,7 @@
   },
   "conventions": {
     "timeframes": "One canonical list in src/lib/ranges.ts. Screens offer a subset via RangePicker's `only` prop \u2014 never a second list. Everyday periods (1D 1W 1M 1Y All) stay inline; the rest collapse behind More on a phone and sit inline from md: up. The selected period never collapses.",
-    "importCaveat": "import-design-draft rejects `{}` in inline handlers as an unresolved JSX expression. Write brace-free JS (arrow bodies without braces)."
+    "importCaveat": "import-design-draft rejects `{}` in inline handlers as an unresolved JSX expression. Write brace-free JS (arrow bodies without braces).",
+    "chartAxes": "Price axis only where the level is read. Portfolio value and the Insights comparison hide it; the asset price chart keeps it with axisMoney() compact labels."
   }
 }
