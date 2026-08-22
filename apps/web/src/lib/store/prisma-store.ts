@@ -25,6 +25,10 @@ import { prisma as defaultClient } from "../db";
  * comes back here in the order the device store will also produce.
  */
 
+function toPortfolio(row: { id: string; name: string; createdAt: Date; updatedAt: Date }): Portfolio {
+  return { id: row.id, name: row.name, createdAt: row.createdAt.getTime(), updatedAt: row.updatedAt.getTime() };
+}
+
 function toTransaction(row: PrismaTransaction): Transaction {
   return {
     id: row.id,
@@ -103,7 +107,7 @@ export function PrismaStore(client: PrismaClient = defaultClient): Store {
     portfolios: {
       async list(): Promise<Portfolio[]> {
         const rows = await client.portfolio.findMany({ orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
-        return rows.map((p) => ({ id: p.id, name: p.name, createdAt: p.createdAt.getTime() }));
+        return rows.map(toPortfolio);
       },
       async get(id: string): Promise<PortfolioWithTransactions | null> {
         const row = await client.portfolio.findUnique({
@@ -111,20 +115,13 @@ export function PrismaStore(client: PrismaClient = defaultClient): Store {
           include: { transactions: { orderBy: [{ time: "asc" }, { id: "asc" }] } },
         });
         if (!row) return null;
-        return {
-          id: row.id,
-          name: row.name,
-          createdAt: row.createdAt.getTime(),
-          transactions: row.transactions.map(toTransaction),
-        };
+        return { ...toPortfolio(row), transactions: row.transactions.map(toTransaction) };
       },
       async create(name: string): Promise<Portfolio> {
-        const row = await client.portfolio.create({ data: { name } });
-        return { id: row.id, name: row.name, createdAt: row.createdAt.getTime() };
+        return toPortfolio(await client.portfolio.create({ data: { name } }));
       },
       async rename(id: string, name: string): Promise<Portfolio> {
-        const row = await client.portfolio.update({ where: { id }, data: { name } });
-        return { id: row.id, name: row.name, createdAt: row.createdAt.getTime() };
+        return toPortfolio(await client.portfolio.update({ where: { id }, data: { name } }));
       },
       async remove(id: string): Promise<void> {
         await client.portfolio.delete({ where: { id } });
@@ -156,6 +153,13 @@ export function PrismaStore(client: PrismaClient = defaultClient): Store {
       },
       async removeAllIn(portfolioId: string): Promise<void> {
         await client.transaction.deleteMany({ where: { portfolioId } });
+      },
+      async countByPortfolio(): Promise<Record<string, number>> {
+        // A real aggregate — one query, not one per portfolio — so listing
+        // portfolios never has to pull every transaction row just to count
+        // them.
+        const rows = await client.transaction.groupBy({ by: ["portfolioId"], _count: { _all: true } });
+        return Object.fromEntries(rows.map((r) => [r.portfolioId, r._count._all]));
       },
     },
     settings: {

@@ -30,7 +30,12 @@ export type Transaction = {
   note: string | null;
 };
 
-export type Portfolio = { id: string; name: string; createdAt: number };
+/**
+ * `updatedAt` is database-maintained (Prisma's `@updatedAt`), so a caller
+ * never sets it directly — it only ever comes back from a read, and it
+ * advances whenever `rename` touches the row.
+ */
+export type Portfolio = { id: string; name: string; createdAt: number; updatedAt: number };
 export type PortfolioWithTransactions = Portfolio & { transactions: Transaction[] };
 
 export type Settings = {
@@ -62,6 +67,14 @@ export interface Store {
     update(id: string, patch: TransactionPatch): Promise<Transaction>;
     remove(id: string): Promise<void>;
     removeAllIn(portfolioId: string): Promise<void>;
+    /**
+     * One row count per portfolio id present in the store, keyed by portfolio
+     * id. A plain `GROUP BY`-shaped aggregate — implementable as a real
+     * aggregate query on both Prisma and device SQLite — so `GET
+     * /api/portfolios` never has to fetch every transaction row just to
+     * report how many there are.
+     */
+    countByPortfolio(): Promise<Record<string, number>>;
   };
   settings: {
     get(): Promise<Settings>;

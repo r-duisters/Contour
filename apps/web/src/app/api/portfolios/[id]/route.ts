@@ -47,7 +47,12 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   // store-contract.ts's note on `rename` for why that stays unmapped.
   const updated = await renamePortfolio(store, id, body.data.name);
   return NextResponse.json({
-    portfolio: { id: updated.id, name: updated.name, createdAt: new Date(updated.createdAt).toISOString() },
+    portfolio: {
+      id: updated.id,
+      name: updated.name,
+      createdAt: new Date(updated.createdAt).toISOString(),
+      updatedAt: new Date(updated.updatedAt).toISOString(),
+    },
   });
 }
 

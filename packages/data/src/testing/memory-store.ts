@@ -34,7 +34,13 @@ function nextId(prefix: string): string {
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 export type StoreSeed = {
-  portfolios?: { id?: string; name: string; createdAt?: number; transactions?: NewTransaction[] }[];
+  portfolios?: {
+    id?: string;
+    name: string;
+    createdAt?: number;
+    updatedAt?: number;
+    transactions?: NewTransaction[];
+  }[];
   settings?: SettingsPatch;
 };
 
@@ -55,10 +61,12 @@ export function MemoryStore(seed?: StoreSeed): Store {
   }
 
   for (const p of seed?.portfolios ?? []) {
+    const createdAt = p.createdAt ?? Date.now();
     const row: Portfolio = {
       id: p.id ?? nextId("pf"),
       name: p.name,
-      createdAt: p.createdAt ?? Date.now(),
+      createdAt,
+      updatedAt: p.updatedAt ?? createdAt,
     };
     portfolios.set(row.id, row);
     for (const tx of p.transactions ?? []) insert(row.id, tx);
@@ -86,7 +94,8 @@ export function MemoryStore(seed?: StoreSeed): Store {
         };
       },
       async create(name: string): Promise<Portfolio> {
-        const row: Portfolio = { id: nextId("pf"), name, createdAt: Date.now() };
+        const now = Date.now();
+        const row: Portfolio = { id: nextId("pf"), name, createdAt: now, updatedAt: now };
         portfolios.set(row.id, row);
         return { ...row };
       },
@@ -94,6 +103,8 @@ export function MemoryStore(seed?: StoreSeed): Store {
         const p = portfolios.get(id);
         if (!p) throw new Error(`MemoryStore: no portfolio ${id}`);
         p.name = name;
+        // Mirrors Prisma's `@updatedAt`, which stamps on every write to the row.
+        p.updatedAt = Date.now();
         return { ...p };
       },
       async remove(id: string): Promise<void> {
@@ -124,6 +135,11 @@ export function MemoryStore(seed?: StoreSeed): Store {
       },
       async removeAllIn(portfolioId: string): Promise<void> {
         for (const t of inPortfolio(portfolioId)) transactions.delete(t.id);
+      },
+      async countByPortfolio(): Promise<Record<string, number>> {
+        const counts: Record<string, number> = {};
+        for (const t of transactions.values()) counts[t.portfolioId] = (counts[t.portfolioId] ?? 0) + 1;
+        return counts;
       },
     },
     settings: {

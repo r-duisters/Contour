@@ -44,6 +44,17 @@ export function runStoreContract(name: string, makeStore: () => Promise<Store>):
       expect(list.find((p) => p.id === created.id)?.name).toBe("Main");
     });
 
+    it("stamps createdAt and updatedAt on create, and advances updatedAt (not createdAt) on rename", async () => {
+      const created = await store.portfolios.create("Main");
+      expect(created.updatedAt).toBe(created.createdAt);
+
+      // A real clock can tick between create and rename, so this only pins
+      // direction, not a minimum delta.
+      const renamed = await store.portfolios.rename(created.id, "Retirement");
+      expect(renamed.createdAt).toBe(created.createdAt);
+      expect(renamed.updatedAt).toBeGreaterThanOrEqual(created.updatedAt);
+    });
+
     it("renames a portfolio", async () => {
       const created = await store.portfolios.create("Main");
       const renamed = await store.portfolios.rename(created.id, "Retirement");
@@ -112,6 +123,20 @@ export function runStoreContract(name: string, makeStore: () => Promise<Store>):
       const n = await store.transactions.addMany(p.id, [tx({ time: 1 }), tx({ time: 2 }), tx({ time: 3 })]);
       expect(n).toBe(3);
       expect((await store.portfolios.get(p.id))?.transactions).toHaveLength(3);
+    });
+
+    it("counts transactions per portfolio in one aggregate, omitting a portfolio with none", async () => {
+      const a = await store.portfolios.create("A");
+      const b = await store.portfolios.create("B");
+      const empty = await store.portfolios.create("Empty");
+      await store.transactions.addMany(a.id, [tx({ time: 1 }), tx({ time: 2 }), tx({ time: 3 })]);
+      await store.transactions.add(b.id, tx());
+
+      const counts = await store.transactions.countByPortfolio();
+
+      expect(counts[a.id]).toBe(3);
+      expect(counts[b.id]).toBe(1);
+      expect(counts[empty.id]).toBeUndefined();
     });
 
     it("applies a partial patch and leaves the other fields alone", async () => {
