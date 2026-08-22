@@ -83,10 +83,11 @@ Rules that keep it coherent:
   belong on the portfolio page.
 - **One question per page.** Portfolio: *what is it worth and what has it done
   over the chosen period* — value and change, nothing else. Insights: *how has
-  it performed, and what is the position* — benchmarks, allocation, and the
-  accounting figures (cost basis, unrealised, realised, fees, cash). Chart:
-  *the indicator.* More: *everything else.* If two pages answer the same
-  question, one is wrong.
+  it performed, and against what* — benchmarks, allocation, contributors,
+  activity. Ledger: *what went in, what came out, what it cost* — cost basis,
+  unrealised, realised, fees, cash, net invested by year, and the January
+  valuation. Chart: *the indicator.* More: *everything else.* If two pages
+  answer the same question, one is wrong.
 - **Progressive disclosure over density.** Rows expand or link; forms hide
   behind a button; timeframes beyond the everyday five hide behind "More" on
   phones and appear inline on desktop.

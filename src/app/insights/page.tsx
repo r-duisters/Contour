@@ -11,7 +11,7 @@ const ComparisonChart = dynamic(() => import("@/components/ComparisonChart"), {
 });
 import { BarChart3, TrendingDown, TrendingUp } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
-import { money as fmtMoney, percent, quantity, setDisplayCurrency } from "@/lib/display";
+import { money as fmtMoney, percent, setDisplayCurrency } from "@/lib/display";
 import { usePrivacy } from "@/components/usePrivacy";
 import { classSplit, concentration, contributions, type TradeStats } from "@/lib/insights";
 import type { ValuedHolding } from "@/lib/portfolio";
@@ -50,21 +50,10 @@ const pct = (n: number) => percent(n);
 export default function InsightsPage() {
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
   const [holdings, setHoldings] = useState<Holding[] | null>(null);
-  const [totals, setTotals] = useState<{
-    value: number; costBasis: number; realizedPnl: number; fees: number;
-    unrealizedPnl: number; cash?: number;
-  } | null>(null);
   const [stats, setStats] = useState<TradeStats | null>(null);
-  const [byYear, setByYear] = useState<{ year: number; net: number }[]>([]);
   const [benchKey, setBenchKey] = useState<string>("sp500");
   const [rows, setRows] = useState<RangeStat[]>([]);
   const [loadingRows, setLoadingRows] = useState(false);
-  const [snapDate, setSnapDate] = useState("");
-  const [snap, setSnap] = useState<{
-    date: string; total: number; unpriced: number;
-    rows: { symbol: string; assetType: string; quantity: number; value: number | null }[];
-  } | null>(null);
-  const [snapLoading, setSnapLoading] = useState(false);
   const [chartRange, setChartRange] = useState<string>("1y");
   const [chartMode, setChartMode] = useState<"money" | "pct">("money");
   const [curve, setCurve] = useState<{
@@ -72,22 +61,6 @@ export default function InsightsPage() {
     bench: { t: number; v: number }[] | null;
   }>({ you: null, bench: null });
   usePrivacy(); // re-render when amounts are hidden or shown
-
-  async function loadSnapshot() {
-    if (!portfolioId) return;
-    setSnapLoading(true);
-    const d = await fetch(`/api/portfolios/${portfolioId}/snapshot?date=${snapDate}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .catch(() => null);
-    setSnap(d);
-    setSnapLoading(false);
-  }
-
-  // Set after mount rather than during render: anything derived from the clock
-  // differs between the server's HTML and the client's first render.
-  useEffect(() => {
-    setSnapDate(`${new Date().getFullYear()}-01-01`);
-  }, []);
 
   useEffect(() => {
     fetch("/api/portfolios")
@@ -100,11 +73,11 @@ export default function InsightsPage() {
     if (!portfolioId) return;
     fetch(`/api/portfolios/${portfolioId}/valuation`)
       .then((r) => r.json())
-      .then((d) => { setDisplayCurrency(d.currency ?? "USD"); setHoldings(d.holdings); setTotals(d.totals); })
+      .then((d) => { setDisplayCurrency(d.currency ?? "USD"); setHoldings(d.holdings); })
       .catch(() => setHoldings([]));
     fetch(`/api/portfolios/${portfolioId}/insights`)
       .then((r) => r.json())
-      .then((d) => { setStats(d.stats); setByYear(d.byYear ?? []); })
+      .then((d) => { setStats(d.stats); })
       .catch(() => {});
   }, [portfolioId]);
 
@@ -357,118 +330,6 @@ export default function InsightsPage() {
             )}
           </Section>
 
-          <Section title="Net invested per year">
-            <ul className="space-y-1">
-              {byYear.map((y) => {
-                const max = Math.max(...byYear.map((r) => Math.abs(r.net)), 1);
-                return (
-                  <li key={y.year} className="flex items-center gap-3 text-sm">
-                    <span className="w-12 text-neutral-500">{y.year}</span>
-                    <span className="flex-1 h-2 bg-neutral-900 rounded overflow-hidden flex">
-                      <span
-                        className={y.net >= 0 ? "h-full bg-blue-500" : "h-full bg-amber-500"}
-                        style={{ width: `${(Math.abs(y.net) / max) * 100}%` }}
-                      />
-                    </span>
-                    <span className={`w-28 text-right ${y.net >= 0 ? "text-neutral-300" : "text-amber-500"}`}>
-                      {money(y.net)}
-                    </span>
-                  </li>
-                );
-              })}
-              {byYear.length === 0 && <li className="text-sm text-neutral-500">No transactions.</li>}
-            </ul>
-            <p className="text-xs text-neutral-600 mt-2">
-              Positive means money went in that year; negative means you took more out than you put in.
-            </p>
-          </Section>
-
-          <Section title="Value on a date">
-            <div className="flex items-center gap-2 mb-3 flex-wrap">
-              <input
-                type="date"
-                className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm"
-                value={snapDate}
-                onChange={(e) => setSnapDate(e.target.value)}
-              />
-              <button onClick={loadSnapshot} disabled={!snapDate}
-                      className="bg-blue-600 disabled:opacity-50 text-white rounded px-3 py-1 text-sm">
-                Value it
-              </button>
-              {snapLoading && <span className="text-xs text-neutral-500">valuing…</span>}
-              <span className="flex-1" />
-              {snap && (
-                <span className="text-sm">
-                  {money(snap.total)}
-                  <span className="text-neutral-500 text-xs"> on {snap.date}</span>
-                </span>
-              )}
-            </div>
-            {snap && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="text-neutral-500 text-xs text-left">
-                    <tr>
-                      <th className="py-2 pr-4">Asset</th>
-                      <th className="py-2 pr-4">Type</th>
-                      <th className="py-2 pr-4 text-right">Quantity</th>
-                      <th className="py-2 text-right">Value</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-neutral-800">
-                    {snap.rows.map((r) => (
-                      <tr key={`${r.symbol}-${r.assetType}`}>
-                        <td className="py-2 pr-4 font-mono">{r.symbol}</td>
-                        <td className="py-2 pr-4 text-neutral-500">{r.assetType}</td>
-                        <td className="py-2 pr-4 text-right tabular-nums">
-                          {quantity(r.quantity)}
-                        </td>
-                        <td className="py-2 text-right tabular-nums">
-                          {r.value !== null ? money(r.value) : <span className="text-neutral-600">no price</span>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            <p className="text-xs text-neutral-600 mt-2">
-              Holdings and prices as they stood on that date, converted at that date&rsquo;s exchange rate.
-              Dutch box 3 is assessed on 1 January.
-              {snap && snap.unpriced > 0 && ` ${snap.unpriced} holding(s) had no price then and are excluded.`}
-            </p>
-          </Section>
-
-          {totals && (
-            <Section title="Position">
-              {/* These moved off the portfolio screen, which now answers only
-                  "what is it worth today". They were a footnote here before,
-                  which was not a home. */}
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3">
-                <StatTile label="Cost basis" value={money(totals.costBasis)} />
-                <StatTile
-                  label="Unrealised"
-                  value={money(totals.unrealizedPnl)}
-                  signed={totals.unrealizedPnl}
-                  sub={totals.costBasis > 0 ? (
-                    <span className="text-xs text-neutral-500">
-                      {((totals.unrealizedPnl / totals.costBasis) * 100).toFixed(1)}% on cost
-                    </span>
-                  ) : undefined}
-                />
-                <StatTile label="Realised" value={money(totals.realizedPnl)} signed={totals.realizedPnl} />
-                <StatTile label="Fees paid" value={money(totals.fees)} />
-                {typeof totals.cash === "number" && totals.cash !== 0 && (
-                  <StatTile label="Cash" value={money(totals.cash)} />
-                )}
-                <StatTile label="Current value" value={money(totals.value)} />
-              </div>
-              <p className="text-xs text-neutral-600 mt-2 mb-10">
-                Cash is counted from recorded transfers only and sits beside the portfolio,
-                not inside its value.
-              </p>
-            </Section>
-          )}
         </>
       )}
     </main>

@@ -68,25 +68,27 @@
       "activeDraftId": "4359be17-2576-4ddb-9d01-f5e359908738",
       "activeVersion": 2,
       "origin": "flow-page from /portfolio v5",
-      "activeDirection": "performance only \u2014 benchmark comparison, by-period table, allocation, contributors, activity. Accounting figures deliberately excluded.",
+      "activeDirection": "performance only \u2014 SHIPPED. Accounting sections (position, net invested per year, value on a date) moved to /ledger.",
       "contextFiles": [
         "BRAND.md",
         ".superdesign/design-system.md",
         "src/app/insights/page.tsx",
         "src/components/TabBar.tsx",
         "src/lib/display.ts"
-      ]
+      ],
+      "implemented": true
     },
     "/ledger": {
       "route": "/ledger",
-      "entry": null,
+      "entry": "src/app/ledger/page.tsx",
       "device": "mobile",
       "new": true,
       "activeDraftId": "640cb1bb-e716-436d-9bfc-9a54df9a1a3e",
       "activeVersion": 1,
       "origin": "flow-page from /portfolio v5",
-      "activeDirection": "new screen: cost basis, unrealised, realised, fees, cash; net invested per year; value on a date (box 3); cash by currency.",
-      "openQuestion": "navigation \u2014 no route exists yet; tab bar holds four and adding a fifth is a real cost. Candidates: behind More, or replacing Chart."
+      "activeDirection": "SHIPPED \u2014 position economics as rows, net invested per year as centre-anchored bars, value on a date (box 3), cash per currency.",
+      "implemented": true,
+      "navigation": "First item under More. The tab bar stays at four; Chart was not displaced."
     }
   },
   "conventions": {

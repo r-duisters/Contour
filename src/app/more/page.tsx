@@ -1,9 +1,11 @@
 import Link from "next/link";
 import PortfolioManager from "@/components/PortfolioManager";
 import PrivacyToggle from "@/components/PrivacyToggle";
-import { Bell, Download, FlaskConical, History, Settings } from "lucide-react";
+import { Bell, BookText, Download, FlaskConical, History, Settings } from "lucide-react";
 
 const LINKS = [
+  { href: "/ledger", label: "Ledger", Icon: BookText,
+    hint: "Cost basis, realised profit, fees, and the January valuation" },
   { href: "/alerts", label: "Alerts", Icon: Bell, hint: "Price targets and indicator signals" },
   { href: "/settings", label: "Settings", Icon: Settings, hint: "Currency, notifications, passkeys" },
 ];
