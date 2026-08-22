@@ -120,7 +120,9 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
       </Link>
 
       <div className="flex items-center gap-3 mb-6">
-        <CoinIcon symbol={symbol} size={40} assetType={holding?.assetType} />
+        {holding === undefined
+          ? <span className="w-10 h-10 rounded-full bg-neutral-900 border border-neutral-800 shrink-0" />
+          : <CoinIcon symbol={symbol} size={40} assetType={holding?.assetType} />}
         <div>
           <h1 className="text-xl md:text-2xl font-semibold font-mono">{symbol}</h1>
           {holding && (

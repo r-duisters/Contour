@@ -34,13 +34,18 @@ export default function CoinIcon({
   size?: number;
   assetType?: "crypto" | "equity" | "cash";
 }) {
-  const [failed, setFailed] = useState(false);
+  // Remember *which* source failed. A page that renders the icon before it
+  // knows the asset type would otherwise guess crypto, 404, and keep showing
+  // initials even after the type arrives and a real logo becomes available.
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const base = baseAsset(symbol);
 
   // Cash has no logo anywhere; equities have one, but not on the coin CDN.
   const src = assetType === "equity"
     ? `${STOCK_LOGOS}/${encodeURIComponent(symbol.toUpperCase())}`
     : `${COIN_CDN}/${base.toLowerCase()}.svg`;
+
+  const failed = failedSrc === src;
 
   if (failed || assetType === "cash") {
     return (
@@ -70,7 +75,7 @@ export default function CoinIcon({
           aria-hidden
           loading="lazy"
           style={{ width: size, height: size, objectFit: "cover" }}
-          onError={() => setFailed(true)}
+          onError={() => setFailedSrc(src)}
         />
       </span>
     );
@@ -86,7 +91,7 @@ export default function CoinIcon({
       aria-hidden
       loading="lazy"
       className="rounded-full shrink-0"
-      onError={() => setFailed(true)}
+      onError={() => setFailedSrc(src)}
     />
   );
 }
