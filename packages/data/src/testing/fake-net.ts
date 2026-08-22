@@ -8,8 +8,10 @@ export type FakeNetInstance = Net & {
 };
 
 const FAILURE = Symbol("FakeNet.failure");
+const REJECTION = Symbol("FakeNet.rejection");
 
 type Failure = { [FAILURE]: true; status: number; body: unknown };
+type Rejection = { [REJECTION]: true; error: unknown };
 
 /**
  * A route that answers with a non-2xx, so a test can drive the `return null` /
@@ -19,8 +21,24 @@ export function respondWith(status: number, body: unknown = ""): unknown {
   return { [FAILURE]: true, status, body } satisfies Failure;
 }
 
+/**
+ * A route that never gets an HTTP response at all — DNS failure, connection
+ * reset, timeout. Distinct from `respondWith`: a non-2xx is a value `request()`
+ * hands back, but a transport failure is a rejected promise on every method,
+ * `request()` included (see `web-net.ts` — its `fetch` call has nothing
+ * catching this). A caller that only ever exercises `respondWith` never learns
+ * whether it re-swallows this case the way the code it replaced did.
+ */
+export function rejectWith(error: unknown): unknown {
+  return { [REJECTION]: true, error } satisfies Rejection;
+}
+
 function isFailure(value: unknown): value is Failure {
   return typeof value === "object" && value !== null && FAILURE in value;
+}
+
+function isRejection(value: unknown): value is Rejection {
+  return typeof value === "object" && value !== null && REJECTION in value;
 }
 
 function asText(body: unknown): string {
@@ -61,6 +79,7 @@ export function FakeNet(routes: Record<string, unknown>): FakeNetInstance {
   // proceeding with an error body parsed as data.
   function checked(url: string): unknown {
     const value = resolve(url);
+    if (isRejection(value)) throw value.error;
     if (isFailure(value)) {
       throw new Error(`GET ${url} -> ${value.status}: ${asText(value.body).slice(0, 500)}`);
     }
@@ -80,6 +99,10 @@ export function FakeNet(routes: Record<string, unknown>): FakeNetInstance {
     async request(url: string, init?: RequestInit): Promise<NetResponse> {
       calls.push({ url, init });
       const value = resolve(url);
+      // A rejection rejects `request()` too — `fetch` itself throws before
+      // there is any status to report, so there is no `{ ok: false }` shape
+      // to hand back.
+      if (isRejection(value)) throw value.error;
       const failure = isFailure(value) ? value : null;
       const body = failure ? failure.body : value;
       return {

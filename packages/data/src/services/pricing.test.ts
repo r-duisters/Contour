@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MemoryStore } from "../testing/memory-store";
-import { FakeNet, respondWith } from "../testing/fake-net";
+import { FakeNet, rejectWith, respondWith } from "../testing/fake-net";
 import { displayContext } from "./pricing";
 
 const EURUSD = "https://api.frankfurter.dev/v1/latest?base=EUR&symbols=USD";
@@ -32,6 +32,17 @@ describe("displayContext", () => {
   it("EUR settings with a failed rate lookup fall back to displayUsd 0 and toDisplay 1, leaving currency EUR for the route to relabel", async () => {
     const store = MemoryStore({ settings: { displayCurrency: "EUR" } });
     const net = FakeNet({ [EURUSD]: respondWith(500, "upstream down") });
+
+    const ctx = await displayContext(store, net);
+
+    expect(ctx.currency).toBe("EUR");
+    expect(ctx.displayUsd).toBe(0);
+    expect(ctx.toDisplay).toBe(1);
+  });
+
+  it("EUR settings with an unreachable rate host (transport rejection, not a bad status) fall back to displayUsd 0 and toDisplay 1 too, the same as old fx.ts's blanket try/catch", async () => {
+    const store = MemoryStore({ settings: { displayCurrency: "EUR" } });
+    const net = FakeNet({ [EURUSD]: rejectWith(new TypeError("fetch failed")) });
 
     const ctx = await displayContext(store, net);
 
