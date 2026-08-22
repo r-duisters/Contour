@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { fetchLatestEurUsd } from "@/lib/fx";
 import { toDisplayTxs } from "@/lib/display-tx";
 import { flowsByYear, tradeStats } from "@/lib/insights";
+import { displayContext } from "@/data/services/pricing";
+import { deps } from "@/lib/deps";
 
 export const dynamic = "force-dynamic";
 
@@ -18,13 +19,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   });
   if (!portfolio) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  const settings = await prisma.settings.findUnique({
-    where: { id: 1 },
-    select: { displayCurrency: true },
-  });
-  const currency = settings?.displayCurrency === "EUR" ? "EUR" : "USD";
-  const displayUsd = currency === "EUR" ? ((await fetchLatestEurUsd()) ?? 0) : 1;
-  const toDisplay = displayUsd > 0 ? 1 / displayUsd : 1;
+  const { store, net } = deps();
+  const { currency, toDisplay, displayUsd } = await displayContext(store, net);
 
   // Moving euros between a bank and an exchange is not a trade, and counting
   // it as one inflated every figure here.
