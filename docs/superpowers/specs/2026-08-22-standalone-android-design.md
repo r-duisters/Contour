@@ -78,10 +78,30 @@ apps/mobile/         Next app — subset of pages, output: "export",
 npm workspaces. No new build tool; `packages/*` are TypeScript sources
 consumed directly through workspace path mapping, not published artefacts.
 
-Of the 38 files in `src/lib`, exactly two do not move: `db.ts` (the Prisma
-client) and `webauthn.ts` (imports `@simplewebauthn/server`). Both belong to
-`apps/web`. That ratio is the whole reason this is a port and not a rewrite,
-and it is a property worth actively defending — see §9.
+Six of the 38 files in `src/lib` do not move, each because it imports
+something that only exists on a server:
+
+| File | Server dependency |
+|---|---|
+| `db.ts` | `@prisma/client` |
+| `webauthn.ts` | `@simplewebauthn/server`, `next/server` |
+| `auth.ts` (and its test) | `crypto` — `scrypt` password hashing |
+| `pinescript/library.ts` | `node:fs/promises` |
+| `notifier/` (whole directory) | `web-push`, and it is alerts infrastructure |
+
+`auth.ts` is no loss to the mobile build, which has no password to hash: it
+locks with the device, per §7.
+
+`binance.ts` is a fifth case with a different remedy: it opens with
+`import WebSocket from "ws"`, which would break a browser bundle. The import
+exists only for `subscribeKlines`, which has **zero callers anywhere in the
+repository**. It is dead code, and deleting it removes both the function and
+the `ws` dependency rather than working around them.
+
+That leaves 31 of 38 files moving untouched, which is the whole reason this is
+a port and not a rewrite — and it is a property worth defending mechanically
+rather than by intention, so `packages/core` gets a test that fails if anyone
+imports a server-only module into it.
 
 `TabBar` and `TopNav` move to `packages/ui` but stop hard-coding their
 destinations. Each app passes its own list, because the mobile app has fewer
