@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Transaction } from "@prisma/client";
+import type { Transaction } from "@/data/ports/store";
 
 export const TxInput = z.object({
   symbol: z.string().min(1).max(20),

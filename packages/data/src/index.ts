@@ -17,3 +17,4 @@ export type {
 } from "./ports/store";
 export { DEFAULT_SETTINGS } from "./ports/store";
 export type { Net, NetResponse } from "./ports/net";
+export { NotFoundError } from "./errors";
