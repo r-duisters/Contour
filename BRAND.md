@@ -296,6 +296,11 @@ A toggle at the top of More hides every amount — money and quantities — whil
 percentages, tickers and shares stay visible, so the app can be read in public
 without showing what it is worth.
 
+On Android the window is also marked `FLAG_SECURE` while the app is
+backgrounded, so the recents card shows a blank rather than whatever was on
+screen. That snapshot is taken by the system and predates any toggle, so it
+cannot be solved in the web layer.
+
 **Design every screen twice, with figures and without.** Anything revealing
 size must respect it, including chart annotations and axis labels, not just
 body text. Format through `lib/display` and it happens automatically.
