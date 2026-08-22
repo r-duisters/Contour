@@ -21,7 +21,10 @@ export const metadata: Metadata = {
   title: "Contour",
   description: "Portfolio tracking, risk-metric charting, and alerts.",
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Contour" },
-  icons: { apple: "/icons/apple-touch-icon.png" },
+  // Both are named explicitly. Setting `icons` at all suppresses Next's
+  // app/icon file convention, so a tab icon left to the convention silently
+  // does not render.
+  icons: { icon: "/icons/favicon-64.png", apple: "/icons/apple-touch-icon.png" },
 };
 
 export const viewport: Viewport = {
