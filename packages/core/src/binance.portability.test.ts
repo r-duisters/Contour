@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
  */
 describe("binance.ts is safe to bundle for a browser", () => {
   it("does not import ws", () => {
-    const src = readFileSync(join(process.cwd(), "src/lib/binance.ts"), "utf8");
+    const src = readFileSync(join(process.cwd(), "packages/core/src/binance.ts"), "utf8");
     expect(src).not.toMatch(/from\s+"ws"/);
   });
 });
