@@ -60,3 +60,7 @@ android/app/src/main/assets/public/
 .superdesign/init/
 .superdesign/website/
 .superdesign/tmp/
+
+# Parity baseline: captured route bodies, containing the owner's real holdings.
+# Regenerate with `node scripts/parity.mjs capture .parity-baseline.json <path...>`.
+.parity-baseline.json

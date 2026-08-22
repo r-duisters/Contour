@@ -1,0 +1,50 @@
+import type { Net } from "../ports/net";
+
+export type FakeNetCall = { url: string; init?: RequestInit };
+
+export type FakeNetInstance = Net & {
+  /** Every request made, in order, for assertions about what a service asked for. */
+  calls: FakeNetCall[];
+};
+
+/**
+ * A `Net` backed by a lookup table, keyed by URL substring.
+ *
+ * An unmatched URL throws rather than returning an empty payload. A fake that
+ * answers everything makes a service test pass while the real request is
+ * pointed at the wrong host — the exact bug the test existed to catch.
+ *
+ * A route value that is a function is called with the URL, so a test can vary
+ * the response by query string; anything else is returned as-is. `text()`
+ * returns strings unchanged and JSON-encodes everything else.
+ */
+export function FakeNet(routes: Record<string, unknown>): FakeNetInstance {
+  const calls: FakeNetCall[] = [];
+
+  function resolve(url: string): unknown {
+    // Longest key first, so a specific route can override a general one
+    // regardless of the order the object literal happened to be written in.
+    const keys = Object.keys(routes).sort((a, b) => b.length - a.length);
+    const key = keys.find((k) => url.includes(k));
+    if (key === undefined) {
+      throw new Error(
+        `FakeNet: no route matches ${url}. Known routes: ${keys.length ? keys.join(", ") : "(none)"}`,
+      );
+    }
+    const value = routes[key];
+    return typeof value === "function" ? (value as (u: string) => unknown)(url) : value;
+  }
+
+  return {
+    calls,
+    async json<T>(url: string, init?: RequestInit): Promise<T> {
+      calls.push({ url, init });
+      return resolve(url) as T;
+    },
+    async text(url: string, init?: RequestInit): Promise<string> {
+      calls.push({ url, init });
+      const value = resolve(url);
+      return typeof value === "string" ? value : JSON.stringify(value);
+    },
+  };
+}
