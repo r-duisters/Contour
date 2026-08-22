@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/*
+ * Tailwind v4 discovers classes by scanning outward from this file, and
+ * packages/ui is outside that tree. Without this line every class used only
+ * by a moved component is dropped from the stylesheet — the build succeeds,
+ * the tests pass, and the app renders unstyled.
+ */
+@source "../../packages/ui/src";
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

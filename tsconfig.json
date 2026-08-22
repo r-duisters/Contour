@@ -4,7 +4,9 @@
     "plugins": [{ "name": "next" }],
     "paths": {
       "@/core/*": ["./packages/core/src/*"],
+      "@/ui/*": ["./packages/ui/src/*"],
       "@/lib/*": ["./packages/core/src/*", "./src/lib/*"],
+      "@/components/*": ["./packages/ui/src/*", "./src/components/*"],
       "@/*": ["./src/*"]
     }
   },
