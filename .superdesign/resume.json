@@ -58,6 +58,32 @@
         "v4 and v5 were authored deterministically via import-design-draft, not generated: every one of the three generations dropped content it was told to keep (ranges in v1, secondary figures in both branches, the periods behind More in v3).",
         "Open question for implementation: range buttons are text-[10px], the same size that disqualified the terminal direction. Raise to 12px when this lands in code."
       ]
+    },
+    "/insights": {
+      "route": "/insights",
+      "entry": "src/app/insights/page.tsx",
+      "device": "mobile",
+      "activeDraftId": "4359be17-2576-4ddb-9d01-f5e359908738",
+      "activeVersion": 1,
+      "origin": "flow-page from /portfolio v5",
+      "activeDirection": "performance only \u2014 benchmark comparison, by-period table, allocation, contributors, activity. Accounting figures deliberately excluded.",
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "src/app/insights/page.tsx",
+        "src/components/TabBar.tsx",
+        "src/lib/display.ts"
+      ]
+    },
+    "/ledger": {
+      "route": "/ledger",
+      "entry": null,
+      "device": "mobile",
+      "new": true,
+      "activeDraftId": "640cb1bb-e716-436d-9bfc-9a54df9a1a3e",
+      "activeVersion": 1,
+      "origin": "flow-page from /portfolio v5",
+      "activeDirection": "new screen: cost basis, unrealised, realised, fees, cash; net invested per year; value on a date (box 3); cash by currency.",
+      "openQuestion": "navigation \u2014 no route exists yet; tab bar holds four and adding a fifth is a real cost. Candidates: behind More, or replacing Chart."
     }
   }
 }
