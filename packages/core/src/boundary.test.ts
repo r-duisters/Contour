@@ -74,12 +74,13 @@ function isForbiddenImport(src: string, mod: string): boolean {
 }
 
 /**
- * A call to the global, as opposed to `net.json(...)` or `this.fetch(...)`. The
- * negative lookbehind for `.` is what separates the two; the word boundary
- * keeps `prefetch(` and `refetch(` out of it.
+ * A call to the global, as opposed to `net.json(...)`. The negative lookbehind
+ * for `.` separates the two and keeps `fetchKlines(` / `prefetch(` out of it —
+ * except that `globalThis.fetch(` and `window.fetch(` are the global reached
+ * through a member access, so those two receivers are named explicitly.
  */
 function usesGlobalFetch(src: string): boolean {
-  return /(?<![.\w$])fetch\s*\(/.test(src);
+  return /(?<![.\w$])fetch\s*\(/.test(src) || /\b(?:globalThis|window|self)\s*\.\s*fetch\s*\(/.test(src);
 }
 
 describe("packages/core, packages/ui and packages/data stay portable", () => {

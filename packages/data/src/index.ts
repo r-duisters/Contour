@@ -16,4 +16,4 @@ export type {
   TransactionPatch,
 } from "./ports/store";
 export { DEFAULT_SETTINGS } from "./ports/store";
-export type { Net } from "./ports/net";
+export type { Net, NetResponse } from "./ports/net";

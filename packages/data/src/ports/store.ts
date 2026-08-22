@@ -19,7 +19,14 @@ export type Transaction = {
   price: number;
   fee: number;
   time: number;
-  venue: string | null;
+  /**
+   * What the trade cost in the currency it was actually made in. Kept so a EUR
+   * investor's cost basis is not distorted by re-converting a USD figure at
+   * today's rate; `export.ts`, `display-tx.ts` and `cash.ts` all read them.
+   */
+  nativeCurrency: string | null;
+  nativePrice: number | null;
+  nativeFee: number | null;
   note: string | null;
 };
 

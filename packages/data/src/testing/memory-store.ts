@@ -23,8 +23,15 @@ let seq = 0;
 // fake needs.
 function nextId(prefix: string): string {
   seq += 1;
-  return `${prefix}_${seq.toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  // Zero-padded so ids sort lexically in creation order, which is what makes
+  // `cmp` below a stand-in for insertion order. Prisma's cuid has the same
+  // property (leading timestamp, then a monotonic counter), so both stores
+  // break ties on `time` and `createdAt` the same way — and real portfolios do
+  // contain rows sharing a timestamp.
+  return `${prefix}_${seq.toString(36).padStart(8, "0")}${Math.random().toString(36).slice(2, 8)}`;
 }
+
+const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 export type StoreSeed = {
   portfolios?: { id?: string; name: string; createdAt?: number; transactions?: NewTransaction[] }[];
@@ -65,7 +72,7 @@ export function MemoryStore(seed?: StoreSeed): Store {
     portfolios: {
       async list(): Promise<Portfolio[]> {
         return [...portfolios.values()]
-          .sort((a, b) => a.createdAt - b.createdAt)
+          .sort((a, b) => a.createdAt - b.createdAt || cmp(a.id, b.id))
           .map((p) => ({ ...p }));
       },
       async get(id: string): Promise<PortfolioWithTransactions | null> {
@@ -74,7 +81,7 @@ export function MemoryStore(seed?: StoreSeed): Store {
         return {
           ...p,
           transactions: inPortfolio(id)
-            .sort((a, b) => a.time - b.time)
+            .sort((a, b) => a.time - b.time || cmp(a.id, b.id))
             .map((t) => ({ ...t })),
         };
       },
@@ -90,7 +97,7 @@ export function MemoryStore(seed?: StoreSeed): Store {
         return { ...p };
       },
       async remove(id: string): Promise<void> {
-        portfolios.delete(id);
+        if (!portfolios.delete(id)) throw new Error(`MemoryStore: no portfolio ${id}`);
         for (const t of inPortfolio(id)) transactions.delete(t.id);
       },
       async count(): Promise<number> {
@@ -113,7 +120,7 @@ export function MemoryStore(seed?: StoreSeed): Store {
         return { ...next };
       },
       async remove(id: string): Promise<void> {
-        transactions.delete(id);
+        if (!transactions.delete(id)) throw new Error(`MemoryStore: no transaction ${id}`);
       },
       async removeAllIn(portfolioId: string): Promise<void> {
         for (const t of inPortfolio(portfolioId)) transactions.delete(t.id);

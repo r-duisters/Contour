@@ -1,4 +1,4 @@
-import type { Net } from "../ports/net";
+import type { Net, NetResponse } from "../ports/net";
 
 export type FakeNetCall = { url: string; init?: RequestInit };
 
@@ -6,6 +6,26 @@ export type FakeNetInstance = Net & {
   /** Every request made, in order, for assertions about what a service asked for. */
   calls: FakeNetCall[];
 };
+
+const FAILURE = Symbol("FakeNet.failure");
+
+type Failure = { [FAILURE]: true; status: number; body: unknown };
+
+/**
+ * A route that answers with a non-2xx, so a test can drive the `return null` /
+ * `continue` branches that `net.request()` exists for.
+ */
+export function respondWith(status: number, body: unknown = ""): unknown {
+  return { [FAILURE]: true, status, body } satisfies Failure;
+}
+
+function isFailure(value: unknown): value is Failure {
+  return typeof value === "object" && value !== null && FAILURE in value;
+}
+
+function asText(body: unknown): string {
+  return typeof body === "string" ? body : JSON.stringify(body);
+}
 
 /**
  * A `Net` backed by a lookup table, keyed by URL substring.
@@ -15,8 +35,9 @@ export type FakeNetInstance = Net & {
  * pointed at the wrong host — the exact bug the test existed to catch.
  *
  * A route value that is a function is called with the URL, so a test can vary
- * the response by query string; anything else is returned as-is. `text()`
- * returns strings unchanged and JSON-encodes everything else.
+ * the response by query string; `respondWith(status, body)` produces a failing
+ * response; anything else is returned as-is. `text()` returns strings unchanged
+ * and JSON-encodes everything else.
  */
 export function FakeNet(routes: Record<string, unknown>): FakeNetInstance {
   const calls: FakeNetCall[] = [];
@@ -35,16 +56,38 @@ export function FakeNet(routes: Record<string, unknown>): FakeNetInstance {
     return typeof value === "function" ? (value as (u: string) => unknown)(url) : value;
   }
 
+  // Same split as WebNet: the convenience forms throw on a non-2xx so a test
+  // that forgets to handle a failing route fails loudly instead of quietly
+  // proceeding with an error body parsed as data.
+  function checked(url: string): unknown {
+    const value = resolve(url);
+    if (isFailure(value)) {
+      throw new Error(`GET ${url} -> ${value.status}: ${asText(value.body).slice(0, 500)}`);
+    }
+    return value;
+  }
+
   return {
     calls,
     async json<T>(url: string, init?: RequestInit): Promise<T> {
       calls.push({ url, init });
-      return resolve(url) as T;
+      return checked(url) as T;
     },
     async text(url: string, init?: RequestInit): Promise<string> {
       calls.push({ url, init });
+      return asText(checked(url));
+    },
+    async request(url: string, init?: RequestInit): Promise<NetResponse> {
+      calls.push({ url, init });
       const value = resolve(url);
-      return typeof value === "string" ? value : JSON.stringify(value);
+      const failure = isFailure(value) ? value : null;
+      const body = failure ? failure.body : value;
+      return {
+        ok: !failure,
+        status: failure ? failure.status : 200,
+        text: async () => asText(body),
+        json: async <T,>() => (typeof body === "string" ? (JSON.parse(body) as T) : (body as T)),
+      };
     },
   };
 }

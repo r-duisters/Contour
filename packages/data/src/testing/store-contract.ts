@@ -27,7 +27,9 @@ export function runStoreContract(name: string, makeStore: () => Promise<Store>):
         price: 30_000,
         fee: 5,
         time: 1_700_000_000_000,
-        venue: null,
+        nativeCurrency: null,
+        nativePrice: null,
+        nativeFee: null,
         note: null,
         ...partial,
       };
@@ -140,6 +142,75 @@ export function runStoreContract(name: string, makeStore: () => Promise<Store>):
       await store.transactions.removeAllIn(p.id);
       expect((await store.portfolios.get(p.id))?.transactions).toEqual([]);
       expect((await store.portfolios.get(other.id))?.transactions).toHaveLength(1);
+    });
+
+    it("orders list() by createdAt, breaking ties by id", async () => {
+      const a = await store.portfolios.create("A");
+      const b = await store.portfolios.create("B");
+      const c = await store.portfolios.create("C");
+      // Created within the same millisecond, so this is entirely the tie-break.
+      expect((await store.portfolios.list()).map((p) => p.id)).toEqual([a.id, b.id, c.id]);
+    });
+
+    it("breaks a tie on time by id, so same-timestamp rows keep a stable order", async () => {
+      const p = await store.portfolios.create("Main");
+      const first = await store.transactions.add(p.id, tx({ time: 1_000, note: "first" }));
+      const second = await store.transactions.add(p.id, tx({ time: 1_000, note: "second" }));
+      const third = await store.transactions.add(p.id, tx({ time: 1_000, note: "third" }));
+      const ids = (await store.portfolios.get(p.id))!.transactions.map((t) => t.id);
+      expect(ids).toEqual([first.id, second.id, third.id]);
+    });
+
+    it("round-trips the native-currency fields", async () => {
+      const p = await store.portfolios.create("Main");
+      const added = await store.transactions.add(
+        p.id,
+        tx({ nativeCurrency: "EUR", nativePrice: 27_500.5, nativeFee: 4.25 }),
+      );
+      expect(added).toMatchObject({ nativeCurrency: "EUR", nativePrice: 27_500.5, nativeFee: 4.25 });
+      const loaded = (await store.portfolios.get(p.id))!.transactions[0]!;
+      expect(loaded).toMatchObject({ nativeCurrency: "EUR", nativePrice: 27_500.5, nativeFee: 4.25 });
+    });
+
+    it("treats an explicit undefined in a patch as leave-alone, not set-null", async () => {
+      const p = await store.portfolios.create("Main");
+      const added = await store.transactions.add(p.id, tx({ price: 1, note: "keep", nativeCurrency: "EUR" }));
+      const updated = await store.transactions.update(added.id, {
+        price: 99,
+        note: undefined,
+        nativeCurrency: undefined,
+      });
+      expect(updated.price).toBe(99);
+      expect(updated.note).toBe("keep");
+      expect(updated.nativeCurrency).toBe("EUR");
+    });
+
+    it("sets null when a patch says null, as opposed to undefined", async () => {
+      const p = await store.portfolios.create("Main");
+      const added = await store.transactions.add(p.id, tx({ note: "gone" }));
+      expect((await store.transactions.update(added.id, { note: null })).note).toBeNull();
+    });
+
+    it("rejects a remove of an id that does not exist", async () => {
+      // The routes call Prisma's throwing `delete` with no catch, so an unknown
+      // id is a 500 today. Pinning "throws" keeps a MemoryStore-backed test
+      // from passing on a path that fails in production.
+      const p = await store.portfolios.create("Main");
+      const added = await store.transactions.add(p.id, tx());
+      await store.transactions.remove(added.id);
+      await expect(store.transactions.remove(added.id)).rejects.toThrow();
+      await expect(store.portfolios.remove("does-not-exist")).rejects.toThrow();
+    });
+
+    it("rejects a rename of an id that does not exist", async () => {
+      await expect(store.portfolios.rename("does-not-exist", "x")).rejects.toThrow();
+    });
+
+    it("treats removeAllIn on an empty or unknown portfolio as a no-op", async () => {
+      const p = await store.portfolios.create("Main");
+      await store.transactions.removeAllIn(p.id);
+      await store.transactions.removeAllIn("does-not-exist");
+      expect((await store.portfolios.get(p.id))?.transactions).toEqual([]);
     });
 
     it("returns the documented defaults from an empty store", async () => {

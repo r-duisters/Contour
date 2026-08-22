@@ -19,11 +19,10 @@ import { prisma as defaultClient } from "../db";
  * Date exist: everything above it works in `number`, so a service produces
  * byte-identical JSON whether it ran here or against the device store.
  *
- * `venue` is on the port but has no column in the current schema, so it reads
- * back as null and is dropped on write. That is a known gap between the port
- * and `schema.prisma`, not an oversight in this file — the field arrives on
- * imported Delta CSV rows and was never persisted. Reconcile the two before any
- * caller starts depending on it.
+ * Row order is pinned with an explicit `id` tie-break rather than left to
+ * SQLite's rowid: `Transaction.id` is a cuid, whose leading timestamp and
+ * monotonic counter make lexical order creation order, so a same-`time` pair
+ * comes back here in the order the device store will also produce.
  */
 
 function toTransaction(row: PrismaTransaction): Transaction {
@@ -37,7 +36,9 @@ function toTransaction(row: PrismaTransaction): Transaction {
     price: row.price,
     fee: row.fee,
     time: Number(row.time),
-    venue: null,
+    nativeCurrency: row.nativeCurrency,
+    nativePrice: row.nativePrice,
+    nativeFee: row.nativeFee,
     note: row.note,
   };
 }
@@ -51,6 +52,9 @@ function toCreateData(tx: NewTransaction): Omit<Prisma.TransactionCreateManyInpu
     price: tx.price,
     fee: tx.fee,
     time: BigInt(tx.time),
+    nativeCurrency: tx.nativeCurrency,
+    nativePrice: tx.nativePrice,
+    nativeFee: tx.nativeFee,
     note: tx.note,
   };
 }
@@ -66,6 +70,9 @@ function toUpdateData(patch: TransactionPatch): Prisma.TransactionUpdateInput {
     price: patch.price,
     fee: patch.fee,
     time: patch.time === undefined ? undefined : BigInt(patch.time),
+    nativeCurrency: patch.nativeCurrency,
+    nativePrice: patch.nativePrice,
+    nativeFee: patch.nativeFee,
     note: patch.note,
   };
 }
@@ -95,13 +102,13 @@ export function PrismaStore(client: PrismaClient = defaultClient): Store {
   return {
     portfolios: {
       async list(): Promise<Portfolio[]> {
-        const rows = await client.portfolio.findMany({ orderBy: { createdAt: "asc" } });
+        const rows = await client.portfolio.findMany({ orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
         return rows.map((p) => ({ id: p.id, name: p.name, createdAt: p.createdAt.getTime() }));
       },
       async get(id: string): Promise<PortfolioWithTransactions | null> {
         const row = await client.portfolio.findUnique({
           where: { id },
-          include: { transactions: { orderBy: { time: "asc" } } },
+          include: { transactions: { orderBy: [{ time: "asc" }, { id: "asc" }] } },
         });
         if (!row) return null;
         return {
