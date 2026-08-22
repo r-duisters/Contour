@@ -2,41 +2,25 @@ import { mkdir } from "node:fs/promises";
 import sharp from "sharp";
 
 /**
- * A rising price line inside four crop marks. The corners frame the line and,
- * at an equal offset, form a level set — the name's meaning, kept. They are a
- * partial container on purpose: the app frames the mark in a circle twice
- * (the unlock disc, and Android's adaptive mask), and a closed round shape of
- * its own would put a ring inside a ring.
+ * A rising price line inside a quiet ring. The ring is a closed level curve —
+ * the name's meaning — and the blue sits on the line so the brand colour lands
+ * on the subject rather than the container.
  *
- * Blue frame, white line: the container carries the brand and the data reads
- * as the subject, and white holds the strongest contrast at small sizes.
+ * The ring stays dim on purpose: the app frames the mark in a circle twice
+ * (the unlock disc, and Android's adaptive mask), and a ring at that frame's
+ * weight competes with it. Weight and contrast decide this, not whether the
+ * shape is closed.
  */
-const INSET = 118, ARM = 60, FAR = 512 - INSET;
-const CORNERS = [
-  `M${INSET},${INSET + ARM} V${INSET} H${INSET + ARM}`,
-  `M${FAR - ARM},${INSET} H${FAR} V${INSET + ARM}`,
-  `M${FAR},${FAR - ARM} V${FAR} H${FAR - ARM}`,
-  `M${INSET + ARM},${FAR} H${INSET} V${FAR - ARM}`,
-];
+const RING = { r: 160, width: 12, colour: "#fafafa", opacity: 0.35 };
 const PRICE = [[172, 302], [228, 244], [280, 276], [348, 190]];
 
 /** The mark, optionally scaled about the centre to sit inside a safe area. */
 const mark = (k = 1) => {
   const t = (v) => 256 + (v - 256) * k;
-  // Scaling a path string means scaling its numbers, so the corners are
-  // rebuilt from the same constants rather than string-substituted.
-  const i = t(INSET), f = t(FAR), arm = ARM * k;
-  const corners = [
-    `M${i},${i + arm} V${i} H${i + arm}`,
-    `M${f - arm},${i} H${f} V${i + arm}`,
-    `M${f},${f - arm} V${f} H${f - arm}`,
-    `M${i + arm},${f} H${i} V${f - arm}`,
-  ];
   return `
-  <g fill="none" stroke="#3b82f6" stroke-width="${24 * k}" stroke-linecap="round" stroke-linejoin="round">
-    ${corners.map((d) => `<path d="${d}"/>`).join("")}
-  </g>
-  <path d="M${PRICE.map(([x, y]) => `${t(x)},${t(y)}`).join(" L")}" fill="none" stroke="#fafafa"
+  <circle cx="256" cy="256" r="${RING.r * k}" fill="none" stroke="${RING.colour}"
+          stroke-width="${RING.width * k}" opacity="${RING.opacity}"/>
+  <path d="M${PRICE.map(([x, y]) => `${t(x)},${t(y)}`).join(" L")}" fill="none" stroke="#3b82f6"
         stroke-width="${30 * k}" stroke-linecap="round" stroke-linejoin="round"/>`;
 };
 

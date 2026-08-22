@@ -14,21 +14,25 @@ healthcare company and a crypto-forex platform.
 
 Write it **Contour**. Never "Contour App", never a tagline.
 
-The mark is a rising price line inside four crop marks: the corners in the
-accent blue (`#3b82f6`), the line in white (`#fafafa`). Four details are
-load-bearing, each of them a failure found by drawing it:
+The mark is a rising price line inside a quiet ring: the line in the accent
+blue (`#3b82f6`), the ring in white at 35% opacity. The ring is a closed level
+curve — what the name means — and the blue sits on the line so the brand
+colour lands on the subject rather than the container.
 
-- **The container is partial, never closed.** The app frames the mark in a
-  circle twice — the unlock disc in `BiometricLock`, and Android's adaptive
-  mask, which most launchers render round and which cannot be overridden. A
-  ring, ellipse or any closed round shape of its own puts a ring inside a
-  ring, which reads as a misalignment rather than a design. Corners never
-  approach the frame's edge, so they survive circle, squircle and square.
-- **Corners, not a frame.** Lengthen the arms far enough and they close into a
-  rectangle, which is the same failure as a ring plus a checkbox reading.
-- **Two colours, not one.** The frame carries the brand and the line carries
-  the data. White also holds the strongest contrast against the near-black
-  ground, which is what keeps the line legible at 24px.
+Four details are load-bearing, each of them a failure found by drawing it:
+
+- **The ring stays quiet.** The app frames the mark in a circle twice — the
+  unlock disc in `BiometricLock`, and Android's adaptive mask, which most
+  launchers render round and which cannot be overridden. A ring at that
+  frame's weight and brightness competes with it and reads as a misalignment;
+  a dim hairline is clearly subordinate, so the nesting reads as deliberate.
+  **Weight and contrast decide this, not whether the shape is closed** — an
+  earlier version of this rule banned closed containers outright and was
+  wrong.
+- **White at 35%, not a flat grey.** The ring blends with whatever sits behind
+  it; the login card is translucent over an animated backdrop.
+- **The blue is on the line.** Putting it on the container makes the frame the
+  loudest thing in the mark.
 - **It rises, and it is price action** — a rise, a pullback, a stronger rise.
   A descending mark reads as a loss whatever the colour, and a straight
   diagonal is a claim the app does not make.
@@ -309,8 +313,9 @@ Things previously removed from this app. Do not reintroduce them.
 - Gradient fills and card shadows. A gradient logo was tried and dropped.
 - A mark that reads as a checkmark — that is a verification badge — or one
   that points downward, which reads as a loss whatever its colour.
-- A mark carrying its own closed container. The app already frames it in a
-  circle in two places, one of which Android controls.
+- A mark whose own container matches the weight or brightness of the frames
+  the app puts around it. The unlock disc and Android's adaptive mask are both
+  circles; a ring may nest inside them, but only a quiet one.
 - Type below 11px.
 - A control with nothing behind it. A "More" button was once generated with no
   hidden items; a dead control is worse than a missing one.

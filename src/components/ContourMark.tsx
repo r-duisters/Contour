@@ -1,31 +1,21 @@
 /**
- * The app's mark: a rising price line inside four crop marks.
+ * The app's mark: a rising price line inside a quiet ring.
  *
- * The corners frame the line the way a measurement is framed — and four marks
- * at an equal offset are themselves a level set, so the name still means
- * something. They are deliberately a *partial* container: the app frames the
- * mark in a circle twice over (the unlock disc, and Android's adaptive mask,
- * which most launchers render round), and any closed round shape of its own
- * puts a ring inside a ring. Corners never approach the frame's edge, so they
- * survive circle, squircle and square alike.
+ * The ring is a contour — a closed level curve, which is what the name means —
+ * and the line is the price inside it. The blue is on the line rather than the
+ * ring so the brand colour lands on the subject, not the container.
  *
- * Two colours, not one: the corners carry the brand blue and the line is
- * white, so the frame reads as the container and the data reads as the
- * subject. White also gives the line the strongest contrast available against
- * the near-black ground, which is what keeps it legible at 24px.
+ * The ring must stay *quiet*. The app frames the mark in a circle twice: the
+ * unlock disc in `BiometricLock`, and Android's adaptive mask, which most
+ * launchers render round. A ring at that frame's weight and brightness
+ * competes with it and reads as a misalignment; a dim hairline is clearly
+ * subordinate, so the nesting reads as deliberate. Weight and contrast are
+ * what matter here, not whether the shape is closed.
+ *
+ * White at 35% rather than a flat grey so the ring blends with whatever sits
+ * behind it — the login card is translucent over an animated backdrop.
  */
-const INSET = 118;
-const ARM = 60;
-const FAR = 512 - INSET;
-const FRAME = "#3b82f6";
-const LINE = "#fafafa";
-
-const CORNERS = [
-  `M${INSET},${INSET + ARM} V${INSET} H${INSET + ARM}`,
-  `M${FAR - ARM},${INSET} H${FAR} V${INSET + ARM}`,
-  `M${FAR},${FAR - ARM} V${FAR} H${FAR - ARM}`,
-  `M${INSET + ARM},${FAR} H${INSET} V${FAR - ARM}`,
-];
+const RING = { r: 160, width: 12, colour: "#fafafa", opacity: 0.35 };
 const PRICE = "M172,302 L228,244 L280,276 L348,190";
 
 export default function ContourMark({ size = 48 }: { size?: number }) {
@@ -38,13 +28,19 @@ export default function ContourMark({ size = 48 }: { size?: number }) {
       aria-label="Contour"
       className="shrink-0"
     >
-      <g fill="none" stroke={FRAME} strokeWidth="24" strokeLinecap="round" strokeLinejoin="round">
-        {CORNERS.map((d) => <path key={d} d={d} />)}
-      </g>
+      <circle
+        cx="256"
+        cy="256"
+        r={RING.r}
+        fill="none"
+        stroke={RING.colour}
+        strokeWidth={RING.width}
+        opacity={RING.opacity}
+      />
       <path
         d={PRICE}
         fill="none"
-        stroke={LINE}
+        stroke="#3b82f6"
         strokeWidth="30"
         strokeLinecap="round"
         strokeLinejoin="round"
