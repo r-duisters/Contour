@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- **Every task ends green.** `npx vitest run` reports **193 passed (18 files)** and `npx tsc --noEmit` is silent. A task that changes either number has gone wrong; fix it before committing rather than adjusting the expectation.
+- **Every task ends green.** `npx vitest run` starts this phase at **193 passed (18 files)**; Tasks 1 and 2 each add one test file, so the phase is expected to end at **195 passed (20 files)**. `npx tsc --noEmit` stays silent throughout. A task that lands on a *different* number than its expected step has gone wrong; fix the code before adjusting the expectation.
 - **No import statement in `src/` is edited in this phase.** If you find yourself rewriting `from "@/lib/x"`, the path aliases are wrong. Fix the config.
 - **No behaviour changes.** No renamed props, no copy edits, no restyling. Phase 1 is a move.
 - **Prisma stays pinned to v6.** Do not run `npm i prisma@latest`.

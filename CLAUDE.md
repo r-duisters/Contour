@@ -88,7 +88,7 @@ broke.
 packages/core/src/       Pure logic — no I/O, no framework. Runs in the browser, on the
                           server, and inside the Android APK.
   types.ts                Bar, Signal, Timeframe
-  binance.ts              fetchKlines, fetchKlinesRange, subscribeKlines (WS)
+  binance.ts              fetchKlines, fetchKlinesRange, fetchPrices, fetchUsdtSymbols, fetchPricesSafe
   indicator/
     primitives.ts           sma, ema, rma, stdev, highest, lowest, crossover, crossunder, change, nz
     resample.ts             dailyToWeekly, projectWeeklyOntoDaily
