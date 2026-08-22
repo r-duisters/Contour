@@ -14,7 +14,9 @@ const url = process.env.CONTOUR_URL ?? process.env.NABLA_URL ?? "http://192.168.
 const config: CapacitorConfig = {
   appId: "app.contour.local",
   appName: "Contour",
-  webDir: "public",
+  // Unused while server.url points at the running app, but cap sync still
+  // wants it to exist; the web app moved under apps/web.
+  webDir: "apps/web/public",
   server: {
     url,
     // Only needed while the server is plain http on the LAN.

@@ -37,7 +37,7 @@ const icon = (pad) => `
  * so the favicon keeps the geometry and thickens the strokes until they survive
  * the resize. It is the same summit, drawn to be legible rather than to scale.
  *
- * This exists because `src/app/favicon.ico` was hand-made once and then sat
+ * This exists because `apps/web/src/app/favicon.ico` was hand-made once and then sat
  * unchanged through two redesigns of the mark, which nothing caught.
  */
 const favicon = () => {
@@ -91,12 +91,12 @@ async function androidIcons() {
 const foreground = () => `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">${mark(0.52)}</svg>`;
 
-await mkdir("public/icons", { recursive: true });
+await mkdir("apps/web/public/icons", { recursive: true });
 const targets = [
-  ["public/icons/icon-192.png", 192, false],
-  ["public/icons/icon-512.png", 512, false],
-  ["public/icons/maskable-512.png", 512, true],
-  ["public/icons/apple-touch-icon.png", 180, true],
+  ["apps/web/public/icons/icon-192.png", 192, false],
+  ["apps/web/public/icons/icon-512.png", 512, false],
+  ["apps/web/public/icons/maskable-512.png", 512, true],
+  ["apps/web/public/icons/apple-touch-icon.png", 180, true],
 ];
 for (const [file, size, pad] of targets) {
   await sharp(Buffer.from(icon(pad))).resize(size, size).png().toFile(file);
@@ -107,7 +107,7 @@ for (const [file, size, pad] of targets) {
 // metadata rather than relying on Next's `app/icon.png` convention: setting
 // `metadata.icons` at all suppresses the convention, which silently left the
 // app with no tab icon whatsoever.
-await sharp(Buffer.from(favicon())).resize(64, 64).png().toFile("public/icons/favicon-64.png");
-console.log("wrote public/icons/favicon-64.png");
+await sharp(Buffer.from(favicon())).resize(64, 64).png().toFile("apps/web/public/icons/favicon-64.png");
+console.log("wrote apps/web/public/icons/favicon-64.png");
 
 await androidIcons();

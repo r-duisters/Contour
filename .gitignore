@@ -14,8 +14,8 @@
 /coverage
 
 # next.js
-/.next/
-/out/
+.next/
+out/
 
 # production
 /build
@@ -40,11 +40,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-/src/generated/prisma
+**/src/generated/prisma
 
 # SQLite (Prisma local dev DB)
-prisma/dev.db
-prisma/dev.db-journal
+**/prisma/dev.db
+**/prisma/dev.db-journal
 
 # Capacitor / Android build output
 android/.gradle/

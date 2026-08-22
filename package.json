@@ -3,11 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "workspaces": ["packages/*", "apps/*"],
+  "prisma": { "schema": "apps/web/prisma/schema.prisma" },
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint",
+    "dev": "npm run dev --workspace @contour/web",
+    "build": "npm run build --workspace @contour/web",
+    "start": "npm run start --workspace @contour/web",
+    "lint": "npm run lint --workspace @contour/web",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p apps/web",
     "android:sync": "npx cap sync android",
     "android:build": "cd android && ./gradlew assembleDebug"
   },

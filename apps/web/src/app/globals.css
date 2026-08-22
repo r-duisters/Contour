@@ -6,7 +6,7 @@
  * by a moved component is dropped from the stylesheet — the build succeeds,
  * the tests pass, and the app renders unstyled.
  */
-@source "../../packages/ui/src";
+@source "../../../../packages/ui/src";
 
 :root {
   --background: #ffffff;
