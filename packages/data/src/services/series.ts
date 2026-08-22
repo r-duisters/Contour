@@ -89,7 +89,13 @@ export async function series(
   range: RangeKey,
 ): Promise<Series> {
   const portfolio = await getPortfolio(store, id);
-  const { currency, toDisplay, equityProvider, equityApiKey } = await displayContext(store, net);
+  const { currency, toDisplay, displayUsd, equityProvider, equityApiKey } =
+    await displayContext(store, net);
+  // A failed EUR lookup leaves `toDisplay` at 1, so every figure below stays in
+  // USD. The label has to follow, or the response reports dollars as euros.
+  // `currency` itself stays the raw setting: it also decides which stored
+  // trades count as natively priced. Same split as `valuation`.
+  const label = displayUsd > 0 ? currency : "USD";
 
   // Cash is reported beside the portfolio, not inside it: it has no price
   // series, so counting deposits as money entering the invested pool would
@@ -99,7 +105,7 @@ export async function series(
     currency,
     toDisplay,
   );
-  if (txs.length === 0) return { series: [], currency, range };
+  if (txs.length === 0) return { series: [], currency: label, range };
 
   const equitySymbols = new Set(
     portfolio.transactions.filter((t) => t.assetType === "equity").map((t) => t.symbol),
@@ -216,7 +222,7 @@ export async function series(
 
   return {
     series: points,
-    currency,
+    currency: label,
     range,
     change,
     twr: { points: twr.points, totalPct: twr.totalPct },
@@ -398,6 +404,11 @@ async function simulateSameFlows(
   if (!portfolio || bars.length === 0) return null;
 
   const { currency, toDisplay } = await displayContext(store, net);
+  // No relabel here, unlike `series` above: nothing in this response says what
+  // currency its money figures are in. The caller draws them beside `series`
+  // and takes the label from there, and a failed EUR lookup leaves both in
+  // USD — so the two stay consistent. Adding a `currency` field would be a
+  // new field on the wire, not the same fix.
 
   // Cash movements are not trades: buying euros is not investing them, and
   // counting a deposit as a benchmark purchase bought index units with money

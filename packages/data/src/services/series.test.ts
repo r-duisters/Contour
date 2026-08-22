@@ -3,7 +3,7 @@ import { invalidate } from "@/core/cache";
 import { RANGE_KEYS, type RangeKey } from "@/core/ranges";
 import type { NewTransaction } from "../ports/store";
 import { MemoryStore } from "../testing/memory-store";
-import { FakeNet } from "../testing/fake-net";
+import { FakeNet, respondWith } from "../testing/fake-net";
 import { benchmark, changes, history, series } from "./series";
 
 const DAY_MS = 86_400_000;
@@ -177,6 +177,25 @@ describe("series", () => {
     if (!("windowFrom" in out)) throw new Error("expected a populated series");
 
     expect(out.change).toEqual({ abs: 0, pct: null });
+  });
+
+  it("says USD when the euro rate could not be fetched, because the figures are then USD", async () => {
+    const store = MemoryStore({
+      settings: { displayCurrency: "EUR" },
+      portfolios: [{ id: "p1", name: "Main", transactions: [tx({ quantity: 2 })] }],
+    });
+    const net = FakeNet({
+      "api.frankfurter.dev/v1/latest": respondWith(503, "rate feed down"),
+      "api.binance.com/api/v3/klines": binanceKlines(() => FLAT),
+    });
+
+    const out = await series(store, net, "p1", "1m");
+    if (!("windowFrom" in out)) throw new Error("expected a populated series");
+
+    // No rate means no conversion, so the figures are dollars. Labelling them
+    // EUR — which is what this did — reports dollars as euros.
+    expect(out.series[0]!.value).toBe(200);
+    expect(out.currency).toBe("USD");
   });
 
   it("answers a portfolio holding nothing priceable with an empty series", async () => {
