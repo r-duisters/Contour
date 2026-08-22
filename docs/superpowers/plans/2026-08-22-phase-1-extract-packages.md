@@ -668,13 +668,19 @@ In the root `package.json`, replace the `scripts` block with:
     "dev": "npm run dev --workspace @contour/web",
     "build": "npm run build --workspace @contour/web",
     "start": "npm run start --workspace @contour/web --",
-    "lint": "npm run lint --workspaces --if-present",
+    "lint": "fail=0; for w in @contour/core @contour/ui @contour/web; do npm run lint --workspace $w --if-present || fail=1; done; exit $fail",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc --noEmit -p apps/web",
     "android:sync": "npx cap sync android",
     "android:build": "cd android && ./gradlew assembleDebug"
   },
 ```
+
+The `lint` loop is deliberately not `--workspaces`: npm stops that at the first workspace
+that exits non-zero, and there are pre-existing errors in `packages/ui`, so `apps/web` —
+where new code lands — would never be linted at all. The loop runs every workspace and
+still exits non-zero if any of them failed. The trailing `--` on `start` is what forwards
+`-p 3001` past npm's second hop into the workspace.
 
 Also tell the Prisma CLI where the schema went, by adding a sibling of `"scripts"`:
 
