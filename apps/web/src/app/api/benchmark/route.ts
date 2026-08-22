@@ -7,9 +7,6 @@ export const dynamic = "force-dynamic";
 
 const DAY_MS = 86_400_000;
 
-// `BENCHMARKS` used to be exported from here. It lives in the service now —
-// nothing imported it from the route, and the device build has no route to
-// import it from.
 const Query = z.object({
   key: z.enum(["sp500", "aex", "nasdaq", "world", "btc", "eth"]),
   from: z.coerce.number().int().positive(),
