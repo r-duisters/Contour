@@ -9,7 +9,12 @@ type StoredTx = {
   nativeCurrency: string | null;
   nativePrice: number | null;
   nativeFee: number | null;
-  time: bigint;
+  /**
+   * Prisma hands these back as BigInt; the `Store` port hands them back as
+   * number (see `packages/data/src/ports/store.ts`). `Number()` below accepts
+   * either, so both callers can pass their rows straight in.
+   */
+  time: bigint | number;
 };
 
 /**
