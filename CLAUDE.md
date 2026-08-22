@@ -8,11 +8,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 colour, layout rules, established components and the anti-patterns already
 removed once. Read it before writing UI or copy.
 
-`.superdesign/design-system.md` is the machine-readable companion: the actual
-tokens, component contracts and layout scale, extracted from the shipped code.
-BRAND.md governs name, voice and copy; the design system governs tokens and
-structure. Pass the design system as `--context-file` on every Superdesign
-command.
+BRAND.md is the single authority for design: name, voice, colour, type,
+numbers, charts, the established components, timeframes, privacy mode and the
+anti-patterns already removed once. `.superdesign/design-system.md` defers to
+it and adds only what a design agent needs (product context, per-screen
+questions, canvas working notes) — pass both as `--context-file` on every
+Superdesign command.
 
 ## What this is
 

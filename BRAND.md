@@ -99,88 +99,203 @@ Rules that keep it coherent:
 
 ## Colour
 
-Dark only. Neutral surfaces, one accent, and colour reserved for meaning.
+Dark only. Every surface is painted explicitly; nothing relies on the
+browser's colour scheme. The CSS custom properties in `globals.css` are
+vestigial Next.js scaffolding — no component reads them, so do not design
+against them.
 
 | Role | Token |
 |---|---|
-| Page background | `#0a0a0a` (`bg-neutral-950`) |
-| Panel / card | `bg-neutral-900` |
-| Border | `border-neutral-800` (quiet) · `border-neutral-700` (inputs) |
-| Primary text | `text-neutral-100/200` |
+| Page ground | `#0a0a0a` (`bg-neutral-950`) |
+| Raised surface — card, tile, input | `bg-neutral-900` |
+| Hairline, divider | `border-neutral-800` · `divide-neutral-800` |
+| Input border | `border-neutral-700` |
+| Primary text | `text-white` · `text-neutral-100` |
 | Secondary text | `text-neutral-400` |
-| Muted / captions | `text-neutral-500` (the workhorse) |
-| Action | `bg-blue-600` · active tab `text-blue-500` |
-| Gain | `text-green-500` |
-| Loss | `text-red-500` |
+| Label, caption — the workhorse | `text-neutral-500` |
+| Footnote | `text-neutral-600` |
+| Action, accent, the mark, "you" on a chart | `#3b82f6` — `bg-blue-600` for buttons, `text-blue-500` for active |
+| Gain | `text-green-500` (`#22c55e`) |
+| Loss | `text-red-500` (`#ef4444`) |
 | Warning, degraded data | `text-amber-500` |
-| Benchmark line | `#eab308` (yellow) against the portfolio's blue |
+| Benchmark, "them" on a chart | `#eab308` |
 
 Green and red mean money moved, never "success" and "error". A destructive
-button is red text, not a red block: it should read as serious, not alarming.
+button is red text, not a red block: serious, not alarming. Sign-colour
+helpers take the number, not a boolean, so zero reads neutral — a portfolio
+that has made exactly nothing has not made a gain.
+
+Chart series take hex, not classes, because `lightweight-charts` accepts
+strings. Grid `#171717`/`#1f1f1f`, axis text `#d4d4d4`, ground `#0a0a0a`.
 
 ## Type and numbers
 
-- **Geist Sans** for everything; **Geist Mono** for tickers, symbols and
-  anything the eye scans in a column.
-- Money always goes through the display-currency formatter — never a bare
-  number with a hardcoded symbol. Locale follows currency (`de-DE` for EUR).
+**Geist Sans** for everything; **Geist Mono** for tickers, quantities and
+anything the eye scans down a column. Both are loaded in `layout.tsx` and
+exposed as `--font-geist-sans` / `--font-geist-mono`. Never set a
+`font-family` on `body` that competes with them — an `Arial` fallback sat
+there for months and silently beat both, so the app downloaded two fonts and
+rendered in neither.
+
+| Use | Class |
+|---|---|
+| Headline figure | `text-[34px] md:text-[42px] font-semibold tracking-tight` |
+| Page label | `text-sm font-semibold uppercase tracking-widest text-neutral-500` |
+| Section heading | `text-sm font-semibold uppercase tracking-wide text-neutral-400` |
+| Body, rows | `text-sm` · row primary `text-base` |
+| Labels, metadata | `text-xs` |
+| Sub-lines, chart annotations | `text-[11px]` |
+
+**Nothing below 11px.** A 10px control was drawn once and rejected: it fails
+on a 390px phone held at arm's length.
+
+Numbers:
+
+- **The currency symbol leads**, always — `€142.580,42`, never `142.580,42 €`.
+  `Intl` puts it last for a euro in a German locale, which reads as an
+  afterthought down a column, so `money()` places it by hand while grouping
+  and the decimal mark still follow the locale.
+- **Format through `lib/display`.** `money()`, `quantity()`, `percent()`,
+  `axisMoney()`. A bare number with a hardcoded symbol bypasses privacy mode,
+  which is the whole reason the layer exists.
 - Percentages: two decimals for returns, one for shares and quick reads.
-  Always signed (`+1.42%`).
+  Always signed.
 - Quantities: up to 8 decimals, never padded.
 - Dates in prose use the reader's locale; dates in exports and inputs use ISO.
 
+## Charts
+
+`lightweight-charts`, one convention across all of them.
+
+- **Curved lines** (`lineType: LineType.Curved`), and **thin dense series** to
+  roughly one point per three pixels. Curving alone does nothing when there
+  are more points than pixels: the all-time view packed 3,455 points into
+  360px and the drawn line travelled twelve times the width it spanned.
+  Averaged into buckets, never sampled — a dropped point takes a peak with it.
+  First and last observations pass through exactly, so the endpoint always
+  equals the figure printed beside the chart.
+- **A price axis only where the level is read.** The portfolio value chart and
+  the Insights comparison hide it: the value is printed above the chart, and
+  the axis spent a fifth of a 390px screen restating it. The asset price chart
+  keeps it — a price chart is read against its levels and its trade markers —
+  with `axisMoney()` compact labels, so `€142.580,42` becomes `€143k`.
+- **Where the axis is hidden, label the high and low** in the chart's corners.
+  A shape without a scale can flatter or alarm: a 2% wobble and a 40%
+  drawdown draw the same curve. (`createPriceLine` does not solve this — its
+  label renders on the axis that was removed.)
+- **`vertTouchDrag: false`** on every chart, or the page cannot be scrolled
+  past it on a phone.
+- Fit to content on load and on data change; never leave the viewport drifted
+  off the data.
+
 ## Icons
 
-Lucide, and only ever alongside a label — never a bare icon button except the
-tab bar (which keeps its labels anyway) and the symbol picker's chevron.
+Lucide. `size={12}` inline with small text · `size={14}` in buttons ·
+`size={16}` in circular icon buttons and lists · `size={18–20}` beside a page
+label. Always `aria-hidden`; the label carries the meaning.
 
-`size={12}` inline with small text · `size={14}` in buttons · `size={16}` in
-lists and fields · `size={20}` beside a page heading. Always `aria-hidden`;
-the label carries the meaning.
+A bare icon button is allowed only where the target is unmistakable and an
+`aria-label` is set: the top bar's add and insights controls, and the tab bar
+(which keeps its text labels anyway).
 
 ## Components already established
 
-Reuse these before inventing anything:
+Reuse these before inventing anything. A new local copy is a bug, not a
+variation — every one of these existed three or four times over with small
+differences before it was extracted.
 
-- **Stat tile** — label above value, optional `signed` for colour, `big` for
-  headline figures, optional `sub` for a change badge.
-- **Row-as-link** — icon, name and secondary line on the left, value and change
-  on the right, `ChevronRight` at the end. Used for holdings.
-- **Tabs** — underline style, count and subtotal in the label, only rendered
-  when there is more than one meaningful tab.
-- **Range picker** — small text buttons, active one filled `bg-neutral-800`.
-- **Disclosure** — a text button that toggles a panel; used for Manage, stat
-  details and the transaction form.
-- **Empty state** — one muted sentence saying what to do, never an illustration.
+- **`ContourMark`** — the logo. Geometry is duplicated in
+  `scripts/generate-icons.mjs`; change both, then run it.
+- **`StatTile`** — labelled figure on a raised surface. `signed` for
+  gain/loss colour and arrow, `big` for headline figures, `sub` for a
+  secondary line.
+- **`RangePicker`** — the timeframe control. Renders the canonical list in
+  `lib/ranges.ts`; a screen narrows it with `only`, which is a filter over
+  that list and never a second list of its own.
+- **`CoinIcon`** — circular asset icon, proxied through `/api/icon` so no
+  third party learns the holdings.
+- **`TxForm`** — add a transaction. `lockedSymbol` fixes the asset on a
+  detail page, where offering a picker invites recording against the wrong
+  holding.
+- **Holding row** — borderless, separated by space (`space-y-7`), 40px icon,
+  then two aligned lines: name against value, ticker · quantity · share
+  against the period change. No card, no chevron.
+- **Top bar** — small uppercase label on the left, circular icon buttons on
+  the right. The page label is subordinate to the value beneath it.
+- **Disclosure** — a text button that toggles a panel. Used for Manage, the
+  transaction form and closed positions.
+- **Empty state** — one muted sentence saying what to do, never an
+  illustration.
+
+## Timeframes
+
+One canonical list, in `lib/ranges.ts`. Everyday periods (1D 1W 1M 1Y All)
+stay inline; the rest collapse behind **More** on a phone and sit inline from
+`md:` up. **The selected period never collapses** — hiding the active choice
+leaves a row with nothing selected, which reads as a bug rather than as
+tidiness.
+
+Screens may offer a subset. Insights starts at 1M because a time-weighted
+return over a single day says nothing. A subset is a filter, never a second
+list with its own spelling: four different spellings of the same control is
+what this replaced.
 
 ## Privacy mode
 
 A toggle at the top of More hides every amount — money and quantities — while
 percentages, tickers and shares stay visible, so the app can be read in public
-without showing what it is worth. Anything that reveals size must respect it:
-that includes chart price axes, not just text. Format through `lib/display`
-and it happens automatically.
+without showing what it is worth.
+
+**Design every screen twice, with figures and without.** Anything revealing
+size must respect it, including chart annotations and axis labels, not just
+body text. Format through `lib/display` and it happens automatically.
+
+## Motion
+
+Almost none, deliberately. `animate-pulse` on loading skeletons and
+`transition-opacity` on hover-revealed controls is the whole vocabulary. No
+page transitions, no entrance animations, no number tickers.
+
+Hover-only affordances must be `md:`-gated. There is no hover on the phone,
+which is the primary target.
 
 ## Anti-patterns
 
 Things previously removed from this app. Do not reintroduce them.
 
+- A `font-family` on `body` that overrides the loaded Geist variables.
+- Light-mode surfaces, or relying on `prefers-color-scheme`.
+- Gradient fills and card shadows. A gradient logo was tried and dropped.
+- A mark that reads as a checkmark — that is a verification badge — or one
+  that points downward, which reads as a loss whatever its colour.
+- Type below 11px.
+- A control with nothing behind it. A "More" button was once generated with no
+  hidden items; a dead control is worse than a missing one.
+- A local copy of a shared component, or a second list backing a shared
+  control.
 - Admin controls on the portfolio page.
 - A second navigation list duplicating the tab bar.
 - The indicator advertised on the money screen.
 - Provider or protocol names in user-facing copy.
 - A spinner where a cached value could be shown.
+- Money formatted inline instead of through `lib/display` — it defeats
+  privacy mode.
 - A percentage whose baseline makes it meaningless (all-time return against a
   first purchase) — show the absolute figure instead.
 - Fake precision: a total that silently omits unpriced holdings without saying
   so.
+- Marketing furniture of any kind — heroes, feature grids, testimonials, CTAs.
 
 ## Checklist before shipping UI
 
 1. Does it read on a 390 px screen without horizontal scroll?
 2. Is the first screenful still data?
 3. Does every number say what it is, and admit when it is unknown?
-4. Colour used only for meaning, gain/loss the right way round?
-5. Icons paired with labels, `aria-hidden` set?
-6. Does anything block on the network that could show a cached value first?
-7. Does this page still answer only its own question?
+4. Does the currency symbol lead, and does the figure go through `lib/display`?
+5. Colour used only for meaning, gain/loss the right way round, zero neutral?
+6. Icons paired with labels or given an `aria-label`, `aria-hidden` set?
+7. Nothing below 11px, and every control has something behind it?
+8. Does it use `StatTile` and `RangePicker` rather than a local copy?
+9. Does it still read with every amount masked?
+10. Does anything block on the network that could show a cached value first?
+11. Does this page still answer only its own question?
