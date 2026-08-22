@@ -2,8 +2,8 @@
  * The app's mark: a nabla — the delta symbol inverted — with a price line cut
  * clean through it.
  *
- * Solid rather than outline so it holds its weight at launcher sizes, and blue
- * rather than red so a downward triangle does not read as a loss. The line has
+ * Solid rather than outline so it holds its weight at launcher sizes, in the flat
+ * accent blue so a downward triangle does not read as a loss. The line has
  * five vertices and a reversal on purpose: two segments meeting in a V reads as
  * a checkmark, which is a verification badge, not a portfolio. It stops short
  * of the edges so the triangle stays one shape rather than splitting into a cap
@@ -21,10 +21,6 @@ export default function NablaMark({ size = 48, id = "nabla" }: { size?: number; 
       className="shrink-0"
     >
       <defs>
-        <linearGradient id={`${id}-fill`} x1="0" y1="0" x2="0.3" y2="1">
-          <stop offset="0" stopColor="#60a5fa" />
-          <stop offset="1" stopColor="#2563eb" />
-        </linearGradient>
         <mask id={`${id}-cut`}>
           <rect width="512" height="512" fill="#fff" />
           <polyline
@@ -39,8 +35,8 @@ export default function NablaMark({ size = 48, id = "nabla" }: { size?: number; 
       </defs>
       <polygon
         points="112,146 400,146 256,392"
-        fill={`url(#${id}-fill)`}
-        stroke={`url(#${id}-fill)`}
+        fill="#3b82f6"
+        stroke="#3b82f6"
         strokeWidth="30"
         strokeLinejoin="round"
         mask={`url(#${id}-cut)`}

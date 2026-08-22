@@ -2,7 +2,7 @@ import { mkdir } from "node:fs/promises";
 import sharp from "sharp";
 
 /**
- * The mark is a nabla — the delta symbol inverted — solid, in a blue gradient,
+ * The mark is a nabla — the delta symbol inverted — solid, in the accent blue,
  * with a price line cut clean through it. Blue rather than red so a downward
  * triangle does not read as a loss; five vertices and a reversal in the line so
  * it does not read as a checkmark; inset from the edges so the triangle stays
@@ -19,16 +19,13 @@ const mark = (s = 1, id = "m") => {
     .map(([x, y]) => `${t(x)},${t(y)}`).join(" ");
   return `
   <defs>
-    <linearGradient id="${id}f" x1="0" y1="0" x2="0.3" y2="1">
-      <stop offset="0" stop-color="#60a5fa"/><stop offset="1" stop-color="#2563eb"/>
-    </linearGradient>
     <mask id="${id}c">
       <rect width="512" height="512" fill="#fff"/>
       <polyline points="${scale(LINE)}" fill="none" stroke="#000"
                 stroke-width="${30 * s}" stroke-linecap="round" stroke-linejoin="round"/>
     </mask>
   </defs>
-  <polygon points="${scale(TRI)}" fill="url(#${id}f)" stroke="url(#${id}f)"
+  <polygon points="${scale(TRI)}" fill="#3b82f6" stroke="#3b82f6"
            stroke-width="${30 * s}" stroke-linejoin="round" mask="url(#${id}c)"/>`;
 };
 

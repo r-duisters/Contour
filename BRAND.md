@@ -11,8 +11,8 @@ gradient. The name says the idea plainly: the same thing Delta did, turned over
 and put back in your hands. It borrows nothing from that trademark, which
 belongs to eToro in exactly this category.
 
-The mark is a solid nabla in a blue gradient (`#60a5fa` → `#2563eb`) with a
-price line cut clean through it. Blue rather than red, so a downward triangle
+The mark is a solid nabla in the accent blue (`#3b82f6`) with a price line cut
+clean through it. Flat colour — a gradient was tried and dropped. Blue rather than red, so a downward triangle
 does not read as a loss. Solid rather than outline, so it keeps its weight at
 launcher sizes where a thin stroke goes faint.
 
