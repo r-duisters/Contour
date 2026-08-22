@@ -13,6 +13,19 @@ export function baseAsset(symbol: string): string {
   return s;
 }
 
+/**
+ * BTCUSDT -> USDT, and null for anything that is not a pair — a listed
+ * security is priced in its venue's currency, which the ticker does not
+ * carry. Callers must say "Price" rather than name a currency they guessed.
+ */
+export function quoteAsset(symbol: string): string | null {
+  const s = symbol.toUpperCase();
+  for (const q of QUOTE_ASSETS) {
+    if (s.endsWith(q) && s.length > q.length) return q;
+  }
+  return null;
+}
+
 const FALLBACK_COLORS = ["#3b82f6", "#22c55e", "#eab308", "#a855f7", "#ef4444", "#14b8a6", "#f97316", "#64748b"];
 
 function colorFor(ticker: string): string {

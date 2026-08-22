@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import SymbolPicker from "@/components/SymbolPicker";
+import { quoteAsset } from "@/components/CoinIcon";
 import { Bell, Pause, Play, Plus, Trash2 } from "lucide-react";
 
 type Alert = {
@@ -134,7 +135,8 @@ export default function AlertsPage() {
               <option value="below">Crosses below</option>
             </select>
             <input className={`${input} w-32`} value={targetPrice} onChange={(e) => setTargetPrice(e.target.value)}
-                   placeholder="Price (USDT)" inputMode="decimal" />
+                   placeholder={quoteAsset(symbol) ? `Price (${quoteAsset(symbol)})` : "Price"}
+                   inputMode="decimal" />
           </>
         )}
         {kind === "pct_move" && (
