@@ -26,7 +26,13 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   const displayUsd = currency === "EUR" ? ((await fetchLatestEurUsd()) ?? 0) : 1;
   const toDisplay = displayUsd > 0 ? 1 / displayUsd : 1;
 
-  const txs = toDisplayTxs(portfolio.transactions, currency, toDisplay);
+  // Moving euros between a bank and an exchange is not a trade, and counting
+  // it as one inflated every figure here.
+  const txs = toDisplayTxs(
+    portfolio.transactions.filter((t) => t.assetType !== "cash"),
+    currency,
+    toDisplay,
+  );
   return NextResponse.json({
     currency: displayUsd > 0 ? currency : "USD",
     stats: tradeStats(txs),

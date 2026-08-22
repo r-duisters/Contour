@@ -56,7 +56,14 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const displayUsd = currency === "EUR" ? ((await fetchLatestEurUsd()) ?? 0) : 1;
   const toDisplay = displayUsd > 0 ? 1 / displayUsd : 1;
 
-  const txs = toDisplayTxs(portfolio.transactions, currency, toDisplay);
+  // Cash is reported beside the portfolio, not inside it: it has no price
+  // series, so counting deposits as money entering the invested pool would
+  // charge the return for capital the chart never shows.
+  const txs = toDisplayTxs(
+    portfolio.transactions.filter((t) => t.assetType !== "cash"),
+    currency,
+    toDisplay,
+  );
   if (txs.length === 0) return NextResponse.json({ series: [], currency, range });
 
   const equitySymbols = new Set(

@@ -2,6 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
+
+// Charting loads after the tables, which need no library at all.
+const ComparisonChart = dynamic(() => import("@/components/ComparisonChart"), {
+  ssr: false,
+  loading: () => <div className="h-56 md:h-72 border border-neutral-800 rounded" />,
+});
 import { BarChart3, TrendingDown, TrendingUp } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
 import { money as fmtMoney, percent, quantity, setDisplayCurrency } from "@/lib/display";
@@ -59,6 +66,11 @@ export default function InsightsPage() {
     rows: { symbol: string; assetType: string; quantity: number; value: number | null }[];
   } | null>(null);
   const [snapLoading, setSnapLoading] = useState(false);
+  const [chartRange, setChartRange] = useState<string>("1y");
+  const [curve, setCurve] = useState<{
+    you: { t: number; index: number }[] | null;
+    bench: { t: number; index: number }[] | null;
+  }>({ you: null, bench: null });
   usePrivacy(); // re-render when amounts are hidden or shown
 
   async function loadSnapshot() {
@@ -126,6 +138,24 @@ export default function InsightsPage() {
 
   useEffect(() => { loadRows(); }, [loadRows]);
 
+  // The picture behind the table: one period, drawn.
+  useEffect(() => {
+    if (!portfolioId) return;
+    let cancelled = false;
+    setCurve({ you: null, bench: null });
+    (async () => {
+      const series = await fetch(`/api/portfolios/${portfolioId}/series?range=${chartRange}`)
+        .then((r) => (r.ok ? r.json() : null)).catch(() => null);
+      if (cancelled || !series) return;
+      const bench = await fetch(
+        `/api/benchmark?key=${benchKey}&from=${series.windowFrom}&barMs=${series.barMs}`,
+      ).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+      if (cancelled) return;
+      setCurve({ you: series.twr?.points ?? [], bench: bench?.points ?? [] });
+    })();
+    return () => { cancelled = true; };
+  }, [portfolioId, chartRange, benchKey]);
+
   const split = holdings ? classSplit(holdings) : [];
   const conc = holdings ? concentration(holdings) : null;
   const contrib = holdings ? contributions(holdings) : [];
@@ -154,6 +184,27 @@ export default function InsightsPage() {
               </select>
               {loadingRows && <span className="text-xs text-neutral-500">loading…</span>}
             </div>
+            <div className="flex gap-1 flex-wrap mb-2">
+              {RANGES.filter((r) => r.key !== "1m").map((r) => (
+                <button
+                  key={r.key}
+                  onClick={() => setChartRange(r.key)}
+                  className={`px-2 py-1 text-xs rounded ${
+                    chartRange === r.key ? "bg-neutral-800 text-neutral-100" : "text-neutral-500"
+                  }`}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+            <div className="mb-6">
+              <ComparisonChart
+                you={curve.you}
+                bench={curve.bench}
+                benchLabel={BENCHMARKS.find((b) => b.key === benchKey)?.label ?? "Index"}
+              />
+            </div>
+
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="text-neutral-500 text-xs text-left">
