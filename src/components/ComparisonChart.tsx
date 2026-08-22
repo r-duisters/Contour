@@ -6,6 +6,7 @@ import {
 } from "lightweight-charts";
 import { useFitChart } from "@/components/useFitChart";
 import { money } from "@/lib/display";
+import { thin, targetPoints } from "@/lib/chart-data";
 
 export type Point = { t: number; v: number };
 
@@ -48,8 +49,10 @@ export default function ComparisonChart({
   }, []);
 
   useEffect(() => {
+    // Both lines are thinned to the same budget so their shapes stay comparable.
+    const budget = targetPoints(container.current?.clientWidth ?? 360);
     const toData = (points: Point[]) =>
-      points.map((p) => ({ time: Math.floor(p.t / 1000) as Time, value: p.v }));
+      thin(points, budget).map((p) => ({ time: Math.floor(p.t / 1000) as Time, value: p.v }));
     if (you) mine.current?.setData(toData(you));
     if (bench) theirs.current?.setData(toData(bench));
   }, [you, bench]);

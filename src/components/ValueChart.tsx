@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { thin, targetPoints } from "@/lib/chart-data";
 import { useFitChart } from "@/components/useFitChart";
 import {
   AreaSeries, createChart, LineType, type IChartApi, type ISeriesApi, type Time,
@@ -46,7 +47,9 @@ export default function ValueChart({
 
   useEffect(() => {
     if (!area.current || !series) return;
-    area.current.setData(series.map((p) => ({ time: Math.floor(p.t / 1000) as Time, value: p.value })));
+    const width = container.current?.clientWidth ?? 360;
+    const points = thin(series.map((p) => ({ t: p.t, v: p.value })), targetPoints(width));
+    area.current.setData(points.map((p) => ({ time: Math.floor(p.t / 1000) as Time, value: p.v })));
   }, [series]);
 
   useFitChart(chart, container, series);

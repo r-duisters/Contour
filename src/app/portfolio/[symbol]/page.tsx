@@ -11,6 +11,7 @@ import CoinIcon from "@/components/CoinIcon";
 import { money as fmtMoney, quantity, setDisplayCurrency } from "@/lib/display";
 import { annotateTransactions } from "@/lib/portfolio";
 import { useFitChart } from "@/components/useFitChart";
+import { thin, targetPoints } from "@/lib/chart-data";
 import { useStoredRange } from "@/components/useStoredRange";
 import { usePrivacy } from "@/components/usePrivacy";
 
@@ -258,7 +259,11 @@ function PriceChart({
 
   useEffect(() => {
     if (!line.current || !bars) return;
-    line.current.setData(bars.map((b) => ({ time: Math.floor(b.t / 1000) as Time, value: b.c })));
+    const points = thin(
+      bars.map((b) => ({ t: b.t, v: b.c })),
+      targetPoints(container.current?.clientWidth ?? 360),
+    );
+    line.current.setData(points.map((p) => ({ time: Math.floor(p.t / 1000) as Time, value: p.v })));
     const first = bars[0]?.t ?? 0;
     markers.current?.setMarkers(
       trades.filter((t) => t.time >= first).map((t) => ({
