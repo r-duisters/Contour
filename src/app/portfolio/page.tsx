@@ -13,7 +13,7 @@ import { useStoredRange } from "@/components/useStoredRange";
 import { KEYS } from "@/lib/storage-keys";
 import dynamic from "next/dynamic";
 import RangePicker from "@/components/RangePicker";
-import { RANGE_KEYS, rangeLabel, type RangeKey } from "@/lib/ranges";
+import { RANGE_KEYS, type RangeKey } from "@/lib/ranges";
 
 // ~300 KB of charting: loaded after the figures are on screen, never on the
 // server, so opening the app paints numbers immediately.
@@ -93,7 +93,6 @@ export default function PortfolioPage() {
   const [sortKey, setSortKey] = useState<SortKey>("value");
   const hideAmounts = usePrivacy();
   const [showClosed, setShowClosed] = useState(false);
-  const [statsOpen, setStatsOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [assetTab, setAssetTab] = useState<"all" | "crypto" | "equity" | "cash">("all");
 
@@ -258,31 +257,36 @@ export default function PortfolioPage() {
         <>
           {valuation && (
             <>
-              <div className="grid grid-cols-2 gap-2 md:gap-3 mb-3">
-                <Stat label="Value" value={fmtUsd(valuation.totals.value)} big
-                      sub={valuation.totals.dayChange && (
-                        <DayBadge change={valuation.totals.dayChange} label="today" />
-                      )} />
-                <Stat label="Unrealised P&L" value={fmtUsd(valuation.totals.unrealizedPnl)}
-                      signed={valuation.totals.unrealizedPnl} big
-                      sub={valuation.totals.costBasis > 0 ? (
-                        <span className="text-xs text-neutral-500">
-                          {((valuation.totals.unrealizedPnl / valuation.totals.costBasis) * 100).toFixed(1)}% on cost
-                        </span>
-                      ) : undefined} />
-              </div>
-              <div className={`${statsOpen ? "grid" : "hidden"} md:grid grid-cols-2 md:grid-cols-4 gap-3 mb-3`}>
-                {typeof valuation.totals.cash === "number" && valuation.totals.cash !== 0 && (
-                  <Stat label="Cash" value={fmtUsd(valuation.totals.cash)} />
+              {/* The page answers one question: what is it worth, and what has
+                  it done over the chosen period. Cost basis, realised P&L,
+                  fees, unrealised P&L and cash are accounting, and live on
+                  Insights. */}
+              <header className="mb-6">
+                <div className="text-[34px] md:text-[42px] font-semibold tracking-tight leading-none">
+                  {fmtUsd(valuation.totals.value)}
+                </div>
+                {rangeChange && (
+                  <div className="flex items-center gap-2 text-sm mt-1.5">
+                    <span className={`font-medium inline-flex items-center gap-1 ${
+                      rangeChange.abs >= 0 ? "text-green-500" : "text-red-500"
+                    }`}>
+                      {rangeChange.abs >= 0
+                        ? <TrendingUp size={14} aria-hidden />
+                        : <TrendingDown size={14} aria-hidden />}
+                      {rangeChange.pct !== null && (
+                        <>{rangeChange.pct >= 0 ? "+" : ""}{rangeChange.pct.toFixed(2)}%</>
+                      )}
+                      <span>{fmtUsd(rangeChange.abs)}</span>
+                    </span>
+                    <span
+                      className="text-neutral-500"
+                      title="Value movement over the period. Money added or withdrawn in that time counts towards it."
+                    >
+                      {periodWord}
+                    </span>
+                  </div>
                 )}
-                <Stat label="Cost basis" value={fmtUsd(valuation.totals.costBasis)} />
-                <Stat label="Realized P&L" value={fmtUsd(valuation.totals.realizedPnl)} signed={valuation.totals.realizedPnl} />
-                <Stat label="Fees paid" value={fmtUsd(valuation.totals.fees)} />
-              </div>
-              <button onClick={() => setStatsOpen((v) => !v)}
-                      className="md:hidden text-xs text-neutral-500 underline mb-6">
-                {statsOpen ? "Hide details" : "Show cost basis, realized P&L, fees"}
-              </button>
+              </header>
               {stale !== null && (
                 <p className="text-xs text-neutral-500 mb-3">
                   Showing values from {new Date(stale).toLocaleTimeString()} while refreshing…
@@ -290,24 +294,6 @@ export default function PortfolioPage() {
               )}
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <RangePicker value={range} onChange={setRange} />
-                <span className="flex-1" />
-                {rangeChange && (
-                  <span
-                    title="Value movement over the period. Money added or withdrawn in that time counts towards it."
-                    className={`text-sm inline-flex items-center gap-1 ${
-                      rangeChange.abs >= 0 ? "text-green-500" : "text-red-500"
-                    }`}
-                  >
-                    {rangeChange.abs >= 0 ? <TrendingUp size={14} aria-hidden /> : <TrendingDown size={14} aria-hidden />}
-                    {rangeChange.pct !== null && (
-                      <>{rangeChange.pct >= 0 ? "+" : ""}{rangeChange.pct.toFixed(2)}% </>
-                    )}
-                    ({fmtUsd(rangeChange.abs)})
-                    <span className="text-neutral-500">
-                      {rangeLabel(range)}
-                    </span>
-                  </span>
-                )}
               </div>
               {mwr && mwr.annualPct !== null && (
                 <p className="text-xs text-neutral-500 mb-2">
@@ -479,33 +465,3 @@ function sum(xs: number[]): number {
   return xs.reduce((a, b) => a + b, 0);
 }
 
-function DayBadge({ change, label }: { change: { abs: number; pct: number }; label: string }) {
-  const up = change.pct >= 0;
-  return (
-    <span className={`text-xs inline-flex items-center gap-1 ${up ? "text-green-500" : "text-red-500"}`}>
-      {up ? <TrendingUp size={12} aria-hidden /> : <TrendingDown size={12} aria-hidden />}
-      {up ? "+" : ""}{change.pct.toFixed(2)}% ({fmtUsd(change.abs)}) {label}
-    </span>
-  );
-}
-
-function Stat({ label, value, signed, big, sub }: {
-  label: string; value: string; signed?: number; big?: boolean; sub?: React.ReactNode;
-}) {
-  const color =
-    signed === undefined ? "text-neutral-200"
-    : signed > 0 ? "text-green-500"
-    : signed < 0 ? "text-red-500"
-    : "text-neutral-200";
-  return (
-    <div className="bg-neutral-900 border border-neutral-800 rounded p-3">
-      <div className="text-xs text-neutral-500 mb-1">{label}</div>
-      <div className={`${big ? "text-xl" : "text-base"} font-medium ${color} flex items-center gap-1.5`}>
-        {signed !== undefined && signed > 0 && <TrendingUp size={16} aria-hidden />}
-        {signed !== undefined && signed < 0 && <TrendingDown size={16} aria-hidden />}
-        {value}
-      </div>
-      {sub && <div className="mt-0.5">{sub}</div>}
-    </div>
-  );
-}

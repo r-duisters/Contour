@@ -21,6 +21,7 @@ import TxForm, { type NewTx } from "@/components/TxForm";
 import AssetInfoPanel from "@/components/AssetInfoPanel";
 import RangePicker from "@/components/RangePicker";
 import { RANGE_KEYS, rangeLabel, type RangeKey } from "@/lib/ranges";
+import StatTile from "@/components/StatTile";
 
 type Tx = {
   id: string;
@@ -183,18 +184,18 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
       {holding && (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 md:gap-3 text-sm mb-6">
-            <Field label="Average cost" value={holding.quantity > 0 ? money(holding.avgCost) : "—"} />
-            <Field label="Last price" value={holding.price !== null ? money(holding.price) : "no price"} />
-            <Field label="Cost basis" value={money(holding.costBasis)} />
-            <Field
+            <StatTile label="Average cost" value={holding.quantity > 0 ? money(holding.avgCost) : "—"} />
+            <StatTile label="Last price" value={holding.price !== null ? money(holding.price) : "no price"} />
+            <StatTile label="Cost basis" value={money(holding.costBasis)} />
+            <StatTile
               label="Unrealised"
               value={holding.unrealizedPnl !== null
                 ? `${money(holding.unrealizedPnl)}${pct !== null ? ` (${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%)` : ""}`
                 : "—"}
               signed={holding.unrealizedPnl ?? undefined}
             />
-            <Field label="Realised" value={money(holding.realizedPnl)} signed={holding.realizedPnl} />
-            <Field label="Fees" value={money(holding.fees)} />
+            <StatTile label="Realised" value={money(holding.realizedPnl)} signed={holding.realizedPnl} />
+            <StatTile label="Fees" value={money(holding.fees)} />
           </div>
 
           <div className="flex items-center gap-2 mb-2 flex-wrap">
@@ -236,19 +237,6 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
   );
 }
 
-function Field({ label, value, signed }: { label: string; value: string; signed?: number }) {
-  const color =
-    signed === undefined ? "text-neutral-200"
-    : signed > 0 ? "text-green-500"
-    : signed < 0 ? "text-red-500"
-    : "text-neutral-200";
-  return (
-    <div className="bg-neutral-900 border border-neutral-800 rounded p-3">
-      <div className="text-xs text-neutral-500">{label}</div>
-      <div className={color}>{value}</div>
-    </div>
-  );
-}
 
 /** Price history with this portfolio's own buys and sells marked. */
 function PriceChart({

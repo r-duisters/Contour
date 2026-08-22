@@ -2,6 +2,7 @@
 
 import { History } from "lucide-react";
 import { useState } from "react";
+import StatTile from "@/components/StatTile";
 
 type Stats = {
   initialCapital: number;
@@ -66,10 +67,10 @@ export default function BacktestPage() {
       {stats && (
         <section className="space-y-4">
           <div className="grid grid-cols-4 gap-4 text-sm">
-            <Stat label="Return" value={`${(stats.totalReturnPct * 100).toFixed(2)}%`} />
-            <Stat label="Final equity" value={`$${stats.finalEquity.toFixed(2)}`} />
-            <Stat label="Profitable sells" value={`${(stats.winRate * 100).toFixed(1)}%`} />
-            <Stat label="Max drawdown" value={`${(stats.maxDrawdownPct * 100).toFixed(2)}%`} />
+            <StatTile label="Return" value={`${(stats.totalReturnPct * 100).toFixed(2)}%`} />
+            <StatTile label="Final equity" value={`$${stats.finalEquity.toFixed(2)}`} />
+            <StatTile label="Profitable sells" value={`${(stats.winRate * 100).toFixed(1)}%`} />
+            <StatTile label="Max drawdown" value={`${(stats.maxDrawdownPct * 100).toFixed(2)}%`} />
           </div>
           <div>
             <h2 className="text-sm font-semibold mb-2">Trades ({stats.trades.length})</h2>
@@ -97,11 +98,3 @@ export default function BacktestPage() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="bg-neutral-900 border border-neutral-800 rounded p-3">
-      <div className="text-neutral-500 text-xs">{label}</div>
-      <div className="text-lg font-medium">{value}</div>
-    </div>
-  );
-}

@@ -81,12 +81,19 @@ Rules that keep it coherent:
 - **The first screenful is data.** Administration, settings and destructive
   actions live behind More. If a control is not read every day, it does not
   belong on the portfolio page.
-- **One question per page.** Portfolio: *what do I have and what has it done
-  lately.* Insights: *how has it performed and why.* Chart: *the indicator.*
-  More: *everything else.* If two pages answer the same question, one is wrong.
+- **One question per page.** Portfolio: *what is it worth and what has it done
+  over the chosen period* — value and change, nothing else. Insights: *how has
+  it performed, and what is the position* — benchmarks, allocation, and the
+  accounting figures (cost basis, unrealised, realised, fees, cash). Chart:
+  *the indicator.* More: *everything else.* If two pages answer the same
+  question, one is wrong.
 - **Progressive disclosure over density.** Rows expand or link; forms hide
-  behind a button; secondary figures hide behind "Show details" on phones and
-  appear inline on desktop.
+  behind a button; timeframes beyond the everyday five hide behind "More" on
+  phones and appear inline on desktop.
+- **Shared units, not copies.** `StatTile` is the labelled figure and
+  `RangePicker` is the timeframe control, everywhere. Both existed three or
+  four times over with small differences before they were extracted; a new
+  local copy is a bug, not a variation.
 - **Never block the screen on the network.** Show cached values immediately and
   say they are stale; let slow parts (charts, history) fill in behind.
 

@@ -17,6 +17,7 @@ import { classSplit, concentration, contributions, type TradeStats } from "@/lib
 import type { ValuedHolding } from "@/lib/portfolio";
 import RangePicker from "@/components/RangePicker";
 import { PERFORMANCE_RANGES, rangeLabel, type RangeKey } from "@/lib/ranges";
+import StatTile from "@/components/StatTile";
 
 type Holding = ValuedHolding & {
   assetType?: "crypto" | "equity" | "cash";
@@ -49,7 +50,10 @@ const pct = (n: number) => percent(n);
 export default function InsightsPage() {
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
   const [holdings, setHoldings] = useState<Holding[] | null>(null);
-  const [totals, setTotals] = useState<{ value: number; costBasis: number; realizedPnl: number; fees: number } | null>(null);
+  const [totals, setTotals] = useState<{
+    value: number; costBasis: number; realizedPnl: number; fees: number;
+    unrealizedPnl: number; cash?: number;
+  } | null>(null);
   const [stats, setStats] = useState<TradeStats | null>(null);
   const [byYear, setByYear] = useState<{ year: number; net: number }[]>([]);
   const [benchKey, setBenchKey] = useState<string>("sp500");
@@ -329,17 +333,17 @@ export default function InsightsPage() {
           <Section title="Trading activity">
             {stats && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                <Tile label="Transactions" value={String(stats.trades)} />
-                <Tile label="Buys / sells" value={`${stats.buys} / ${stats.sells}`} />
-                <Tile label="Assets traded" value={String(stats.assetsTraded)} />
-                <Tile
+                <StatTile label="Transactions" value={String(stats.trades)} />
+                <StatTile label="Buys / sells" value={`${stats.buys} / ${stats.sells}`} />
+                <StatTile label="Assets traded" value={String(stats.assetsTraded)} />
+                <StatTile
                   label="Busiest year"
                   value={stats.busiestYear ? `${stats.busiestYear.year} (${stats.busiestYear.trades})` : "—"}
                 />
-                <Tile label="Total bought" value={money(stats.totalBought)} />
-                <Tile label="Total sold" value={money(stats.totalSold)} />
-                <Tile label="Average buy" value={stats.avgBuySize !== null ? money(stats.avgBuySize) : "—"} />
-                <Tile
+                <StatTile label="Total bought" value={money(stats.totalBought)} />
+                <StatTile label="Total sold" value={money(stats.totalSold)} />
+                <StatTile label="Average buy" value={stats.avgBuySize !== null ? money(stats.avgBuySize) : "—"} />
+                <StatTile
                   label="Fees paid"
                   value={`${money(stats.fees)}${stats.feeRatePct !== null ? ` (${stats.feeRatePct.toFixed(2)}%)` : ""}`}
                 />
@@ -436,10 +440,34 @@ export default function InsightsPage() {
           </Section>
 
           {totals && (
-            <p className="text-xs text-neutral-600 mb-10">
-              Realised profit to date {money(totals.realizedPnl)} · fees {money(totals.fees)} ·
-              current value {money(totals.value)} against {money(totals.costBasis)} of cost basis.
-            </p>
+            <Section title="Position">
+              {/* These moved off the portfolio screen, which now answers only
+                  "what is it worth today". They were a footnote here before,
+                  which was not a home. */}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3">
+                <StatTile label="Cost basis" value={money(totals.costBasis)} />
+                <StatTile
+                  label="Unrealised"
+                  value={money(totals.unrealizedPnl)}
+                  signed={totals.unrealizedPnl}
+                  sub={totals.costBasis > 0 ? (
+                    <span className="text-xs text-neutral-500">
+                      {((totals.unrealizedPnl / totals.costBasis) * 100).toFixed(1)}% on cost
+                    </span>
+                  ) : undefined}
+                />
+                <StatTile label="Realised" value={money(totals.realizedPnl)} signed={totals.realizedPnl} />
+                <StatTile label="Fees paid" value={money(totals.fees)} />
+                {typeof totals.cash === "number" && totals.cash !== 0 && (
+                  <StatTile label="Cash" value={money(totals.cash)} />
+                )}
+                <StatTile label="Current value" value={money(totals.value)} />
+              </div>
+              <p className="text-xs text-neutral-600 mt-2 mb-10">
+                Cash is counted from recorded transfers only and sits beside the portfolio,
+                not inside its value.
+              </p>
+            </Section>
           )}
         </>
       )}
@@ -465,14 +493,6 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-function Tile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="bg-neutral-900 border border-neutral-800 rounded p-3">
-      <div className="text-xs text-neutral-500 mb-1">{label}</div>
-      <div className="text-base">{value}</div>
-    </div>
-  );
-}
 
 function Signed({ value, suffix }: { value: number | null; suffix: string }) {
   if (value === null) return <span className="text-neutral-600">—</span>;
