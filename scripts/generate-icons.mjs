@@ -2,26 +2,27 @@ import { mkdir } from "node:fs/promises";
 import sharp from "sharp";
 
 /**
- * A rising price line inside a quiet ring. The ring is a closed level curve —
- * the name's meaning — and the blue sits on the line so the brand colour lands
- * on the subject rather than the container.
+ * A summit drawn as its own level curves: two nested contour lines around a
+ * peak, the outer a quiet hairline and the inner the brand blue. The blue sits
+ * on the summit (the subject) rather than the frame.
  *
- * The ring stays dim on purpose: the app frames the mark in a circle twice
- * (the unlock disc, and Android's adaptive mask), and a ring at that frame's
- * weight competes with it. Weight and contrast decide this, not whether the
- * shape is closed.
+ * The outer curve stays dim on purpose: the app frames the mark in a circle
+ * twice (the unlock disc, and Android's adaptive mask), and a curve at that
+ * frame's weight competes with it. Weight and contrast decide this, not whether
+ * the shape is closed.
  */
-const RING = { r: 160, width: 12, colour: "#fafafa", opacity: 0.35 };
-const PRICE = [[172, 302], [228, 244], [280, 276], [348, 190]];
+const OUTER = [[256, 118], [394, 356], [118, 356]];
+const INNER = [[256, 196], [344, 356], [168, 356]];
 
 /** The mark, optionally scaled about the centre to sit inside a safe area. */
 const mark = (k = 1) => {
   const t = (v) => 256 + (v - 256) * k;
+  const poly = (pts) => "M" + pts.map(([x, y]) => `${t(x)},${t(y)}`).join(" L") + " Z";
   return `
-  <circle cx="256" cy="256" r="${RING.r * k}" fill="none" stroke="${RING.colour}"
-          stroke-width="${RING.width * k}" opacity="${RING.opacity}"/>
-  <path d="M${PRICE.map(([x, y]) => `${t(x)},${t(y)}`).join(" L")}" fill="none" stroke="#3b82f6"
-        stroke-width="${30 * k}" stroke-linecap="round" stroke-linejoin="round"/>`;
+  <path d="${poly(OUTER)}" fill="none" stroke="#fafafa"
+        stroke-width="${14 * k}" opacity="0.35" stroke-linejoin="round"/>
+  <path d="${poly(INNER)}" fill="none" stroke="#3b82f6"
+        stroke-width="${14 * k}" stroke-linejoin="round"/>`;
 };
 
 const icon = (pad) => `

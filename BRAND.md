@@ -14,28 +14,28 @@ healthcare company and a crypto-forex platform.
 
 Write it **Contour**. Never "Contour App", never a tagline.
 
-The mark is a rising price line inside a quiet ring: the line in the accent
-blue (`#3b82f6`), the ring in white at 35% opacity. The ring is a closed level
-curve — what the name means — and the blue sits on the line so the brand
-colour lands on the subject rather than the container.
+The mark is a summit drawn as its own level curves: two nested contour lines
+around a peak, the outer in white at 35% opacity and the inner in the accent
+blue (`#3b82f6`). The curves are level curves — what the name means — and the
+blue sits on the summit so the brand colour lands on the subject rather than
+the container.
 
 Four details are load-bearing, each of them a failure found by drawing it:
 
-- **The ring stays quiet.** The app frames the mark in a circle twice — the
-  unlock disc in `BiometricLock`, and Android's adaptive mask, which most
-  launchers render round and which cannot be overridden. A ring at that
+- **The outer curve stays quiet.** The app frames the mark in a circle twice —
+  the unlock disc in `BiometricLock`, and Android's adaptive mask, which most
+  launchers render round and which cannot be overridden. A curve at that
   frame's weight and brightness competes with it and reads as a misalignment;
   a dim hairline is clearly subordinate, so the nesting reads as deliberate.
   **Weight and contrast decide this, not whether the shape is closed** — an
   earlier version of this rule banned closed containers outright and was
   wrong.
-- **White at 35%, not a flat grey.** The ring blends with whatever sits behind
-  it; the login card is translucent over an animated backdrop.
-- **The blue is on the line.** Putting it on the container makes the frame the
-  loudest thing in the mark.
-- **It rises, and it is price action** — a rise, a pullback, a stronger rise.
-  A descending mark reads as a loss whatever the colour, and a straight
-  diagonal is a claim the app does not make.
+- **White at 35%, not a flat grey.** The outer curve blends with whatever sits
+  behind it; the login card is translucent over an animated backdrop.
+- **The blue is on the summit.** Putting it on the outer frame makes the frame
+  the loudest thing in the mark.
+- **It rises.** The summit points up; a descending or inverted mark reads as a
+  loss whatever the colour.
 
 **Green, amber and red are unavailable to the mark.** They mean gain, degraded
 data and loss everywhere else in the app; a permanently green logo asserts

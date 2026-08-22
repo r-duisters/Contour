@@ -1,22 +1,24 @@
 /**
- * The app's mark: a rising price line inside a quiet ring.
+ * The app's mark: a summit drawn as its own level curves.
  *
- * The ring is a contour — a closed level curve, which is what the name means —
- * and the line is the price inside it. The blue is on the line rather than the
- * ring so the brand colour lands on the subject, not the container.
+ * Two nested contour lines close around a peak — the outer a quiet hairline,
+ * the inner the brand blue. It is the name made literal: a field of level
+ * curves, here reduced to the two that matter, and the blue sits on the summit
+ * (the subject) rather than the frame. The whole mark points up — a rise,
+ * never a fall.
  *
- * The ring must stay *quiet*. The app frames the mark in a circle twice: the
- * unlock disc in `BiometricLock`, and Android's adaptive mask, which most
- * launchers render round. A ring at that frame's weight and brightness
- * competes with it and reads as a misalignment; a dim hairline is clearly
- * subordinate, so the nesting reads as deliberate. Weight and contrast are
- * what matter here, not whether the shape is closed.
+ * The outer curve must stay *quiet*. The app frames the mark in a circle
+ * twice: the unlock disc in `BiometricLock`, and Android's adaptive mask,
+ * which most launchers render round. A curve at that frame's weight and
+ * brightness competes with it and reads as a misalignment; a dim hairline is
+ * clearly subordinate, so the nesting reads as deliberate. Weight and contrast
+ * are what matter here, not whether the shape is closed.
  *
- * White at 35% rather than a flat grey so the ring blends with whatever sits
- * behind it — the login card is translucent over an animated backdrop.
+ * White at 35% rather than a flat grey so the outer curve blends with whatever
+ * sits behind it — the login card is translucent over an animated backdrop.
  */
-const RING = { r: 160, width: 12, colour: "#fafafa", opacity: 0.35 };
-const PRICE = "M172,302 L228,244 L280,276 L348,190";
+const OUTER = "M256,118 L394,356 L118,356 Z";
+const INNER = "M256,196 L344,356 L168,356 Z";
 
 export default function ContourMark({ size = 48 }: { size?: number }) {
   return (
@@ -28,23 +30,8 @@ export default function ContourMark({ size = 48 }: { size?: number }) {
       aria-label="Contour"
       className="shrink-0"
     >
-      <circle
-        cx="256"
-        cy="256"
-        r={RING.r}
-        fill="none"
-        stroke={RING.colour}
-        strokeWidth={RING.width}
-        opacity={RING.opacity}
-      />
-      <path
-        d={PRICE}
-        fill="none"
-        stroke="#3b82f6"
-        strokeWidth="30"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <path d={OUTER} fill="none" stroke="#fafafa" strokeWidth="14" opacity={0.35} strokeLinejoin="round" />
+      <path d={INNER} fill="none" stroke="#3b82f6" strokeWidth="14" strokeLinejoin="round" />
     </svg>
   );
 }
