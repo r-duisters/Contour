@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import TxForm from "@/components/TxForm";
 import Link from "next/link";
 import {
-  ArrowUpDown, BarChart3, ChevronRight, Plus, TrendingDown, TrendingUp, Wallet,
+  ArrowUpDown, BarChart3, Plus, TrendingDown, TrendingUp, Wallet, X,
 } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
 import { money, quantity, setDisplayCurrency } from "@/lib/display";
@@ -215,7 +215,6 @@ export default function PortfolioPage() {
   const crypto = sortedHoldings.filter((h) => (h.assetType ?? "crypto") === "crypto");
   const equities = sortedHoldings.filter((h) => h.assetType === "equity");
   const cash = sortedHoldings.filter((h) => h.assetType === "cash");
-  const classValue = (items: ValuedHolding[]) => sum(items.map((h) => h.value ?? 0));
   const tabs = [
     { key: "all" as const, label: "All", items: sortedHoldings },
     { key: "crypto" as const, label: "Crypto", items: crypto },
@@ -227,13 +226,17 @@ export default function PortfolioPage() {
   return (
     <main className="min-h-screen px-3 py-4 md:p-8 max-w-6xl mx-auto">
       <div className="flex items-center gap-2 mb-4 md:mb-6">
-        <h1 className="text-xl md:text-2xl font-semibold flex items-center gap-2">
-          <Wallet size={20} aria-hidden className="text-neutral-400" />Portfolio
-        </h1>
+        <span className="inline-flex items-center gap-2">
+          <Wallet size={18} aria-hidden className="text-neutral-500" />
+          <h1 className="text-sm font-semibold uppercase tracking-widest text-neutral-500">
+            Portfolio
+          </h1>
+        </span>
         <span className="flex-1" />
         {portfolios.length > 1 && (
           <select
-            className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-xs"
+            aria-label="Portfolio"
+            className="bg-neutral-900 border border-neutral-800 rounded-full px-3 py-1 text-xs text-neutral-400"
             value={selectedId ?? ""}
             onChange={(e) => setSelectedId(e.target.value || null)}
           >
@@ -242,13 +245,21 @@ export default function PortfolioPage() {
             ))}
           </select>
         )}
-        <button onClick={() => setAddOpen((v) => !v)}
-                className="text-xs text-neutral-300 inline-flex items-center gap-1 border border-neutral-700 rounded px-2 py-1">
-          <Plus size={12} aria-hidden />{addOpen ? "Close" : "Add"}
+        <button
+          onClick={() => setAddOpen((v) => !v)}
+          aria-label={addOpen ? "Close add transaction" : "Add transaction"}
+          aria-expanded={addOpen}
+          className="w-9 h-9 flex items-center justify-center rounded-full border border-neutral-800 text-neutral-400 active:bg-neutral-900"
+        >
+          {addOpen ? <X size={16} aria-hidden /> : <Plus size={16} aria-hidden />}
         </button>
-        <a href="/insights" className="text-xs text-neutral-400 inline-flex items-center gap-1 border border-neutral-800 rounded px-2 py-1">
-          <BarChart3 size={12} aria-hidden />Insights
-        </a>
+        <Link
+          href="/insights"
+          aria-label="Insights"
+          className="w-9 h-9 flex items-center justify-center rounded-full border border-neutral-800 text-neutral-400 active:bg-neutral-900"
+        >
+          <BarChart3 size={16} aria-hidden />
+        </Link>
       </div>
 
       {selectedId && (
@@ -306,10 +317,26 @@ export default function PortfolioPage() {
                 <ValueChart series={series} />
               </div>
 
-              <div className="flex items-center gap-2 mb-3 flex-wrap">
-                <h2 className="text-lg font-medium">Holdings</h2>
-                <span className="text-xs text-neutral-500">({sortedHoldings.length})</span>
-                <span className="flex-1" />
+              <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
+                  Holdings
+                </h2>
+                {tabs.length > 2 && (
+                  <div className="flex items-center gap-4 text-xs font-medium text-neutral-500">
+                    {tabs.map((t) => (
+                      <button
+                        key={t.key}
+                        onClick={() => setAssetTab(t.key)}
+                        aria-pressed={assetTab === t.key}
+                        className={assetTab === t.key
+                          ? "text-blue-500 border-b border-blue-500 pb-0.5"
+                          : "pb-0.5 border-b border-transparent"}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <label className="text-xs text-neutral-500 inline-flex items-center gap-1">
                   <ArrowUpDown size={12} aria-hidden />
                   sort
@@ -336,95 +363,65 @@ export default function PortfolioPage() {
                   <TxForm onSubmit={addTransaction} error={formError} />
                 </div>
               )}
-              {tabs.length > 2 && (
-                <div className="flex gap-1 mb-3 border-b border-neutral-800 overflow-x-auto">
-                  {tabs.map((t) => (
-                    <button
-                      key={t.key}
-                      onClick={() => { setAssetTab(t.key); }}
-                      className={`px-3 py-2 text-sm whitespace-nowrap border-b-2 -mb-px ${
-                        assetTab === t.key
-                          ? "border-blue-500 text-neutral-100"
-                          : "border-transparent text-neutral-500"
-                      }`}
-                    >
-                      {t.label}
-                      <span className="text-xs text-neutral-500 ml-1.5">{t.items.length}</span>
-                      {t.key !== "all" && (
-                        <span className="text-xs text-neutral-500 ml-1.5">
-                          · {fmtUsd(classValue(t.items))}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <ul className="space-y-1 mb-6">
+              {/* Rows carry no border or card: the draft separates them with
+                  space alone, and the icon column does the aligning. */}
+              <ul className="space-y-7 mb-8">
                 {visibleHoldings.map((h) => {
                   const share = totalValue > 0 && h.value !== null ? (h.value / totalValue) * 100 : null;
                   const periodChange = assetChanges[h.symbol];
-                  const pct = h.costBasis > 0 && h.unrealizedPnl !== null
-                    ? (h.unrealizedPnl / h.costBasis) * 100 : null;
-                  return (
-                    <li key={h.symbol} className="bg-neutral-900 border border-neutral-800 rounded">
-                      {h.assetType === "cash" ? (
-                        <div className="w-full p-3 flex items-center gap-3">
-                          <span className="w-[22px] h-[22px] rounded-full bg-neutral-700 text-[10px] flex items-center justify-center shrink-0">
-                            {h.symbol.slice(0, 3)}
+                  const isCash = h.assetType === "cash";
+                  const inner = (
+                    <>
+                      {isCash ? (
+                        <span className="w-10 h-10 rounded-full bg-neutral-800 text-[11px] font-medium
+                                         flex items-center justify-center shrink-0 text-neutral-300">
+                          {h.symbol.slice(0, 3)}
+                        </span>
+                      ) : (
+                        <CoinIcon symbol={h.symbol} size={40} assetType={h.assetType} />
+                      )}
+                      <span className="flex-1 min-w-0 flex flex-col justify-center">
+                        <span className="flex items-baseline justify-between gap-3 mb-0.5">
+                          <span className="text-base font-medium truncate">
+                            {h.name ?? h.symbol}{isCash && " cash"}
                           </span>
-                          <span className="min-w-0">
-                            <span className="font-medium block truncate">{h.name ?? h.symbol} cash</span>
-                            <span className="text-xs text-neutral-500 block truncate">
-                              <span className="font-mono">{h.symbol}</span>
-                              {" · "}{fmtQty(h.quantity)}
-                              {share !== null && <> · {share.toFixed(1)}%</>}
-                            </span>
-                          </span>
-                          <span className="flex-1" />
-                          <span className="text-right">
+                          <span className="text-base font-mono tracking-tight shrink-0">
                             {h.unreliable ? (
-                              <span className="text-amber-500 text-xs">
-                                not counted · export missing deposits
-                              </span>
+                              <span className="text-amber-500 text-xs">not counted</span>
                             ) : h.value !== null ? fmtUsd(h.value) : "—"}
                           </span>
-                        </div>
-                      ) : (
-                      <Link
-                        href={`/portfolio/${encodeURIComponent(h.symbol)}`}
-                        className="w-full text-left p-3 flex items-center gap-3"
-                      >
-                        <CoinIcon symbol={h.symbol} size={28} assetType={h.assetType} />
-                        <span className="min-w-0">
-                          <span className="font-medium block truncate">{h.name ?? h.symbol}</span>
-                          <span className="text-xs text-neutral-500 block truncate">
-                            <span className="font-mono">{h.symbol}</span>
-                            {" · "}{fmtQty(h.quantity)}
+                        </span>
+                        <span className="flex items-baseline justify-between gap-3">
+                          <span className="text-[11px] font-mono text-neutral-500 tracking-wider truncate">
+                            {h.symbol} · {fmtQty(h.quantity)}
                             {share !== null && <> · {share.toFixed(1)}%</>}
                           </span>
-                        </span>
-                        <span className="flex-1" />
-                        <span className="text-right">
-                          <span className="block">{h.value !== null ? fmtUsd(h.value) : "—"}</span>
-                          <span className="text-xs flex items-center justify-end gap-2">
+                          <span className="text-[11px] shrink-0">
                             {periodChange !== undefined ? (
                               <span className={periodChange >= 0 ? "text-green-500" : "text-red-500"}>
-                                {periodChange >= 0 ? "+" : ""}{periodChange.toFixed(1)}% {periodWord}
+                                {periodChange >= 0 ? "+" : ""}{periodChange.toFixed(1)}%
                               </span>
                             ) : h.price === null ? (
                               <span className={h.quantity > 0 ? "text-amber-500" : "text-neutral-500"}>
                                 no price
                               </span>
                             ) : null}
-                            {pct !== null && (
-                              <span className="text-neutral-500">
-                                {pct >= 0 ? "+" : ""}{pct.toFixed(1)}% on cost
-                              </span>
-                            )}
                           </span>
                         </span>
-                        <ChevronRight size={16} aria-hidden className="text-neutral-500" />
-                      </Link>
+                      </span>
+                    </>
+                  );
+                  return (
+                    <li key={h.symbol}>
+                      {isCash ? (
+                        <div className="flex items-center gap-4">{inner}</div>
+                      ) : (
+                        <Link
+                          href={`/portfolio/${encodeURIComponent(h.symbol)}`}
+                          className="flex items-center gap-4 active:opacity-70 transition-opacity"
+                        >
+                          {inner}
+                        </Link>
                       )}
                     </li>
                   );

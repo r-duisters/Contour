@@ -26,13 +26,16 @@ export default function RangePicker({
   const hasExtras = offered.some((r) => isExtra(r.key));
 
   return (
-    <div className={`flex gap-1 flex-wrap items-center ${className}`}>
+    <div
+      className={`inline-flex items-center gap-1 p-1 rounded-full
+                  bg-neutral-900/50 border border-neutral-800/50 ${className}`}
+    >
       {offered.map((r) => (
         <button
           key={r.key}
           onClick={() => onChange(r.key)}
           aria-pressed={value === r.key}
-          className={`px-2 py-1 text-xs rounded ${
+          className={`px-3 py-1 text-xs rounded ${
             isExtra(r.key) ? (expanded ? "" : "hidden md:inline-block") : ""
           } ${value === r.key ? "bg-neutral-800 text-neutral-100" : "text-neutral-500"}`}
         >
@@ -42,7 +45,7 @@ export default function RangePicker({
       {hasExtras && (
         <button
           onClick={() => setExpanded((v) => !v)}
-          className="md:hidden px-2 py-1 text-xs text-neutral-600"
+          className="md:hidden px-2 py-1 text-xs rounded text-neutral-600"
         >
           {expanded ? "Less" : "More"}
         </button>
