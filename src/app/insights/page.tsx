@@ -154,7 +154,7 @@ export default function InsightsPage() {
   const losers = [...contrib].reverse().filter((c) => c.total < 0).slice(0, 5);
 
   return (
-    <main className="min-h-screen px-3 py-4 md:p-8 max-w-5xl mx-auto">
+    <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-3 py-4 md:p-8 max-w-5xl mx-auto">
       <h1 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6 flex items-center gap-2">
         <BarChart3 size={20} aria-hidden className="text-neutral-400" />Insights
       </h1>

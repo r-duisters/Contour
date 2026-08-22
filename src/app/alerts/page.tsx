@@ -93,7 +93,7 @@ export default function AlertsPage() {
   const input = "bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm";
 
   return (
-    <main className="min-h-screen px-4 py-5 md:p-8 max-w-4xl mx-auto">
+    <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-4 py-5 md:p-8 max-w-4xl mx-auto">
       <h1 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6 flex items-center gap-2"><Bell size={20} aria-hidden className="text-neutral-400" />Alerts</h1>
 
       <div className="flex gap-2 mb-2 flex-wrap items-center">

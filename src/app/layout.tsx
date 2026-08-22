@@ -4,6 +4,7 @@ import BackgroundAlerts from "@/components/BackgroundAlerts";
 import BiometricLock from "@/components/BiometricLock";
 import PwaSetup from "@/components/PwaSetup";
 import TabBar from "@/components/TabBar";
+import TopNav from "@/components/TopNav";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -43,6 +44,7 @@ export default function RootLayout({
         <PwaSetup />
         <BackgroundAlerts />
         <BiometricLock>
+          <TopNav />
           <div className="pb-20 md:pb-0">{children}</div>
           <TabBar />
         </BiometricLock>

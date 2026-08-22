@@ -142,7 +142,7 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
     : null;
 
   return (
-    <main className="min-h-screen px-3 py-4 md:p-8 max-w-4xl mx-auto">
+    <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-3 py-4 md:p-8 max-w-4xl mx-auto">
       <Link href="/portfolio" className="text-xs text-neutral-400 inline-flex items-center gap-1 mb-4">
         <ArrowLeft size={14} aria-hidden />Portfolio
       </Link>

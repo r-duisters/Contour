@@ -235,6 +235,28 @@ differences before it was extracted.
 - **Empty state** — one muted sentence saying what to do, never an
   illustration.
 
+## Navigation
+
+One structure, two renderings, never both visible at once.
+
+- **Phone** — `TabBar`, fixed to the bottom, four slots: Portfolio, Chart,
+  Insights, More. Every page carries `pb-20` to clear it.
+- **`md:` and up** — `TopNav`, sticky at the top, the mark at the left and the
+  destinations inline: Portfolio, Chart, Insights, Ledger, Alerts, then More.
+
+**More is a phone compromise, not an idea.** It exists because four slots do
+not hold the app's destinations; a wide screen has the room, so the desktop
+bar lists them rather than mirroring the constraint. Reaching Settings should
+not cost two clicks on a screen with space for it.
+
+A page-level shortcut that duplicates a nav destination is `md:hidden` — the
+portfolio's Insights button is there for the phone, where the tab bar has no
+slot for Insights beyond its own.
+
+Pages claim `min-h-screen md:min-h-[calc(100vh-3.5rem)]`: the top bar is
+3.5rem, and a page claiming a whole viewport beneath it leaves that much dead
+scroll on every desktop screen.
+
 ## Timeframes
 
 One canonical list, in `lib/ranges.ts`. Everyday periods (1D 1W 1M 1Y All)

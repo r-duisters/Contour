@@ -136,7 +136,7 @@ export default function ChartPage() {
   }, [series.riskMetric]);
 
   return (
-    <main className="min-h-screen flex flex-col">
+    <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] flex flex-col">
       <header className="p-3 md:p-4 flex gap-2 items-center border-b border-neutral-800">
         <SymbolPicker value={symbol} onChange={setSymbol} />
         <span className="text-xs text-neutral-500">

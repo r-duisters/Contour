@@ -221,7 +221,7 @@ export default function PortfolioPage() {
   const visibleHoldings = (tabs.find((t) => t.key === assetTab) ?? tabs[0]!).items;
 
   return (
-    <main className="min-h-screen px-3 py-4 md:p-8 max-w-6xl mx-auto">
+    <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-3 py-4 md:p-8 max-w-6xl mx-auto">
       <div className="flex items-center gap-2 mb-4 md:mb-6">
         <span className="inline-flex items-center gap-2">
           <Wallet size={18} aria-hidden className="text-neutral-500" />
@@ -253,7 +253,7 @@ export default function PortfolioPage() {
         <Link
           href="/insights"
           aria-label="Insights"
-          className="w-9 h-9 flex items-center justify-center rounded-full border border-neutral-800 text-neutral-400 active:bg-neutral-900"
+          className="md:hidden w-9 h-9 flex items-center justify-center rounded-full border border-neutral-800 text-neutral-400 active:bg-neutral-900"
         >
           <BarChart3 size={16} aria-hidden />
         </Link>

@@ -148,7 +148,7 @@ export default function AnalyzePage() {
   );
 
   return (
-    <main className="min-h-screen px-4 py-5 md:p-8 max-w-5xl mx-auto">
+    <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-4 py-5 md:p-8 max-w-5xl mx-auto">
       <h1 className="text-xl md:text-2xl font-semibold mb-2 flex items-center gap-2"><FlaskConical size={20} aria-hidden className="text-neutral-400" />PineScript review</h1>
       <p className="text-sm text-neutral-500 mb-6">
         Pick a script from the library or paste your own. Run the analyzer, choose which fixes to
