@@ -139,7 +139,7 @@ against them.
 | Warning, degraded data | `text-amber-500` |
 | Benchmark, "them" on a chart | `#eab308` |
 
-Two consequences that an audit of the strategy screens had to correct:
+Three consequences that an audit of the strategy screens had to correct:
 
 - **A state is not a gain.** An enabled alert, a saved file, a completed
   action: none of these are green. They take the accent or stay neutral.
