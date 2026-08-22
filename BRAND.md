@@ -91,6 +91,9 @@ Mobile first, and mobile means a 390 px phone held one-handed.
 | Headings | `text-xl` | `text-2xl` |
 | Body bottom padding | `pb-20` (clears the tab bar) | `pb-0` |
 
+The bottom padding is applied once, by the shell in `layout.tsx`, not by each
+page. A page that adds its own is doubling it.
+
 Rules that keep it coherent:
 
 - **The first screenful is data.** Administration, settings and destructive
@@ -135,6 +138,17 @@ against them.
 | Loss | `text-red-500` (`#ef4444`) |
 | Warning, degraded data | `text-amber-500` |
 | Benchmark, "them" on a chart | `#eab308` |
+
+Two consequences that an audit of the strategy screens had to correct:
+
+- **A state is not a gain.** An enabled alert, a saved file, a completed
+  action: none of these are green. They take the accent or stay neutral.
+- **A direction is not a sign.** A buy is not a gain and a sell is not a
+  loss, so the backtest's trade list colours the cash movement, not the side.
+- **The analyser's severities map onto the app's meanings**, not onto a
+  generic red/amber/green ladder: a warning is amber (the degraded-data
+  colour), information is blue, a suggestion is neutral. Red is reserved for
+  money lost, so a red lint row read as a loss.
 
 Green and red mean money moved, never "success" and "error". A destructive
 button is red text, not a red block: serious, not alarming. Sign-colour
@@ -181,6 +195,12 @@ Numbers:
 - **Format through `lib/display`.** `money()`, `quantity()`, `percent()`,
   `axisMoney()`. A bare number with a hardcoded symbol bypasses privacy mode,
   which is the whole reason the layer exists.
+- **A figure that is not the owner's money is the one exception**, and it is
+  narrow: the backtest simulates in whatever asset the pair is quoted in, so
+  its equity is neither in the display currency nor worth masking. It is
+  grouped, carries no symbol at all rather than a wrong one, and the screen
+  says what it is denominated in. Never reach for this to dodge the layer on
+  an actual holding.
 - Percentages: two decimals for returns, one for shares and quick reads.
   Always signed.
 - Quantities: up to 8 decimals, never padded.
@@ -211,8 +231,8 @@ Numbers:
 - Fit to content on load and on data change; never leave the viewport drifted
   off the data.
 - **The indicator chart is the exception, deliberately.** `/chart` draws
-  candlesticks, which cannot be curved, and a risk metric read against fixed
-  thresholds at 0.30 and 0.80. Curving would bend the line away from levels
+  candlesticks, which cannot be curved, and a risk metric read against the
+  fixed threshold lines it plots at 0.25 and 0.80. Curving would bend the line away from levels
   the whole strategy is defined by, and thinning would drop the bar a signal
   fired on. It keeps its axis, its raw points and its straight segments.
 
@@ -236,7 +256,8 @@ differences before it was extracted.
   `scripts/generate-icons.mjs`; change both, then run it.
 - **`StatTile`** — labelled figure on a raised surface. `signed` for
   gain/loss colour and arrow, `big` for headline figures, `sub` for a
-  secondary line.
+  secondary line. It sets `tabular-nums` itself; tiles are always in a grid,
+  so no call site should be adding it.
 - **`RangePicker`** — the timeframe control. Renders the canonical list in
   `lib/ranges.ts`; a screen narrows it with `only`, which is a filter over
   that list and never a second list of its own.
@@ -321,6 +342,12 @@ Things previously removed from this app. Do not reintroduce them.
 - A `font-family` on `body` that overrides the loaded Geist variables.
 - Light-mode surfaces, or relying on `prefers-color-scheme`.
 - Gradient fills and card shadows. A gradient logo was tried and dropped.
+  Three exceptions survive on purpose, and they share a reason — each is doing
+  a job a flat fill cannot: the sentiment scale runs red through neutral to
+  green because the value it encodes is continuous; the login backdrop is
+  deliberate art on the one screen with no data to show; and the symbol
+  picker's dropdown casts a shadow because a popover has to float above the
+  content it covers. A card still never does.
 - A mark that reads as a checkmark — that is a verification badge — or one
   that points downward, which reads as a loss whatever its colour.
 - A mark whose own container matches the weight or brightness of the frames

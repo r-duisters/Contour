@@ -77,7 +77,7 @@ export default function PortfolioManager() {
 
   async function clearImported() {
     if (!selectedId) return;
-    if (!window.confirm("Remove ALL transactions added by Delta imports from this portfolio?")) return;
+    if (!window.confirm("Remove every transaction that came from a CSV import into this portfolio?")) return;
     const d = await fetch(`/api/portfolios/${selectedId}/import`, { method: "DELETE" }).then((r) => r.json());
     setMsg(`Removed ${d.deleted} imported transactions.`);
     await load();
@@ -106,7 +106,7 @@ export default function PortfolioManager() {
 
   return (
     <section className="space-y-3">
-      <h2 className="text-xs uppercase tracking-wide text-neutral-500">Portfolio data</h2>
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Portfolio data</h2>
 
       {portfolios.length > 1 && (
         <select

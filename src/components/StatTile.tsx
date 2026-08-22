@@ -11,6 +11,10 @@ import { TrendingDown, TrendingUp } from "lucide-react";
  * `signed` takes the number itself rather than a boolean so that zero reads
  * neutral instead of green — a portfolio that has made exactly nothing has
  * not made a gain.
+ *
+ * The value carries `tabular-nums` here rather than at each call site: tiles
+ * are always laid out in a grid, and proportional digits made neighbouring
+ * figures sit at different widths.
  */
 export default function StatTile({
   label, value, signed, big, sub,
@@ -29,7 +33,7 @@ export default function StatTile({
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded p-3">
       <div className="text-xs text-neutral-500 mb-1">{label}</div>
-      <div className={`${big ? "text-xl" : "text-base"} font-medium ${color} flex items-center gap-1.5`}>
+      <div className={`${big ? "text-xl" : "text-base"} font-medium tabular-nums ${color} flex items-center gap-1.5`}>
         {signed !== undefined && signed > 0 && <TrendingUp size={16} aria-hidden />}
         {signed !== undefined && signed < 0 && <TrendingDown size={16} aria-hidden />}
         {value}

@@ -51,8 +51,9 @@ export default function ChartPage() {
     candleRef.current = top.addSeries(CandlestickSeries);
     markersRef.current = createSeriesMarkers(candleRef.current);
     riskRef.current = bot.addSeries(LineSeries, { color: "#e5e5e5", lineWidth: 2 });
-    buyLineRef.current = bot.addSeries(LineSeries, { color: "#65C36B", lineWidth: 1, lineStyle: 2 });
-    sellLineRef.current = bot.addSeries(LineSeries, { color: "#FF5252", lineWidth: 1, lineStyle: 2 });
+    // The app's own green and red, not near-misses of them.
+    buyLineRef.current = bot.addSeries(LineSeries, { color: "#22c55e", lineWidth: 1, lineStyle: 2 });
+    sellLineRef.current = bot.addSeries(LineSeries, { color: "#ef4444", lineWidth: 1, lineStyle: 2 });
 
     // Sync time-scales: when one chart pans/zooms, mirror it on the other.
     const syncTo = (src: IChartApi, dst: IChartApi) => {

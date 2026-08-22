@@ -81,6 +81,8 @@ export default function AlertsPage() {
   }
 
   async function remove(a: Alert) {
+    // The trailing ellipsis on the button promises this.
+    if (!window.confirm(`Delete the alert “${describe(a)}”?`)) return;
     await fetch(`/api/alerts/${a.id}`, { method: "DELETE" });
     await load();
   }
@@ -98,15 +100,15 @@ export default function AlertsPage() {
 
       <div className="flex gap-2 mb-2 flex-wrap items-center">
         <select className={input} value={kind} onChange={(e) => setKind(e.target.value as Alert["kind"])}>
-          <option value="indicator">indicator signal</option>
-          <option value="price_target">price target</option>
-          <option value="pct_move">% move (24h)</option>
+          <option value="indicator">Indicator signal</option>
+          <option value="price_target">Price target</option>
+          <option value="pct_move">Move over 24h</option>
         </select>
 
         {kind === "pct_move" && (
           <select className={input} value={scope} onChange={(e) => setScope(e.target.value as typeof scope)}>
-            <option value="symbol">one symbol</option>
-            <option value="portfolio">whole portfolio</option>
+            <option value="symbol">One symbol</option>
+            <option value="portfolio">Whole portfolio</option>
           </select>
         )}
 
@@ -128,8 +130,8 @@ export default function AlertsPage() {
         {kind === "price_target" && (
           <>
             <select className={input} value={direction} onChange={(e) => setDirection(e.target.value as typeof direction)}>
-              <option value="above">crosses above</option>
-              <option value="below">crosses below</option>
+              <option value="above">Crosses above</option>
+              <option value="below">Crosses below</option>
             </select>
             <input className={`${input} w-32`} value={targetPrice} onChange={(e) => setTargetPrice(e.target.value)}
                    placeholder="Price (USDT)" inputMode="decimal" />
@@ -157,8 +159,14 @@ export default function AlertsPage() {
         {alerts.map((a) => (
           <li key={a.id} className="py-3 flex items-center gap-3 text-sm flex-wrap">
             <span className="font-mono break-all">{describe(a)}</span>
-            <span className={`text-xs px-2 py-0.5 rounded ${a.enabled ? "bg-green-700" : "bg-neutral-700"}`}>
-              {a.enabled ? "enabled" : a.kind === "price_target" ? "fired/paused" : "paused"}
+            {/* Green means money gained everywhere else in the app, so an
+                enabled alert is marked with the accent, not with a gain. */}
+            <span className={`text-xs px-2 py-0.5 rounded border ${
+              a.enabled
+                ? "border-blue-900 bg-blue-950/50 text-blue-400"
+                : "border-neutral-800 bg-neutral-900 text-neutral-500"
+            }`}>
+              {a.enabled ? "Enabled" : a.kind === "price_target" ? "Fired, paused" : "Paused"}
             </span>
             <span className="text-neutral-500 text-xs">
               {a.lastEvaluated ? `last: ${new Date(a.lastEvaluated).toLocaleString()}` : "never evaluated"}
@@ -166,12 +174,14 @@ export default function AlertsPage() {
             <span className="flex-1" />
             <button onClick={() => toggle(a)} className="text-xs underline text-neutral-400 inline-flex items-center gap-1">
               {a.enabled ? <Pause size={12} aria-hidden /> : <Play size={12} aria-hidden />}
-              {a.enabled ? "pause" : "enable"}
+              {a.enabled ? "Pause" : "Enable"}
             </button>
-            <button onClick={() => remove(a)} className="text-xs underline text-red-500 inline-flex items-center gap-1"><Trash2 size={12} aria-hidden />delete</button>
+            <button onClick={() => remove(a)} className="text-xs underline text-red-500 inline-flex items-center gap-1"><Trash2 size={12} aria-hidden />Delete alert…</button>
           </li>
         ))}
-        {alerts.length === 0 && <li className="text-sm text-neutral-500 py-4">No alerts yet.</li>}
+        {alerts.length === 0 && (
+          <li className="text-sm text-neutral-500 py-4">No alerts yet — build one above and press Create.</li>
+        )}
       </ul>
     </main>
   );

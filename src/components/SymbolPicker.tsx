@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown } from "lucide-react";
 
 // Shared across all picker instances in the session; the list rarely changes.
 let cachedSymbols: string[] | null = null;
@@ -91,9 +92,7 @@ export default function SymbolPicker({
           else { setOpen(true); setQuery(""); }
         }}
       >
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-          <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        <ChevronDown size={12} aria-hidden />
       </button>
 
       {open && (

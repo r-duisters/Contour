@@ -69,10 +69,10 @@ export default function TxForm({
           <SymbolPicker className={`${input} uppercase w-28`} value={symbol} onChange={setSymbol} />
         )}
         <select className={input} value={side} onChange={(e) => setSide(e.target.value as NewTx["side"])}>
-          <option value="buy">buy</option>
-          <option value="sell">sell</option>
-          <option value="transfer_in">transfer in</option>
-          <option value="transfer_out">transfer out</option>
+          <option value="buy">Buy</option>
+          <option value="sell">Sell</option>
+          <option value="transfer_in">Transfer in</option>
+          <option value="transfer_out">Transfer out</option>
         </select>
         <input className={`${input} w-32`} value={quantity} onChange={(e) => setQuantity(e.target.value)}
                placeholder="Quantity" inputMode="decimal" />

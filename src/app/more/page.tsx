@@ -43,7 +43,7 @@ export default function MorePage() {
         <PortfolioManager />
       </div>
 
-      <h2 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">Android app</h2>
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2">Android app</h2>
       <a href="/api/app/download"
          className="inline-flex items-center gap-2 text-sm text-blue-500 mb-2">
         <Download size={16} aria-hidden className="text-neutral-400" />
@@ -56,7 +56,7 @@ export default function MorePage() {
         to your browser, which installs it.
       </p>
 
-      <h2 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">Strategy tools</h2>
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2">Strategy tools</h2>
       <ul className="space-y-3 text-sm">
         {STRATEGY.map(({ href, label, Icon }) => (
           <li key={href}>

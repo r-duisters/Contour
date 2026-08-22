@@ -46,6 +46,8 @@ export default function SettingsPage() {
   }
 
   async function removePasskey(id: string) {
+    const label = passkeys.find((k) => k.id === id)?.label ?? "this passkey";
+    if (!window.confirm(`Remove ${label}? It will no longer unlock the app.`)) return;
     await fetch("/api/webauthn/credentials", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
@@ -163,7 +165,7 @@ export default function SettingsPage() {
     <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-4 py-5 md:p-8 max-w-xl mx-auto">
       <h1 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6 flex items-center gap-2"><SettingsIcon size={20} aria-hidden className="text-neutral-400" />Settings</h1>
       <section className="space-y-4 mb-10">
-        <h2 className="text-sm font-semibold">Display</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Display</h2>
         <label className="block text-sm">
           <span className="text-neutral-400">Portfolio currency</span>
           <select className="mt-1 w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1"
@@ -196,7 +198,7 @@ export default function SettingsPage() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-sm font-semibold">Home Assistant</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Home Assistant</h2>
         <label className="block text-sm">
           <span className="text-neutral-400">HA URL</span>
           <input className="mt-1 w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1"
@@ -219,7 +221,7 @@ export default function SettingsPage() {
         {msg && <p className="text-sm text-neutral-400">{msg}</p>}
       </section>
       <section className="space-y-4 mt-10">
-        <h2 className="text-sm font-semibold">Notifications on this device</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Notifications on this device</h2>
         {pushState === "unsupported" && (
           <p className="text-sm text-neutral-500">
             Web Push not supported here. On iPhone, install the app to the Home Screen first (Share → Add to Home Screen).
@@ -238,7 +240,7 @@ export default function SettingsPage() {
         <p className="text-xs text-neutral-500">“Send test” above exercises both Home Assistant and Web Push.</p>
       </section>
       <section className="space-y-4 mt-10">
-        <h2 className="text-sm font-semibold">Passkeys (fingerprint / device PIN)</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Passkeys (fingerprint / device PIN)</h2>
         {!passkeySupported && (
           <p className="text-sm text-neutral-500">
             Passkeys need a secure context — available on localhost or once the app runs behind HTTPS.
@@ -259,7 +261,7 @@ export default function SettingsPage() {
               <span className="flex-1" />
               <button onClick={() => removePasskey(k.id)}
                       className="text-xs underline text-red-500 inline-flex items-center gap-1">
-                <Trash2 size={12} aria-hidden />remove
+                <Trash2 size={12} aria-hidden />Remove passkey…
               </button>
             </li>
           ))}
@@ -269,7 +271,7 @@ export default function SettingsPage() {
       </section>
 
       <section className="space-y-4 mt-10">
-        <h2 className="text-sm font-semibold">Account</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Account</h2>
         <label className="block text-sm">
           <span className="text-neutral-400">Current password</span>
           <input type="password" className="mt-1 w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1"
