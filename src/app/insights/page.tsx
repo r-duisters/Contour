@@ -391,7 +391,7 @@ function ContribList({
               <span className="truncate">{r.name ?? r.symbol}</span>
             <span className="flex-1" />
               <span className={r.total >= 0 ? "text-green-500" : "text-red-500"}>{money(r.total)}</span>
-              {r.pct !== null && <span className="text-xs text-neutral-500 w-16 text-right">{pct(r.pct)}</span>}
+              {r.pct !== null && <span className="text-xs text-neutral-500 w-16 text-right tabular-nums">{pct(r.pct)}</span>}
             </Link>
           </li>
         ))}

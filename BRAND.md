@@ -210,6 +210,11 @@ Numbers:
   past it on a phone.
 - Fit to content on load and on data change; never leave the viewport drifted
   off the data.
+- **The indicator chart is the exception, deliberately.** `/chart` draws
+  candlesticks, which cannot be curved, and a risk metric read against fixed
+  thresholds at 0.30 and 0.80. Curving would bend the line away from levels
+  the whole strategy is defined by, and thinning would drop the bar a signal
+  fired on. It keeps its axis, its raw points and its straight segments.
 
 ## Icons
 

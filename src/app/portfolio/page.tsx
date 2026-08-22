@@ -12,6 +12,7 @@ import { useStoredRange } from "@/components/useStoredRange";
 import { KEYS } from "@/lib/storage-keys";
 import dynamic from "next/dynamic";
 import RangePicker from "@/components/RangePicker";
+import { usePrivacy } from "@/components/usePrivacy";
 import { RANGE_KEYS, type RangeKey } from "@/lib/ranges";
 
 // ~300 KB of charting: loaded after the figures are on screen, never on the
@@ -92,6 +93,7 @@ export default function PortfolioPage() {
   const [showClosed, setShowClosed] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [assetTab, setAssetTab] = useState<"all" | "crypto" | "equity" | "cash">("all");
+  usePrivacy(); // re-render when amounts are hidden or shown
 
   const loadPortfolios = useCallback(async () => {
     const d = await fetch("/api/portfolios").then((r) => r.json());

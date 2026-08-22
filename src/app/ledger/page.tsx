@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { money, quantity, setDisplayCurrency } from "@/lib/display";
+import { usePrivacy } from "@/components/usePrivacy";
 
 /**
  * What went in, what came out, and what it cost.
@@ -32,6 +33,7 @@ export default function LedgerPage() {
   const [snapDate, setSnapDate] = useState("");
   const [snap, setSnap] = useState<Snap | null>(null);
   const [snapLoading, setSnapLoading] = useState(false);
+  usePrivacy(); // re-render when amounts are hidden or shown
 
   // Box 3 is assessed on 1 January, so that is the date worth defaulting to.
   useEffect(() => { setSnapDate(`${new Date().getFullYear()}-01-01`); }, []);
@@ -232,7 +234,7 @@ function Row({ label, value, signed, pct, muted }: {
       <span className="text-right">
         <span className={`block text-xl tabular-nums ${tone}`}>{value}</span>
         {pct !== null && pct !== undefined && (
-          <span className={`block text-[11px] font-medium ${tone}`}>
+          <span className={`block text-[11px] font-medium tabular-nums ${tone}`}>
             {pct >= 0 ? "+" : ""}{pct.toFixed(2)}%
           </span>
         )}
