@@ -37,9 +37,11 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 ## Deployment (public domain + PWA)
 
-1. **Env**: copy `.env.example` to `.env`, fill `SESSION_SECRET`/`CRON_SECRET`
+1. **Env**: copy `apps/web/.env.example` to `apps/web/.env`, fill `SESSION_SECRET`/`CRON_SECRET`
    (`openssl rand -hex 32`) and VAPID keys (`npx web-push generate-vapid-keys`).
-2. **Build & run**: `npm run build && npm run start` (port 3000). Example systemd unit:
+2. **Install & generate**: `npm install`, then `npx prisma generate` (needed once on a fresh
+   clone, before the app will run).
+3. **Build & run**: `npm run build && npm run start` (port 3000). Example systemd unit:
 
    ```ini
    [Unit]
@@ -56,7 +58,7 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
    WantedBy=multi-user.target
    ```
 
-3. **Reverse proxy (Caddy)** — automatic Let's Encrypt:
+4. **Reverse proxy (Caddy)** — automatic Let's Encrypt:
 
    ```
    contour.example.com {
@@ -64,14 +66,14 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
    }
    ```
 
-4. **First run**: open the domain → you're redirected to `/setup` → set the app password.
-5. **Cron** (alert evaluation every 5 minutes):
+5. **First run**: open the domain → you're redirected to `/setup` → set the app password.
+6. **Cron** (alert evaluation every 5 minutes):
 
    ```
    */5 * * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://contour.example.com/api/cron/evaluate
    ```
 
-6. **Install on iPhone**: open the site in Safari → Share → *Add to Home Screen*.
+7. **Install on iPhone**: open the site in Safari → Share → *Add to Home Screen*.
    Then Settings → *Enable notifications* (Web Push needs the installed app, iOS 16.4+).
    Home Assistant keeps working as a second notification path.
 
