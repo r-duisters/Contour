@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
 /**
- * The shell loads the running Nabla server rather than bundling a static
+ * The shell loads the running Contour server rather than bundling a static
  * build: the app is server-rendered and its API routes hold the data. This is
  * the wrapper that answers "does it feel right as a native app" before
  * committing to a local-first rewrite.
@@ -12,8 +12,8 @@ import type { CapacitorConfig } from "@capacitor/cli";
 const url = process.env.NABLA_URL ?? "http://192.168.2.5:3001";
 
 const config: CapacitorConfig = {
-  appId: "app.nabla.local",
-  appName: "Nabla",
+  appId: "app.contour.local",
+  appName: "Contour",
   webDir: "public",
   server: {
     url,
@@ -28,7 +28,7 @@ const config: CapacitorConfig = {
      * rules it evaluates, and the reason the risk metric is not among them.
      */
     BackgroundRunner: {
-      label: "app.nabla.local.alerts",
+      label: "app.contour.local.alerts",
       src: "runner/alerts.js",
       event: "alertCheck",
       repeat: true,

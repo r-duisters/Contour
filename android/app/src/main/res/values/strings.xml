@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Nabla</string>
-    <string name="title_activity_main">Nabla</string>
-    <string name="package_name">app.nabla.local</string>
-    <string name="custom_url_scheme">app.nabla.local</string>
+    <string name="app_name">Contour</string>
+    <string name="title_activity_main">Contour</string>
+    <string name="package_name">app.contour.local</string>
+    <string name="custom_url_scheme">app.contour.local</string>
 </resources>

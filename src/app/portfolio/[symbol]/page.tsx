@@ -15,6 +15,7 @@ import { annotateTransactions } from "@/lib/portfolio";
 import { useFitChart } from "@/components/useFitChart";
 import { thin, targetPoints } from "@/lib/chart-data";
 import { useStoredRange } from "@/components/useStoredRange";
+import { KEYS } from "@/lib/storage-keys";
 import { usePrivacy } from "@/components/usePrivacy";
 import TxForm, { type NewTx } from "@/components/TxForm";
 import AssetInfoPanel from "@/components/AssetInfoPanel";
@@ -65,7 +66,7 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
   const hideAmounts = usePrivacy();
   const [range, setRange, rangeReady] = useStoredRange<RangeKey>(
-    "nabla:range:asset", "1y", RANGE_KEYS,
+    KEYS.rangeAsset, "1y", RANGE_KEYS,
   );
   const [changePct, setChangePct] = useState<number | null>(null);
   const [addOpen, setAddOpen] = useState(false);

@@ -6,33 +6,29 @@ disagree, the code is probably right and this file needs updating.
 
 ## The name
 
-**Nabla.** ∇ is the delta symbol inverted — in maths the *del* operator, the
-gradient. The name says the idea plainly: the same thing Delta did, turned over
-and put back in your hands. It borrows nothing from that trademark, which
-belongs to eToro in exactly this category.
+**Contour.** A contour line joins points of equal value, and a field of them is
+how a gradient is drawn on a flat page — which is what this app does to a
+portfolio. It descends from the app's first name, Nabla (∇, the gradient
+operator), and keeps that idea while dropping a word already used by a
+healthcare company and a crypto-forex platform.
 
-The mark is a solid nabla in the accent blue (`#3b82f6`) with a price line cut
-clean through it. Flat colour — a gradient was tried and dropped. Blue rather than red, so a downward triangle
-does not read as a loss. Solid rather than outline, so it keeps its weight at
-launcher sizes where a thin stroke goes faint.
+Write it **Contour**. Never "Contour App", never a tagline.
 
-Three rules the line obeys, each of them a failure found by drawing it:
+The mark is three contour lines descending to a point, in flat accent blue
+(`#3b82f6`). Every level is a true parallel offset of the outer one — same
+angle, differing only in depth. Three details are load-bearing, each of them a
+failure found by drawing it:
 
-- **Five vertices and a reversal.** Two segments meeting in a V is a
-  checkmark — a verification badge, not a portfolio.
-- **Inset from the edges.** A line that exits both sides severs the mark into
-  a cap and a wedge, and the triangle stops reading as ∇.
-- **A real hole, not a painted one.** The cut takes the colour of whatever sits
-  behind it, so the mark works on any surface.
+- **Three levels, not four.** A fourth is too shallow to read as a chevron and
+  becomes a notch at launcher sizes.
+- **Parallel offsets, not scaled copies.** Scaling makes the inner level read as
+  a heart.
+- **Flat colour.** A gradient fill was tried and dropped: it added depth the
+  shape did not need.
 
-Nothing else — no wordmark lockup, no tagline.
-
-The mark lives in two places that must stay in step: `NablaMark.tsx` for the
-screen, and `scripts/generate-icons.mjs` for every icon file. Change one and
-run `node scripts/generate-icons.mjs` to redraw the rest.
-
-Write it **Nabla**. The symbol ∇ may stand alone as an icon but never replaces
-the word in running text.
+The mark lives in two places that must stay in step: `ContourMark.tsx` for the
+screen, and `scripts/generate-icons.mjs` for every icon file. Change one and run
+`node scripts/generate-icons.mjs` to redraw the rest.
 
 ## What the app is
 

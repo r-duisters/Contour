@@ -55,7 +55,7 @@ export default function BackgroundAlerts() {
 
       try {
         await BackgroundRunner.dispatchEvent({
-          label: "app.nabla.local.alerts",
+          label: "app.contour.local.alerts",
           event: "setRules",
           details: { rules },
         });

@@ -1,5 +1,7 @@
 "use client";
 
+import { KEYS, readKey } from "./storage-keys";
+
 /**
  * How figures are shown: which currency, and whether amounts are hidden.
  *
@@ -11,8 +13,8 @@
  * helpers; components subscribe with usePrivacy() so a toggle re-renders them.
  */
 
-const KEY = "nabla:hide-amounts";
-const EVENT = "nabla:privacy";
+const KEY = KEYS.hideAmounts;
+const EVENT = KEYS.privacyEvent;
 
 let currency: "USD" | "EUR" = "USD";
 let hidden = false;
@@ -32,7 +34,7 @@ export function amountsHidden(): boolean {
 /** Read the stored preference. Safe to call before the first paint. */
 export function loadPrivacy(): boolean {
   if (typeof window === "undefined") return false;
-  hidden = window.localStorage.getItem(KEY) === "1";
+  hidden = readKey(KEY) === "1";
   return hidden;
 }
 

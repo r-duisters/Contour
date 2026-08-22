@@ -32,7 +32,7 @@ export async function GET() {
     headers: {
       "Content-Type": "application/vnd.android.package-archive",
       "Content-Length": String(size),
-      "Content-Disposition": `attachment; filename="nabla-${stamp}.apk"`,
+      "Content-Disposition": `attachment; filename="contour-${stamp}.apk"`,
       "Cache-Control": "no-store",
     },
   });

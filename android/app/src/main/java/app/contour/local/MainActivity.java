@@ -1,4 +1,4 @@
-package app.nabla.local;
+package app.contour.local;
 
 import com.getcapacitor.BridgeActivity;
 

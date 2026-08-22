@@ -17,9 +17,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Nabla",
+  title: "Contour",
   description: "Portfolio tracking, risk-metric charting, and alerts.",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Nabla" },
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Contour" },
   icons: { apple: "/icons/apple-touch-icon.png" },
 };
 

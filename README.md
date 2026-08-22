@@ -43,7 +43,7 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
    ```ini
    [Unit]
-   Description=Nabla
+   Description=Contour
    After=network.target
 
    [Service]
@@ -59,7 +59,7 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 3. **Reverse proxy (Caddy)** — automatic Let's Encrypt:
 
    ```
-   nabla.example.com {
+   contour.example.com {
        reverse_proxy localhost:3000
    }
    ```
@@ -68,7 +68,7 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 5. **Cron** (alert evaluation every 5 minutes):
 
    ```
-   */5 * * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://nabla.example.com/api/cron/evaluate
+   */5 * * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://contour.example.com/api/cron/evaluate
    ```
 
 6. **Install on iPhone**: open the site in Safari → Share → *Add to Home Screen*.
@@ -78,12 +78,12 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 ## Android app (Capacitor shell)
 
 A thin native wrapper so the tracker runs as a real Android app. It does not
-bundle the site: the WebView loads the running Nabla server, so the phone app
+bundle the site: the WebView loads the running Contour server, so the phone app
 and the browser always show the same thing.
 
 ```bash
 # point the shell at your server (defaults to http://192.168.2.5:3001)
-export NABLA_URL="https://nabla.example.com"
+export NABLA_URL="https://contour.example.com"
 npm run android:sync
 npm run android:build     # android/app/build/outputs/apk/debug/app-debug.apk
 ```

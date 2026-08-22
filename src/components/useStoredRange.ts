@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { readKey } from "@/lib/storage-keys";
 
 /**
  * A chart period that survives leaving the page.
@@ -19,12 +20,8 @@ export function useStoredRange<T extends string>(
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(key) as T | null;
-      if (stored && allowed.includes(stored)) setRange(stored);
-    } catch {
-      // private mode or blocked storage: the fallback is fine
-    }
+    const stored = readKey(key) as T | null;
+    if (stored && allowed.includes(stored)) setRange(stored);
     setReady(true);
     // `allowed` is a module-level constant at every call site.
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps

@@ -10,6 +10,7 @@ import CoinIcon from "@/components/CoinIcon";
 import { money, quantity, setDisplayCurrency } from "@/lib/display";
 import { usePrivacy } from "@/components/usePrivacy";
 import { useStoredRange } from "@/components/useStoredRange";
+import { KEYS } from "@/lib/storage-keys";
 import dynamic from "next/dynamic";
 
 // ~300 KB of charting: loaded after the figures are on screen, never on the
@@ -87,7 +88,7 @@ export default function PortfolioPage() {
   // Opening the app asks "what happened today" — unless a period was chosen
   // before, in which case it asks that again.
   const [range, setRange, rangeReady] = useStoredRange<RangeKey>(
-    "nabla:range:portfolio", "1d", RANGE_KEYS,
+    KEYS.rangePortfolio, "1d", RANGE_KEYS,
   );
   const [rangeChange, setRangeChange] = useState<{ abs: number; pct: number | null } | null>(null);
   const [assetChanges, setAssetChanges] = useState<Record<string, number>>({});

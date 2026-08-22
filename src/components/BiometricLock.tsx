@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Fingerprint } from "lucide-react";
-import NablaMark from "@/components/NablaMark";
+import ContourMark from "@/components/ContourMark";
 import TradingBackdrop from "@/components/TradingBackdrop";
 
 /** Re-lock after this long in the background; a glance away should not cost a prompt. */
@@ -34,7 +34,7 @@ export default function BiometricLock({ children }: { children: React.ReactNode 
       await BiometricAuth.authenticate({
         // Only the title is set: the plugin also renders `reason` and
         // `androidSubtitle` in the same sheet, which repeated the sentence.
-        androidTitle: "Unlock Nabla",
+        androidTitle: "Unlock Contour",
         allowDeviceCredential: true, // the screen lock is an acceptable fallback
         cancelTitle: "Cancel",
       });
@@ -141,12 +141,12 @@ function Overlay({
             className="rounded-full bg-neutral-950/70 border border-neutral-800 backdrop-blur-sm p-6"
             style={{ boxShadow: "0 0 60px rgba(59,130,246,0.18)" }}
           >
-            <NablaMark size={64} />
+            <ContourMark size={64} />
           </span>
         </div>
 
         <div className="lock-anim" style={{ animation: "lock-rise 400ms ease-out both" }}>
-          <p className="text-2xl font-semibold tracking-wide">Nabla</p>
+          <p className="text-2xl font-semibold tracking-wide">Contour</p>
           <p className="text-xs text-neutral-500 mt-1">
             {state === "prompting" ? "Waiting for your fingerprint…"
               : state === "checking" ? "\u00a0"
@@ -159,7 +159,7 @@ function Overlay({
                style={{ animation: "lock-rise 400ms ease-out both" }}>
             <button
               onClick={onUnlock}
-              aria-label="Unlock Nabla"
+              aria-label="Unlock Contour"
               className="w-16 h-16 rounded-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white flex items-center justify-center transition-colors"
             >
               <Fingerprint size={28} aria-hidden />

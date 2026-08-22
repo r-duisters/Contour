@@ -2,31 +2,22 @@ import { mkdir } from "node:fs/promises";
 import sharp from "sharp";
 
 /**
- * The mark is a nabla — the delta symbol inverted — solid, in the accent blue,
- * with a price line cut clean through it. Blue rather than red so a downward
- * triangle does not read as a loss; five vertices and a reversal in the line so
- * it does not read as a checkmark; inset from the edges so the triangle stays
- * one shape. The cut is a true hole, taking the colour behind it.
+ * Three contour lines descending to a point. A contour joins points of equal
+ * value, and a field of them is how a gradient is drawn flat. Every level is a
+ * true parallel offset of the outer one — same angle, differing only in depth.
+ * Flat accent blue; a gradient fill was tried and dropped.
  */
-const TRI = "112,146 400,146 256,392";
-const LINE = "168,254 214,286 258,232 304,264 356,208";
+const TOP = 150, OUTER_APEX = 392, OUTER_X = 108, APEXES = [392, 300, 208];
 
-/** The mark itself, optionally scaled about the centre for a safe area. */
-const mark = (s = 1, id = "m") => {
-  const t = (v) => 256 + (v - 256) * s;
-  const scale = (pts) => pts.split(" ")
-    .map((p) => p.split(",").map(Number))
-    .map(([x, y]) => `${t(x)},${t(y)}`).join(" ");
-  return `
-  <defs>
-    <mask id="${id}c">
-      <rect width="512" height="512" fill="#fff"/>
-      <polyline points="${scale(LINE)}" fill="none" stroke="#000"
-                stroke-width="${30 * s}" stroke-linecap="round" stroke-linejoin="round"/>
-    </mask>
-  </defs>
-  <polygon points="${scale(TRI)}" fill="#3b82f6" stroke="#3b82f6"
-           stroke-width="${30 * s}" stroke-linejoin="round" mask="url(#${id}c)"/>`;
+/** The mark, optionally scaled about the centre to sit inside a safe area. */
+const mark = (k = 1) => {
+  const t = (v) => 256 + (v - 256) * k;
+  return APEXES.map((apex) => {
+    const dx = ((256 - OUTER_X) / (OUTER_APEX - TOP)) * (apex - TOP);
+    return `<polyline points="${t(256 - dx)},${t(TOP)} ${t(256)},${t(apex)} ${t(256 + dx)},${t(TOP)}"
+      fill="none" stroke="#3b82f6" stroke-width="${28 * k}"
+      stroke-linecap="round" stroke-linejoin="round"/>`;
+  }).join("");
 };
 
 const icon = (pad) => `
@@ -72,7 +63,7 @@ async function androidIcons() {
  * only the middle ~66% survives the mask.
  */
 const foreground = () => `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">${mark(0.52, "f")}</svg>`;
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">${mark(0.52)}</svg>`;
 
 await mkdir("public/icons", { recursive: true });
 const targets = [
