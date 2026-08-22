@@ -13,9 +13,19 @@ import { fileURLToPath } from "node:url";
  *
  * The marker is the workspaces declaration, which only the root manifest has,
  * so this stays correct wherever the bundler places the compiled chunk.
+ *
+ * This throws instead of falling back to `process.cwd()` on purpose. A wrong
+ * guess here doesn't crash anything downstream — it just makes `/api/scripts`
+ * return an empty list, the APK link 404, and the icon cache stay cold, all
+ * silently. Today `import.meta.url` resolves against the project root under
+ * Turbopack, but that stops being true the moment `.next` is copied away from
+ * the repo (`output: "standalone"`, a Docker `COPY`, a set
+ * `outputFileTracingRoot`). A thrown error at startup is diagnosable; a wrong
+ * path that quietly produces empty results is not.
  */
 function findRepoRoot(): string {
-  let dir = dirname(fileURLToPath(import.meta.url));
+  const start = dirname(fileURLToPath(import.meta.url));
+  let dir = start;
   for (let up = 0; up < 12; up++) {
     const manifest = join(dir, "package.json");
     if (existsSync(manifest)) {
@@ -29,9 +39,14 @@ function findRepoRoot(): string {
     if (parent === dir) break;
     dir = parent;
   }
-  // Nothing found: fall back to cwd so a failure surfaces as a plain ENOENT
-  // naming a path, rather than as silently empty results.
-  return process.cwd();
+  throw new Error(
+    `findRepoRoot: no ancestor package.json with a "workspaces" field found ` +
+      `walking up from ${start} to ${dir}. This module locates the repo root ` +
+      `by climbing from its own compiled location, which assumes the bundle ` +
+      `stays under the repository tree; if the server root has been copied ` +
+      `away from the source repo (standalone output, Docker COPY, ` +
+      `outputFileTracingRoot), point it back at the repo or adjust this walk.`,
+  );
 }
 
 export const REPO_ROOT = findRepoRoot();
