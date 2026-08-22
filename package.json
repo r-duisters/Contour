@@ -7,8 +7,8 @@
   "scripts": {
     "dev": "npm run dev --workspace @contour/web",
     "build": "npm run build --workspace @contour/web",
-    "start": "npm run start --workspace @contour/web",
-    "lint": "npm run lint --workspace @contour/web",
+    "start": "npm run start --workspace @contour/web --",
+    "lint": "npm run lint --workspaces --if-present",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc --noEmit -p apps/web",
     "android:sync": "npx cap sync android",

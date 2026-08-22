@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createReadStream, readdirSync, statSync } from "fs";
 import { Readable } from "stream";
 import path from "path";
+import { fromRepoRoot } from "@/lib/repo-root";
 
 /** The most recent mtime anywhere under these directories, or null. */
 function newestMtime(dirs: string[]): number | null {
@@ -23,7 +24,9 @@ function newestMtime(dirs: string[]): number | null {
 
 export const dynamic = "force-dynamic";
 
-const APK = path.join(process.cwd(), "android/app/build/outputs/apk/debug/app-debug.apk");
+// android/ is the Capacitor shell and stayed at the repository root; the
+// server's cwd is apps/web.
+const APK = fromRepoRoot("android/app/build/outputs/apk/debug/app-debug.apk");
 
 /**
  * Hands the freshly built APK to the phone, so installing a new shell is a tap
@@ -47,8 +50,10 @@ export async function GET() {
   // A same-day rebuild that silently failed still leaves yesterday's date on
   // the file, so compare against the newest source instead of trusting it.
   const newestSource = newestMtime([
-    path.join(process.cwd(), "src"),
-    path.join(process.cwd(), "public/icons"),
+    fromRepoRoot("apps/web/src"),
+    fromRepoRoot("packages/core/src"),
+    fromRepoRoot("packages/ui/src"),
+    fromRepoRoot("apps/web/public/icons"),
   ]);
   const stale = newestSource !== null && newestSource > built.getTime();
   const stamp = built.toISOString().slice(0, 16).replace("T", "-").replace(":", "");

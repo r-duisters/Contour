@@ -1,7 +1,13 @@
 import { readdir, readFile, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
+import { fromRepoRoot } from "@/lib/repo-root";
 
-const DIR = resolve(process.cwd(), "samples");
+/**
+ * `samples/` is repository-level, not app-level: it is shared with the future
+ * mobile build and deliberately stayed at the root when the web app moved into
+ * `apps/web`. Resolving it from the server's cwd would look in `apps/web`.
+ */
+const DIR = fromRepoRoot("samples");
 
 const SAFE_NAME = /^[A-Za-z0-9._-]+\.pine$/;
 

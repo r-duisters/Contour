@@ -3,12 +3,15 @@ import { z } from "zod";
 import { createHash } from "crypto";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
+import { fromRepoRoot } from "@/lib/repo-root";
 
 export const dynamic = "force-dynamic";
 
 const COIN_CDN = "https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color";
 const STOCK_LOGOS = "https://assets.parqet.com/logos/symbol";
-const CACHE_DIR = path.join(process.cwd(), ".icon-cache");
+// Repository-level so the already-warmed cache survives the app's move into
+// apps/web, and so a second app can share it later.
+const CACHE_DIR = fromRepoRoot(".icon-cache");
 const MISS_TTL_MS = 7 * 86_400_000;
 
 const Query = z.object({

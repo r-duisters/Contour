@@ -509,6 +509,14 @@ The last structural move, and the one with the most ways to go quietly wrong: th
 - Modify: root `tsconfig.json` (becomes a solution file for tests only)
 - Modify: `.gitignore`
 - Modify: `apps/web/src/app/globals.css` (`@source` path)
+- Create: `apps/web/src/lib/repo-root.ts`, and use it wherever a route resolved a
+  repository-level path from `process.cwd()` — `samples/` in
+  `src/lib/pinescript/library.ts`, `android/` and the staleness inputs in
+  `api/app/download`, `.icon-cache/` in `api/icon`. The server's cwd is now `apps/web`,
+  and every one of those fails quietly: an empty script list, a "No build yet" 404, a
+  cold cache. No test catches them, because vitest still runs from the repository root.
+- Create: `packages/core/eslint.config.mjs`, `packages/ui/eslint.config.mjs` and a `lint`
+  script in each, so `npm run lint --workspaces` covers the extracted packages
 
 **Interfaces:**
 - Consumes: `packages/core`, `packages/ui` and the aliases from Tasks 2–3.
@@ -629,26 +637,27 @@ In `apps/web/src/app/globals.css`, the `@source` line added in Task 3 is now thr
 
 From `apps/web/src/app/`, four levels up is the repository root.
 
-In `.gitignore`, the Next patterns are anchored to the root and no longer match. Replace:
+In `.gitignore`, several patterns are anchored to the root and no longer match anything
+under `apps/`. Unanchor all of them — `/node_modules`, `/coverage`, `/.next/`, `/out/`,
+`/build`, `/src/generated/prisma`, `prisma/dev.db` and `prisma/dev.db-journal` become
+`node_modules/`, `coverage/`, `.next/`, `out/`, `build/`, `**/src/generated/prisma`,
+`**/prisma/dev.db` and `**/prisma/dev.db-journal`.
 
-```
-/.next/
-/out/
-```
+The database patterns are the urgent ones: `prisma/dev.db` contains a mid-pattern slash,
+which git anchors to the `.gitignore`'s own directory, so after the move the owner's real
+SQLite file is **not** ignored and the `git add -A` in Step 8 commits it. The
+`node_modules` one matters from Phase 4, when a Capacitor workspace brings native
+dependencies that do not all hoist to the root.
 
-with:
-
-```
-.next/
-out/
-```
-
-and confirm the ignore now covers the moved build directory:
+Confirm the ignore now covers both the moved build directory and the database. The
+directory has to exist for `git check-ignore` to match a `dir/` pattern, so build first
+or create it:
 
 ```bash
 git check-ignore -v apps/web/.next 2>/dev/null || echo "NOT IGNORED — fix .gitignore"
+git check-ignore -v apps/web/prisma/dev.db || echo "DATABASE NOT IGNORED — stop"
 ```
-Expected: a line naming the `.next/` rule, not the error message.
+Expected: two lines naming the `.next/` and `**/prisma/dev.db` rules, not the messages.
 
 - [ ] **Step 6: Delegate the root scripts**
 
@@ -658,8 +667,8 @@ In the root `package.json`, replace the `scripts` block with:
   "scripts": {
     "dev": "npm run dev --workspace @contour/web",
     "build": "npm run build --workspace @contour/web",
-    "start": "npm run start --workspace @contour/web",
-    "lint": "npm run lint --workspace @contour/web",
+    "start": "npm run start --workspace @contour/web --",
+    "lint": "npm run lint --workspaces --if-present",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc --noEmit -p apps/web",
     "android:sync": "npx cap sync android",
@@ -722,13 +731,13 @@ Open it and confirm your real portfolios are listed. If the tables are empty, th
 ```bash
 pkill -f "next start" || true
 npm run build
-(cd apps/web && npx next start -p 3001 &)
+npm run start -- -p 3001 &
 sleep 9
 curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3001/login
 ```
-Expected: `200`. Start the server directly rather than through `npm run start -- -p 3001`
-— the port argument is swallowed by the root script's second hop into the workspace and
-arrives as a project directory.
+Expected: `200`. The trailing `--` in the root `start` script is what makes this work: npm
+drops the port argument at the second hop into the workspace without it, and `next start`
+receives `3001` as a project directory.
 
 Log in through a browser and confirm the portfolio screen shows your real holdings and is fully styled.
 
