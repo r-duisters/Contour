@@ -1,9 +1,7 @@
-import WebSocket from "ws";
 import type { Bar, Timeframe } from "./types";
 import { cached } from "./cache";
 
 const REST = "https://api.binance.com";
-const WS_BASE = "wss://stream.binance.com:9443/ws";
 
 type RawKline = [
   number, string, string, string, string, string,
@@ -128,43 +126,4 @@ async function fetchPricesSafeUncached(symbols: string[]): Promise<Record<string
     }
     return out;
   }
-}
-
-type StreamKline = {
-  e: "kline";
-  E: number;
-  s: string;
-  k: {
-    t: number; T: number; s: string; i: string;
-    o: string; c: string; h: string; l: string; v: string;
-    x: boolean; // is this kline closed?
-  };
-};
-
-export type KlineUpdate = { bar: Bar; closed: boolean };
-
-export function subscribeKlines(
-  symbol: string,
-  interval: Timeframe,
-  onUpdate: (u: KlineUpdate) => void,
-): () => void {
-  const stream = `${symbol.toLowerCase()}@kline_${interval}`;
-  const ws = new WebSocket(`${WS_BASE}/${stream}`);
-  ws.on("message", (data) => {
-    try {
-      const msg = JSON.parse(data.toString()) as StreamKline;
-      const k = msg.k;
-      onUpdate({
-        bar: {
-          t: k.t,
-          o: Number(k.o), h: Number(k.h), l: Number(k.l), c: Number(k.c),
-          v: Number(k.v),
-        },
-        closed: k.x,
-      });
-    } catch {
-      // ignore malformed frames
-    }
-  });
-  return () => ws.close();
 }
