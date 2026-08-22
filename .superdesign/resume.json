@@ -52,8 +52,11 @@
         "src/lib/display.ts": "645cd35b6a8a7da2",
         "src/app/globals.css": "769edf77bd0d101a"
       },
-      "activeVersion": 2,
-      "activeDirection": "editorial, type-led; refined to restore the full range picker, realised P&L, fees, cash, and the mobile disclosure"
+      "activeVersion": 4,
+      "activeDirection": "editorial, type-led; accounting figures (basis, realised P&L, fees) moved to Insights per user; range picker collapsed to 1D/1W/1M/1Y/All with the rest behind More",
+      "notes": [
+        "v4 restored YTD/2Y/5Y deterministically via import-design-draft \u2014 the generator wrote a More button with nothing behind it (third data drop this session)"
+      ]
     }
   }
 }
