@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { thin, targetPoints } from "@/lib/chart-data";
 import { useFitChart } from "@/components/useFitChart";
 import { usePrivacy } from "@/components/usePrivacy";
@@ -10,6 +10,20 @@ import {
   type IChartApi, type IPriceLine, type ISeriesApi, type Time,
 } from "lightweight-charts";
 
+/**
+ * The time scale is a canvas lightweight-charts lays along the bottom of the
+ * same container; the plot is what is left above it. Measured, not guessed.
+ */
+const AXIS_PX = 28;
+
+/**
+ * Share of the plot reserved above the high and below the low. Because it is
+ * the same at both ends, the high sits at `EDGE` of the plot's height and the
+ * low at `1 - EDGE` — fixed fractions, so the labels follow their rules
+ * through a timeframe change or a resize without a single coordinate read.
+ */
+const EDGE = 0.1;
+
 /** Portfolio value over the selected period. */
 export default function ValueChart({ series }: {
   series: { t: number; value: number }[] | null;
@@ -18,8 +32,6 @@ export default function ValueChart({ series }: {
   const chart = useRef<IChartApi | null>(null);
   const area = useRef<ISeriesApi<"Area"> | null>(null);
   const priceLines = useRef<IPriceLine[]>([]);
-  // Where the two rules landed, in pixels down from the top of the container.
-  const [levels, setLevels] = useState<{ hi: number; lo: number } | null>(null);
   // Reading privacy here rather than as a prop: these labels are the only
   // amounts the chart prints, so the component that draws them owns the guard.
   const hidden = usePrivacy();
@@ -46,7 +58,13 @@ export default function ValueChart({ series }: {
       autoSize: true,
       // No price axis: the value is printed above the chart, and on a 390px
       // screen the column cost more width than the reading was worth.
-      rightPriceScale: { visible: false },
+      //
+      // The margins are pinned rather than left to the library's defaults
+      // (0.2 above, 0.1 below) because the two labels are placed from them.
+      // Equal margins put the high and the low at known fractions of the
+      // plot, which is what lets the text sit on its rule without measuring
+      // anything — see AXIS_PX below.
+      rightPriceScale: { visible: false, scaleMargins: { top: EDGE, bottom: EDGE } },
       // Nothing to scroll to beyond the data, so the window cannot drift off it.
       timeScale: { timeVisible: false, fixLeftEdge: true, fixRightEdge: true },
       handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
@@ -95,37 +113,7 @@ export default function ValueChart({ series }: {
     }
   }, [extent, series]);
 
-  /**
-   * Put each figure on its own rule. The default scale margins leave 20% of
-   * headroom above the high and 10% below the low, so a label pinned to the
-   * container's corners would sit well clear of the line it belongs to and
-   * claim a level the chart never draws.
-   */
-  const measure = useCallback(() => {
-    const s = area.current;
-    if (!s || !extent) { setLevels(null); return; }
-    const hi = s.priceToCoordinate(extent.hi);
-    const lo = s.priceToCoordinate(extent.lo);
-    setLevels(hi !== null && lo !== null ? { hi, lo } : null);
-  }, [extent]);
-
   useFitChart(chart, container, series);
-
-  // After the fit, not before: fitting changes the scale, and a coordinate
-  // read on the previous one puts both labels in the wrong place.
-  useEffect(() => {
-    const id = requestAnimationFrame(measure);
-    return () => cancelAnimationFrame(id);
-  }, [measure, series]);
-
-  // The coordinates are in pixels, so every resize invalidates them.
-  useEffect(() => {
-    const el = container.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(() => measure());
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [measure]);
 
   return (
     <div className="relative">
@@ -140,18 +128,21 @@ export default function ValueChart({ series }: {
           One grey for both, because they do the same job: they were 11px in
           neutral-500 and neutral-600, two weights for one pair, with the low
           in the grey the guide reserves for footnotes. */}
-      {extent && levels && !hidden && (
+      {extent && !hidden && (
         <>
-          {/* Sat on the rule, and nudged clear of it, so the figure reads as
-              that level rather than as a caption for the whole chart. */}
+          {/* Placed from the same margins the price scale uses, so each label
+              tracks its rule through every timeframe. Positioning these from
+              priceToCoordinate looked equivalent and was not: the read had to
+              land after the fit, and on a range change it did not, so the two
+              figures drifted off their lines. */}
           <span
-            style={{ top: levels.hi }}
+            style={{ top: `calc((100% - ${AXIS_PX}px) * ${EDGE})` }}
             className="pointer-events-none absolute z-10 right-2 -translate-y-full -mt-0.5 text-xs tabular-nums text-neutral-400"
           >
             {money(extent.hi)}
           </span>
           <span
-            style={{ top: levels.lo }}
+            style={{ top: `calc((100% - ${AXIS_PX}px) * ${1 - EDGE})` }}
             className="pointer-events-none absolute z-10 right-2 mt-0.5 text-xs tabular-nums text-neutral-400"
           >
             {money(extent.lo)}
