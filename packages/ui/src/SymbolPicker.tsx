@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
+import { useDataClient } from "@/data/client/context";
 
 // Shared across all picker instances in the session; the list rarely changes.
 let cachedSymbols: string[] | null = null;
@@ -20,6 +21,7 @@ export default function SymbolPicker({
   onChange: (symbol: string) => void;
   className?: string;
 }) {
+  const client = useDataClient();
   const [symbols, setSymbols] = useState<string[]>(cachedSymbols ?? []);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState<string | null>(null); // null = not editing
@@ -27,14 +29,13 @@ export default function SymbolPicker({
 
   useEffect(() => {
     if (cachedSymbols) { setSymbols(cachedSymbols); return; }
-    fetch("/api/symbols")
-      .then((r) => (r.ok ? r.json() : { symbols: [] }))
-      .then((d: { symbols?: string[] }) => {
-        cachedSymbols = d.symbols ?? [];
-        setSymbols(cachedSymbols);
+    client.listSymbols()
+      .then((list) => {
+        cachedSymbols = list;
+        setSymbols(list);
       })
       .catch(() => {});
-  }, []);
+  }, [client]);
 
   // Close when tapping/clicking anywhere outside.
   useEffect(() => {

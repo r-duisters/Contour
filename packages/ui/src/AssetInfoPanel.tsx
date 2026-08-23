@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
+import { useDataClient } from "@/data/client/context";
 import type { AssetInfo } from "@/lib/asset-info";
 
 /**
@@ -15,6 +16,7 @@ export default function AssetInfoPanel({
   symbol: string;
   assetType: "crypto" | "equity" | "cash";
 }) {
+  const client = useDataClient();
   const [info, setInfo] = useState<AssetInfo | null | undefined>(undefined);
   const [expanded, setExpanded] = useState(false);
 
@@ -22,12 +24,13 @@ export default function AssetInfoPanel({
     if (assetType === "cash") { setInfo(null); return; }
     let cancelled = false;
     setInfo(undefined);
-    fetch(`/api/asset/${encodeURIComponent(symbol)}?assetType=${assetType}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: AssetInfo | null) => { if (!cancelled) setInfo(d); })
+    // The client encodes the symbol itself, so this must not — a ticker with a
+    // dot in it (equities have them) would otherwise arrive double-encoded.
+    client.getAssetInfo(symbol, assetType)
+      .then((d) => { if (!cancelled) setInfo(d); })
       .catch(() => { if (!cancelled) setInfo(null); });
     return () => { cancelled = true; };
-  }, [symbol, assetType]);
+  }, [client, symbol, assetType]);
 
   if (info === undefined) {
     return <div className="mt-8 h-24 rounded border border-neutral-800 bg-neutral-900/40 animate-pulse" />;

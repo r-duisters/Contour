@@ -48,12 +48,13 @@ const PORTABLE_PACKAGES = ["packages/core/src", "packages/ui/src", "packages/dat
  * headers to express — went to `apps/web/src/lib/equity-info.ts`, outside every
  * package this guard covers. Core is now pure.
  *
- * `packages/ui` is still absent: three components fetch directly. Those move
- * behind `Net` later, and it joins the list when they do. Listing it now would
- * fail the suite on work that has not happened yet, which teaches everyone to
- * ignore it.
+ * `packages/ui` joined in Phase 3, once `SymbolPicker`, `AssetInfoPanel` and
+ * `PortfolioManager` — the last three direct callers — started taking a
+ * `DataClient` from context instead. It is the package with the most to lose
+ * from a relapse: every screen the APK renders comes from here, and a `fetch`
+ * that works in a browser is a blank panel on a device with nothing to say why.
  */
-const NET_ONLY_PACKAGES = ["packages/data/src", "packages/core/src"];
+const NET_ONLY_PACKAGES = ["packages/data/src", "packages/core/src", "packages/ui/src"];
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
@@ -131,19 +132,29 @@ describe("packages/core, packages/ui and packages/data stay portable", () => {
 
   it("reaches the network only through an injected Net", () => {
     const offenders: string[] = [];
-    let scanned = 0;
     for (const pkg of NET_ONLY_PACKAGES) {
-      const files = sourceFiles(join(process.cwd(), pkg));
-      scanned += files.length;
-      for (const file of files) {
+      for (const file of sourceFiles(join(process.cwd(), pkg))) {
         const src = stripComments(readFileSync(file, "utf8"));
         if (usesGlobalFetch(src)) {
           offenders.push(`[${pkg}] ${file.replace(process.cwd() + "/", "")} -> global fetch`);
         }
       }
     }
-    expect(scanned).toBeGreaterThan(3);
     expect(offenders).toEqual([]);
+  });
+
+  /**
+   * A package whose walk returns nothing is silently exempt from both rules
+   * above, and the import rule's combined floor cannot see it: the other two
+   * packages carry the count on their own. That is how a guard stops guarding
+   * without anyone noticing, and both lists now name three packages. Each has
+   * to contribute files of its own.
+   */
+  it("actually reads every package it names", () => {
+    const empty = [...new Set([...PORTABLE_PACKAGES, ...NET_ONLY_PACKAGES])]
+      .map((pkg) => [pkg, sourceFiles(join(process.cwd(), pkg)).length] as const)
+      .filter(([, count]) => count < 4);
+    expect(empty).toEqual([]);
   });
 
   /**
