@@ -37,6 +37,29 @@ import type { Insights, Snapshot, Valuation } from "../services/valuation";
  * to `undefined` to signal failure, and no method hands back a status code:
  * that a request was involved at all is `HttpClient`'s private business.
  *
+ * ## `RequestFailedError.kind` distinguishes refused from unreachable
+ *
+ * `RequestFailedError` also carries `kind: "unreachable" | "refused"`, because
+ * "no one answered" and "someone answered and said no" call for different
+ * screens. `"unreachable"` means nothing came back at all — no connection, no
+ * DNS, a timeout. `"refused"` means a response arrived and it was a failure —
+ * a non-2xx status, a body that could not be parsed as the JSON expected.
+ * `HttpClient` sets it at both of the sites in `http-client.ts` that already
+ * know which happened; the field defaults to `"refused"` so it costs existing
+ * construction sites nothing.
+ *
+ * Every implementation of this interface must set `kind` correctly, not just
+ * satisfy the type — `client-contract.ts` pins both cases, so a `LocalClient`
+ * that always throws `"refused"` (or never sets it) fails the suite the same
+ * as `HttpClient` would. On a browser hitting a same-origin server the
+ * distinction is cosmetic. On a device it is not: `LocalClient`'s local reads
+ * — a portfolio, a transaction — talk to on-device storage that either has the
+ * record or doesn't, and cannot be merely unreachable; only its price calls,
+ * which still cross the network to a feed, can be. Getting `kind` right there
+ * is what lets a screen show a plain offline badge over otherwise-correct
+ * local figures instead of a retry prompt that promises a fix reconnecting
+ * cannot provide.
+ *
  * The rule is about records this app owns — a portfolio, a transaction. A
  * *symbol* is not one: `getHistory`, `getAssetInfo`, `listSymbols` and
  * `getBenchmark` answer for something a price feed owns, and "no data for that

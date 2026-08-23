@@ -353,5 +353,25 @@ export function runDataClientContract(name: string, makeClient: () => DataClient
         "the error carries a message",
       );
     });
+
+    /* ------------------------------------------------- refused vs unreachable */
+
+    it("marks a refused request — a response came back and said no — with kind: \"refused\"", async () => {
+      // A 500 on delete and a 400 on restore are both "someone answered and it
+      // was a failure", the same `kind` regardless of status code.
+      const client = makeClient();
+      await expect(client.deletePortfolio(GONE_PORTFOLIO_ID)).rejects.toMatchObject({
+        kind: "refused",
+      });
+      await expect(client.restoreBackup(FIXTURE.badBackup)).rejects.toMatchObject({
+        kind: "refused",
+      });
+    });
+
+    it("marks an unreachable request — no response came back at all — with kind: \"unreachable\"", async () => {
+      await expect(makeClient().getValuation(BROKEN_PORTFOLIO_ID)).rejects.toMatchObject({
+        kind: "unreachable",
+      });
+    });
   });
 }

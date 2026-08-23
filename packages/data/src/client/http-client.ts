@@ -93,13 +93,13 @@ export function HttpClient(net: Net, baseUrl = ""): DataClient {
       // No response at all: airplane mode, DNS, a reset connection. The
       // screens need a sentence, not a `TypeError: Failed to fetch`.
       const reason = e instanceof Error ? e.message : String(e);
-      throw new RequestFailedError(`Could not reach the server (${reason}).`, reason);
+      throw new RequestFailedError(`Could not reach the server (${reason}).`, reason, "unreachable");
     }
 
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
       if (res.status === 404 && opts.subject) throw new NotFoundError(`No such ${opts.subject}.`);
-      throw new RequestFailedError(reasonFrom(detail), detail);
+      throw new RequestFailedError(reasonFrom(detail), detail, "refused");
     }
     // Nothing to read, so nothing to fail on. Both delete routes answer
     // `{ ok: true }` today and their callers discard it; parsing anyway would

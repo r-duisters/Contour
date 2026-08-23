@@ -34,6 +34,14 @@ export class RequestFailedError extends Error {
      * today (`Error: ${await r.text()}`), so it has to survive the trip.
      */
     readonly detail: string = "",
+    /**
+     * Whether anything answered at all. See `data-client.ts` for what each
+     * value means and why an implementation has to set it deliberately.
+     * Defaulted to the more common case so the many call sites that predate
+     * this field — and any new one that forgets it — stay `"refused"` rather
+     * than silently wrong about connectivity.
+     */
+    readonly kind: "unreachable" | "refused" = "refused",
   ) {
     super(message);
     this.name = "RequestFailedError";
