@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import { thin, type Pt } from "@/lib/chart-data";
+import { shapePoints, thinKeepingExtremes } from "@/lib/chart-data";
 import { useFitChart } from "@/components/useFitChart";
 import { usePrivacy } from "@/components/usePrivacy";
 import { money } from "@/lib/display";
@@ -23,47 +23,6 @@ const AXIS_PX = 28;
  * through a timeframe change or a resize without a single coordinate read.
  */
 const EDGE = 0.1;
-
-/**
- * How many points this chart draws, whatever the period.
- *
- * It answers one question — what is it worth and which way has it gone — so
- * it wants a shape, not a record. The shared `targetPoints` budget aims at
- * roughly one point every three pixels, which is right for the asset page's
- * price history and for the benchmark comparison, and far too fine here: a
- * two-year window arrived as ~320 samples of visible noise while a week
- * arrived as seven, so the same control drew two different kinds of picture.
- *
- * Twenty to forty keeps every period in one visual register. Thinning only
- * ever removes points, so a period the server samples more coarsely than this
- * — a week, which it returns as seven daily closes — still draws what it has.
- */
-function valuePoints(widthPx: number): number {
-  return Math.max(20, Math.min(40, Math.round(widthPx / 24)));
-}
-
-/**
- * Put the period's actual high and low back into a thinned series.
- *
- * `thin` averages its buckets, and at forty points a two-year window averages
- * about eighteen days each — enough to flatten a peak away entirely. The two
- * labels report the real high and low, so without this the chart draws rules
- * its own line never reaches, which reads as a bug even though the figures
- * are the honest ones.
- *
- * A bucket landing on the same timestamp is replaced rather than joined, so
- * the extreme is drawn instead of an average that includes it.
- */
-function withExtremes(points: Pt[], hi: Pt, lo: Pt): Pt[] {
-  const out = points.slice();
-  for (const p of [hi, lo]) {
-    const same = out.findIndex((q) => q.t === p.t);
-    if (same >= 0) { out[same] = p; continue; }
-    const after = out.findIndex((q) => q.t > p.t);
-    out.splice(after < 0 ? out.length : after, 0, p);
-  }
-  return out;
-}
 
 /** Portfolio value over the selected period. */
 export default function ValueChart({ series }: {
@@ -132,14 +91,9 @@ export default function ValueChart({ series }: {
     if (!area.current || !series) return;
     const width = container.current?.clientWidth ?? 360;
     const raw = series.map((p) => ({ t: p.t, v: p.value }));
-    let points = thin(raw, valuePoints(width));
-    if (extent) {
-      points = withExtremes(points,
-        { t: extent.hi.t, v: extent.hi.value },
-        { t: extent.lo.t, v: extent.lo.value });
-    }
+    const points = thinKeepingExtremes(raw, shapePoints(width));
     area.current.setData(points.map((p) => ({ time: Math.floor(p.t / 1000) as Time, value: p.v })));
-  }, [series, extent]);
+  }, [series]);
 
   /**
    * A rule at each end of the range, so a figure means a level rather than

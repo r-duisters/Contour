@@ -168,7 +168,9 @@ helpers take the number, not a boolean, so zero reads neutral — a portfolio
 that has made exactly nothing has not made a gain.
 
 Chart series take hex, not classes, because `lightweight-charts` accepts
-strings. Grid `#171717`/`#1f1f1f`, axis text `#d4d4d4`, ground `#0a0a0a`.
+strings. Grid `#171717`, axis text `#d4d4d4`, ground `#0a0a0a`. This listed
+two greys for the grid until an audit found one chart of three using the
+other — a guide that offers a choice is a guide that produces drift.
 
 ## Type and numbers
 

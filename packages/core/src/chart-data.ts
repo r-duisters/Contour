@@ -43,3 +43,48 @@ export function thin(points: Pt[], target: number): Pt[] {
 export function targetPoints(widthPx: number): number {
   return Math.max(40, Math.min(400, Math.round(widthPx / 3)));
 }
+
+/**
+ * The budget for a chart that shows a *shape* rather than a record.
+ *
+ * The portfolio's value chart and the benchmark comparison both answer "which
+ * way has this gone", and `targetPoints` draws them far too finely for that: a
+ * two-year window arrived as some 320 samples of visible noise while a week
+ * arrived as seven, so one control produced two different kinds of picture.
+ *
+ * Twenty to forty puts every period in one register. The asset page keeps
+ * `targetPoints`, because it has a price axis and draws trade markers on
+ * particular days — there you read values off the line, so detail is the point.
+ */
+export function shapePoints(widthPx: number): number {
+  return Math.max(20, Math.min(40, Math.round(widthPx / 24)));
+}
+
+/**
+ * Thin a series, but keep the highest and lowest samples it contained.
+ *
+ * `thin` averages its buckets, and at forty points a two-year window averages
+ * about eighteen days into each — enough to flatten a peak away completely.
+ * That matters wherever the extremes are claimed elsewhere: the value chart
+ * prints them beside rules the line then failed to reach, and a comparison of
+ * two lines is distorted if one is flattened more than the other.
+ *
+ * A bucket sharing the extreme's timestamp is replaced rather than joined, so
+ * the real sample is drawn instead of an average that merely contains it.
+ */
+export function thinKeepingExtremes(points: Pt[], target: number): Pt[] {
+  if (points.length === 0) return points;
+  let hi = points[0]!, lo = points[0]!;
+  for (const p of points) {
+    if (p.v > hi.v) hi = p;
+    if (p.v < lo.v) lo = p;
+  }
+  const out = thin(points, target);
+  for (const p of hi === lo ? [hi] : [hi, lo]) {
+    const same = out.findIndex((q) => q.t === p.t);
+    if (same >= 0) { out[same] = p; continue; }
+    const after = out.findIndex((q) => q.t > p.t);
+    out.splice(after < 0 ? out.length : after, 0, p);
+  }
+  return out;
+}

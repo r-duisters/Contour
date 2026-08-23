@@ -6,7 +6,7 @@ import {
 } from "lightweight-charts";
 import { useFitChart } from "@/components/useFitChart";
 import { money } from "@/lib/display";
-import { thin, targetPoints } from "@/lib/chart-data";
+import { shapePoints, thinKeepingExtremes } from "@/lib/chart-data";
 
 export type Point = { t: number; v: number };
 
@@ -45,17 +45,21 @@ export default function ComparisonChart({
       handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
     });
     chart.current = c;
-    const line = { lineWidth: 2 as const, lineType: LineType.Curved };
+    // The legend below states where both lines end, so the library's
+    // last-value markers drew two more dotted lines saying it again.
+    const line = { lineWidth: 2 as const, lineType: LineType.Curved, priceLineVisible: false };
     mine.current = c.addSeries(LineSeries, { color: "#3b82f6", ...line });
     theirs.current = c.addSeries(LineSeries, { color: "#eab308", ...line });
     return () => { c.remove(); chart.current = null; mine.current = null; theirs.current = null; };
   }, []);
 
   useEffect(() => {
-    // Both lines are thinned to the same budget so their shapes stay comparable.
-    const budget = targetPoints(container.current?.clientWidth ?? 360);
+    // Both lines take the same budget so their shapes stay comparable, and
+    // both keep their own extremes: flattening one more than the other would
+    // misstate the very gap this chart exists to show.
+    const budget = shapePoints(container.current?.clientWidth ?? 360);
     const toData = (points: Point[]) =>
-      thin(points, budget).map((p) => ({ time: Math.floor(p.t / 1000) as Time, value: p.v }));
+      thinKeepingExtremes(points, budget).map((p) => ({ time: Math.floor(p.t / 1000) as Time, value: p.v }));
     if (you) mine.current?.setData(toData(you));
     if (bench) theirs.current?.setData(toData(bench));
   }, [you, bench]);
