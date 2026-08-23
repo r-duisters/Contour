@@ -1,29 +1,37 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 /**
- * The services layer is where Phase 2's whole argument lives: a service takes
- * a `Store` and a `Net` and does nothing else to reach the outside world, so
- * the same function answers an HTTP route today and a `DataClient` call inside
- * an APK in Phase 4.
+ * `packages/data` is where Phase 2's whole argument lives: everything in it
+ * reaches the outside world through a `Store` and a `Net` and through nothing
+ * else, so the same code answers an HTTP route today and a `DataClient` call
+ * inside an APK in Phase 4.
  *
  * `packages/core/src/boundary.test.ts` already guards the *package* — no Node
- * builtins, no server-only dependencies, no global `fetch` anywhere under
- * `packages/data/src`. This guards the *layer*, and the overlap is deliberate:
- * the failure worth catching is not a bundling error, it is a service quietly
- * reaching for `prisma` or a `next/` helper because the route it was extracted
- * from used to. That import would typecheck, pass every unit test with a
- * `MemoryStore`, and only surface in Phase 4 as a feature missing from the
- * mobile build.
+ * builtins, no server-only dependencies, no global `fetch`. This guards the
+ * *layer*, and the overlap is deliberate: the failure worth catching is not a
+ * bundling error, it is a module quietly reaching for `prisma` or a `next/`
+ * helper because the route it was extracted from used to. That import would
+ * typecheck, pass every unit test with a `MemoryStore`, and only surface in
+ * Phase 4 as a feature missing from the mobile build.
  *
- * Each rule reports itself by name, because "a service broke the layer" is not
+ * The walk covers the whole of `packages/data/src`, not just `services/`.
+ * While it stopped at that one directory there was a hole the two guards each
+ * assumed the other closed: a new `sources/foo.ts` importing `@/lib/db` was
+ * out of this walk's reach, and `boundary.test.ts` has no `@/lib` rule at all
+ * — it cannot have one, because `packages/ui` legitimately imports `@/lib/*`,
+ * so that rule has to stay scoped to this package. `sources/` is where the
+ * hole mattered most: transport is precisely the code most tempted to cache a
+ * result in the database.
+ *
+ * Each rule reports itself by name, because "a module broke the layer" is not
  * an actionable failure message and "imports @/lib/db (persistence must go
  * through the Store port)" is.
  */
 
-const SERVICES_DIR = dirname(fileURLToPath(import.meta.url));
+const DATA_SRC = dirname(fileURLToPath(import.meta.url));
 
 type Rule = {
   /** Named in the failure message, so the fix is obvious from the output. */
@@ -95,19 +103,23 @@ function stripComments(src: string): string {
   return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(?<!:)\/\/.*$/gm, "");
 }
 
-function serviceFiles(): string[] {
-  return readdirSync(SERVICES_DIR)
-    .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
-    .map((f) => join(SERVICES_DIR, f));
+/** Every non-test `.ts` under `packages/data/src`, at any depth. */
+function dataFiles(dir: string = DATA_SRC): string[] {
+  return readdirSync(dir).flatMap((entry) => {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) return dataFiles(full);
+    if (!full.endsWith(".ts") || full.endsWith(".test.ts")) return [];
+    return [full];
+  });
 }
 
-describe("services take a Store and a Net, and reach nothing else", () => {
-  it("every service obeys every layer rule", () => {
-    const files = serviceFiles();
+describe("packages/data takes a Store and a Net, and reaches nothing else", () => {
+  it("every module obeys every layer rule", () => {
+    const files = dataFiles();
     // A directory read that returned nothing would pass this vacuously. The
-    // floor sits below the current count (8) so it trips on a broken walk,
-    // not on someone adding or removing one service.
-    expect(files.length).toBeGreaterThan(4);
+    // floor sits well below the current count (19) so it trips on a broken
+    // walk, not on someone adding or removing a module.
+    expect(files.length).toBeGreaterThan(12);
 
     const offenders: string[] = [];
     for (const file of files) {
