@@ -35,11 +35,11 @@ export function runStoreContract(name: string, makeStore: () => Promise<Store>):
       };
     }
 
-    it("lists and counts a portfolio it has created", async () => {
+    it("lists a portfolio it has created", async () => {
       const created = await store.portfolios.create("Main");
       expect(created.name).toBe("Main");
-      expect(await store.portfolios.count()).toBe(1);
       const list = await store.portfolios.list();
+      expect(list).toHaveLength(1);
       expect(list.map((p) => p.id)).toContain(created.id);
       expect(list.find((p) => p.id === created.id)?.name).toBe("Main");
     });
@@ -92,7 +92,7 @@ export function runStoreContract(name: string, makeStore: () => Promise<Store>):
       await store.transactions.add(other.id, tx());
       await store.portfolios.remove(p.id);
       expect(await store.portfolios.get(p.id)).toBeNull();
-      expect(await store.portfolios.count()).toBe(1);
+      expect(await store.portfolios.list()).toHaveLength(1);
       expect((await store.portfolios.get(other.id))?.transactions).toHaveLength(1);
     });
 
@@ -205,16 +205,6 @@ export function runStoreContract(name: string, makeStore: () => Promise<Store>):
       expect((await store.portfolios.get(p.id))!.transactions).toHaveLength(50);
     });
 
-    it("empties one portfolio with removeAllIn and leaves another intact", async () => {
-      const p = await store.portfolios.create("Main");
-      const other = await store.portfolios.create("Other");
-      await store.transactions.addMany(p.id, [tx({ time: 1 }), tx({ time: 2 })]);
-      await store.transactions.add(other.id, tx());
-      await store.transactions.removeAllIn(p.id);
-      expect((await store.portfolios.get(p.id))?.transactions).toEqual([]);
-      expect((await store.portfolios.get(other.id))?.transactions).toHaveLength(1);
-    });
-
     it("orders list() by createdAt, breaking ties by id", async () => {
       const a = await store.portfolios.create("A");
       const b = await store.portfolios.create("B");
@@ -288,13 +278,6 @@ export function runStoreContract(name: string, makeStore: () => Promise<Store>):
       await store.transactions.remove(added.id);
       await expect(store.transactions.update(added.id, { quantity: 2 })).rejects.toThrow();
       await expect(store.transactions.update("does-not-exist", { quantity: 2 })).rejects.toThrow();
-    });
-
-    it("treats removeAllIn on an empty or unknown portfolio as a no-op", async () => {
-      const p = await store.portfolios.create("Main");
-      await store.transactions.removeAllIn(p.id);
-      await store.transactions.removeAllIn("does-not-exist");
-      expect((await store.portfolios.get(p.id))?.transactions).toEqual([]);
     });
 
     it("returns the documented defaults from an empty store", async () => {

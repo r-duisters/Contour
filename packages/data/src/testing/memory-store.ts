@@ -115,9 +115,6 @@ export function MemoryStore(seed?: StoreSeed): Store {
         if (!portfolios.delete(id)) throw new Error(`MemoryStore: no portfolio ${id}`);
         for (const t of inPortfolio(id)) transactions.delete(t.id);
       },
-      async count(): Promise<number> {
-        return portfolios.size;
-      },
     },
     transactions: {
       async add(portfolioId: string, tx: NewTransaction): Promise<Transaction> {
@@ -142,9 +139,6 @@ export function MemoryStore(seed?: StoreSeed): Store {
         let removed = 0;
         for (const id of ids) if (transactions.delete(id)) removed += 1;
         return removed;
-      },
-      async removeAllIn(portfolioId: string): Promise<void> {
-        for (const t of inPortfolio(portfolioId)) transactions.delete(t.id);
       },
       async countByPortfolio(): Promise<Record<string, number>> {
         const counts: Record<string, number> = {};

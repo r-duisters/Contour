@@ -59,7 +59,6 @@ export interface Store {
     create(name: string): Promise<Portfolio>;
     rename(id: string, name: string): Promise<Portfolio>;
     remove(id: string): Promise<void>;
-    count(): Promise<number>;
   };
   transactions: {
     add(portfolioId: string, tx: NewTransaction): Promise<Transaction>;
@@ -80,7 +79,6 @@ export interface Store {
      * for. The count is of rows deleted, never of ids handed in.
      */
     removeMany(ids: string[]): Promise<number>;
-    removeAllIn(portfolioId: string): Promise<void>;
     /**
      * One row count per portfolio id present in the store, keyed by portfolio
      * id. A plain `GROUP BY`-shaped aggregate — implementable as a real

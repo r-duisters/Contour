@@ -143,7 +143,6 @@ interface Store {
     create(name: string): Promise<Portfolio>;
     rename(id: string, name: string): Promise<Portfolio>;
     remove(id: string): Promise<void>;
-    count(): Promise<number>;
   };
   transactions: {
     add(portfolioId: string, tx: NewTransaction): Promise<Transaction>;
@@ -151,7 +150,6 @@ interface Store {
     update(id: string, patch: TransactionPatch): Promise<Transaction>;
     remove(id: string): Promise<void>;
     removeMany(ids: string[]): Promise<number>;
-    removeAllIn(portfolioId: string): Promise<void>;
     countByPortfolio(): Promise<Record<string, number>>;
   };
   settings: {
@@ -175,7 +173,14 @@ interface Store {
 >   literal and impossible to reference bare.
 > - `transactions.listFor` was never needed — every caller already holds the
 >   portfolio, whose `get` returns its transactions — and was dropped rather
->   than shipped unused.
+>   than shipped unused. `portfolios.count()` and `transactions.removeAllIn()`
+>   went the same way at the end of the phase, for the same reason: the whole
+>   tree, tests and scripts included, contained no caller for either. Both were
+>   drafted for conversions that turned out not to need them — the portfolio
+>   list counts transactions, not portfolios, and the Delta-import clear-out
+>   deletes a predicate-chosen set through `removeMany`, not a whole portfolio.
+>   Every method here is one Phase 4's SQLite store must implement, so an
+>   unused one is pure cost.
 > - Two methods the draft did not have earn their place as *aggregates the
 >   backing store can do far better than the caller*: `countByPortfolio()`,
 >   which replaced an N+1 over the portfolio list, and `removeMany(ids)`, which

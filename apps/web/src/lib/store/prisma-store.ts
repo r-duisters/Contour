@@ -134,9 +134,6 @@ export function PrismaStore(client: PrismaClient = defaultClient): Store {
       async remove(id: string): Promise<void> {
         await client.portfolio.delete({ where: { id } });
       },
-      async count(): Promise<number> {
-        return client.portfolio.count();
-      },
     },
     transactions: {
       async add(portfolioId: string, tx: NewTransaction): Promise<Transaction> {
@@ -174,9 +171,6 @@ export function PrismaStore(client: PrismaClient = defaultClient): Store {
           chunks.map((chunk) => client.transaction.deleteMany({ where: { id: { in: chunk } } })),
         );
         return results.reduce((n, r) => n + r.count, 0);
-      },
-      async removeAllIn(portfolioId: string): Promise<void> {
-        await client.transaction.deleteMany({ where: { portfolioId } });
       },
       async countByPortfolio(): Promise<Record<string, number>> {
         // A real aggregate — one query, not one per portfolio — so listing
