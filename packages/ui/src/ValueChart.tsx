@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import { thin } from "@/lib/chart-data";
+import { thin, type Pt } from "@/lib/chart-data";
 import { useFitChart } from "@/components/useFitChart";
 import { usePrivacy } from "@/components/usePrivacy";
 import { money } from "@/lib/display";
@@ -42,6 +42,29 @@ function valuePoints(widthPx: number): number {
   return Math.max(20, Math.min(40, Math.round(widthPx / 24)));
 }
 
+/**
+ * Put the period's actual high and low back into a thinned series.
+ *
+ * `thin` averages its buckets, and at forty points a two-year window averages
+ * about eighteen days each — enough to flatten a peak away entirely. The two
+ * labels report the real high and low, so without this the chart draws rules
+ * its own line never reaches, which reads as a bug even though the figures
+ * are the honest ones.
+ *
+ * A bucket landing on the same timestamp is replaced rather than joined, so
+ * the extreme is drawn instead of an average that includes it.
+ */
+function withExtremes(points: Pt[], hi: Pt, lo: Pt): Pt[] {
+  const out = points.slice();
+  for (const p of [hi, lo]) {
+    const same = out.findIndex((q) => q.t === p.t);
+    if (same >= 0) { out[same] = p; continue; }
+    const after = out.findIndex((q) => q.t > p.t);
+    out.splice(after < 0 ? out.length : after, 0, p);
+  }
+  return out;
+}
+
 /** Portfolio value over the selected period. */
 export default function ValueChart({ series }: {
   series: { t: number; value: number }[] | null;
@@ -62,17 +85,19 @@ export default function ValueChart({ series }: {
    */
   const extent = useMemo(() => {
     if (!series || series.length === 0) return null;
-    let lo = Infinity, hi = -Infinity;
-    for (const p of series) { if (p.value < lo) lo = p.value; if (p.value > hi) hi = p.value; }
+    let lo = series[0]!, hi = series[0]!;
+    for (const p of series) { if (p.value < lo.value) lo = p; if (p.value > hi.value) hi = p; }
     // A flat line has no meaningful band to label.
-    return Number.isFinite(lo) && Number.isFinite(hi) && hi > lo ? { lo, hi } : null;
+    return hi.value > lo.value ? { lo, hi } : null;
   }, [series]);
 
   useEffect(() => {
     if (!container.current) return;
     const c = createChart(container.current, {
       layout: { background: { color: "#0a0a0a" }, textColor: "#d4d4d4" },
-      grid: { vertLines: { color: "#1f1f1f" }, horzLines: { color: "#1f1f1f" } },
+      // #171717, as the asset and comparison charts already use. BRAND.md
+      // lists both greys, which is why this one drifted.
+      grid: { vertLines: { color: "#171717" }, horzLines: { color: "#171717" } },
       autoSize: true,
       // No price axis: the value is printed above the chart, and on a 390px
       // screen the column cost more width than the reading was worth.
@@ -95,6 +120,10 @@ export default function ValueChart({ series }: {
       lineWidth: 2,
       // Daily closes are jagged enough that the corners read as noise.
       lineType: LineType.Curved,
+      // The library marks the last value by default. That figure is already
+      // the headline above the chart, and a third horizontal line competed
+      // with the two that carry the range.
+      priceLineVisible: false,
     });
     return () => { c.remove(); chart.current = null; area.current = null; };
   }, []);
@@ -102,15 +131,22 @@ export default function ValueChart({ series }: {
   useEffect(() => {
     if (!area.current || !series) return;
     const width = container.current?.clientWidth ?? 360;
-    const points = thin(series.map((p) => ({ t: p.t, v: p.value })), valuePoints(width));
+    const raw = series.map((p) => ({ t: p.t, v: p.value }));
+    let points = thin(raw, valuePoints(width));
+    if (extent) {
+      points = withExtremes(points,
+        { t: extent.hi.t, v: extent.hi.value },
+        { t: extent.lo.t, v: extent.lo.value });
+    }
     area.current.setData(points.map((p) => ({ time: Math.floor(p.t / 1000) as Time, value: p.v })));
-  }, [series]);
+  }, [series, extent]);
 
   /**
    * A rule at each end of the range, so a figure means a level rather than
-   * floating in a corner. Quieter than the series and solid, where the
-   * library's own last-value line is dashed — three horizontal lines only read
-   * as three different things if they do not all look alike.
+   * floating in a corner. Dotted, which is the style the library's last-value
+   * line used before it was turned off, and grey rather than blue: the accent
+   * belongs to the series, and two blue dotted rules beside a blue line would
+   * read as three of the same thing.
    */
   useEffect(() => {
     const s = area.current;
@@ -118,12 +154,12 @@ export default function ValueChart({ series }: {
     for (const line of priceLines.current) s.removePriceLine(line);
     priceLines.current = [];
     if (!extent) return;
-    for (const price of [extent.hi, extent.lo]) {
+    for (const price of [extent.hi.value, extent.lo.value]) {
       priceLines.current.push(s.createPriceLine({
         price,
         color: "#404040",
         lineWidth: 1,
-        lineStyle: LineStyle.Solid,
+        lineStyle: LineStyle.Dotted,
         // The price axis is hidden, so the library has nowhere to draw a
         // label; the figures beside the rules are ours.
         axisLabelVisible: false,
@@ -157,13 +193,13 @@ export default function ValueChart({ series }: {
             style={{ top: `calc((100% - ${AXIS_PX}px) * ${EDGE})` }}
             className="pointer-events-none absolute z-10 right-2 -translate-y-full -mt-0.5 text-xs tabular-nums text-neutral-400"
           >
-            {money(extent.hi)}
+            {money(extent.hi.value)}
           </span>
           <span
             style={{ top: `calc((100% - ${AXIS_PX}px) * ${1 - EDGE})` }}
             className="pointer-events-none absolute z-10 right-2 mt-0.5 text-xs tabular-nums text-neutral-400"
           >
-            {money(extent.lo)}
+            {money(extent.lo.value)}
           </span>
         </>
       )}
