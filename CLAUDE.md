@@ -129,9 +129,12 @@ packages/data/src/        The data seam (Phase 2) — portable, and depends on p
   services/               valuation, series, portfolios, transactions, transfer, pricing,
                           lookup, settings. Each takes a Store and/or a Net and does no
                           I/O of its own; the route handlers are thin wrappers over these.
-    services.test.ts        Fails if a service imports @/lib/db or next/*, or calls fetch.
+    services.test.ts        Fails if a service imports @/lib/* or next/*, reaches Prisma,
+                          or calls global fetch.
   sources/                binance, fx (Frankfurter/ECB), equity, asset-info — the only
-                          transport in any package, all of it behind the injected Net.
+                          transport in packages/core and packages/data, all of it behind
+                          the injected Net. (Three packages/ui components still call
+                          global fetch; boundary.test.ts says why they are exempt so far.)
   testing/                MemoryStore, FakeNet, and store-contract.ts — one contract suite
                           run against both MemoryStore and the app's PrismaStore.
   errors.ts               NotFoundError, which routes map to a 404.
@@ -141,23 +144,39 @@ packages/ui/src/          Shared React components (18) plus useFitChart, usePriv
 
 apps/web/src/             The Next server app.
   app/
-    page.tsx                Home — links to the four screens
+    page.tsx                Redirects to /portfolio — the app's home is the portfolio,
+                          and the tab bar and More page already list every destination.
+                          Tab bar (TabBar.tsx): portfolio, chart, insights, more.
+    portfolio/page.tsx      Holdings, valuation, day change and the history chart
+    portfolio/[symbol]/     One holding: its trades, its chart, its background panel
+    insights/page.tsx       Benchmarks, what made the money, concentration, activity
     chart/page.tsx          Live candlestick chart with indicator overlay
-    backtest/page.tsx       Run backtest, view stats and trades
+    more/page.tsx           The overflow menu — ledger, alerts, backtest, analyze, settings
+                          Reached from More:
+    ledger/page.tsx         Every transaction, with Delta CSV import and export
+    settings/page.tsx       Display currency, equity provider, HA URL + webhook, passkeys
     alerts/page.tsx         CRUD for alerts + "Evaluate now"
-    settings/page.tsx       HA URL + webhook ID, with "Send test"
+    backtest/page.tsx       Run backtest, view stats and trades
     analyze/page.tsx        Library selector + analyzer + apply-fixes + save-as
+                          Unauthenticated:
+    login/page.tsx          Password or passkey
+    setup/page.tsx          First run — sets the password
     globals.css             Tailwind entry point; its `@source` directive names
                           packages/ui/src so Tailwind scans the shared components too.
-    api/
-      candles/                GET — proxy Binance klines
-      backtest/               POST — run indicator over history + simulate
-      alerts/                 GET/POST + [id] PATCH/DELETE
-      analyze/                POST — analyze (+ optional `apply: id[]` to rewrite)
-      scripts/                GET — list samples/*.pine; POST — save (auto-named)
-      scripts/[name]/         GET — read one
-      cron/evaluate/          GET — periodic alert evaluator (call from a cron)
-      settings/               GET/PUT settings; POST sends a test signal to HA
+    api/                  Twenty-one route groups. The converted ones are wrappers over
+                          packages/data/src/services — see "The data seam" below; the
+                          rest are listed there as deliberately server-only.
+      portfolios/             CRUD, plus [id]/{valuation,series,changes,insights,
+                          snapshot,export,import,transactions} and restore
+      transactions/[id]/      PATCH/DELETE one transaction
+      symbols/ asset/ history/ benchmark/
+                          Symbol search, per-asset background, price history, benchmarks
+      settings/               GET/PUT settings; POST sends a test signal to HA + Web Push
+      login/ logout/ setup/ webauthn/ push/
+                          Auth, first-run and notification subscriptions — server-only
+      candles/ backtest/ risk/ analyze/ scripts/ scripts/[name]/ cron/evaluate/
+                          The strategy tooling and the alert evaluator — server-only
+      icon/ app/download/     Cached asset icons; the built APK — server-only
   components/              BackgroundAlerts, PwaSetup — the only components that stayed
                           app-local instead of moving to packages/ui.
   lib/
@@ -214,7 +233,7 @@ answer an HTTP request today and run inside an APK with no server in Phase 4. Th
 
 - `Store` (`store.ts`) — everything persisted: portfolios, transactions, settings. Methods, not
   tables: `portfolios.list/get/create/rename/remove/count`, `transactions.add/addMany/update/remove/
-  removeMany/removeAllIn/countByPortfolio`, `settings.get/save`.
+  removeMany/removeAllIn/countByPortfolio`, `settings.get/save/exists`.
 - `Net` (`net.ts`) — everything fetched. `net.json(url)` for the common case, `net.request(url)` when
   a caller needs to tell a non-2xx apart from a transport failure.
 
@@ -223,7 +242,9 @@ wires them once in `apps/web/src/lib/deps.ts` (`PrismaStore` + `WebNet`); tests 
 `FakeNet` from `packages/data/src/testing/`; Phase 4 wires `SqliteStore` + `CapacitorNet`. The
 service in between cannot tell which it got, which is the whole point.
 
-**Services are pure of HTTP and persistence.** No `prisma`, no `next/*`, no global `fetch` —
+**Services are pure of HTTP and persistence.** No `prisma`, no `next/*`, no global `fetch`, and no
+`@/lib/*` — that alias is a fallback array under `apps/web`'s tsconfig and reaches the server-only
+`apps/web/src/lib`, so portable code uses the unambiguous `@/core/*`.
 `packages/data/src/services/services.test.ts` fails if one of those appears, naming the rule that
 broke. `packages/core/src/boundary.test.ts` guards the packages more broadly; the overlap is
 deliberate, since the failure worth catching is a service quietly reaching for `prisma` because the
@@ -233,6 +254,12 @@ route it was extracted from used to.
 errors to statuses, respond. Response *shaping* (a display order, a legacy `id: 1`, an ISO string) is
 a route's job — a service has no route to please. Business logic is not. If a handler grows past
 about forty lines, the excess almost certainly belongs in a service.
+
+Shaping is not a licence to read the database. `GET /api/settings` has to tell a virgin install from
+a configured one, and reached for `prisma.settings.findUnique` to do it; that is a *persistence read
+used to make a decision*, and it became `settings.exists()` on the port. The test is whether Phase
+3's `DataClient` could answer the same question — if it could not, the route is deciding something
+the seam cannot carry, and the mobile build will silently differ.
 
 **Deliberately left inline, permanently:** the alerts routes, the strategy tooling (`backtest`,
 `candles`, `risk`, `analyze`, `scripts`, `cron/evaluate`), auth (`login`, `webauthn/*`, `setup`),
@@ -264,6 +291,11 @@ Capture and compare on the **same UTC day**. Every windowed endpoint (`series`, 
 `benchmark`) is anchored to "now", so a baseline from yesterday shifts the whole array one position
 and reports a DIFF on all of them for no reason at all. If a compare lights up across exactly those
 routes, check the baseline's `capturedAt` before reading anything into it.
+
+`/api/asset/<symbol>` is the one endpoint that drifts no matter what: its market cap, volume and
+From-ATH figures are formatted strings, so no tolerance is expressible, and they refresh hourly.
+A DIFF confined to those, the sentiment score and the news list is the expected state; the harness
+header says what to check before waving it through.
 
 **What comes next.** Phase 3 replaces the UI's `fetch("/api/…")` call sites with a `DataClient`, so a
 screen asks for data without knowing whether it crosses a network. Phase 4 adds `SqliteStore` and

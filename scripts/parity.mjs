@@ -29,6 +29,19 @@
  * hand — a holding's value, the portfolio total — against the previous build.
  *
  * It also only issues GETs, so write paths have no coverage at all.
+ *
+ * ## The one endpoint that will always drift
+ *
+ * `/api/asset/<symbol>` reports market cap, 24h volume and distance from ATH as
+ * **formatted strings** ("$1.54T", "$28.47B", "-39.3%"), so no `rel` bound can
+ * be expressed for them, and the rules address leaves by path — there is no way
+ * to ignore one `stats[]` entry's `value` without ignoring all of them,
+ * including the stable ones whose formatting is worth checking. The figures
+ * come from a snapshot cached for an hour, so a compare run more than an hour
+ * after its capture DIFFs here and will keep doing so. Read that DIFF, do not
+ * silence it: check that only market cap / volume / From ATH / sentiment / news
+ * moved, and that the labels, `about`, `tags`, `sources`, ATH, circulating and
+ * max supply are untouched.
  */
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";

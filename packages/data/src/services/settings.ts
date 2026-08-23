@@ -33,6 +33,17 @@ export function getSettings(store: Store): Promise<Settings> {
   return store.settings.get();
 }
 
+/**
+ * Whether the install has ever been configured. Separate from `getSettings`
+ * rather than folded into a nullable return, because the twenty call sites
+ * that stopped null-checking are the reason `get()` is non-nullable. Only the
+ * settings screen needs the difference, to render a virgin install as first-run
+ * rather than as a form full of defaults.
+ */
+export function settingsExist(store: Store): Promise<boolean> {
+  return store.settings.exists();
+}
+
 export function saveSettings(store: Store, patch: SettingsPatch): Promise<Settings> {
   return store.settings.save(trim(patch));
 }

@@ -157,6 +157,7 @@ interface Store {
   settings: {
     get(): Promise<Settings>;
     save(patch: SettingsPatch): Promise<Settings>;
+    exists(): Promise<boolean>;
   };
 }
 ```
@@ -179,6 +180,14 @@ interface Store {
 >   backing store can do far better than the caller*: `countByPortfolio()`,
 >   which replaced an N+1 over the portfolio list, and `removeMany(ids)`, which
 >   is one `deleteMany` on Prisma instead of a delete per row.
+> - `settings.exists()` is the counterweight to making `get()` non-nullable.
+>   Defaulting a missing row is right for the twenty call sites that used to
+>   null-check it, but a virgin install is a state the settings screen renders
+>   differently, and "has this install been through setup" is a question only
+>   storage can answer. Without it the check lives in the route as a raw
+>   `prisma.settings.findUnique` — invisible to `DataClient`, so §4.4's
+>   identical-DTO invariant would break on a fresh device install and nowhere
+>   else.
 
 The `id: 1` singleton disappears into `settings.get()`. It is correct on both
 targets — one settings row per server, one per install — and the twenty call

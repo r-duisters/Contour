@@ -5,7 +5,7 @@ import { HomeAssistantNotifier } from "@/lib/notifier/home-assistant";
 import type { Notifier } from "@/lib/notifier";
 import { makeWebPushNotifier } from "@/lib/notifier/web-push";
 import { deps } from "@/lib/deps";
-import { getSettings, saveSettings } from "@/data/services/settings";
+import { getSettings, saveSettings, settingsExist } from "@/data/services/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -31,12 +31,14 @@ export async function GET() {
   // removed some twenty `where: { id: 1 }` null checks elsewhere — but this
   // route's wire format has always answered bare `null` in that one case
   // (`s ?? null` on the old `findUnique`), which `settings/page.tsx` fetches
-  // and tolerates as a distinct state from a real, defaulted row. Reproducing
-  // that stays the route's job, not the service's: it is response shaping,
-  // not storage.
-  const exists = await prisma.settings.findUnique({ where: { id: 1 }, select: { id: true } });
-  if (!exists) return NextResponse.json({ settings: null });
+  // and tolerates as a distinct state from a real, defaulted row.
+  //
+  // Choosing between the two is a *persistence read*, not response shaping, so
+  // it goes through the port: `settings.exists()`. Reading it off `prisma`
+  // here would leave Phase 3's `DataClient` unable to ask the same question,
+  // and a fresh install would get a form full of defaults instead of first-run.
   const { store } = deps();
+  if (!(await settingsExist(store))) return NextResponse.json({ settings: null });
   return NextResponse.json({ settings: toJson(await getSettings(store)) });
 }
 

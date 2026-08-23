@@ -33,9 +33,26 @@ type Rule = {
 
 const RULES: Rule[] = [
   {
-    name: "imports @/lib/db or a Prisma client (persistence must go through the Store port)",
-    broken: (src) =>
-      imports(src, "@/lib/db") || imports(src, "@prisma/client") || /\bprisma\s*\./.test(src),
+    // Not just `@/lib/db`. `@/lib/*` is the ambiguous alias: under the root
+    // tsconfig it resolves to `packages/core`, but under `apps/web`'s it is a
+    // fallback array and reaches `apps/web/src/lib` too — where `db.ts`,
+    // `auth.ts`, `webauthn.ts`, the notifiers and `equity-info.ts` live. A
+    // service importing `@/lib/equity-info` — server-only, global `fetch`,
+    // response headers, and the spec's one named exception, which makes it the
+    // likeliest thing to be reached for by mistake — would slip past a rule
+    // that only named `@/lib/db`, and past `boundary.test.ts`, which lists
+    // neither.
+    //
+    // There is no allowlist, because nothing needs one: every portable module
+    // a service uses is reachable as `@/core/*`, which is unambiguous. If some
+    // future service genuinely needs an app-local module, that is the signal
+    // to move the module, not to widen this rule.
+    name: "imports @/lib/* (use the unambiguous @/core/* alias; app-local lib is server-only)",
+    broken: (src) => imports(src, "@/lib"),
+  },
+  {
+    name: "reaches Prisma (persistence must go through the Store port)",
+    broken: (src) => imports(src, "@prisma/client") || /\bprisma\s*\./.test(src),
   },
   {
     name: "imports next/* (a service must not know it is being called by a route)",

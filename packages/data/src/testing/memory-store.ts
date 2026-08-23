@@ -53,6 +53,10 @@ export function MemoryStore(seed?: StoreSeed): Store {
   const portfolios = new Map<string, Portfolio>();
   const transactions = new Map<string, Transaction>();
   let settings: Settings = { ...DEFAULT_SETTINGS, ...defined(seed?.settings ?? {}) };
+  // Mirrors PrismaStore, where the row is created on first save: seeding
+  // settings is the in-memory equivalent of an install that has been through
+  // setup, and an unseeded store is a virgin one.
+  let settingsWritten = seed?.settings !== undefined;
 
   function insert(portfolioId: string, tx: NewTransaction): Transaction {
     const row: Transaction = { ...tx, id: nextId("tx"), portfolioId };
@@ -154,7 +158,11 @@ export function MemoryStore(seed?: StoreSeed): Store {
       },
       async save(patch: SettingsPatch): Promise<Settings> {
         settings = { ...settings, ...defined(patch) };
+        settingsWritten = true;
         return { ...settings };
+      },
+      async exists(): Promise<boolean> {
+        return settingsWritten;
       },
     },
   };

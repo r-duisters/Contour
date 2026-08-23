@@ -311,5 +311,35 @@ export function runStoreContract(name: string, makeStore: () => Promise<Store>):
       expect(saved.equityApiKey).toBe("abc");
       expect(saved.displayCurrency).toBe("USD");
     });
+
+    // `exists()` is the one thing `get()` cannot report, because it defaults
+    // unconditionally. The settings screen renders a virgin install as
+    // first-run rather than as a form full of defaults, so the difference has
+    // to survive the port — and both implementations have to agree on when it
+    // flips, or the web and device builds disagree about what a fresh install
+    // looks like.
+    it("reports no settings row before anything is saved", async () => {
+      expect(await store.settings.exists()).toBe(false);
+    });
+
+    it("still reports no settings row after a read defaults one", async () => {
+      await store.settings.get();
+      expect(await store.settings.exists()).toBe(false);
+    });
+
+    it("reports a settings row once one is saved, and keeps reporting it", async () => {
+      await store.settings.save({ displayCurrency: "EUR" });
+      expect(await store.settings.exists()).toBe(true);
+      await store.settings.save({ haUrl: "http://ha.local:8123" });
+      expect(await store.settings.exists()).toBe(true);
+    });
+
+    it("reports a settings row after a save that patches nothing", async () => {
+      // Existence tracks the row, not its contents. `save({})` still has to
+      // create it — PrismaStore upserts, so it does — or a store could report
+      // "no settings" for an install that has plainly been written to.
+      await store.settings.save({});
+      expect(await store.settings.exists()).toBe(true);
+    });
   });
 }

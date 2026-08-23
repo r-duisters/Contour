@@ -93,6 +93,19 @@ export interface Store {
   settings: {
     get(): Promise<Settings>;
     save(patch: SettingsPatch): Promise<Settings>;
+    /**
+     * Whether a settings row has ever been written — the distinction
+     * `get()` deliberately throws away by defaulting.
+     *
+     * It exists because a virgin install is a real state the UI renders
+     * differently (first-run, not a form full of defaults), and "has the user
+     * been through setup" is a question only storage can answer. Without it
+     * the check has to be a raw `prisma.settings.findUnique` in the route,
+     * which is a persistence read no port can express — so Phase 3's
+     * `DataClient` would call `getSettings`, never see `null`, and show a
+     * fresh install a fully-populated settings form.
+     */
+    exists(): Promise<boolean>;
   };
 }
 

@@ -200,6 +200,11 @@ export function PrismaStore(client: PrismaClient = defaultClient): Store {
         });
         return toSettings(row);
       },
+      async exists(): Promise<boolean> {
+        // `select: { id: true }` rather than a full row: the answer is one bit
+        // and the row carries an API key.
+        return (await client.settings.findUnique({ where: { id: 1 }, select: { id: true } })) !== null;
+      },
     },
   };
 }
