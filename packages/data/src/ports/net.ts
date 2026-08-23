@@ -4,6 +4,44 @@
  * CORS — the reason a serverless mobile build is possible at all (spec §4.2).
  */
 
+/**
+ * Why a request produced no usable answer: nothing answered at all
+ * (`"unreachable"` — DNS, a reset connection, airplane mode) or something
+ * answered and said no (`"refused"` — any non-2xx).
+ *
+ * Deliberately the same two words as `RequestFailedError.kind`, so a client
+ * built on top can pass the distinction straight through.
+ */
+export type NetFailureKind = "unreachable" | "refused";
+
+/**
+ * What every throwing form of `Net` rejects with.
+ *
+ * The distinction has to be carried on the error, not inferred from its text.
+ * `HttpClient` can classify because it calls `request()` and reads the status
+ * itself; the services cannot — they call `json()`/`text()`, so everything
+ * Phase 4's `LocalClient` propagates from a price path arrives as whatever
+ * those threw. Untyped, the only way to set `RequestFailedError.kind` there
+ * would be to string-match an error message written for a log.
+ *
+ * `status` is present only for `"refused"` — an unreachable host has no status
+ * to report. The message is unchanged from what the implementation would have
+ * thrown anyway, so anything already showing or logging it keeps reading the
+ * same sentence.
+ */
+export class NetError extends Error {
+  constructor(
+    message: string,
+    readonly kind: NetFailureKind,
+    /** The HTTP status, when there was one. Absent for `"unreachable"`. */
+    readonly status?: number,
+    options?: { cause?: unknown },
+  ) {
+    super(message, options);
+    this.name = "NetError";
+  }
+}
+
 /** A response whose status the caller intends to inspect rather than trust. */
 export interface NetResponse {
   ok: boolean;
@@ -18,6 +56,12 @@ export interface Net {
    * feed that 500s has no useful partial answer, and the tolerant helpers built
    * on top (`fetchPricesSafe`) get their tolerance by catching, not by being
    * handed an empty body.
+   *
+   * What they throw is a `NetError`, always — `"refused"` with the status for a
+   * non-2xx, `"unreachable"` when the request never got a response. Phase 4's
+   * `CapacitorNet` inherits that obligation: the services propagate rather than
+   * translate, so a client can only classify a failure they surfaced if the
+   * error itself carries the distinction.
    */
   json<T>(url: string, init?: RequestInit): Promise<T>;
   text(url: string, init?: RequestInit): Promise<string>;
@@ -31,6 +75,10 @@ export interface Net {
    * transport failures that currently propagate, quietly turning a bug into a
    * blank panel. Any implementation — WebNet, FakeNet, Phase 4's CapacitorNet —
    * must offer both, with the same split of responsibilities.
+   *
+   * A non-2xx is a value here rather than a throw, but a transport failure
+   * still rejects — with a `NetError` of kind `"unreachable"`, since there is
+   * no status to hand back.
    */
   request(url: string, init?: RequestInit): Promise<NetResponse>;
 }

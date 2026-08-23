@@ -103,12 +103,20 @@ function stripComments(src: string): string {
   return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(?<!:)\/\/.*$/gm, "");
 }
 
-/** Every non-test `.ts` under `packages/data/src`, at any depth. */
+/**
+ * Every non-test `.ts` and `.tsx` under `packages/data/src`, at any depth.
+ *
+ * `.tsx` was outside the walk until `client/context.tsx` arrived — the one
+ * component in this package — and a rule that stops at a file extension is a
+ * rule that stops the day someone adds a provider that imports `next/headers`.
+ * `boundary.test.ts` has always covered both extensions; this now matches.
+ */
 function dataFiles(dir: string = DATA_SRC): string[] {
   return readdirSync(dir).flatMap((entry) => {
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) return dataFiles(full);
-    if (!full.endsWith(".ts") || full.endsWith(".test.ts")) return [];
+    if (!full.endsWith(".ts") && !full.endsWith(".tsx")) return [];
+    if (full.endsWith(".test.ts") || full.endsWith(".test.tsx")) return [];
     return [full];
   });
 }

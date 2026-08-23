@@ -38,6 +38,14 @@ export type Transaction = {
 export type Portfolio = { id: string; name: string; createdAt: number; updatedAt: number };
 export type PortfolioWithTransactions = Portfolio & { transactions: Transaction[] };
 
+/**
+ * No `passwordHash`, on purpose. It is a server credential, and this port's
+ * other implementation is SQLite on a device with no password and no login
+ * screen. The five places that read or write it — the two login files, the
+ * password change, and both halves of setup — stay on Prisma inline; see the
+ * note at the top of `apps/web/src/app/api/setup/route.ts` for why an
+ * accessor pair here would be the same widening under another name.
+ */
 export type Settings = {
   displayCurrency: "USD" | "EUR";
   equityProvider: string;

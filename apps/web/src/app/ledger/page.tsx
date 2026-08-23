@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { useDataClient } from "@/data/client/context";
 import { money, quantity, setDisplayCurrency } from "@/lib/display";
 import { usePrivacy } from "@/components/usePrivacy";
 
@@ -21,11 +22,15 @@ type Totals = {
 };
 type CashRow = { symbol: string; quantity: number; value: number | null; unreliable?: boolean };
 type Snap = {
-  date: string; total: number; unpriced: number;
+  date: string;
+  total: number;
+  /** Absent — not zero — when the portfolio held nothing on the date. */
+  unpriced?: number;
   rows: { symbol: string; assetType: string; quantity: number; value: number | null }[];
 };
 
 export default function LedgerPage() {
+  const client = useDataClient();
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
   const [totals, setTotals] = useState<Totals | null>(null);
   const [cashRows, setCashRows] = useState<CashRow[]>([]);
@@ -41,31 +46,33 @@ export default function LedgerPage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const list = await fetch("/api/portfolios").then((r) => r.json()).catch(() => null);
-      const id: string | undefined = list?.portfolios?.[0]?.id;
+      const list = await client.listPortfolios().catch(() => null);
+      const id: string | undefined = list?.[0]?.id;
       if (!id || cancelled) return;
       setPortfolioId(id);
+      // Both in flight at once, each falling back on its own: the accounting
+      // rows and the per-year bars are independent, and the priced valuation
+      // is the slow half.
       const [val, ins] = await Promise.all([
-        fetch(`/api/portfolios/${id}/valuation`).then((r) => (r.ok ? r.json() : null)),
-        fetch(`/api/portfolios/${id}/insights`).then((r) => (r.ok ? r.json() : null)),
+        client.getValuation(id).catch(() => null),
+        client.getInsights(id).catch(() => null),
       ]);
       if (cancelled) return;
       setDisplayCurrency(val?.currency ?? "USD");
       setTotals(val?.totals ?? null);
-      setCashRows((val?.holdings ?? []).filter((h: { assetType?: string }) => h.assetType === "cash"));
+      setCashRows((val?.holdings ?? []).filter((h) => h.assetType === "cash"));
       setByYear(ins?.byYear ?? []);
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [client]);
 
   const loadSnapshot = useCallback(async () => {
     if (!portfolioId || !snapDate) return;
     setSnapLoading(true);
-    const d = await fetch(`/api/portfolios/${portfolioId}/snapshot?date=${snapDate}`)
-      .then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    const d = await client.getSnapshot(portfolioId, snapDate).catch(() => null);
     setSnap(d);
     setSnapLoading(false);
-  }, [portfolioId, snapDate]);
+  }, [client, portfolioId, snapDate]);
 
   const costPct = (n: number) =>
     totals && totals.costBasis > 0 ? (n / totals.costBasis) * 100 : null;
@@ -188,7 +195,7 @@ export default function LedgerPage() {
             <p className="text-xs text-neutral-600 mt-2">
               Holdings and prices as they stood on that date, converted at that date&rsquo;s exchange rate.
               Dutch box 3 is assessed on 1 January.
-              {snap && snap.unpriced > 0 && ` ${snap.unpriced} holding(s) had no price then and are excluded.`}
+              {snap?.unpriced ? ` ${snap.unpriced} holding(s) had no price then and are excluded.` : null}
             </p>
           </section>
 

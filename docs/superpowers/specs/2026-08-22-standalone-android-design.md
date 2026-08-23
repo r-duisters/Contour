@@ -348,6 +348,86 @@ value for an `<img src>`. See §7.
 inputs. This is what makes one copy of each screen possible, and it is
 enforced mechanically — see §8.
 
+> **As built (Phase 3).** The shipped interface is
+> `packages/data/src/client/data-client.ts`, and its long header comment is the
+> authority; this note records where it departs from the draft above and why.
+> Thirty-six `fetch("/api/…")` call sites across eight files went behind it, and
+> a screen now takes a client from `DataClientProvider` and never names an
+> implementation. Nine differences:
+>
+> - **Verb-first names throughout.** `valuation`/`series`/`changes` became
+>   `getValuation`/`getSeries`/`getChanges`, so a call site reads as a request
+>   rather than as a property. `symbols(query)` became `listSymbols()` with no
+>   argument: `SymbolPicker` has always fetched the whole list once and filtered
+>   it in the browser, and inventing a server-side query would have been a
+>   behaviour change smuggled in under a rename.
+> - **`renamePortfolio`, `listTransactions` and `updateTransaction` are not
+>   here.** No screen calls any of them. `getPortfolio` already returns the
+>   transactions, so `listTransactions` was a second way to ask the same
+>   question; rename and update exist as *services* and as routes, but nothing
+>   in the UI reaches them. Shipping unused methods is the same cost §4.1 argued
+>   against for `Store`: every one is a method `LocalClient` must implement.
+> - **`changes` and `benchmark` carry their window.** `getChanges(id, range)`
+>   takes the range the draft forgot, and `getBenchmark` takes a `BenchmarkQuery`
+>   object rather than `(id, symbol, range)` — the insights screen passes a key,
+>   a window start, a bar width, an optional portfolio to simulate flows for and
+>   an opening balance, which is past the point where positional arguments read.
+> - **`exportCsv`/`exportJson` are deliberately absent.** The three export
+>   buttons are `<a href>` anchors, not `fetch` calls, so none of the
+>   thirty-six sites was an export. A method could not be honoured anyway:
+>   `ExportFile` is `{ body, filename }` and the filename travels in a
+>   `Content-Disposition` header that `Net` exposes on neither side. Phase 4
+>   should add the method together with whatever saves a file on a device, and
+>   probably alongside a `Net` that can read a response header.
+> - **`iconUrl` is absent, and `CoinIcon` still hard-codes `/api/icon`.** §7's
+>   question was not answered in Phase 3 and the debt is now pinned by name in
+>   `boundary.test.ts`, which forbids any *new* `/api/` string in `packages/ui`.
+>   On a device every coin logo falls back to coloured initials today.
+> - **`getSettings` returns `SettingsDto | null`.** `null` is a virgin install —
+>   first-run, which the settings screen renders differently — not a missing
+>   record. This is what `store.settings.exists()` was added for in §4.1, and
+>   the client contract pins it: an implementation that defaults instead would
+>   show a fresh device a form full of values nobody chose.
+> - **Errors are typed, and `RequestFailedError` says whether anything
+>   answered.** A method that names a record throws `NotFoundError`; everything
+>   else throws `RequestFailedError` carrying
+>   `kind: "unreachable" | "refused"`. No method resolves to `undefined` to
+>   signal failure and none returns a status code. Three departures from the
+>   "missing record throws" rule are documented in the interface itself, each
+>   because today's wire format cannot express the difference and disagreeing
+>   would be worse than being wrong in the same way twice.
+> - **`sendTestNotification` is optional, and is the only optional member.** It
+>   fires a signal at Home Assistant and at Web Push, neither of which exists
+>   inside an APK. Phase 3 first kept it required on the reasoning that an
+>   implementation which cannot honour it should throw; writing the second
+>   implementation disproved that. A contract's only tool is to call a method
+>   and look at the result, so a required-but-failable method either forces the
+>   second implementation to pretend it has the capability or accepts a throw
+>   and passes for something merely broken. The rule that replaced it — a
+>   capability a platform structurally lacks is *absent*, the screen
+>   feature-detects, and the suite is told which implementations claim it — is
+>   written into `data-client.ts` and governs every web-only capability Phase 4
+>   meets.
+> - **The invariant is now enforced against two implementations, which is what
+>   §8 meant.** `client-contract.ts` runs unchanged against `HttpClient` (over
+>   `FakeNet`) and against a service-backed `StubClient` (over `MemoryStore`) in
+>   `stub-client.test.ts`. That second run is the useful one: it found three
+>   cases only a mocked server could pass, all since fixed. It also found the
+>   limit of the current suite, which Phase 4 should close: five feed-backed
+>   reads (`getSeries`, `getChanges`, `getSnapshot`, `getBenchmark`,
+>   `getHistory`) are asserted against exact arrays the fixture specifies rather
+>   than inputs it derives them from, so for those the contract checks DTO shape
+>   and error mapping, not arithmetic. And a `LocalClient` whose price feed is
+>   offline will resolve with stale local figures rather than throw — the
+>   services degrade on purpose — which no case covers yet.
+
+**Not in Phase 3, by design.** No `LocalClient`, no `SqliteStore`, no
+`CapacitorNet`, no `apps/mobile`. The screens the mobile build will never
+render — the strategy tooling (chart, backtest, analyze, alerts), login and
+setup — keep their `fetch` calls permanently, as do the nine session-auth,
+passkey and Web Push requests on the settings screen. `apps/web/src/screen-boundary.test.ts`
+holds that line with a per-file allowlist that has to state a reason.
+
 ## 5. Device storage
 
 `@capacitor-community/sqlite`, with the schema transcribed from

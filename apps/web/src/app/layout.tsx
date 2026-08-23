@@ -5,6 +5,7 @@ import BiometricLock from "@/components/BiometricLock";
 import PwaSetup from "@/components/PwaSetup";
 import TabBar from "@/components/TabBar";
 import TopNav from "@/components/TopNav";
+import Providers from "./providers";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -44,13 +45,15 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <PwaSetup />
-        <BackgroundAlerts />
-        <BiometricLock>
-          <TopNav />
-          <div className="pb-20 md:pb-0">{children}</div>
-          <TabBar />
-        </BiometricLock>
+        <Providers>
+          <PwaSetup />
+          <BackgroundAlerts />
+          <BiometricLock>
+            <TopNav />
+            <div className="pb-20 md:pb-0">{children}</div>
+            <TabBar />
+          </BiometricLock>
+        </Providers>
       </body>
     </html>
   );

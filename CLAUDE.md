@@ -121,8 +121,9 @@ packages/core/src/       Pure logic — no I/O, no framework. Runs in the browse
                           Portfolio maths, the Delta-by-eToro CSV importer, benchmark and
                           contributor insights, and the other pure logic shared by every screen.
 
-packages/data/src/        The data seam (Phase 2) — portable, and depends on packages/core.
-                          See "The data seam" below for the rule it enforces.
+packages/data/src/        The data seam (Phase 2) and the UI's data client (Phase 3) —
+                          portable, and depends on packages/core. See "The data seam"
+                          and "How a screen asks for data" below.
   ports/
     store.ts                Store — everything persisted (portfolios, transactions, settings)
     net.ts                  Net — everything fetched
@@ -131,16 +132,31 @@ packages/data/src/        The data seam (Phase 2) — portable, and depends on p
                           I/O of its own; the route handlers are thin wrappers over these.
     services.test.ts        Fails if a service imports @/lib/* or next/*, reaches Prisma,
                           or calls global fetch.
+  client/
+    data-client.ts          DataClient — everything a screen is allowed to ask for, plus
+                          the rules every implementation obeys. Read this one first.
+    http-client.ts          HttpClient — calls today's routes over an injected Net.
+    context.tsx             DataClientProvider / useDataClient.
+    client-contract.ts      One suite, run against every implementation.
+    stub-client.test.ts     The second implementation: the services over a MemoryStore,
+                          held to the same suite. Not shipped — see the file's header
+                          for what running it taught us.
   sources/                binance, fx (Frankfurter/ECB), equity, asset-info — the only
                           transport in packages/core and packages/data, all of it behind
-                          the injected Net. (Three packages/ui components still call
-                          global fetch; boundary.test.ts says why they are exempt so far.)
+                          the injected Net. Nothing in packages/ui calls global fetch any
+                          more; boundary.test.ts enforces that.
   testing/                MemoryStore, FakeNet, and store-contract.ts — one contract suite
                           run against both MemoryStore and the app's PrismaStore.
-  errors.ts               NotFoundError, which routes map to a 404.
+  errors.ts               NotFoundError, which routes map to a 404, and
+                          RequestFailedError, which a screen shows to a person.
 
 packages/ui/src/          Shared React components (18) plus useFitChart, usePrivacy and
                           useStoredRange. Depends on packages/core, not on apps/web.
+                          The components that need data take a DataClient from context;
+                          none names a route. Four /api/ URLs survive in markup rather
+                          than in fetch calls (CoinIcon's <img src>, PortfolioManager's
+                          three export anchors) — pinned by name in boundary.test.ts as
+                          Phase 4 debt.
 
 apps/web/src/             The Next server app.
   app/
@@ -161,6 +177,8 @@ apps/web/src/             The Next server app.
                           Unauthenticated:
     login/page.tsx          Password or passkey
     setup/page.tsx          First run — sets the password
+    providers.tsx           Mounts DataClientProvider with HttpClient over WebNet. The one
+                          place in apps/web that names an implementation.
     globals.css             Tailwind entry point; its `@source` directive names
                           packages/ui/src so Tailwind scans the shared components too.
     api/                  Twenty-one route groups. The converted ones are wrappers over
@@ -297,9 +315,58 @@ From-ATH figures are formatted strings, so no tolerance is expressible, and they
 A DIFF confined to those, the sentiment score and the news list is the expected state; the harness
 header says what to check before waving it through.
 
-**What comes next.** Phase 3 replaces the UI's `fetch("/api/…")` call sites with a `DataClient`, so a
-screen asks for data without knowing whether it crosses a network. Phase 4 adds `SqliteStore` and
-`CapacitorNet` and builds the APK against the same two interfaces.
+**What comes next.** Phase 3 replaced the UI's `fetch("/api/…")` call sites with a `DataClient` —
+see the next section. Phase 4 adds `SqliteStore` and `CapacitorNet`, writes `LocalClient` over the
+services, and builds the APK against the same three interfaces.
+
+## How a screen asks for data
+
+Phase 3 finished the seam at the other end. Phase 2 moved the logic behind `Store` and `Net`;
+Phase 3 stopped the screens naming routes. **A screen takes a `DataClient` from React context and
+calls a method. It never names an implementation, a URL or a status code.**
+
+`packages/data/src/client/data-client.ts` is the interface, and its header comment is the
+authority — the rules below are the summary, not the source.
+
+- **One implementation today.** `HttpClient` (`http-client.ts`) calls the existing routes over an
+  injected `Net`. It is the last file in the tree that knows about response envelopes
+  (`{ portfolios }`, `{ settings }`) and status codes. `apps/web/src/app/providers.tsx` mounts it,
+  and is the only place in `apps/web` that says its name.
+- **A second implementation is tested, not shipped.** `stub-client.test.ts` builds a client from the
+  services over a `MemoryStore` and runs `client-contract.ts` against it unchanged. A contract that
+  only ever runs against `HttpClient` proves that `HttpClient` agrees with itself; this is what
+  proves the interface is not HTTP-shaped. Its header records what the exercise found. Phase 4's
+  `LocalClient` replaces it and must pass the same suite.
+- **Errors are typed.** A method that names a record throws `NotFoundError`; everything else throws
+  `RequestFailedError`, which carries `kind: "unreachable" | "refused"` so a screen can tell "no one
+  answered" from "someone answered and said no". Nothing resolves to `undefined` to mean failure.
+- **A capability one platform cannot have is absent, not throwing.** `sendTestNotification` is
+  optional (`method?()`) because Home Assistant and Web Push do not exist inside an APK; the settings
+  screen feature-detects it and does not draw the button when it is missing. Any future web-only
+  capability follows the same rule, and the default answer is still that it does not belong on this
+  interface at all. The full argument is in `data-client.ts`.
+
+**Deliberately unconverted, permanently.** These screens keep raw `fetch`, and
+`apps/web/src/screen-boundary.test.ts` allows them by name with a written reason:
+
+| Screen | Why |
+|---|---|
+| `chart`, `backtest`, `analyze`, `alerts` | The strategy tooling. Server-side Binance proxying, the filesystem under `samples/`, and Home Assistant dispatch — the mobile build renders none of it. |
+| `login/LoginForm.tsx` | Session auth and passkeys. A device build has no login screen to convert. |
+| `settings` (nine of its twelve requests) | `/api/logout`, `/api/settings/password`, `/api/webauthn/*`, `/api/push/*` — browser-and-server mechanisms rather than data. The settings row itself does go through the client. |
+| `components/BackgroundAlerts.tsx` | Polls the same server-only alerts route. |
+
+The allowlist is per file, and `settings` is allowed only its four named route prefixes, so a tenth
+request cannot arrive under cover of the same exemption. A `fetch` whose URL is computed counts as
+unnamed and only a whole-file exemption covers it. Adding an entry means writing why — that is the
+whole mechanism, and the point at which most would-be entries turn out not to have a reason.
+
+`packages/core/src/boundary.test.ts` carries the matching rule for the shared components: no global
+`fetch` in `packages/ui` at all, and no *new* `/api/` string literal either. Four such literals
+survive — `CoinIcon`'s `<img src>` and `PortfolioManager`'s three export anchors — because each
+needs a mechanism Phase 4 has to design (a device-capable icon strategy; a way to save a file, and a
+`DataClient` method to feed it). They are listed literally, with what each needs, so the debt is
+visible and cannot grow.
 
 ## The load-bearing contract
 

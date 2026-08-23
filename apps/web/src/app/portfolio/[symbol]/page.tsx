@@ -10,6 +10,7 @@ import {
   ArrowDown, ArrowLeft, ArrowUp, ChevronLeft, ChevronRight, Plus, Trash2,
 } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
+import { useDataClient } from "@/data/client/context";
 import { axisMoney, money as fmtMoney, quantity, setDisplayCurrency } from "@/lib/display";
 import { annotateTransactions } from "@/lib/portfolio";
 import { useFitChart } from "@/components/useFitChart";
@@ -57,6 +58,7 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
   const { symbol: raw } = use(params);
   const symbol = decodeURIComponent(raw).toUpperCase();
 
+  const client = useDataClient();
   const [holding, setHolding] = useState<Holding | null | undefined>(undefined);
   const [txs, setTxs] = useState<Tx[]>([]);
   const [bars, setBars] = useState<{ t: number; c: number }[] | null>(null);
@@ -72,68 +74,79 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const list = await fetch("/api/portfolios").then((r) => r.json()).catch(() => null);
-      const id: string | undefined = list?.portfolios?.[0]?.id;
+      // Which portfolio has to be answered first — the two below are addressed
+      // by its id — but they then go out together.
+      const list = await client.listPortfolios().catch(() => null);
+      const id: string | undefined = list?.[0]?.id;
       if (!id || cancelled) { setHolding(null); return; }
       setPortfolioId(id);
 
       const [val, detail] = await Promise.all([
-        fetch(`/api/portfolios/${id}/valuation`).then((r) => (r.ok ? r.json() : null)),
-        fetch(`/api/portfolios/${id}`).then((r) => (r.ok ? r.json() : null)),
+        client.getValuation(id).catch(() => null),
+        client.getPortfolio(id).catch(() => null),
       ]);
       if (cancelled) return;
       setDisplayCurrency(val?.currency ?? "USD");
-      const found: Holding | undefined = val?.holdings?.find((h: Holding) => h.symbol === symbol);
+      const found: Holding | undefined = val?.holdings.find((h) => h.symbol === symbol);
       setHolding(found ?? null);
-      setTxs((detail?.portfolio.transactions ?? []).filter((t: Tx) => t.symbol === symbol));
+      setTxs((detail?.transactions ?? []).filter((t) => t.symbol === symbol));
 
     })();
     return () => { cancelled = true; };
-  }, [symbol]);
+  }, [client, symbol]);
 
   // Price history reloads when the period changes, not when the page does.
   useEffect(() => {
     if (holding === undefined || !rangeReady) return;
     let cancelled = false;
     setBars(null);
-    const assetType = holding?.assetType ?? "crypto";
-    fetch(`/api/history?symbol=${encodeURIComponent(symbol)}&assetType=${assetType}&range=${range}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: { bars?: { t: number; c: number }[]; changePct?: number | null } | null) => {
+    // A cash row has no price history and the request has always been refused
+    // for one, landing in the catch below. The cast keeps that: narrowing here
+    // instead would ask for crypto bars under a currency's name.
+    const assetType = (holding?.assetType ?? "crypto") as "crypto" | "equity";
+    // The client encodes the symbol itself, so this must not — a dotted equity
+    // ticker would otherwise arrive double-encoded.
+    client.getHistory(symbol, assetType, range)
+      .then((d) => {
         if (cancelled) return;
-        setBars(d?.bars ?? []);
-        setChangePct(d?.changePct ?? null);
+        setBars(d.bars);
+        setChangePct(d.changePct);
       })
-      .catch(() => { if (!cancelled) setBars([]); });
+      .catch(() => { if (!cancelled) { setBars([]); setChangePct(null); } });
     return () => { cancelled = true; };
-  }, [symbol, range, holding, rangeReady]);
+  }, [client, symbol, range, holding, rangeReady]);
 
   const reload = useCallback(async () => {
     if (!portfolioId) return;
     const [detail, val] = await Promise.all([
-      fetch(`/api/portfolios/${portfolioId}`).then((r) => (r.ok ? r.json() : null)),
-      fetch(`/api/portfolios/${portfolioId}/valuation`).then((r) => (r.ok ? r.json() : null)),
+      client.getPortfolio(portfolioId).catch(() => null),
+      client.getValuation(portfolioId).catch(() => null),
     ]);
-    setTxs((detail?.portfolio.transactions ?? []).filter((t: Tx) => t.symbol === symbol));
+    setTxs((detail?.transactions ?? []).filter((t) => t.symbol === symbol));
     // The position and its cost move with every trade, so the tiles above the
     // table have to be refetched alongside it.
-    const found: Holding | undefined = val?.holdings?.find((h: Holding) => h.symbol === symbol);
+    const found: Holding | undefined = val?.holdings.find((h) => h.symbol === symbol);
     if (found) setHolding(found);
-  }, [portfolioId, symbol]);
+  }, [client, portfolioId, symbol]);
 
   async function deleteTx(id: string) {
-    await fetch(`/api/transactions/${id}`, { method: "DELETE" });
+    // The delete's own answer has never been read here: the reload below is
+    // what tells the user whether the row is gone.
+    await client.deleteTransaction(id).catch(() => {});
     await reload();
   }
 
   async function addTransaction(tx: NewTx) {
     setFormError(null);
-    const res = await fetch(`/api/portfolios/${portfolioId}/transactions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(tx),
-    });
-    if (!res.ok) { setFormError("Failed to add transaction — check the fields."); return; }
+    // Same as the portfolio screen: with no portfolio loaded this used to post
+    // to a route that answered 404 and produce this message.
+    try {
+      if (!portfolioId) throw new Error("no portfolio loaded");
+      await client.addTransaction(portfolioId, tx);
+    } catch {
+      setFormError("Failed to add transaction — check the fields.");
+      return;
+    }
     await reload();
   }
 

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, Plus, Trash2, Upload } from "lucide-react";
+import { useDataClient } from "@/data/client/context";
 
 type PortfolioRow = { id: string; name: string; transactionCount: number };
 
@@ -11,6 +12,7 @@ type PortfolioRow = { id: string; name: string; transactionCount: number };
  * portfolio screen can be nothing but the money.
  */
 export default function PortfolioManager() {
+  const client = useDataClient();
   const [portfolios, setPortfolios] = useState<PortfolioRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
@@ -19,33 +21,42 @@ export default function PortfolioManager() {
   const backupRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
-    const d = await fetch("/api/portfolios").then((r) => r.json()).catch(() => null);
-    if (!d) return;
-    setPortfolios(d.portfolios);
-    setSelectedId((cur) => cur ?? d.portfolios[0]?.id ?? null);
-  }, []);
+    const rows = await client.listPortfolios().catch(() => null);
+    if (!rows) return;
+    setPortfolios(rows);
+    setSelectedId((cur) => cur ?? rows[0]?.id ?? null);
+  }, [client]);
   useEffect(() => { load(); }, [load]);
 
   async function createPortfolio() {
     if (!newName.trim()) return;
-    const d = await fetch("/api/portfolios", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName.trim() }),
-    }).then((r) => r.json());
-    setNewName("");
-    await load();
-    setSelectedId(d.portfolio.id);
-    setMsg(`Created "${d.portfolio.name}".`);
+    try {
+      const created = await client.createPortfolio(newName.trim());
+      setNewName("");
+      await load();
+      setSelectedId(created.id);
+      setMsg(`Created "${created.name}".`);
+    } catch (e) {
+      // Same shape as the import and restore branches below. Without it a
+      // refused or unreachable write leaves the screen silent: the name stays
+      // in the box and nothing says why nothing happened.
+      setMsg(`Could not create the portfolio: ${(e as Error).message}`);
+    }
   }
 
   async function deletePortfolio() {
     if (!selectedId) return;
     if (!window.confirm("Delete this portfolio and all its transactions?")) return;
-    await fetch(`/api/portfolios/${selectedId}`, { method: "DELETE" });
-    setSelectedId(null);
-    await load();
-    setMsg("Portfolio deleted.");
+    try {
+      await client.deletePortfolio(selectedId);
+      setSelectedId(null);
+      await load();
+      setMsg("Portfolio deleted.");
+    } catch (e) {
+      // The selection is deliberately left alone: the portfolio is still
+      // there, so clearing it would tell the opposite of the truth.
+      setMsg(`Could not delete the portfolio: ${(e as Error).message}`);
+    }
   }
 
   async function importCsv(file: File) {
@@ -53,24 +64,21 @@ export default function PortfolioManager() {
     setMsg("Importing…");
     try {
       const csv = await file.text();
-      const res = await fetch(`/api/portfolios/${selectedId}/import`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ csv }),
-      });
-      const d = await res.json();
-      if (!res.ok) { setMsg(`Import failed: ${JSON.stringify(d.error ?? res.status)}`); return; }
+      const d = await client.importCsv(selectedId, csv);
       const parts = [`Imported ${d.imported} transactions`];
       if (d.duplicates) parts.push(`${d.duplicates} already present (skipped)`);
       if (d.skipped.length) {
         const shown = d.skipped.slice(0, 3)
-          .map((x: { line: number; reason: string }) => `line ${x.line}: ${x.reason}`).join("; ");
+          .map((x) => `line ${x.line}: ${x.reason}`).join("; ");
         parts.push(`skipped ${d.skipped.length} (${shown}${d.skipped.length > 3 ? "; …" : ""})`);
       }
       if (d.warnings.length) parts.push(`${d.warnings.length} without a price`);
       setMsg(parts.join(" · "));
       await load();
     } catch (e) {
+      // A refused import used to be reported from the response body here; the
+      // client now carries that same sentence on the error, so both the refusal
+      // and an unreachable server land in this one branch.
       setMsg(`Import failed: ${(e as Error).message}`);
     }
   }
@@ -78,22 +86,20 @@ export default function PortfolioManager() {
   async function clearImported() {
     if (!selectedId) return;
     if (!window.confirm("Remove every transaction that came from a CSV import into this portfolio?")) return;
-    const d = await fetch(`/api/portfolios/${selectedId}/import`, { method: "DELETE" }).then((r) => r.json());
-    setMsg(`Removed ${d.deleted} imported transactions.`);
-    await load();
+    try {
+      const deleted = await client.clearImported(selectedId);
+      setMsg(`Removed ${deleted} imported transactions.`);
+      await load();
+    } catch (e) {
+      setMsg(`Could not remove the imported transactions: ${(e as Error).message}`);
+    }
   }
 
   async function restoreBackup(file: File) {
     setMsg("Restoring…");
     try {
       const backup = await file.text();
-      const res = await fetch("/api/portfolios/restore", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ backup }),
-      });
-      const d = await res.json();
-      if (!res.ok) { setMsg(`Restore failed: ${d.error ?? res.status}`); return; }
+      const d = await client.restoreBackup(backup);
       setMsg(`Restored ${d.restored} transactions into "${d.name}".`);
       await load();
       setSelectedId(d.id);
