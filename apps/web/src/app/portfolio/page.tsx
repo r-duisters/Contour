@@ -423,7 +423,7 @@ export default function PortfolioPage() {
                         <div className="flex items-center gap-4">{inner}</div>
                       ) : (
                         <Link
-                          href={`/portfolio/${encodeURIComponent(h.symbol)}`}
+                          href={`/portfolio/${encodeURIComponent(h.symbol)}?p=${encodeURIComponent(selectedId ?? "")}`}
                           className="flex items-center gap-4 active:opacity-70 transition-opacity"
                         >
                           {inner}

@@ -2,6 +2,7 @@
 
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   createChart, createSeriesMarkers, LineSeries, LineType,
   type IChartApi, type ISeriesApi, type ISeriesMarkersPluginApi, type Time,
@@ -59,6 +60,8 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
   const symbol = decodeURIComponent(raw).toUpperCase();
 
   const client = useDataClient();
+  // Which portfolio the holding was opened from. Absent on a direct visit.
+  const wantedId = useSearchParams().get("p") || null;
   const [holding, setHolding] = useState<Holding | null | undefined>(undefined);
   const [txs, setTxs] = useState<Tx[]>([]);
   const [bars, setBars] = useState<{ t: number; c: number }[] | null>(null);
@@ -76,8 +79,16 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
     (async () => {
       // Which portfolio has to be answered first — the two below are addressed
       // by its id — but they then go out together.
+      //
+      // The id travels in the URL because this screen has no other way to know
+      // it: the selection lives in `/portfolio`'s own state and is not shared.
+      // Defaulting to the first portfolio silently showed the wrong ledger for
+      // anyone holding more than one, and it is how a scratch-portfolio test
+      // once deleted a real transaction. The list is still fetched, both to
+      // validate the parameter and to serve a direct visit that carries none.
       const list = await client.listPortfolios().catch(() => null);
-      const id: string | undefined = list?.[0]?.id;
+      const wanted = wantedId && list?.some((p) => p.id === wantedId) ? wantedId : undefined;
+      const id: string | undefined = wanted ?? list?.[0]?.id;
       if (!id || cancelled) { setHolding(null); return; }
       setPortfolioId(id);
 
@@ -93,7 +104,7 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
 
     })();
     return () => { cancelled = true; };
-  }, [client, symbol]);
+  }, [client, symbol, wantedId]);
 
   // Price history reloads when the period changes, not when the page does.
   useEffect(() => {
