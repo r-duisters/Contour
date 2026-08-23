@@ -27,6 +27,13 @@ const ALLOWED = {
   "bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm": [
     "packages/ui/src/field.ts",
   ],
+  // The sub-heading tier. Narrower than it looks: the ledger's row labels are
+  // `text-neutral-400` and the analyzer's severity line has no weight or
+  // colour of its own, so neither is caught here — they are labels on a
+  // figure, not headings over a group.
+  "text-xs font-semibold uppercase tracking-wide text-neutral-500": [
+    "packages/ui/src/SubHeading.tsx",
+  ],
 };
 
 const ROOTS = ["packages/ui/src", "apps/web/src"];

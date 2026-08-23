@@ -123,6 +123,7 @@ Rules that keep it coherent:
   phones and appear inline on desktop.
 - **Shared units, not copies.** `StatTile` is the labelled figure,
   `RangePicker` the timeframe control, `PageLabel` the page identity,
+  `SubHeading` the tier below a section heading,
   `StaleNote` the "these figures are from a moment ago" line, `EmptyState` the
   muted one-liner standing in for absent rows, `Button` the filled action, and
   `field()` the class every text input, date, number and select wears. Each existed three to thirteen times over with small
@@ -198,10 +199,18 @@ rendered in neither.
 | Headline figure | `text-[34px] md:text-[42px] font-semibold tracking-tight` |
 | Page label | `text-sm font-semibold uppercase tracking-widest text-neutral-500` |
 | Section heading | `text-sm font-semibold uppercase tracking-wide text-neutral-400` |
+| Sub-heading (`SubHeading`) | `text-xs font-semibold uppercase tracking-wide text-neutral-500` |
 | Body, rows | `text-sm` · row primary `text-base` |
 | Any figure in a column | add `tabular-nums` |
 | Labels, metadata | `text-xs` |
 | Sub-lines, chart annotations | `text-[11px]` |
+
+The sub-heading is the section heading stepped down twice — smaller and
+dimmer, with weight, case and tracking held constant. That is what makes it a
+tier rather than a fourth idiom. It is for a heading *over a group*: "Best"
+and "Worst" inside "What made the money", "Headlines" in an asset panel. A
+small uppercase label *on a figure* is a different thing and keeps its own
+spelling — the ledger's row labels, the analyzer's severity line.
 
 **Nothing below 11px.** A 10px control was drawn once and rejected: it fails
 on a 390px phone held at arm's length.

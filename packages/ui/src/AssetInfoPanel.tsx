@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { useDataClient } from "@/data/client/context";
 import type { AssetInfo } from "@/lib/asset-info";
+import SubHeading from "./SubHeading";
 
 /**
  * What an asset is, how the market feels about it, and what is being written
@@ -81,9 +82,7 @@ export default function AssetInfoPanel({
 
       {info.news.length > 0 && (
         <div>
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-1.5">
-            Headlines
-          </h3>
+          <SubHeading className="mb-1.5">Headlines</SubHeading>
           <ul className="divide-y divide-neutral-800 border-y border-neutral-800">
             {info.news.map((n) => (
               <li key={n.link}>

@@ -100,7 +100,17 @@ and `SymbolPicker.tsx:73` inlines the same string again.
 This one *is* covered by the anti-pattern list. Three copies is how the other
 shared components started.
 
-### 4. An undocumented third heading tier, used three ways
+### 4. An undocumented third heading tier, used three ways — RESOLVED 2026-08-23
+
+**Resolved.** Four sites, and three roles rather than one tier. The two true
+sub-headings — insights' Best/Worst and `AssetInfoPanel`'s Headlines — differed
+only in weight and are now `SubHeading`: the section heading stepped down twice,
+smaller and dimmer, with weight, case and tracking held constant. The owner
+chose to stop there. The ledger's row labels and the analyzer's severity line
+are labels on a figure rather than headings over a group, so they keep their
+own spellings and are named as such in `BRAND.md`. Guarded in
+`shared-units.test.ts`.
+
 
 `BRAND.md` documents two: the page label and the section heading. A third
 exists below them, spelled differently each time:

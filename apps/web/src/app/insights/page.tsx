@@ -21,6 +21,7 @@ import RangePicker from "@/components/RangePicker";
 import { PERFORMANCE_RANGES, rangeLabel, type RangeKey } from "@/lib/ranges";
 import StatTile from "@/components/StatTile";
 import EmptyState from "@/components/EmptyState";
+import SubHeading from "@/components/SubHeading";
 
 type Holding = ValuedHolding & {
   assetType?: "crypto" | "equity" | "cash";
@@ -373,10 +374,10 @@ function ContribList({
 }) {
   return (
     <div>
-      <h3 className="text-xs uppercase tracking-wide text-neutral-500 mb-2 flex items-center gap-1">
+      <SubHeading className="mb-2 flex items-center gap-1">
         {up ? <TrendingUp size={12} aria-hidden /> : <TrendingDown size={12} aria-hidden />}
         {title}
-      </h3>
+      </SubHeading>
       <ul className="space-y-1">
         {rows.map((r) => (
           <li key={r.symbol}>
