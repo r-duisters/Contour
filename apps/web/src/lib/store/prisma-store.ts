@@ -102,6 +102,14 @@ function toSettings(row: {
   };
 }
 
+/**
+ * How many ids one `DELETE ... WHERE id IN (...)` may bind. Every id is a
+ * SQLite variable, and while the driver this ships with allows 32 766, an older
+ * build caps at 999 — so stay under the conservative ceiling and let
+ * `$transaction` keep a longer list atomic. A 462-row portfolio is one chunk.
+ */
+const DELETE_CHUNK = 500;
+
 export function PrismaStore(client: PrismaClient = defaultClient): Store {
   return {
     portfolios: {
@@ -150,6 +158,22 @@ export function PrismaStore(client: PrismaClient = defaultClient): Store {
       },
       async remove(id: string): Promise<void> {
         await client.transaction.delete({ where: { id } });
+      },
+      async removeMany(ids: string[]): Promise<number> {
+        if (ids.length === 0) return 0;
+        const chunks: string[][] = [];
+        for (let i = 0; i < ids.length; i += DELETE_CHUNK) chunks.push(ids.slice(i, i + DELETE_CHUNK));
+        if (chunks.length === 1) {
+          const { count } = await client.transaction.deleteMany({ where: { id: { in: chunks[0]! } } });
+          return count;
+        }
+        // More than one statement, so wrap them: the point of this method is
+        // that a clear-out either happens or does not, and a crash between two
+        // chunks would leave an arbitrary prefix of the portfolio deleted.
+        const results = await client.$transaction(
+          chunks.map((chunk) => client.transaction.deleteMany({ where: { id: { in: chunk } } })),
+        );
+        return results.reduce((n, r) => n + r.count, 0);
       },
       async removeAllIn(portfolioId: string): Promise<void> {
         await client.transaction.deleteMany({ where: { portfolioId } });

@@ -133,6 +133,12 @@ export function MemoryStore(seed?: StoreSeed): Store {
       async remove(id: string): Promise<void> {
         if (!transactions.delete(id)) throw new Error(`MemoryStore: no transaction ${id}`);
       },
+      async removeMany(ids: string[]): Promise<number> {
+        // Counts deletions, not ids: an id that is not here was already gone.
+        let removed = 0;
+        for (const id of ids) if (transactions.delete(id)) removed += 1;
+        return removed;
+      },
       async removeAllIn(portfolioId: string): Promise<void> {
         for (const t of inPortfolio(portfolioId)) transactions.delete(t.id);
       },

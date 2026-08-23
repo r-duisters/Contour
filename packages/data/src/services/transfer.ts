@@ -199,17 +199,18 @@ export async function importDelta(
  * clear can never reach another portfolio, and the `note` filter, so a
  * hand-entered transaction survives it.
  *
- * The route issued one `deleteMany`; the port has no delete-by-predicate (it
- * would not survive the move to device SQLite as a single call), so this reads
- * the rows and removes them by id. Unknown id answers 0 rather than throwing,
- * as `deleteMany` on a missing portfolio always did.
+ * The route issued one `deleteMany` with the predicate inline. The predicate
+ * stays here, where it is testable, and `removeMany` puts the deletion back
+ * into a single statement — 462 sequential deletes would be 462 write
+ * transactions, and a crash partway through would leave an arbitrary prefix of
+ * the portfolio gone. Unknown id answers 0 rather than throwing, as
+ * `deleteMany` on a missing portfolio always did.
  */
 export async function clearPortfolio(store: Store, id: string): Promise<number> {
   const portfolio = await store.portfolios.get(id);
   if (!portfolio) return 0;
   const imported = portfolio.transactions.filter((t) => t.note === "delta-import");
-  for (const t of imported) await store.transactions.remove(t.id);
-  return imported.length;
+  return store.transactions.removeMany(imported.map((t) => t.id));
 }
 
 const stamp = () => new Date().toISOString().slice(0, 10);

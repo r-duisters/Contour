@@ -159,6 +159,52 @@ export function runStoreContract(name: string, makeStore: () => Promise<Store>):
       expect(left[0]!.id).not.toBe(a.id);
     });
 
+    it("removes a named set of transactions in one call and reports how many", async () => {
+      const p = await store.portfolios.create("Main");
+      await store.transactions.addMany(p.id, [tx({ time: 1 }), tx({ time: 2 }), tx({ time: 3 })]);
+      const rows = (await store.portfolios.get(p.id))!.transactions;
+      const removed = await store.transactions.removeMany([rows[0]!.id, rows[2]!.id]);
+      expect(removed).toBe(2);
+      const left = (await store.portfolios.get(p.id))!.transactions;
+      expect(left.map((t) => t.id)).toEqual([rows[1]!.id]);
+    });
+
+    /**
+     * Deliberately unlike `remove`, which throws on an unknown id. `removeMany`
+     * is the "delete this set" primitive a clear-out is built on, and its
+     * caller has just read the ids it is passing: a row that vanished in
+     * between is the outcome asked for, not an error. Both stores must agree,
+     * and the count is of rows actually deleted, never of ids handed in.
+     */
+    it("skips an id that does not exist, counting only what it deleted", async () => {
+      const p = await store.portfolios.create("Main");
+      const row = await store.transactions.add(p.id, tx());
+      expect(await store.transactions.removeMany([row.id, "no-such-id"])).toBe(1);
+      expect((await store.portfolios.get(p.id))!.transactions).toEqual([]);
+      expect(await store.transactions.removeMany(["no-such-id"])).toBe(0);
+    });
+
+    it("treats an empty id list as a no-op", async () => {
+      const p = await store.portfolios.create("Main");
+      await store.transactions.add(p.id, tx());
+      expect(await store.transactions.removeMany([])).toBe(0);
+      expect((await store.portfolios.get(p.id))!.transactions).toHaveLength(1);
+    });
+
+    /**
+     * `id IN (...)` binds one SQLite variable per id, so a list long enough to
+     * pass the driver's parameter ceiling has to be split. 1200 is past the
+     * conservative 999 limit an older SQLite build enforces, which is what
+     * `PrismaStore` chunks against.
+     */
+    it("removes an id list longer than one SQLite statement can bind", async () => {
+      const p = await store.portfolios.create("Main");
+      await store.transactions.addMany(p.id, Array.from({ length: 1200 }, (_, i) => tx({ time: i + 1 })));
+      const rows = (await store.portfolios.get(p.id))!.transactions;
+      expect(await store.transactions.removeMany(rows.slice(0, 1150).map((t) => t.id))).toBe(1150);
+      expect((await store.portfolios.get(p.id))!.transactions).toHaveLength(50);
+    });
+
     it("empties one portfolio with removeAllIn and leaves another intact", async () => {
       const p = await store.portfolios.create("Main");
       const other = await store.portfolios.create("Other");

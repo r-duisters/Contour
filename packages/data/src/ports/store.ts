@@ -66,6 +66,20 @@ export interface Store {
     addMany(portfolioId: string, txs: NewTransaction[]): Promise<number>;
     update(id: string, patch: TransactionPatch): Promise<Transaction>;
     remove(id: string): Promise<void>;
+    /**
+     * Delete a named set of rows in one statement, answering how many actually
+     * went. It exists so a caller that has decided *which* rows to drop — the
+     * Delta-import clear-out picks its rows by `note` — keeps that predicate in
+     * a service, where it is testable, instead of pushing a query language into
+     * the port. One `deleteMany({ where: { id: { in: ids } } })` on Prisma, one
+     * `DELETE ... WHERE id IN (...)` on device SQLite.
+     *
+     * Unknown ids are skipped, not an error — unlike `remove`, whose throw on a
+     * missing row is pinned by the contract. The caller has just read the ids
+     * it is passing; a row that disappeared in between is the outcome it asked
+     * for. The count is of rows deleted, never of ids handed in.
+     */
+    removeMany(ids: string[]): Promise<number>;
     removeAllIn(portfolioId: string): Promise<void>;
     /**
      * One row count per portfolio id present in the store, keyed by portfolio
