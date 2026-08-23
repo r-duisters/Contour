@@ -3,9 +3,9 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * `packages/core` and `packages/ui` are both bundled into an Android APK that
- * has no server behind it (spec §3). Anything importing a Node builtin or a
- * server-only package cannot go there, and finding out at bundle time in
+ * `packages/core`, `packages/ui` and `packages/data` are all bundled into an
+ * Android APK that has no server behind it (spec §3). Anything importing a
+ * Node builtin or a server-only package cannot go there, and finding out at bundle time in
  * Phase 4 is far more expensive than finding out here. Tests are exempt: they
  * run under Node by definition.
  */
@@ -34,7 +34,26 @@ const FORBIDDEN = [
   "buffer",
 ];
 
-const PORTABLE_PACKAGES = ["packages/core/src", "packages/ui/src"];
+const PORTABLE_PACKAGES = ["packages/core/src", "packages/ui/src", "packages/data/src"];
+
+/**
+ * Packages that must reach the network only through an injected `Net`. Global
+ * `fetch` is not a bundling failure the way `node:fs` is — it exists on a
+ * device — but it is a portability failure: a native WebView request is subject
+ * to CORS, which is why `Net` exists at all (spec §4.2).
+ *
+ * `packages/core` joined with no exemption once its transport moved out: what
+ * was portable went to `packages/data/src/sources/`, and the one piece that
+ * could not — Yahoo's cookie-and-crumb handshake, which `Net` has no response
+ * headers to express — went to `apps/web/src/lib/equity-info.ts`, outside every
+ * package this guard covers. Core is now pure.
+ *
+ * `packages/ui` is still absent: three components fetch directly. Those move
+ * behind `Net` later, and it joins the list when they do. Listing it now would
+ * fail the suite on work that has not happened yet, which teaches everyone to
+ * ignore it.
+ */
+const NET_ONLY_PACKAGES = ["packages/data/src", "packages/core/src"];
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
@@ -59,7 +78,17 @@ function isForbiddenImport(src: string, mod: string): boolean {
   return pattern.test(src);
 }
 
-describe("packages/core and packages/ui stay portable", () => {
+/**
+ * A call to the global, as opposed to `net.json(...)`. The negative lookbehind
+ * for `.` separates the two and keeps `fetchKlines(` / `prefetch(` out of it —
+ * except that `globalThis.fetch(` and `window.fetch(` are the global reached
+ * through a member access, so those two receivers are named explicitly.
+ */
+function usesGlobalFetch(src: string): boolean {
+  return /(?<![.\w$])fetch\s*\(/.test(src) || /\b(?:globalThis|window|self)\s*\.\s*fetch\s*\(/.test(src);
+}
+
+describe("packages/core, packages/ui and packages/data stay portable", () => {
   it("imports nothing that only exists on a server", () => {
     const offenders: string[] = [];
     let scanned = 0;
@@ -77,9 +106,26 @@ describe("packages/core and packages/ui stay portable", () => {
     }
     // A walk that silently returns zero files would make this test pass
     // vacuously — a guard that can't fail isn't a guard. The floor is well
-    // under the current combined count (44 in core, 18 in ui) so it only
-    // trips if the walk itself breaks, not as a file-count tripwire.
+    // under the current combined count (25 in core, 18 in ui, 19 in data) so it
+    // only trips if the walk itself breaks, not as a file-count tripwire.
     expect(scanned).toBeGreaterThan(30);
+    expect(offenders).toEqual([]);
+  });
+
+  it("reaches the network only through an injected Net", () => {
+    const offenders: string[] = [];
+    let scanned = 0;
+    for (const pkg of NET_ONLY_PACKAGES) {
+      const files = sourceFiles(join(process.cwd(), pkg));
+      scanned += files.length;
+      for (const file of files) {
+        const src = readFileSync(file, "utf8");
+        if (usesGlobalFetch(src)) {
+          offenders.push(`[${pkg}] ${file.replace(process.cwd() + "/", "")} -> global fetch`);
+        }
+      }
+    }
+    expect(scanned).toBeGreaterThan(3);
     expect(offenders).toEqual([]);
   });
 });

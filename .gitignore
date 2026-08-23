@@ -60,3 +60,10 @@ android/app/src/main/assets/public/
 .superdesign/init/
 .superdesign/website/
 .superdesign/tmp/
+
+# Parity baselines: captured route bodies, containing the owner's real holdings.
+# Regenerate with `node scripts/parity.mjs capture .parity-baseline.json <path...>`.
+# A task that needs paths the phase baseline does not cover captures its own
+# `.parity-<task>-*.json` rather than overwriting the shared one; the glob keeps
+# those out of the repo too, holdings and all.
+.parity-*.json

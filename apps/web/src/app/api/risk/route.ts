@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { fetchKlines } from "@/lib/binance";
+import { fetchKlines } from "@/data/sources/binance";
+import { deps } from "@/lib/deps";
 import { run } from "@/lib/indicator";
 import { cached } from "@/lib/cache";
 
@@ -10,9 +11,10 @@ const Query = z.object({ symbol: z.string().min(1).max(20).default("BTCUSDT") })
 
 // The indicator needs 1460 daily bars to warm up; Binance caps a page at 1000.
 async function warmBars(symbol: string) {
-  const recent = await fetchKlines({ symbol, interval: "1d", limit: 1000 });
+  const { net } = deps();
+  const recent = await fetchKlines(net, { symbol, interval: "1d", limit: 1000 });
   if (recent.length === 0) return [];
-  const older = await fetchKlines({
+  const older = await fetchKlines(net, {
     symbol, interval: "1d", limit: 1000, endTime: recent[0]!.t - 1,
   }).catch(() => []);
   return [...older, ...recent];

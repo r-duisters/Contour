@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { fetchKlines } from "@/lib/binance";
+import { fetchKlines } from "@/data/sources/binance";
+import { deps } from "@/lib/deps";
 import type { Timeframe } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
   }
   const { symbol, interval, limit, endTime, startTime } = parsed.data;
   try {
-    const bars = await fetchKlines({ symbol, interval: interval as Timeframe, limit, endTime, startTime });
+    const bars = await fetchKlines(deps().net, { symbol, interval: interval as Timeframe, limit, endTime, startTime });
     return NextResponse.json({ bars });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 502 });

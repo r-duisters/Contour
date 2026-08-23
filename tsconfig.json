@@ -2,6 +2,7 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "paths": {
+      "@/data/*": ["./packages/data/src/*"],
       "@/core/*": ["./packages/core/src/*"],
       "@/ui/*": ["./packages/ui/src/*"],
       "@/lib/*": ["./packages/core/src/*"],

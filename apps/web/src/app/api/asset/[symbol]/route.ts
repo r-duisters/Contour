@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { assetInfo } from "@/lib/asset-info";
+import { equityInfo } from "@/lib/equity-info";
+import { assetInfo as cryptoAssetInfo } from "@/data/services/lookup";
+import { deps } from "@/lib/deps";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +15,12 @@ const Query = z.object({
  * Background, sentiment and headlines for one holding. Separate from the
  * valuation call because none of it is needed to answer "what is it worth",
  * and every source here is someone else's server.
+ *
+ * `assetType: "equity"` calls the server-only `@/lib/equity-info` — unconverted.
+ * Its Yahoo quoteSummary lookup needs a session cookie read off a response
+ * header, and `Net` (`@/data/ports/net`) exposes no header reader on either
+ * side; that file's comment has the detail. Only `"crypto"`, the default, goes
+ * through the injected `Net`.
  */
 export async function GET(req: NextRequest, ctx: { params: Promise<{ symbol: string }> }) {
   const { symbol: rawSymbol } = await ctx.params;
@@ -24,7 +32,11 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ symbol: str
   const { symbol, assetType } = parsed.data;
 
   try {
-    return NextResponse.json(await assetInfo(symbol.toUpperCase(), assetType));
+    const info =
+      assetType === "equity"
+        ? await equityInfo(symbol.toUpperCase())
+        : await cryptoAssetInfo(deps().net, symbol.toUpperCase());
+    return NextResponse.json(info);
   } catch {
     // A background panel is never worth failing the page over.
     return NextResponse.json({

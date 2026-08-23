@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/db";
-import { parseBackup } from "@/lib/export";
+import { deps } from "@/lib/deps";
+import { InvalidBackupError, restore } from "@/data/services/transfer";
 
 export const dynamic = "force-dynamic";
 
@@ -15,37 +15,14 @@ export async function POST(req: NextRequest) {
   const body = Body.safeParse(await req.json());
   if (!body.success) return NextResponse.json({ error: body.error.flatten() }, { status: 400 });
 
-  const parsed = parseBackup(body.data.backup);
-  if ("error" in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
-  const { portfolio } = parsed.backup;
-
-  const existing = await prisma.portfolio.count({ where: { name: portfolio.name } });
-  const name = existing > 0
-    ? `${portfolio.name} (restored ${new Date().toISOString().slice(0, 10)})`
-    : portfolio.name;
-
-  const created = await prisma.portfolio.create({ data: { name } });
-  if (portfolio.transactions.length > 0) {
-    await prisma.transaction.createMany({
-      data: portfolio.transactions.map((t) => ({
-        portfolioId: created.id,
-        symbol: t.symbol,
-        assetType: t.assetType,
-        side: t.side,
-        quantity: t.quantity,
-        price: t.price,
-        fee: t.fee,
-        time: BigInt(t.time),
-        nativeCurrency: t.nativeCurrency ?? null,
-        nativePrice: t.nativePrice ?? null,
-        nativeFee: t.nativeFee ?? null,
-        note: t.note ?? null,
-      })),
-    });
+  const { store } = deps();
+  try {
+    const { portfolio, restored } = await restore(store, body.data.backup);
+    return NextResponse.json({ id: portfolio.id, name: portfolio.name, restored });
+  } catch (err) {
+    if (err instanceof InvalidBackupError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+    throw err;
   }
-  return NextResponse.json({
-    id: created.id,
-    name,
-    restored: portfolio.transactions.length,
-  });
 }
