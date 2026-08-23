@@ -131,9 +131,12 @@ Rules that keep it coherent:
 ## Colour
 
 Dark only. Every surface is painted explicitly; nothing relies on the
-browser's colour scheme. The CSS custom properties in `globals.css` are
-vestigial Next.js scaffolding — no component reads them, so do not design
-against them.
+browser's colour scheme — `globals.css` sets the ground to `#0a0a0a`
+unconditionally. It did not until 2026-08-23: the properties defaulted to
+white and went dark only under `prefers-color-scheme`, so a machine set to
+light drew every one of these tokens on the wrong ground. This section used to
+claim no component read those properties; `body` did. A light mode is tracked
+as issue #12 and is a palette, not a ground.
 
 | Role | Token |
 |---|---|
