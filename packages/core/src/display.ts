@@ -100,3 +100,35 @@ export function axisMoney(n: number): string {
   if (abs >= 1) return `${sign}${sym}${abs.toFixed(abs >= 100 ? 0 : 2)}`;
   return `${sign}${sym}${abs.toPrecision(2)}`;
 }
+
+/**
+ * A market price, always visible and always in dollars.
+ *
+ * Two departures from `money`, both deliberate.
+ *
+ * It does not mask. Privacy mode hides *the owner's* figures — what they hold
+ * and what it is worth — and the price of Bitcoin is not one of those. Masking
+ * a public quote hides nothing from a shoulder and empties the screen of the
+ * only thing it exists to show.
+ *
+ * It does not convert. The Markets board is priced by Binance in USDT and by
+ * Yahoo in USD; putting a euro sign on those figures because the owner reads
+ * in euros would state a conversion nobody performed.
+ */
+export function marketMoney(n: number): string {
+  const abs = Math.abs(n);
+  // A coin worth fractions of a cent needs the digits; NVDA does not.
+  const digits = abs >= 1 ? 2 : abs >= 0.01 ? 4 : 8;
+  return `${n < 0 ? "-" : ""}$${abs.toLocaleString("en-US", {
+    minimumFractionDigits: Math.min(2, digits),
+    maximumFractionDigits: digits,
+  })}`;
+}
+
+/** A market capitalisation, compacted: "$1.2T", "$43.0B". Never masked, for the reasons above. */
+export function marketCap(n: number): string {
+  if (n >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
+  if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(0)}M`;
+  return `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+}

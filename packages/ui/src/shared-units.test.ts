@@ -27,6 +27,15 @@ const ALLOWED = {
   "bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm": [
     "packages/ui/src/field.ts",
   ],
+  // The pill row. Two controls share the shell and diverge in behaviour:
+  // `RangePicker` collapses its extra timeframes behind "More" on a phone,
+  // which is right for eight periods and wrong for a two-way category switch.
+  // Both are allowed to spell the shell; a third copy is a component waiting
+  // to be extracted.
+  "bg-neutral-900/50 border border-neutral-800/50": [
+    "packages/ui/src/RangePicker.tsx",
+    "packages/ui/src/Segmented.tsx",
+  ],
   // The sub-heading tier. Narrower than it looks: the ledger's row labels are
   // `text-neutral-400` and the analyzer's severity line has no weight or
   // colour of its own, so neither is caught here — they are labels on a
