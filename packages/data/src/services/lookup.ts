@@ -27,6 +27,20 @@ import { assetInfo as fetchCryptoAssetInfo } from "../sources/asset-info";
  */
 let lastGood: string[] | null = null;
 
+/**
+ * Test-only. `lastGood` has no expiry of its own — that is the point of it —
+ * so once one test has ever succeeded, nothing in the same process can
+ * observe the "never succeeded" branch of `symbols()` again. Without a way to
+ * clear it, a suite could delete `throw err` below in favour of `return []`
+ * and every test would still pass, silently turning a Binance outage on a
+ * cold process into an empty symbol picker instead of the 502 the route
+ * promises. Not exported from `index.ts` or reachable from a route — only
+ * `lookup.test.ts` imports it.
+ */
+export function __resetSymbolsCacheForTests(): void {
+  lastGood = null;
+}
+
 export async function symbols(net: Net): Promise<string[]> {
   try {
     const list = await fetchUsdtSymbols(net);

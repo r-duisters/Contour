@@ -1,5 +1,5 @@
 import { cached } from "@/core/cache";
-import { parseRss, pickCoin, plainText, type AssetInfo, type NewsItem, type Sentiment, type Stat } from "@/core/asset-info";
+import { compact, parseRss, pickCoin, plainText, type AssetInfo, type NewsItem, type Sentiment, type Stat } from "@/core/asset-info";
 import { baseTicker } from "@/core/asset-names";
 import type { Net } from "../ports/net";
 
@@ -85,17 +85,6 @@ async function cryptoInfo(net: Net, ticker: string): Promise<Partial<AssetInfo>>
     stats,
     sources: ["CoinGecko"],
   };
-}
-
-/** Copy of `core/asset-info.ts`'s `compact` — not exported there, so re-stated rather than reached for privately. */
-function compact(n: number | undefined | null, prefix = ""): string | null {
-  if (n === undefined || n === null || !Number.isFinite(n)) return null;
-  const abs = Math.abs(n);
-  const [div, suffix] =
-    abs >= 1e12 ? [1e12, "T"] : abs >= 1e9 ? [1e9, "B"] : abs >= 1e6 ? [1e6, "M"] : abs >= 1e3 ? [1e3, "K"] : [1, ""];
-  const scaled = n / div;
-  const digits = suffix === "" && abs < 1 ? 6 : 2;
-  return `${prefix}${scaled.toLocaleString("en-US", { maximumFractionDigits: digits })}${suffix}`;
 }
 
 /** Market-wide crypto sentiment. There is no per-coin equivalent that is free. */

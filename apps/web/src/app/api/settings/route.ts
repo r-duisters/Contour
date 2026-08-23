@@ -26,6 +26,16 @@ function toJson(s: Awaited<ReturnType<typeof getSettings>>) {
 }
 
 export async function GET() {
+  // A virgin database (before /api/setup ever runs) has no settings row.
+  // `getSettings()` defaults it unconditionally — deliberately, since that
+  // removed some twenty `where: { id: 1 }` null checks elsewhere — but this
+  // route's wire format has always answered bare `null` in that one case
+  // (`s ?? null` on the old `findUnique`), which `settings/page.tsx` fetches
+  // and tolerates as a distinct state from a real, defaulted row. Reproducing
+  // that stays the route's job, not the service's: it is response shaping,
+  // not storage.
+  const exists = await prisma.settings.findUnique({ where: { id: 1 }, select: { id: true } });
+  if (!exists) return NextResponse.json({ settings: null });
   const { store } = deps();
   return NextResponse.json({ settings: toJson(await getSettings(store)) });
 }

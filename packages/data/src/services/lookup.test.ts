@@ -1,15 +1,22 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { invalidate } from "@/core/cache";
+import { compact } from "@/core/asset-info";
 import { FakeNet, rejectWith, respondWith } from "../testing/fake-net";
-import { assetInfo, symbols } from "./lookup";
+import { __resetSymbolsCacheForTests, assetInfo, symbols } from "./lookup";
 
 const EXCHANGE_INFO = "https://api.binance.com/api/v3/exchangeInfo";
 
 // sources/binance's fetchUsdtSymbols memoises through packages/core/src/cache.ts
 // under the key "usdt-symbols", shared with core's own copy — a leftover entry
 // from another test (or from core, if anything in the same process warmed it)
-// would answer before FakeNet is ever consulted.
-beforeEach(() => invalidate());
+// would answer before FakeNet is ever consulted. `lastGood` is lookup.ts's own
+// module state and has no expiry, so it needs its own reset too: without it,
+// the very first successful `symbols()` call in this file would make the
+// "never succeeded" 502 path unreachable by every later test.
+beforeEach(() => {
+  invalidate();
+  __resetSymbolsCacheForTests();
+});
 
 const EXCHANGE_INFO_BODY = {
   symbols: [
@@ -59,6 +66,19 @@ describe("symbols", () => {
 
     expect(await symbols(bad)).toEqual(["BTCUSDT", "ETHUSDT"]);
   });
+
+  it("on a cold process (never once succeeded) with a failing upstream, throws rather than returning an empty list", async () => {
+    // beforeEach already resets `lastGood`, but the reset is the whole point
+    // of this test, so it is spelled out here too: without it, this case is
+    // provably unreachable once any earlier test has ever called `symbols()`
+    // successfully, and a `return []` swapped in for `throw err` would pass
+    // every other test in this file while silently telling the symbol picker
+    // "you have nothing" instead of "Binance is unreachable".
+    __resetSymbolsCacheForTests();
+    const bad = FakeNet({ [EXCHANGE_INFO]: respondWith(503, "binance down") });
+
+    await expect(symbols(bad)).rejects.toThrow();
+  });
 });
 
 const COINGECKO_SEARCH = "https://api.coingecko.com/api/v3/search";
@@ -88,6 +108,14 @@ describe("assetInfo", () => {
     expect(info.symbol).toBe("BTCUSDT");
     expect(info.about).toContain("Bitcoin is digital money");
     expect(info.tags).toContain("Cryptocurrency");
+    // Computed through the same `compact` sources/asset-info.ts imports from
+    // core, not a hand-typed literal — the duplicated copy this used to carry
+    // could drift from core's formatting with nothing here to catch it.
+    expect(info.stats).toEqual([
+      { label: "Market cap", value: compact(1_000_000, "$") },
+      { label: "Rank", value: "#1" },
+      { label: "24h volume", value: compact(1_000, "$") },
+    ]);
     expect(info.sentiment).toEqual({
       label: "Crypto Fear & Greed",
       value: "72 · Greed",
