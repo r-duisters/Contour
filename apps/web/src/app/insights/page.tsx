@@ -20,6 +20,7 @@ import type { ValuedHolding } from "@/lib/portfolio";
 import RangePicker from "@/components/RangePicker";
 import { PERFORMANCE_RANGES, rangeLabel, type RangeKey } from "@/lib/ranges";
 import StatTile from "@/components/StatTile";
+import EmptyState from "@/components/EmptyState";
 
 type Holding = ValuedHolding & {
   assetType?: "crypto" | "equity" | "cash";
@@ -176,7 +177,7 @@ export default function InsightsPage() {
         <PageLabel icon={BarChart3}>Insights</PageLabel>
       </div>
 
-      {!portfolioId && <p className="text-sm text-neutral-500">No portfolio yet.</p>}
+      {!portfolioId && <EmptyState>No portfolio yet — create one on the More page.</EmptyState>}
 
       {portfolioId && (
         <>
@@ -271,7 +272,7 @@ export default function InsightsPage() {
             <div className="grid sm:grid-cols-[1fr_240px] gap-6 items-start">
               {alloc.length > 0
                 ? <Allocation rows={alloc} />
-                : <p className="text-sm text-neutral-500">No priced holdings yet.</p>}
+                : <EmptyState>No priced holdings yet — add a transaction to see the balance.</EmptyState>}
               <dl className="text-sm space-y-2">
                 <Row label="Priced positions" value={conc?.pricedCount ?? "—"} />
                 <Row
@@ -391,7 +392,9 @@ function ContribList({
             </Link>
           </li>
         ))}
-        {rows.length === 0 && <li className="text-sm text-neutral-500">Nothing here yet.</li>}
+        {rows.length === 0 && (
+          <EmptyState as="li">{up ? "Nothing has gained yet." : "Nothing has lost yet."}</EmptyState>
+        )}
       </ul>
     </div>
   );

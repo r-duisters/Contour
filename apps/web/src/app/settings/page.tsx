@@ -27,6 +27,7 @@ import {
 import { browserSupportsWebAuthn, startRegistration } from "@simplewebauthn/browser";
 import { useDataClient } from "@/data/client/context";
 import Button from "@/components/Button";
+import EmptyState from "@/components/EmptyState";
 
 export default function SettingsPage() {
   const client = useDataClient();
@@ -309,7 +310,9 @@ export default function SettingsPage() {
               </button>
             </li>
           ))}
-          {passkeys.length === 0 && <li className="text-sm text-neutral-500 py-2">No passkeys yet.</li>}
+          {passkeys.length === 0 && (
+            <EmptyState as="li" className="py-2">No passkeys yet — add one above to unlock with a fingerprint.</EmptyState>
+          )}
         </ul>
         {passkeyMsg && <p className="text-sm text-neutral-400">{passkeyMsg}</p>}
       </section>

@@ -18,6 +18,7 @@ import { usePrivacy } from "@/components/usePrivacy";
 import { useCachedValuation } from "@/components/useCachedValuation";
 import StaleNote from "@/components/StaleNote";
 import { RANGE_KEYS, type RangeKey } from "@/lib/ranges";
+import EmptyState from "@/components/EmptyState";
 
 // ~300 KB of charting: loaded after the figures are on screen, never on the
 // server, so opening the app paints numbers immediately.
@@ -428,7 +429,7 @@ export default function PortfolioPage() {
                 </button>
               )}
               {sortedHoldings.length === 0 && (
-                <p className="text-sm text-neutral-500 py-2 mb-6">No holdings yet — add a transaction below.</p>
+                <EmptyState className="py-2 mb-6">No holdings yet — add a transaction below.</EmptyState>
               )}
             </>
           )}

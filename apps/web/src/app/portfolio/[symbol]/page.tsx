@@ -26,6 +26,7 @@ import AssetInfoPanel from "@/components/AssetInfoPanel";
 import RangePicker from "@/components/RangePicker";
 import { RANGE_KEYS, rangeLabel, type RangeKey } from "@/lib/ranges";
 import StatTile from "@/components/StatTile";
+import EmptyState from "@/components/EmptyState";
 
 type Tx = {
   id: string;
@@ -225,9 +226,9 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
       {shownHolding === undefined && <p className="text-sm text-neutral-500">Loading…</p>}
       <StaleNote at={stale} />
       {shownHolding === null && (
-        <p className="text-sm text-neutral-500">
+        <EmptyState>
           Nothing held in {symbol}. It may have been sold, or the ticker may not be in this portfolio.
-        </p>
+        </EmptyState>
       )}
 
       {shownHolding && (
@@ -352,7 +353,7 @@ function PriceChart({
   useFitChart(chart, container, bars);
 
   if (bars !== null && bars.length === 0) {
-    return <p className="text-xs text-neutral-500">No price history available for this asset.</p>;
+    return <EmptyState>No price history for this asset.</EmptyState>;
   }
   return <div ref={container} className="h-56 md:h-72 border border-neutral-800 rounded" />;
 }
@@ -383,7 +384,7 @@ function TransactionTable({ txs, onDelete }: { txs: Tx[]; onDelete: (id: string)
   const visible = rows.slice(current * PER_PAGE, current * PER_PAGE + PER_PAGE);
 
   if (txs.length === 0) {
-    return <p className="text-sm text-neutral-500">No transactions yet.</p>;
+    return <EmptyState>No transactions yet — add one with Add above.</EmptyState>;
   }
 
   return (

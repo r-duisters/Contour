@@ -134,7 +134,16 @@ than drift. The ledger's subtitle went: its sentence already lives in this
 guide as the question the page answers. Written into `BRAND.md`, so the next
 screen inherits it instead of re-inventing it. (`32dbe30`)
 
-### 6. Empty states vary in tier, spacing and helpfulness
+### 6. Empty states vary in tier, spacing and helpfulness — RESOLVED 2026-08-23
+
+**Resolved.** `EmptyState` owns the tier, so the one `text-xs` outlier is gone.
+Padding stays with the caller by decision rather than by drift: an empty state
+replaces rows and should be spaced like the rows it replaced. Four sentences
+rewritten to say what to do — including "Nothing here yet", which is used for
+both the best and worst contributor lists and now reads "Nothing has gained
+yet" or "Nothing has lost yet" from the `up` prop it already had.
+`analyze`'s "No issues detected" was left alone: it is a result, not an absence.
+
 
 Nine empty states. Eight use `text-sm text-neutral-500`; `portfolio/[symbol]:330`
 uses `text-xs`. Padding is `py-2`, `py-4`, `py-2 mb-6`, or nothing.

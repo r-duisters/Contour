@@ -6,6 +6,7 @@ import { quoteAsset } from "@/components/CoinIcon";
 import { Bell, Pause, Play, Plus, Trash2 } from "lucide-react";
 import Button from "@/components/Button";
 import { field } from "@/components/field";
+import EmptyState from "@/components/EmptyState";
 
 type Alert = {
   id: string;
@@ -184,7 +185,7 @@ export default function AlertsPage() {
           </li>
         ))}
         {alerts.length === 0 && (
-          <li className="text-sm text-neutral-500 py-4">No alerts yet — build one above and press Create.</li>
+          <EmptyState as="li" className="py-4">No alerts yet — build one above and press Create.</EmptyState>
         )}
       </ul>
     </main>

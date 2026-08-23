@@ -123,9 +123,9 @@ Rules that keep it coherent:
   phones and appear inline on desktop.
 - **Shared units, not copies.** `StatTile` is the labelled figure,
   `RangePicker` the timeframe control, `PageLabel` the page identity,
-  `StaleNote` the "these figures are from a moment ago" line, `Button` the
-  filled action, and `field()` the class every text input, date, number and
-  select wears. Each existed three to thirteen times over with small
+  `StaleNote` the "these figures are from a moment ago" line, `EmptyState` the
+  muted one-liner standing in for absent rows, `Button` the filled action, and
+  `field()` the class every text input, date, number and select wears. Each existed three to thirteen times over with small
   differences before it was extracted; a new local copy is a bug, not a
   variation, and `packages/ui/src/shared-units.test.ts` now fails the build
   rather than waiting for the next audit to count them.
@@ -307,8 +307,13 @@ differences before it was extracted.
   no controls just renders the label. Only the label pair is shared.
 - **Disclosure** — a text button that toggles a panel. Used for Manage, the
   transaction form and closed positions.
-- **Empty state** — one muted sentence saying what to do, never an
-  illustration.
+- **Empty state** — `EmptyState`: one muted sentence saying what to do, never
+  an illustration. Say the thing to do, not merely that there is nothing:
+  "No passkeys yet — add one above to unlock with a fingerprint", not "No
+  passkeys yet". Where nothing can be done, say why it is empty in words the
+  reader can act on later — "Nothing has gained yet", not "Nothing here yet".
+  Padding belongs to the caller: an empty state stands in for rows, so it
+  takes the spacing of the rows it replaced.
 
 ## Navigation
 
