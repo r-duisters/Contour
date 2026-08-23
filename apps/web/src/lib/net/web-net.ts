@@ -1,4 +1,4 @@
-import type { Net, NetResponse } from "@/data/ports/net";
+import { NetError, type Net, type NetResponse } from "@/data/ports/net";
 
 /**
  * `Net` over the platform `fetch`, for the server build.
@@ -13,6 +13,12 @@ import type { Net, NetResponse } from "@/data/ports/net";
  * no price.
  *
  * `request()` is the escape hatch for callers that genuinely want the status.
+ *
+ * A request that fails rejects with a `NetError`, which says whether anything
+ * answered at all — the one thing a caller downstream of the services cannot
+ * recover from a message. The message itself is exactly what this file threw
+ * before, so the two routes that hand `e.message` back to the browser say the
+ * same thing they said.
  */
 export function WebNet(): Net {
   /**
@@ -33,14 +39,30 @@ export function WebNet(): Net {
     }
   }
 
+  /**
+   * `fetch` rejects only when there was no response at all, which is the one
+   * thing a status code can never tell a caller apart from.
+   */
+  async function attempt(url: string, init?: RequestInit): Promise<Response> {
+    try {
+      return await fetch(url, init);
+    } catch (e) {
+      throw new NetError(e instanceof Error ? e.message : String(e), "unreachable", undefined, {
+        cause: e,
+      });
+    }
+  }
+
   async function checked(url: string, init?: RequestInit): Promise<Response> {
-    const res = await fetch(url, init);
+    const res = await attempt(url, init);
     if (!res.ok) {
       // The body usually carries the provider's reason; losing it turns every
       // upstream failure into a bare status code.
       const body = await res.text().catch(() => "");
-      throw new Error(
+      throw new NetError(
         `${init?.method ?? "GET"} ${safeUrl(url)} -> ${res.status}${body ? `: ${body.slice(0, 500)}` : ""}`,
+        "refused",
+        res.status,
       );
     }
     return res;
@@ -54,7 +76,7 @@ export function WebNet(): Net {
       return (await checked(url, init)).text();
     },
     async request(url: string, init?: RequestInit): Promise<NetResponse> {
-      const res = await fetch(url, init);
+      const res = await attempt(url, init);
       return {
         ok: res.ok,
         status: res.status,
