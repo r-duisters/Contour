@@ -11,6 +11,7 @@ const ComparisonChart = dynamic(() => import("@/components/ComparisonChart"), {
 });
 import { BarChart3, TrendingDown, TrendingUp } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
+import { useDataClient } from "@/data/client/context";
 import { money as fmtMoney, percent, setDisplayCurrency } from "@/lib/display";
 import { usePrivacy } from "@/components/usePrivacy";
 import { classSplit, concentration, contributions, type TradeStats } from "@/lib/insights";
@@ -44,17 +45,24 @@ const BENCHMARKS = [
   { key: "btc", label: "Bitcoin" },
 ] as const;
 
+/**
+ * Narrower than the client's own `BenchmarkKey`, deliberately: the compiler
+ * now rejects a key this screen offers that the data layer cannot answer.
+ */
+type BenchKey = (typeof BENCHMARKS)[number]["key"];
+
 const money = (n: number) => fmtMoney(n, 0);
 const pct = (n: number) => percent(n);
 
 export default function InsightsPage() {
+  const client = useDataClient();
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
   const [holdings, setHoldings] = useState<Holding[] | null>(null);
   const [stats, setStats] = useState<TradeStats | null>(null);
-  const [benchKey, setBenchKey] = useState<string>("sp500");
+  const [benchKey, setBenchKey] = useState<BenchKey>("sp500");
   const [rows, setRows] = useState<RangeStat[]>([]);
   const [loadingRows, setLoadingRows] = useState(false);
-  const [chartRange, setChartRange] = useState<string>("1y");
+  const [chartRange, setChartRange] = useState<RangeKey>("1y");
   const [chartMode, setChartMode] = useState<"money" | "pct">("money");
   const [curve, setCurve] = useState<{
     you: { t: number; v: number }[] | null;
@@ -63,23 +71,22 @@ export default function InsightsPage() {
   usePrivacy(); // re-render when amounts are hidden or shown
 
   useEffect(() => {
-    fetch("/api/portfolios")
-      .then((r) => r.json())
-      .then((d: { portfolios: { id: string }[] }) => setPortfolioId(d.portfolios[0]?.id ?? null))
+    client.listPortfolios()
+      .then((rows) => setPortfolioId(rows[0]?.id ?? null))
       .catch(() => {});
-  }, []);
+  }, [client]);
 
   useEffect(() => {
     if (!portfolioId) return;
-    fetch(`/api/portfolios/${portfolioId}/valuation`)
-      .then((r) => r.json())
-      .then((d) => { setDisplayCurrency(d.currency ?? "USD"); setHoldings(d.holdings); })
+    // Two chains, not a Promise.all: the trade statistics come from the
+    // transaction log alone and land long before the priced valuation does.
+    client.getValuation(portfolioId)
+      .then((d) => { setDisplayCurrency(d.currency); setHoldings(d.holdings); })
       .catch(() => setHoldings([]));
-    fetch(`/api/portfolios/${portfolioId}/insights`)
-      .then((r) => r.json())
+    client.getInsights(portfolioId)
       .then((d) => { setStats(d.stats); })
       .catch(() => {});
-  }, [portfolioId]);
+  }, [client, portfolioId]);
 
   // One row per period: our two return measures beside the benchmark's.
   const loadRows = useCallback(async () => {
@@ -87,29 +94,35 @@ export default function InsightsPage() {
     setLoadingRows(true);
     const out: RangeStat[] = [];
     for (const r of PERFORMANCE_RANGES.map((k) => ({ key: k, label: rangeLabel(k, true) }))) {
-      const s = await fetch(`/api/portfolios/${portfolioId}/series?range=${r.key}`)
-        .then((x) => (x.ok ? x.json() : null))
-        .catch(() => null);
+      const s = await client.getSeries(portfolioId, r.key).catch(() => null);
       if (!s) continue;
-      const opening = Math.max(0, Math.round(s.series?.[0]?.value ?? 0));
-      const b = await fetch(
-        `/api/benchmark?key=${benchKey}&from=${s.windowFrom}&barMs=${s.barMs}` +
-          `&portfolioId=${portfolioId}&opening=${opening}`,
-      ).then((x) => (x.ok ? x.json() : null)).catch(() => null);
-      const benchPoints: { index: number }[] = b?.points ?? [];
+      // A portfolio holding nothing priceable answers with the thin shape: no
+      // window, so there is no period for an index to be measured over.
+      const measured = "twr" in s ? s : null;
+      const opening = Math.max(0, Math.round(s.series[0]?.value ?? 0));
+      const b = measured
+        ? await client.getBenchmark({
+            key: benchKey,
+            from: measured.windowFrom,
+            barMs: measured.barMs,
+            portfolioId,
+            opening,
+          }).catch(() => null)
+        : null;
+      const benchPoints = b?.points ?? [];
       out.push({
         key: r.key,
         label: r.label,
-        twrPct: s.twr?.totalPct ?? null,
-        mwrPct: s.mwr?.annualPct ?? null,
+        twrPct: measured?.twr.totalPct ?? null,
+        mwrPct: measured?.mwr.annualPct ?? null,
         benchPct: benchPoints.length ? benchPoints[benchPoints.length - 1]!.index - 100 : null,
         benchSameFlows: b?.sameFlows?.finalValue ?? null,
-        closing: s.mwr?.closing ?? 0,
+        closing: measured?.mwr.closing ?? 0,
       });
       setRows([...out]);
     }
     setLoadingRows(false);
-  }, [portfolioId, benchKey]);
+  }, [client, portfolioId, benchKey]);
 
   useEffect(() => { loadRows(); }, [loadRows]);
 
@@ -119,33 +132,36 @@ export default function InsightsPage() {
     let cancelled = false;
     setCurve({ you: null, bench: null });
     (async () => {
-      const series = await fetch(`/api/portfolios/${portfolioId}/series?range=${chartRange}`)
-        .then((r) => (r.ok ? r.json() : null)).catch(() => null);
+      const series = await client.getSeries(portfolioId, chartRange).catch(() => null);
       if (cancelled || !series) return;
       // The value already invested when the window opened, so the index is
       // handed the same starting stake rather than starting from nothing.
-      const opening = series.series?.[0]?.value ?? 0;
-      const bench = await fetch(
-        `/api/benchmark?key=${benchKey}&from=${series.windowFrom}&barMs=${series.barMs}` +
-          `&portfolioId=${portfolioId}&opening=${Math.max(0, Math.round(opening))}`,
-      ).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+      const opening = series.series[0]?.value ?? 0;
+      const measured = "twr" in series ? series : null;
+      const bench = measured
+        ? await client.getBenchmark({
+            key: benchKey,
+            from: measured.windowFrom,
+            barMs: measured.barMs,
+            portfolioId,
+            opening: Math.max(0, Math.round(opening)),
+          }).catch(() => null)
+        : null;
       if (cancelled) return;
       if (chartMode === "money") {
         setCurve({
-          you: (series.series ?? []).map((p: { t: number; value: number }) => ({ t: p.t, v: p.value })),
-          bench: (bench?.sameFlows?.series ?? []).map(
-            (p: { t: number; value: number }) => ({ t: p.t, v: p.value }),
-          ),
+          you: series.series.map((p) => ({ t: p.t, v: p.value })),
+          bench: (bench?.sameFlows?.series ?? []).map((p) => ({ t: p.t, v: p.value })),
         });
       } else {
         setCurve({
-          you: (series.twr?.points ?? []).map((p: { t: number; index: number }) => ({ t: p.t, v: p.index })),
-          bench: (bench?.points ?? []).map((p: { t: number; index: number }) => ({ t: p.t, v: p.index })),
+          you: (measured?.twr.points ?? []).map((p) => ({ t: p.t, v: p.index })),
+          bench: (bench?.points ?? []).map((p) => ({ t: p.t, v: p.index })),
         });
       }
     })();
     return () => { cancelled = true; };
-  }, [portfolioId, chartRange, benchKey, chartMode]);
+  }, [client, portfolioId, chartRange, benchKey, chartMode]);
 
   const split = holdings ? classSplit(holdings) : [];
   const conc = holdings ? concentration(holdings) : null;
@@ -169,7 +185,7 @@ export default function InsightsPage() {
               <select
                 className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-xs"
                 value={benchKey}
-                onChange={(e) => setBenchKey(e.target.value)}
+                onChange={(e) => setBenchKey(e.target.value as BenchKey)}
               >
                 {BENCHMARKS.map((b) => <option key={b.key} value={b.key}>{b.label}</option>)}
               </select>
@@ -190,7 +206,7 @@ export default function InsightsPage() {
                 ))}
               </div>
               <RangePicker
-                value={chartRange as RangeKey}
+                value={chartRange}
                 onChange={(k) => setChartRange(k)}
                 only={PERFORMANCE_RANGES}
               />
