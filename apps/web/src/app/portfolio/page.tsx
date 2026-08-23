@@ -7,6 +7,7 @@ import {
   ArrowUpDown, BarChart3, Plus, TrendingDown, TrendingUp, Wallet, X,
 } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
+import { useDataClient } from "@/data/client/context";
 import { money, quantity, setDisplayCurrency } from "@/lib/display";
 import { useStoredRange } from "@/components/useStoredRange";
 import { KEYS } from "@/lib/storage-keys";
@@ -74,6 +75,7 @@ const fmtUsd = money;
 const fmtQty = quantity;
 
 export default function PortfolioPage() {
+  const client = useDataClient();
   const [portfolios, setPortfolios] = useState<PortfolioRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<Tx[]>([]);
@@ -96,10 +98,10 @@ export default function PortfolioPage() {
   usePrivacy(); // re-render when amounts are hidden or shown
 
   const loadPortfolios = useCallback(async () => {
-    const d = await fetch("/api/portfolios").then((r) => r.json());
-    setPortfolios(d.portfolios);
-    setSelectedId((cur) => cur ?? d.portfolios[0]?.id ?? null);
-  }, []);
+    const rows = await client.listPortfolios();
+    setPortfolios(rows);
+    setSelectedId((cur) => cur ?? rows[0]?.id ?? null);
+  }, [client]);
   useEffect(() => { loadPortfolios(); }, [loadPortfolios]);
 
   // Opening the app should show last night's numbers instantly, then correct
@@ -121,11 +123,14 @@ export default function PortfolioPage() {
   const loadSelected = useCallback(async () => {
     if (!selectedId) { setTransactions([]); setValuation(null); setSeries(null); return; }
     setValuationLoading(true);
+    // Two requests in flight at once, each falling back to null on its own:
+    // the valuation is the slow one, and holding the ledger behind it would
+    // leave the table blank for as long as the prices take.
     const [detail, val] = await Promise.all([
-      fetch(`/api/portfolios/${selectedId}`).then((r) => (r.ok ? r.json() : null)),
-      fetch(`/api/portfolios/${selectedId}/valuation`).then((r) => (r.ok ? r.json() : null)),
+      client.getPortfolio(selectedId).catch(() => null),
+      client.getValuation(selectedId).catch(() => null),
     ]);
-    setTransactions(detail?.portfolio.transactions ?? []);
+    setTransactions(detail?.transactions ?? []);
     if (val) {
       setDisplayCurrency(val.currency ?? "USD");
       setValuation(val);
@@ -137,7 +142,7 @@ export default function PortfolioPage() {
       }
     }
     setValuationLoading(false);
-  }, [selectedId]);
+  }, [client, selectedId]);
 
   // The value history is slow to build, so it loads after the numbers and
   // refetches only when the selected range changes.
@@ -145,29 +150,31 @@ export default function PortfolioPage() {
     if (!selectedId || !rangeReady) return;
     let cancelled = false;
     setSeries(null);
-    fetch(`/api/portfolios/${selectedId}/series?range=${range}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: {
-        series?: { t: number; value: number }[];
-        change?: { abs: number; pct: number | null } | null;
-      } | null) => {
+    client.getSeries(selectedId, range)
+      .then((d) => {
         if (cancelled) return;
-        setSeries(d?.series ?? []);
-        setRangeChange(d?.change ?? null);
+        setSeries(d.series);
+        // A portfolio holding nothing priceable answers with the thin shape,
+        // which carries no period change at all.
+        setRangeChange("change" in d ? d.change : null);
       })
       .catch(() => { if (!cancelled) { setSeries([]); setRangeChange(null); } });
     return () => { cancelled = true; };
-  }, [selectedId, range, rangeReady]);
+  }, [client, selectedId, range, rangeReady]);
   useEffect(() => { loadSelected(); }, [loadSelected]);
 
   async function addTransaction(tx: Omit<Tx, "id" | "note">) {
     setFormError(null);
-    const res = await fetch(`/api/portfolios/${selectedId}/transactions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(tx),
-    });
-    if (!res.ok) { setFormError("Failed to add transaction — check the fields."); return; }
+    // With nothing selected this used to post to a route that answered 404 and
+    // land in the message below; the client needs a real id, so the check is
+    // explicit and the outcome is the same sentence.
+    try {
+      if (!selectedId) throw new Error("no portfolio selected");
+      await client.addTransaction(selectedId, tx);
+    } catch {
+      setFormError("Failed to add transaction — check the fields.");
+      return;
+    }
     await loadSelected();
     await loadPortfolios();
   }
@@ -178,14 +185,13 @@ export default function PortfolioPage() {
     if (!selectedId || !rangeReady) return;
     let cancelled = false;
     setAssetChanges({});
-    fetch(`/api/portfolios/${selectedId}/changes?range=${range}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: { changes?: Record<string, number> } | null) => {
-        if (!cancelled) setAssetChanges(d?.changes ?? {});
-      })
+    client.getChanges(selectedId, range)
+      .then((d) => { if (!cancelled) setAssetChanges(d.changes); })
+      // Silent: the rows already reset to {} above, and a missing period
+      // change is not worth an error beside real prices.
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [selectedId, range, rangeReady]);
+  }, [client, selectedId, range, rangeReady]);
 
   const allHoldings = valuation?.holdings ?? [];
   // A closed position has nothing left to decide about; it belongs in history,
