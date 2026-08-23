@@ -14,6 +14,8 @@ import { restore } from "../services/transfer";
 import type { ImportReport } from "../services/transfer";
 import type { Benchmark, Changes, History, Series } from "../services/series";
 import { insights, valuation } from "../services/valuation";
+import { getMarkets } from "../services/markets";
+import type { MarketBoard, MarketCategory } from "../services/markets";
 import type { Insights, Snapshot, Valuation } from "../services/valuation";
 import type {
   BenchmarkQuery,
@@ -292,6 +294,17 @@ function StubClient(store: Store, net: Net): DataClient {
       return { symbol, about: null, tags: [], stats: [], sentiment: null, news: [], sources: [] };
     },
 
+    /* --------------------------------------------------------------- markets */
+
+    /**
+     * Real: `getMarkets` is a service over a `Net`, which is exactly what
+     * Phase 4's client has. Nothing about it needs a server, and that is the
+     * whole claim this file exists to test.
+     */
+    async getMarkets(category: MarketCategory): Promise<MarketBoard> {
+      return attempt(() => getMarkets(net, category));
+    },
+
     /* -------------------------------------------------------------- settings */
 
     async getSettings(): Promise<SettingsDto | null> {
@@ -404,6 +417,21 @@ function seededNet(): Net {
     // No previous closes: day change is unknown, which the fixture does not
     // assert and the valuation reports as uncovered rather than as zero.
     "api.binance.com/api/v3/klines": [],
+    // The markets board. Volumes clear the service's floor so the rows are not
+    // filtered away; the point of the contract case is the shape, not the
+    // ranking.
+    "api.binance.com/api/v3/ticker/24hr": [
+      { symbol: "BTCUSDT", lastPrice: "40000", priceChangePercent: "1.5", quoteVolume: "9e8" },
+      { symbol: "ETHUSDT", lastPrice: "2000", priceChangePercent: "-2.5", quoteVolume: "5e8" },
+    ],
+    "api.coingecko.com": [
+      { symbol: "btc", name: "Bitcoin", current_price: 40_000, price_change_percentage_24h: 1.5, market_cap: 1.2e12 },
+    ],
+    "query1.finance.yahoo.com/v1/finance/screener": {
+      finance: { result: [{ quotes: [
+        { symbol: "NVDA", shortName: "Nvidia", regularMarketPrice: 178, regularMarketChangePercent: 1.1, marketCap: 4.3e12 },
+      ] }] },
+    },
   });
 }
 

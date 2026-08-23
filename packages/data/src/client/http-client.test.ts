@@ -46,6 +46,7 @@ function seededNet(): FakeNetInstance {
   let settingsWritten = false;
 
   return FakeNet({
+    "/api/markets": { board: { up: [], down: [], largest: [], source: "test", at: 0 } },
     "/api/portfolios": (_url: string, init?: RequestInit) => {
       // Only the collection itself; every id-bearing path has a longer key.
       if (method(init) === "POST") {

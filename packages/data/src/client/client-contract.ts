@@ -314,6 +314,21 @@ export function runDataClientContract(
       await expect(client.getSettings()).resolves.toEqual(FIXTURE.settings);
     });
 
+    /* -------------------------------------------------------------- markets */
+
+    it("returns a market board for each category", async () => {
+      // The board is a browsing surface, not a record this app owns: it has no
+      // id to be missing, so the only promises worth pinning are its shape and
+      // that both categories answer at all.
+      for (const category of ["crypto", "stocks"] as const) {
+        const board = await makeClient().getMarkets(category);
+        expect(Array.isArray(board.up)).toBe(true);
+        expect(Array.isArray(board.down)).toBe(true);
+        expect(Array.isArray(board.largest)).toBe(true);
+        expect(typeof board.at).toBe("number");
+      }
+    });
+
     it("offers a test notification exactly when it claims the capability", async () => {
       // Both directions, because the point of the rule in `data-client.ts` is
       // that a capability a platform lacks is *absent*, not present-and-

@@ -6,6 +6,7 @@ import type { SettingsPatch } from "../ports/store";
 import type { Benchmark, Changes, History, Series } from "../services/series";
 import type { ImportReport } from "../services/transfer";
 import type { Insights, Snapshot, Valuation } from "../services/valuation";
+import type { MarketBoard, MarketCategory } from "../services/markets";
 import type {
   BenchmarkQuery,
   DataClient,
@@ -226,6 +227,13 @@ export function HttpClient(net: Net, baseUrl = ""): DataClient {
 
     getAssetInfo(symbol: string, assetType: "crypto" | "equity"): Promise<AssetInfo> {
       return send("GET", `/api/asset/${encodeURIComponent(symbol)}?assetType=${assetType}`);
+    },
+
+    /* --------------------------------------------------------------- markets */
+
+    async getMarkets(category: MarketCategory): Promise<MarketBoard> {
+      const d = await send<{ board: MarketBoard }>("GET", `/api/markets?category=${category}`);
+      return d.board;
     },
 
     /* -------------------------------------------------------------- settings */

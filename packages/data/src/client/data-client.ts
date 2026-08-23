@@ -4,6 +4,9 @@ import type { Settings, SettingsPatch, Side } from "../ports/store";
 import type { Benchmark, BenchmarkKey, Changes, History, Series } from "../services/series";
 import type { ImportReport } from "../services/transfer";
 import type { Insights, Snapshot, Valuation } from "../services/valuation";
+import type { MarketBoard, MarketCategory } from "../services/markets";
+
+export type { MarketBoard, MarketCategory, MarketRow } from "../services/markets";
 
 /**
  * Everything a screen is allowed to ask for.
@@ -184,6 +187,21 @@ export interface DataClient {
 
   listSymbols(): Promise<string[]>;
   getAssetInfo(symbol: string, assetType: "crypto" | "equity"): Promise<AssetInfo>;
+
+  /* --------------------------------------------------------------- markets */
+
+  /**
+   * What moved today and what is largest, for one category.
+   *
+   * Required, not optional: both platforms can fetch, so this is not a
+   * capability one of them lacks. An APK asks CoinGecko and Yahoo over its own
+   * `Net` exactly as the browser does.
+   *
+   * The board names no record this app owns, so it never throws
+   * `NotFoundError` — a category that cannot be reached is a
+   * `RequestFailedError` like any other transport failure.
+   */
+  getMarkets(category: MarketCategory): Promise<MarketBoard>;
 
   /* -------------------------------------------------------------- settings */
 
