@@ -8,8 +8,7 @@ import type { Insights, Snapshot, Valuation } from "../services/valuation";
 /**
  * Everything a screen is allowed to ask for.
  *
- * Thirty-six direct `fetch` calls to `/api/…` across eight files are the
- * reason the
+ * Thirty-six `fetch("/api/…")` calls across eight files are the reason the
  * mobile build has nowhere to intervene: each one names a route, and inside an
  * APK there is no route to name. `DataClient` is that seam. `HttpClient` calls
  * today's routes over an injected `Net`; Phase 4's `LocalClient` calls the
@@ -37,6 +36,13 @@ import type { Insights, Snapshot, Valuation } from "../services/valuation";
  * carries whatever the implementation could learn about why. No method resolves
  * to `undefined` to signal failure, and no method hands back a status code:
  * that a request was involved at all is `HttpClient`'s private business.
+ *
+ * The rule is about records this app owns — a portfolio, a transaction. A
+ * *symbol* is not one: `getHistory`, `getAssetInfo`, `listSymbols` and
+ * `getBenchmark` answer for something a price feed owns, and "no data for that
+ * ticker" comes back as a thin payload (empty `bars`, an `error` field) rather
+ * than a `NotFoundError`. The asset page draws an empty chart beside a real
+ * position; it must not treat the whole holding as gone.
  *
  * Three places knowingly depart from the rule, because today's wire format
  * cannot express it and pretending otherwise would make the two
@@ -71,8 +77,7 @@ import type { Insights, Snapshot, Valuation } from "../services/valuation";
  * ## Strings, not `File`s
  *
  * `importCsv` and `restoreBackup` take the file's *text*. The two call sites
- * already read the file with `.text()` before posting JSON, so this moves
- * nothing;
+ * already read `await file.text()` before posting JSON, so this moves nothing;
  * more to the point, `File` is a DOM type and `LocalClient` would only ever
  * unwrap it again to hand a string to `importDelta`/`restore`. Reading the file
  * belongs where the `<input type="file">` is.

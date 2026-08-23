@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { RequestFailedError } from "../errors";
 import { FakeNet, rejectWith, respondWith } from "../testing/fake-net";
 import type { FakeNetInstance } from "../testing/fake-net";
 import { HttpClient } from "./http-client";
@@ -40,6 +41,10 @@ const summary = {
  * knows about them.
  */
 function seededNet(): FakeNetInstance {
+  // Per-client, because the contract requires settings to start unwritten and
+  // to read back once saved — a fresh install that goes through setup.
+  let settingsWritten = false;
+
   return FakeNet({
     "/api/portfolios": (_url: string, init?: RequestInit) => {
       // Only the collection itself; every id-bearing path has a longer key.
@@ -109,14 +114,24 @@ function seededNet(): FakeNetInstance {
       key: FIXTURE.benchmarkKey, label: "S&P 500",
       points: [{ t: FIXTURE.benchmarkFrom, index: 100 }], sameFlows: null,
     },
-    "/api/history": { bars: [{ t: FIXTURE.benchmarkFrom, c: 40_000 }], range: FIXTURE.range, changePct: 1.2 },
+    "/api/history": (url: string) =>
+      url.includes(FIXTURE.unknownSymbol)
+        // What the route sends for a symbol no feed knows: the thin shape
+        // `history` returns from its own catch, never a 404.
+        ? { bars: [], range: FIXTURE.range, changePct: null, error: "no data" }
+        : { bars: [{ t: FIXTURE.benchmarkFrom, c: 40_000 }], range: FIXTURE.range, changePct: 1.2 },
     "/api/symbols": { symbols: FIXTURE.symbols },
     "/api/asset/": {
       symbol: FIXTURE.historySymbol, about: null, tags: [], stats: [],
       sentiment: null, news: [], sources: [],
     },
-    "/api/settings": (_url: string, init?: RequestInit) =>
-      method(init) === "POST" ? { ok: true, results: {} } : { settings: FIXTURE.settings },
+    "/api/settings": (_url: string, init?: RequestInit) => {
+      if (method(init) === "POST") return { ok: true, results: {} };
+      if (method(init) === "PUT") { settingsWritten = true; return { settings: FIXTURE.settings }; }
+      // Before /api/setup has ever run the route answers a bare null, which is
+      // first-run rather than a missing record.
+      return { settings: settingsWritten ? FIXTURE.settings : null };
+    },
   });
 }
 
@@ -195,18 +210,25 @@ describe("HttpClient issues the requests the screens issue today", () => {
     });
   });
 
-  it("answers null for settings on a virgin install", async () => {
-    // The one state the contract's single seeded client cannot also hold. The
-    // route sends a bare `{ settings: null }` before /api/setup has ever run,
-    // and the settings screen renders first-run rather than a form of defaults.
-    const net = FakeNet({ "/api/settings": { settings: null } });
-    await expect(HttpClient(net).getSettings()).resolves.toBeNull();
-  });
-
   it("prefixes a base URL when given one, so a device can point at a server", async () => {
     const net = FakeNet({ "/api/symbols": { symbols: [] } });
     await HttpClient(net, "https://contour.example").listSymbols();
     expect(net.calls[0]!.url).toBe("https://contour.example/api/symbols");
+  });
+
+  it("accepts a delete that answers with no body at all", async () => {
+    // A 2xx with an empty body: what a 204 looks like. The delete callers
+    // discard the body, so reading it could only ever turn a success into a
+    // `RequestFailedError`.
+    const net = FakeNet({ "/api/transactions/": "" });
+    await expect(HttpClient(net).deleteTransaction("t-1")).resolves.toBeUndefined();
+  });
+
+  it("leaves a 404 from a symbol-shaped call as a plain failure, not a missing record", async () => {
+    // `NotFoundError` means "no such record of ours". A price feed 404 is not
+    // that, and the interface never promised it would be.
+    const net = FakeNet({ "/api/symbols": respondWith(404, "gone") });
+    await expect(HttpClient(net).listSymbols()).rejects.toBeInstanceOf(RequestFailedError);
   });
 
   it("digs the message out of a JSON error body, the way the screens do today", async () => {

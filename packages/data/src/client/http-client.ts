@@ -58,16 +58,23 @@ function reasonFrom(body: string): string {
  */
 export function HttpClient(net: Net, baseUrl = ""): DataClient {
   /**
-   * One request, one of two outcomes. A 404 is the routes' way of saying the
-   * record is not there, which is the interface's `NotFoundError`; everything
-   * else that is not a 2xx, and every failure to get a response at all, is a
-   * `RequestFailedError` carrying whatever the server said. `subject` names the
-   * record so the message reads as something other than a URL.
+   * One request, one of two outcomes.
+   *
+   * `subject` does two jobs: it names the record in the message, and it is what
+   * makes a 404 a `NotFoundError` at all. Only the calls that address a record
+   * this app owns pass one — the symbol-shaped calls (`getHistory`,
+   * `getAssetInfo`, `listSymbols`, `getBenchmark`) do not, so a 404 from them
+   * stays a `RequestFailedError`. Mapping every 404 was broader than the rule
+   * the interface documents, and a `LocalClient` had no way to know which of
+   * the two an unknown symbol was meant to be.
+   *
+   * Everything else that is not a 2xx, and every failure to get a response at
+   * all, is a `RequestFailedError` carrying whatever the server said.
    */
   async function send<T>(
     method: string,
     path: string,
-    opts: { body?: unknown; subject?: string } = {},
+    opts: { body?: unknown; subject?: string; discardBody?: boolean } = {},
   ): Promise<T> {
     const url = `${baseUrl}${path}`;
     const init: RequestInit =
@@ -91,11 +98,14 @@ export function HttpClient(net: Net, baseUrl = ""): DataClient {
 
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
-      if (res.status === 404) {
-        throw new NotFoundError(opts.subject ? `No such ${opts.subject}.` : "Not found.");
-      }
+      if (res.status === 404 && opts.subject) throw new NotFoundError(`No such ${opts.subject}.`);
       throw new RequestFailedError(reasonFrom(detail), detail);
     }
+    // Nothing to read, so nothing to fail on. Both delete routes answer
+    // `{ ok: true }` today and their callers discard it; parsing anyway would
+    // turn a future 204 into a failure the screen reports as an error.
+    if (opts.discardBody) return undefined as T;
+
     try {
       return await res.json<T>();
     } catch (e) {
@@ -109,7 +119,7 @@ export function HttpClient(net: Net, baseUrl = ""): DataClient {
 
   /** For the routes whose whole answer is `{ ok: true }`; nothing to unwrap. */
   async function sendVoid(method: string, path: string): Promise<void> {
-    await send<unknown>(method, path);
+    await send<void>(method, path, { discardBody: true });
   }
 
   const portfolio = (id: string) => `portfolio (${id})`;

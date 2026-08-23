@@ -94,6 +94,16 @@ export const FIXTURE = {
   benchmarkFrom: 1_750_000_000_000,
   historySymbol: "BTCUSDT",
   symbols: ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
+  /** A symbol nothing has prices for. Not a missing *record*: see the case below. */
+  unknownSymbol: "NOTASYMBOL",
+  /**
+   * The seed has **never had settings written**, which is what a fresh install
+   * looks like. `getSettings` must answer `null` for it, and only after
+   * `saveSettings` may it answer a row. Seeding it the other way round is how
+   * the exception went unpinned: a `LocalClient` calling `getSettings(store)`,
+   * which defaults unconditionally, would hand a fresh device a form full of
+   * defaults where the browser shows first-run.
+   */
   settings: {
     id: 1,
     displayCurrency: "USD" as const,
@@ -228,15 +238,35 @@ export function runDataClientContract(name: string, makeClient: () => DataClient
       expect(info.symbol).toBe(FIXTURE.historySymbol);
     });
 
+    it("treats a symbol with no data as empty, not as a missing record", async () => {
+      // A symbol is not a record this app owns, so "no prices for it" is a thin
+      // answer rather than a `NotFoundError` — the asset page draws an empty
+      // chart beside a real position. Pinned because `HttpClient` maps 404 to
+      // `NotFoundError` for the record-addressed calls, and an implementation
+      // that extended that to symbols would blank the page instead.
+      const history = await makeClient().getHistory(FIXTURE.unknownSymbol, "crypto", FIXTURE.range);
+      expect(history.bars).toEqual([]);
+    });
+
     /* ------------------------------------------------------------- settings */
 
-    it("reads settings", async () => {
-      await expect(makeClient().getSettings()).resolves.toEqual(FIXTURE.settings);
+    it("answers null for settings that were never written, not a row of defaults", async () => {
+      // The third of the interface's three departures from "a missing record
+      // throws", and the only one a user meets on the first launch of the app.
+      // `store.settings.exists()` is the port that makes it answerable without
+      // a `Store` handing back defaults first.
+      await expect(makeClient().getSettings()).resolves.toBeNull();
     });
 
     it("saves settings and answers with the saved row", async () => {
       const saved = await makeClient().saveSettings({ displayCurrency: "USD" });
       expect(saved).toEqual(FIXTURE.settings);
+    });
+
+    it("reads back settings once they have been written", async () => {
+      const client = makeClient();
+      await client.saveSettings({ displayCurrency: "USD" });
+      await expect(client.getSettings()).resolves.toEqual(FIXTURE.settings);
     });
 
     it("sends a test notification", async () => {

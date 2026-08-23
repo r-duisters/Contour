@@ -88,6 +88,23 @@ function usesGlobalFetch(src: string): boolean {
   return /(?<![.\w$])fetch\s*\(/.test(src) || /\b(?:globalThis|window|self)\s*\.\s*fetch\s*\(/.test(src);
 }
 
+/**
+ * Rules run against code, not prose — the same treatment `layer.test.ts` gives
+ * its own walk, and for the same reason.
+ *
+ * A file that *documents* what it deliberately no longer does is the most
+ * likely place for these patterns to appear in prose. `client/data-client.ts`
+ * opens by explaining that thirty-six direct `fetch` calls are what it exists
+ * to replace, and that sentence failed this guard. A guard that punishes
+ * accurate documentation gets its wording sanded down until it says nothing,
+ * which is a slower way of deleting it.
+ *
+ * The `:` guard leaves the `//` inside a URL string alone.
+ */
+function stripComments(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(?<!:)\/\/.*$/gm, "");
+}
+
 describe("packages/core, packages/ui and packages/data stay portable", () => {
   it("imports nothing that only exists on a server", () => {
     const offenders: string[] = [];
@@ -96,7 +113,7 @@ describe("packages/core, packages/ui and packages/data stay portable", () => {
       const files = sourceFiles(join(process.cwd(), pkg));
       scanned += files.length;
       for (const file of files) {
-        const src = readFileSync(file, "utf8");
+        const src = stripComments(readFileSync(file, "utf8"));
         for (const mod of FORBIDDEN) {
           if (isForbiddenImport(src, mod)) {
             offenders.push(`[${pkg}] ${file.replace(process.cwd() + "/", "")} -> ${mod}`);
@@ -119,7 +136,7 @@ describe("packages/core, packages/ui and packages/data stay portable", () => {
       const files = sourceFiles(join(process.cwd(), pkg));
       scanned += files.length;
       for (const file of files) {
-        const src = readFileSync(file, "utf8");
+        const src = stripComments(readFileSync(file, "utf8"));
         if (usesGlobalFetch(src)) {
           offenders.push(`[${pkg}] ${file.replace(process.cwd() + "/", "")} -> global fetch`);
         }
@@ -127,5 +144,24 @@ describe("packages/core, packages/ui and packages/data stay portable", () => {
     }
     expect(scanned).toBeGreaterThan(3);
     expect(offenders).toEqual([]);
+  });
+
+  /**
+   * The guard on the guard. Stripping comments is what lets a module describe
+   * the thing it stopped doing, and the cost of getting it wrong is a rule that
+   * silently stops finding anything. Both directions are pinned: prose is
+   * ignored, code is not.
+   */
+  it("reads code and ignores prose", () => {
+    const prose = `// this module no longer calls fetch("/api/x")\n/** and never imports "node:fs" */\n`;
+    expect(usesGlobalFetch(stripComments(prose))).toBe(false);
+    expect(isForbiddenImport(stripComments(prose), "node:fs")).toBe(false);
+
+    const code = `import { readFileSync } from "node:fs";\nconst r = await fetch(url);\n`;
+    expect(usesGlobalFetch(stripComments(code))).toBe(true);
+    expect(isForbiddenImport(stripComments(code), "node:fs")).toBe(true);
+
+    // A URL inside a string is not a line comment.
+    expect(stripComments(`const u = "https://example.com/x";`)).toContain("example.com/x");
   });
 });
