@@ -15,13 +15,33 @@ import type { Net, NetResponse } from "@/data/ports/net";
  * `request()` is the escape hatch for callers that genuinely want the status.
  */
 export function WebNet(): Net {
+  /**
+   * Origin and path, never the query string. Provider credentials travel as
+   * query parameters — `equityApiKey` among them — and `history` and
+   * `benchmark` hand `e.message` straight back to the client, so a URL in an
+   * error message is a key in a JSON response. The path is what identifies
+   * which call failed; the parameters were never part of that.
+   */
+  function safeUrl(url: string): string {
+    try {
+      const u = new URL(url);
+      return `${u.origin}${u.pathname}`;
+    } catch {
+      // Not parseable as an absolute URL, so there is nothing to strip safely;
+      // drop everything from the first `?` rather than guess.
+      return url.split("?")[0]!;
+    }
+  }
+
   async function checked(url: string, init?: RequestInit): Promise<Response> {
     const res = await fetch(url, init);
     if (!res.ok) {
       // The body usually carries the provider's reason; losing it turns every
       // upstream failure into a bare status code.
       const body = await res.text().catch(() => "");
-      throw new Error(`${init?.method ?? "GET"} ${url} -> ${res.status}${body ? `: ${body.slice(0, 500)}` : ""}`);
+      throw new Error(
+        `${init?.method ?? "GET"} ${safeUrl(url)} -> ${res.status}${body ? `: ${body.slice(0, 500)}` : ""}`,
+      );
     }
     return res;
   }
