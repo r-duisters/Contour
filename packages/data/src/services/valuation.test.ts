@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { invalidate } from "@/core/cache";
+import { NotFoundError } from "../errors";
 import type { NewTransaction } from "../ports/store";
 import { MemoryStore } from "../testing/memory-store";
-import { FakeNet } from "../testing/fake-net";
-import { snapshot, valuation } from "./valuation";
+import { FakeNet, rejectWith } from "../testing/fake-net";
+import { insights, snapshot, valuation } from "./valuation";
 
 const DAY_MS = 86_400_000;
 const ISO = (t: number) => new Date(t).toISOString().slice(0, 10);
@@ -334,5 +335,98 @@ describe("snapshot", () => {
     expect(out).toEqual({ date: "2020-01-01", currency: "EUR", rows: [], total: 0 });
     // The early return has never carried `unpriced`; the key is absent, not zero.
     expect("unpriced" in out).toBe(false);
+  });
+});
+
+describe("insights", () => {
+  const JAN_2024 = Date.parse("2024-03-01T00:00:00Z");
+  const JAN_2025 = Date.parse("2025-03-01T00:00:00Z");
+
+  function insightsStore(displayCurrency: "USD" | "EUR" = "USD") {
+    return MemoryStore({
+      settings: { displayCurrency },
+      portfolios: [{
+        id: "p1",
+        name: "Main",
+        transactions: [
+          tx({ symbol: "BTCUSDT", quantity: 2, price: 10_000, fee: 10, time: JAN_2024 }),
+          tx({ symbol: "ETHUSDT", quantity: 10, price: 1_000, fee: 5, time: JAN_2024 }),
+          tx({ symbol: "BTCUSDT", side: "sell", quantity: 1, price: 30_000, fee: 20, time: JAN_2025 }),
+          // Cash movements are not trades; every figure below excludes them.
+          tx({
+            symbol: "EUR", assetType: "cash", side: "transfer_in",
+            quantity: 5_000, price: 1, fee: 0, time: JAN_2025, nativeCurrency: "EUR",
+          }),
+        ],
+      }],
+    });
+  }
+
+  /** No market data is needed, so any request at all is a bug. */
+  const noPrices = () => FakeNet({});
+
+  it("counts trades and flows from the transaction log, ignoring cash movements", async () => {
+    const out = await insights(insightsStore(), noPrices(), "p1");
+
+    expect(out.currency).toBe("USD");
+    expect(out.stats).toMatchObject({
+      trades: 3,
+      buys: 2,
+      sells: 1,
+      transfers: 0,
+      assetsTraded: 2,
+      totalBought: 30_000,
+      totalSold: 30_000,
+      fees: 35,
+      firstTrade: JAN_2024,
+      lastTrade: JAN_2025,
+    });
+    expect(out.byYear).toEqual([
+      { year: 2024, net: 30_015 },
+      { year: 2025, net: -29_980 },
+    ]);
+  });
+
+  it("expresses the figures in EUR when that is the display currency", async () => {
+    const net = FakeNet({ [EURUSD_LATEST]: { rates: { USD: 1.25 } } });
+
+    const out = await insights(insightsStore("EUR"), net, "p1");
+
+    expect(out.currency).toBe("EUR");
+    // Every trade above is priced in USD, so all of it converts at 1/1.25.
+    expect(out.stats.totalBought).toBe(24_000);
+    expect(out.stats.fees).toBe(28);
+    expect(out.byYear).toEqual([
+      { year: 2024, net: 24_012 },
+      { year: 2025, net: -23_984 },
+    ]);
+  });
+
+  it("labels the figures USD when the EUR rate cannot be fetched, because they are USD", async () => {
+    const net = FakeNet({ [EURUSD_LATEST]: rejectWith(new Error("frankfurter down")) });
+
+    const out = await insights(insightsStore("EUR"), net, "p1");
+
+    expect(out.currency).toBe("USD");
+    expect(out.stats.totalBought).toBe(30_000);
+  });
+
+  it("rejects an unknown portfolio with NotFoundError, which the route turns into a 404", async () => {
+    await expect(insights(insightsStore(), noPrices(), "nope")).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it("answers an empty portfolio without reaching the network for prices", async () => {
+    const store = MemoryStore({
+      settings: { displayCurrency: "USD" },
+      portfolios: [{ id: "empty", name: "Empty", transactions: [] }],
+    });
+    const net = FakeNet({});
+
+    const out = await insights(store, net, "empty");
+
+    expect(out.stats.trades).toBe(0);
+    expect(out.stats.firstTrade).toBeNull();
+    expect(out.byYear).toEqual([]);
+    expect(net.calls).toEqual([]);
   });
 });

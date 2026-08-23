@@ -4,6 +4,7 @@ import { cashBalances } from "@/core/cash";
 import { toDisplayTxs } from "@/core/display-tx";
 import { currencyForTicker } from "@/core/equity";
 import { rateOn } from "@/core/fx";
+import { flowsByYear, tradeStats, type TradeStats } from "@/core/insights";
 import { computeHoldings, valueHoldings, type ValuedHolding } from "@/core/portfolio";
 import type { Net } from "../ports/net";
 import type { Store, Transaction } from "../ports/store";
@@ -322,4 +323,42 @@ export async function snapshot(
 
 function sum(xs: number[]): number {
   return xs.reduce((a, b) => a + b, 0);
+}
+
+export type Insights = {
+  currency: "USD" | "EUR";
+  stats: TradeStats;
+  byYear: { year: number; net: number }[];
+};
+
+/**
+ * Statistics derived from the transaction log alone — no market data, so this
+ * answers instantly while the valuation and series calls are still running.
+ *
+ * It lives beside `valuation` and `snapshot` rather than in `portfolios.ts`
+ * because it is the same kind of thing they are: one portfolio's figures,
+ * already converted into the display currency. `portfolios.ts` is storage in,
+ * storage out, and this needs a `Net` to price the currency.
+ */
+export async function insights(store: Store, net: Net, id: string): Promise<Insights> {
+  const portfolio = await getPortfolio(store, id);
+  const { currency, toDisplay, displayUsd } = await displayContext(store, net);
+
+  // Moving euros between a bank and an exchange is not a trade, and counting
+  // it as one inflated every figure here.
+  const txs = toDisplayTxs(
+    portfolio.transactions.filter((t) => t.assetType !== "cash"),
+    currency,
+    toDisplay,
+  );
+
+  return {
+    // Same relabelling as `valuation`: a failed EUR lookup leaves the figures
+    // in USD, so the label has to follow. `displayContext` keeps `currency`
+    // raw because it also decides which stored trades count as natively
+    // priced.
+    currency: displayUsd > 0 ? currency : "USD",
+    stats: tradeStats(txs),
+    byYear: flowsByYear(txs),
+  };
 }
