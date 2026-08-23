@@ -39,7 +39,13 @@ export type StoreSeed = {
     name: string;
     createdAt?: number;
     updatedAt?: number;
-    transactions?: NewTransaction[];
+    /**
+     * `id` is optional and normally left out — generated ids are what the real
+     * stores produce. It exists for a caller that has to *name* a row it will
+     * later address: `client-contract.ts` fixes the id it deletes, so the
+     * client suite's seed has to be able to place it.
+     */
+    transactions?: (NewTransaction & { id?: string })[];
   }[];
   settings?: SettingsPatch;
 };
@@ -58,8 +64,9 @@ export function MemoryStore(seed?: StoreSeed): Store {
   // setup, and an unseeded store is a virgin one.
   let settingsWritten = seed?.settings !== undefined;
 
-  function insert(portfolioId: string, tx: NewTransaction): Transaction {
-    const row: Transaction = { ...tx, id: nextId("tx"), portfolioId };
+  function insert(portfolioId: string, tx: NewTransaction & { id?: string }): Transaction {
+    const { id, ...rest } = tx;
+    const row: Transaction = { ...rest, id: id ?? nextId("tx"), portfolioId };
     transactions.set(row.id, row);
     return row;
   }

@@ -114,17 +114,62 @@ export const FIXTURE = {
     mqttBrokerUrl: null,
     mqttTopicPrefix: null,
   },
+  /**
+   * The whole row, written in one go. It used to be `{ displayCurrency: "USD" }`
+   * and the assertion still expected every other field of `settings` back,
+   * which only a mocked server could answer: a store-backed implementation
+   * starting from an unwritten row (as the case above requires) has no
+   * `haUrl` to hand back. Saving everything the assertion checks is the same
+   * test for `HttpClient` and a satisfiable one for anything else.
+   */
+  settingsPatch: {
+    displayCurrency: "USD" as const,
+    equityProvider: "yahoo",
+    equityApiKey: null,
+    haUrl: "http://ha.local",
+    haWebhookId: "contour",
+    mqttBrokerUrl: null,
+    mqttTopicPrefix: null,
+  },
   csv: "Date,Type,Base amount\n",
   importReport: { imported: 3, duplicates: 1, skipped: [], warnings: [] },
   /** What a CSV import into `PORTFOLIO_ID` has left behind. */
   clearedCount: 3,
-  backup: '{"portfolio":{"name":"Main","transactions":[]}}',
+  /**
+   * A backup the parser accepts. It was missing both `version` and
+   * `exportedAt` while `HttpClient` was the only implementation — `FakeNet`
+   * hands the literal straight back without reading it — and the first client
+   * that actually called `restore()` rejected it as unreadable. A fixture named
+   * "backup" that no reader would accept is a case that tests nothing, and it
+   * meant the good and the bad backup were reaching the same branch.
+   */
+  backup:
+    '{"version":1,"exportedAt":"2026-01-02T00:00:00.000Z",' +
+    '"portfolio":{"name":"Main","transactions":[]}}',
   /** Unreadable: `restoreBackup` must reject it. */
   badBackup: "not json at all",
   restored: { id: "p-restored", name: "Main (restored)", restored: 7 },
 };
 
-export function runDataClientContract(name: string, makeClient: () => DataClient): void {
+/**
+ * What an implementation claims it can do beyond the required surface. Declared
+ * rather than probed: a suite that skipped a method when it was missing would
+ * pass identically for an implementation that forgot to write it.
+ */
+export type ClientCapabilities = {
+  /**
+   * Whether `sendTestNotification` is offered at all — see the rule in
+   * `data-client.ts`. `HttpClient` claims it; anything with no server behind it
+   * must not.
+   */
+  testNotifications: boolean;
+};
+
+export function runDataClientContract(
+  name: string,
+  makeClient: () => DataClient,
+  capabilities: ClientCapabilities,
+): void {
   describe(`${name} satisfies the DataClient contract`, () => {
     /* ---------------------------------------------------------- portfolios */
 
@@ -259,18 +304,28 @@ export function runDataClientContract(name: string, makeClient: () => DataClient
     });
 
     it("saves settings and answers with the saved row", async () => {
-      const saved = await makeClient().saveSettings({ displayCurrency: "USD" });
+      const saved = await makeClient().saveSettings(FIXTURE.settingsPatch);
       expect(saved).toEqual(FIXTURE.settings);
     });
 
     it("reads back settings once they have been written", async () => {
       const client = makeClient();
-      await client.saveSettings({ displayCurrency: "USD" });
+      await client.saveSettings(FIXTURE.settingsPatch);
       await expect(client.getSettings()).resolves.toEqual(FIXTURE.settings);
     });
 
-    it("sends a test notification", async () => {
-      await expect(makeClient().sendTestNotification()).resolves.toBeUndefined();
+    it("offers a test notification exactly when it claims the capability", async () => {
+      // Both directions, because the point of the rule in `data-client.ts` is
+      // that a capability a platform lacks is *absent*, not present-and-
+      // throwing. Skipping the assertion when the method is missing would let
+      // an implementation that merely forgot to write it pass.
+      const client = makeClient();
+      if (!capabilities.testNotifications) {
+        expect(client.sendTestNotification).toBeUndefined();
+        return;
+      }
+      expect(typeof client.sendTestNotification).toBe("function");
+      await expect(client.sendTestNotification!()).resolves.toBeUndefined();
     });
 
     /* --------------------------------------------------- import and restore */

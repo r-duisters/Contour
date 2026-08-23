@@ -84,6 +84,49 @@ import type { Insights, Snapshot, Valuation } from "../services/valuation";
  *   renders differently, and `store.settings.exists()` exists precisely so both
  *   implementations can report it.
  *
+ * ## A capability one platform cannot have is absent, not throwing
+ *
+ * `sendTestNotification` fires a synthetic signal at Home Assistant and at the
+ * browser's push service. Neither exists inside an APK, so `LocalClient` can
+ * never do it. Phase 3 first kept the method required and reasoned that an
+ * implementation which cannot honour it should throw `RequestFailedError`.
+ * Writing the second implementation showed why that is wrong.
+ *
+ * `client-contract.ts` is the only thing keeping two implementations honest,
+ * and it has exactly one way to check a method: call it and look at what comes
+ * back. A required method that an implementation is permitted to fail cannot be
+ * checked at all — the suite either demands a success, which forces the second
+ * implementation to *pretend* it has a capability it does not (the stub in
+ * `stub-client.test.ts` would resolve `void` while owning no notifier), or it
+ * accepts a throw, at which point the assertion passes for an implementation
+ * that is simply broken. The contract stops being a contract for that method.
+ *
+ * A throw is also discovered at the wrong time and in the wrong place. The type
+ * says the screen may call it; only a user tapping the button on a phone finds
+ * out otherwise, and what they get is an error banner for a feature that was
+ * never coming. An absent method is discovered by the compiler, in the screen,
+ * while it is being written.
+ *
+ * So, the rule for every web-only capability Phase 4 meets — push
+ * subscriptions, passkeys, the password change, the alert evaluator, the
+ * PineScript tooling:
+ *
+ * 1. **If no implementation can be portable, it does not belong here at all.**
+ *    The settings screen keeps raw `fetch` for `/api/logout`, `/api/push/*`,
+ *    `/api/settings/password` and `/api/webauthn/*` for precisely this reason,
+ *    and that is the default answer.
+ * 2. **If some implementations can and others structurally cannot, the method
+ *    is optional (`method?()`), never required-and-throwing.** The screen
+ *    feature-detects (`if (client.sendTestNotification)`) and does not draw the
+ *    control when it is missing.
+ * 3. **The contract suite is told which capabilities the implementation claims**
+ *    (`runDataClientContract(name, make, { testNotifications: false })`) and
+ *    checks presence against the claim in both directions, so "absent" is an
+ *    asserted fact rather than a test quietly skipping.
+ *
+ * `sendTestNotification` is the only optional member today, and the bar for the
+ * second one is high: optionality is a branch in every screen that touches it.
+ *
  * ## Export is deliberately absent
  *
  * The three export buttons are `<a href="/api/…/export?format=…">` anchors, not
@@ -150,12 +193,16 @@ export interface DataClient {
   /**
    * Fire a synthetic signal through every configured notifier.
    *
-   * Server-only in practice: Home Assistant and web-push wiring cannot run
-   * inside an APK. It is in the interface because the settings screen is, and
-   * an implementation that cannot do it says so with a `RequestFailedError`
-   * rather than by omitting the method and breaking the screen.
+   * **Optional — the one capability in this interface that is.** See "A
+   * capability one platform cannot have is absent, not throwing" above for why
+   * it is optional rather than required, and for the rule that governs the next
+   * such method.
+   *
+   * `HttpClient` has it: a server can reach Home Assistant and hold web-push
+   * subscriptions. A device build has neither, so `LocalClient` omits it, and
+   * the settings screen tests for it before drawing the button.
    */
-  sendTestNotification(): Promise<void>;
+  sendTestNotification?(): Promise<void>;
 
   /* --------------------------------------------------- import and restore */
 

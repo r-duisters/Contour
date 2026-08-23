@@ -11,6 +11,13 @@
  * the client would widen the interface with methods `LocalClient` could only
  * ever implement by throwing, which is a worse answer than leaving them where
  * the reader can see they are server-shaped.
+ *
+ * The test signal is the borderline case, and it is the reason
+ * `sendTestNotification` is the interface's one *optional* member: it is worth
+ * having behind the client where a server is there to run it, and it is
+ * structurally impossible where one is not. So this screen feature-detects it
+ * and simply does not draw the button on an implementation that lacks it,
+ * rather than drawing one that fails when pressed.
  */
 
 import { useEffect, useState } from "react";
@@ -165,10 +172,16 @@ export default function SettingsPage() {
     }
   }
 
+  // Optional on `DataClient`, and absent on an implementation with no server
+  // behind it — see the rule in `data-client.ts`. Reading it once keeps the
+  // button and the handler agreeing about whether the capability is there.
+  const sendTest = client.sendTestNotification?.bind(client);
+
   async function test() {
+    if (!sendTest) return;
     setMsg(null);
     try {
-      await client.sendTestNotification();
+      await sendTest();
       setMsg("Test signal sent. Check Home Assistant.");
     } catch (e) {
       setMsg(`Error: ${(e as Error).message}`);
@@ -246,7 +259,9 @@ export default function SettingsPage() {
         </label>
         <div className="flex gap-2">
           <button onClick={save} className="bg-blue-600 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1"><Save size={14} aria-hidden />Save</button>
-          <button onClick={test} className="bg-neutral-700 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1"><Send size={14} aria-hidden />Send test</button>
+          {sendTest && (
+            <button onClick={test} className="bg-neutral-700 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1"><Send size={14} aria-hidden />Send test</button>
+          )}
         </div>
         {msg && <p className="text-sm text-neutral-400">{msg}</p>}
       </section>

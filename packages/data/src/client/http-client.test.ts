@@ -135,7 +135,7 @@ function seededNet(): FakeNetInstance {
   });
 }
 
-runDataClientContract("HttpClient", () => HttpClient(seededNet()));
+runDataClientContract("HttpClient", () => HttpClient(seededNet()), { testNotifications: true });
 
 /**
  * What the contract cannot reach, because one seeded client cannot be two
