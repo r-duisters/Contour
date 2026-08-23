@@ -22,6 +22,14 @@ import { describe, expect, it } from "vitest";
  * point of writing the reason down is that the next person adding an entry has
  * to write one too, and discovers while writing it that they do not have one.
  *
+ * There is a second way to break the same rule, and it does not involve
+ * `fetch` at all: a screen can `import { HttpClient }` and build its own client
+ * over `WebNet`. No global `fetch`, no `/api/` literal, both of the URL guards
+ * satisfied — and a panel that is dead inside the APK, because Phase 4 swaps
+ * the provider and this screen never asked it anything. So the second guard
+ * below forbids naming a `DataClient` implementation, or a `Net` one, anywhere
+ * but `app/providers.tsx`, which is the file whose whole job that is.
+ *
  * Two kinds of exemption:
  *
  * - `"all"` — the whole screen is server-only and its every request is exempt.
@@ -152,6 +160,64 @@ function fetchedUrls(src: string): string[] {
   return urls;
 }
 
+/**
+ * The one file allowed to name an implementation: it is the composition root,
+ * and Phase 4 swaps it whole.
+ */
+const WIRING_FILE = "app/providers.tsx";
+
+/**
+ * Module paths that *are* an implementation of `DataClient` or `Net`, and the
+ * bindings they export. Both are checked: the path catches the ordinary import,
+ * the binding names catch a re-export or a barrel that hides the path.
+ *
+ * `@/data/client/context` and `@/data/client/data-client` are deliberately
+ * absent — the hook and the interface are exactly what a screen is supposed to
+ * name.
+ */
+const IMPLEMENTATION_MODULES = [
+  /(^|\/)client\/(http|local|stub)-client$/,
+  /(^|\/)net\/(web|capacitor|fake)-net$/,
+  /(^|\/)lib\/deps$/,
+];
+const IMPLEMENTATION_BINDINGS = [
+  "HttpClient",
+  "LocalClient",
+  "StubClient",
+  "WebNet",
+  "CapacitorNet",
+  "FakeNet",
+];
+
+/**
+ * Every module a file imports, with the bindings it takes from each. Covers
+ * `import … from "x"`, bare `import "x"`, and `import("x")`, which is the form
+ * a screen would reach for to load a client lazily.
+ */
+function imports(src: string): { module: string; bindings: string[] }[] {
+  const found: { module: string; bindings: string[] }[] = [];
+  const statement = /import\s+(?:([\s\S]*?)\s+from\s+)?["']([^"']+)["']/g;
+  let m: RegExpExecArray | null;
+  while ((m = statement.exec(src)) !== null) {
+    found.push({ module: m[2]!, bindings: [...(m[1] ?? "").matchAll(/[A-Za-z_$][\w$]*/g)].map((b) => b[0]) });
+  }
+  const dynamic = /import\s*\(\s*["']([^"']+)["']/g;
+  while ((m = dynamic.exec(src)) !== null) found.push({ module: m[1]!, bindings: [] });
+  return found;
+}
+
+/** Every implementation this file names, when it is not the one allowed to. */
+function implementationImports(relative: string, src: string): string[] {
+  if (relative === WIRING_FILE) return [];
+  return imports(stripComments(src))
+    .filter(
+      (i) =>
+        IMPLEMENTATION_MODULES.some((re) => re.test(i.module)) ||
+        i.bindings.some((b) => IMPLEMENTATION_BINDINGS.includes(b)),
+    )
+    .map((i) => `${relative} -> imports ${i.module}`);
+}
+
 /** Every offending call in one file, given what that file is allowed. */
 function violations(relative: string, src: string): string[] {
   const exemption = ALLOWLIST.find((e) => e.file === relative);
@@ -225,6 +291,50 @@ describe("the screens ask a DataClient, not a route", () => {
     expect(violations(settings, "await fetch(route);")).toEqual([
       `${settings} -> fetch((computed))`,
     ]);
+  });
+
+  /**
+   * The other half of the claim: no screen names an implementation either.
+   */
+  it("lets no screen but the provider build its own client", () => {
+    const offenders = screenFiles().flatMap((file) =>
+      implementationImports(file.replace(APP_SRC + "/", ""), readFileSync(file, "utf8")),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it("still exempts the one file whose job it is", () => {
+    const wiring = readFileSync(join(APP_SRC, WIRING_FILE), "utf8");
+    // If the wiring stops naming an implementation, the exemption is stale and
+    // this guard is quietly exempting a file for nothing.
+    expect(implementationImports("app/some/other/page.tsx", wiring).length).toBeGreaterThan(0);
+    expect(implementationImports(WIRING_FILE, wiring)).toEqual([]);
+  });
+
+  /** Proof that it bites, in each shape the rule could be broken. */
+  it("catches a screen reaching for an implementation", () => {
+    const screen = "app/portfolio/page.tsx";
+    expect(
+      implementationImports(screen, `import { HttpClient } from "@/data/client/http-client";`),
+    ).toEqual([`${screen} -> imports @/data/client/http-client`]);
+    expect(implementationImports(screen, `import { WebNet } from "@/lib/net/web-net";`)).toEqual([
+      `${screen} -> imports @/lib/net/web-net`,
+    ]);
+    // A relative path, and a lazy one.
+    expect(implementationImports(screen, `import { LocalClient } from "../../data/client/local-client";`))
+      .toEqual([`${screen} -> imports ../../data/client/local-client`]);
+    expect(implementationImports(screen, `const { HttpClient } = await import("@/data/client/http-client");`))
+      .toEqual([`${screen} -> imports @/data/client/http-client`]);
+    // Re-exported from somewhere innocuous: the binding gives it away.
+    expect(implementationImports(screen, `import { HttpClient } from "@/data";`)).toEqual([
+      `${screen} -> imports @/data`,
+    ]);
+
+    // What a screen is supposed to import stays clean.
+    expect(implementationImports(screen, `import { useDataClient } from "@/data/client/context";`)).toEqual([]);
+    expect(implementationImports(screen, `import type { DataClient } from "@/data/client/data-client";`)).toEqual([]);
+    // Prose describing the rule is not a breach of it.
+    expect(implementationImports(screen, `// never: import { HttpClient } from "@/data/client/http-client"`)).toEqual([]);
   });
 
   it("reads code and ignores prose", () => {
