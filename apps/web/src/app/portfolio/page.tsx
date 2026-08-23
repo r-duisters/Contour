@@ -98,7 +98,10 @@ export default function PortfolioPage() {
   usePrivacy(); // re-render when amounts are hidden or shown
 
   const loadPortfolios = useCallback(async () => {
-    const rows = await client.listPortfolios();
+    // Matches the other four list-portfolios sites: a failed list leaves the
+    // screen as it was rather than rejecting into an unhandled promise.
+    const rows = await client.listPortfolios().catch(() => null);
+    if (!rows) return;
     setPortfolios(rows);
     setSelectedId((cur) => cur ?? rows[0]?.id ?? null);
   }, [client]);
