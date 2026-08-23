@@ -67,3 +67,10 @@ android/app/src/main/assets/public/
 # `.parity-<task>-*.json` rather than overwriting the shared one; the glob keeps
 # those out of the repo too, holdings and all.
 .parity-*.json
+
+# Portfolio exports and backups. Real transaction history — prices, dates and
+# amounts — which is the one thing this app exists to keep on your own
+# hardware. backup-before-equity-repair-20260821.json was tracked until
+# 2026-08-23 and remains in the history; this stops any new one joining it.
+backup-*.json
+*-backup.json
