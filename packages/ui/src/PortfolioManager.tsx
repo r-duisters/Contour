@@ -30,20 +30,33 @@ export default function PortfolioManager() {
 
   async function createPortfolio() {
     if (!newName.trim()) return;
-    const created = await client.createPortfolio(newName.trim());
-    setNewName("");
-    await load();
-    setSelectedId(created.id);
-    setMsg(`Created "${created.name}".`);
+    try {
+      const created = await client.createPortfolio(newName.trim());
+      setNewName("");
+      await load();
+      setSelectedId(created.id);
+      setMsg(`Created "${created.name}".`);
+    } catch (e) {
+      // Same shape as the import and restore branches below. Without it a
+      // refused or unreachable write leaves the screen silent: the name stays
+      // in the box and nothing says why nothing happened.
+      setMsg(`Could not create the portfolio: ${(e as Error).message}`);
+    }
   }
 
   async function deletePortfolio() {
     if (!selectedId) return;
     if (!window.confirm("Delete this portfolio and all its transactions?")) return;
-    await client.deletePortfolio(selectedId);
-    setSelectedId(null);
-    await load();
-    setMsg("Portfolio deleted.");
+    try {
+      await client.deletePortfolio(selectedId);
+      setSelectedId(null);
+      await load();
+      setMsg("Portfolio deleted.");
+    } catch (e) {
+      // The selection is deliberately left alone: the portfolio is still
+      // there, so clearing it would tell the opposite of the truth.
+      setMsg(`Could not delete the portfolio: ${(e as Error).message}`);
+    }
   }
 
   async function importCsv(file: File) {
@@ -73,9 +86,13 @@ export default function PortfolioManager() {
   async function clearImported() {
     if (!selectedId) return;
     if (!window.confirm("Remove every transaction that came from a CSV import into this portfolio?")) return;
-    const deleted = await client.clearImported(selectedId);
-    setMsg(`Removed ${deleted} imported transactions.`);
-    await load();
+    try {
+      const deleted = await client.clearImported(selectedId);
+      setMsg(`Removed ${deleted} imported transactions.`);
+      await load();
+    } catch (e) {
+      setMsg(`Could not remove the imported transactions: ${(e as Error).message}`);
+    }
   }
 
   async function restoreBackup(file: File) {
