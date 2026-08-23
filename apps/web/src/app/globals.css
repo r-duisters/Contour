@@ -8,9 +8,23 @@
  */
 @source "../../../../packages/ui/src";
 
+/*
+ * The ground is painted, not inherited.
+ *
+ * These defaulted to white and only went dark under a
+ * `prefers-color-scheme: dark` media query, so an owner whose machine was set
+ * to light got a white page behind components drawn for a dark one — every
+ * `text-neutral-400` label and `border-neutral-800` hairline sits on the wrong
+ * side of the contrast. It went unseen because the one owner's machine is
+ * dark; headless Chrome, which defaults to light, is what surfaced it.
+ *
+ * BRAND.md lists "relying on prefers-color-scheme" as an anti-pattern and
+ * states that nothing reads these properties. `body` did. A light mode is a
+ * real thing the app could grow, but it is a full palette, not a ground.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0a0a0a;
+  --foreground: #ededed;
 }
 
 @theme inline {
@@ -18,13 +32,6 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
