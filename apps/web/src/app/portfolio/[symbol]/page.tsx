@@ -18,6 +18,8 @@ import { useFitChart } from "@/components/useFitChart";
 import { thin, targetPoints } from "@/lib/chart-data";
 import { useStoredRange } from "@/components/useStoredRange";
 import { KEYS } from "@/lib/storage-keys";
+import { useCachedValuation, useLastPortfolio } from "@/components/useCachedValuation";
+import StaleNote from "@/components/StaleNote";
 import { usePrivacy } from "@/components/usePrivacy";
 import TxForm, { type NewTx } from "@/components/TxForm";
 import AssetInfoPanel from "@/components/AssetInfoPanel";
@@ -73,6 +75,23 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
   const [changePct, setChangePct] = useState<number | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  // The id arrives in the URL when this page is opened from the portfolio, so
+  // the cached holding can be on screen before any request finishes. A direct
+  // visit carries none and falls back to the portfolio last seen.
+  const remembered = useLastPortfolio();
+  const { cached, at: stale, remember } = useCachedValuation(portfolioId ?? wantedId ?? remembered);
+
+  // The figures for this holding were on screen a moment ago on the portfolio
+  // page; show them again rather than a spinner, then correct them. Derived
+  // rather than copied into state, so there is only ever one answer.
+  // Set during render, not in an effect: `money()` reads a module variable
+  // rather than React state, so an effect would run after the figures below
+  // had already been formatted — and with the cache derived rather than
+  // copied into state there is no second render to correct them. The call is
+  // an idempotent assignment, so repeating it costs nothing.
+  if (cached?.currency) setDisplayCurrency(cached.currency);
+  const cachedHolding = cached?.holdings.find((h) => h.symbol === symbol) as Holding | undefined;
+  const shownHolding = holding === undefined ? cachedHolding : holding;
 
   useEffect(() => {
     let cancelled = false;
@@ -98,23 +117,28 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
       ]);
       if (cancelled) return;
       setDisplayCurrency(val?.currency ?? "USD");
+      if (val) remember(id, val);
       const found: Holding | undefined = val?.holdings.find((h) => h.symbol === symbol);
-      setHolding(found ?? null);
+      // Only a valuation that actually arrived may say "nothing held here".
+      // A failed one leaves the cached position on screen; with nothing
+      // cached there is nothing to protect, so the empty state is the truth.
+      if (val) setHolding(found ?? null);
+      else if (!cachedHolding) setHolding(null);
       setTxs((detail?.transactions ?? []).filter((t) => t.symbol === symbol));
 
     })();
     return () => { cancelled = true; };
-  }, [client, symbol, wantedId]);
+  }, [client, symbol, wantedId, remember, cachedHolding]);
 
   // Price history reloads when the period changes, not when the page does.
   useEffect(() => {
-    if (holding === undefined || !rangeReady) return;
+    if (shownHolding === undefined || !rangeReady) return;
     let cancelled = false;
     setBars(null);
     // A cash row has no price history and the request has always been refused
     // for one, landing in the catch below. The cast keeps that: narrowing here
     // instead would ask for crypto bars under a currency's name.
-    const assetType = (holding?.assetType ?? "crypto") as "crypto" | "equity";
+    const assetType = (shownHolding?.assetType ?? "crypto") as "crypto" | "equity";
     // The client encodes the symbol itself, so this must not — a dotted equity
     // ticker would otherwise arrive double-encoded.
     client.getHistory(symbol, assetType, range)
@@ -125,7 +149,7 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
       })
       .catch(() => { if (!cancelled) { setBars([]); setChangePct(null); } });
     return () => { cancelled = true; };
-  }, [client, symbol, range, holding, rangeReady]);
+  }, [client, symbol, range, shownHolding, rangeReady]);
 
   const reload = useCallback(async () => {
     if (!portfolioId) return;
@@ -161,8 +185,8 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
     await reload();
   }
 
-  const pct = holding && holding.costBasis > 0 && holding.unrealizedPnl !== null
-    ? (holding.unrealizedPnl / holding.costBasis) * 100
+  const pct = shownHolding && shownHolding.costBasis > 0 && shownHolding.unrealizedPnl !== null
+    ? (shownHolding.unrealizedPnl / shownHolding.costBasis) * 100
     : null;
 
   return (
@@ -172,54 +196,55 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
       </Link>
 
       <div className="flex items-center gap-3 mb-6">
-        {holding === undefined
+        {shownHolding === undefined
           ? <span className="w-10 h-10 rounded-full bg-neutral-900 border border-neutral-800 shrink-0" />
-          : <CoinIcon symbol={symbol} size={40} assetType={holding?.assetType} />}
+          : <CoinIcon symbol={symbol} size={40} assetType={shownHolding?.assetType} />}
         <div>
-          <h1 className="text-xl md:text-2xl font-semibold">{holding?.name ?? symbol}</h1>
-          {holding && (
+          <h1 className="text-xl md:text-2xl font-semibold">{shownHolding?.name ?? symbol}</h1>
+          {shownHolding && (
             <p className="text-xs text-neutral-500">
               <span className="font-mono">{symbol}</span>
-              {" · "}{holding.assetType === "equity" ? "Stock / ETF" : "Crypto"}
-              {" · "}{qty(holding.quantity)} held
+              {" · "}{shownHolding.assetType === "equity" ? "Stock / ETF" : "Crypto"}
+              {" · "}{qty(shownHolding.quantity)} held
             </p>
           )}
         </div>
         <span className="flex-1" />
-        {holding?.value !== null && holding && (
+        {shownHolding?.value !== null && shownHolding && (
           <div className="text-right">
-            <div className="text-xl font-medium">{money(holding.value!)}</div>
-            {holding.dayChange && (
-              <div className={`text-xs ${holding.dayChange.pct >= 0 ? "text-green-500" : "text-red-500"}`}>
-                {holding.dayChange.pct >= 0 ? "+" : ""}{holding.dayChange.pct.toFixed(2)}% today
+            <div className="text-xl font-medium">{money(shownHolding.value!)}</div>
+            {shownHolding.dayChange && (
+              <div className={`text-xs ${shownHolding.dayChange.pct >= 0 ? "text-green-500" : "text-red-500"}`}>
+                {shownHolding.dayChange.pct >= 0 ? "+" : ""}{shownHolding.dayChange.pct.toFixed(2)}% today
               </div>
             )}
           </div>
         )}
       </div>
 
-      {holding === undefined && <p className="text-sm text-neutral-500">Loading…</p>}
-      {holding === null && (
+      {shownHolding === undefined && <p className="text-sm text-neutral-500">Loading…</p>}
+      <StaleNote at={stale} />
+      {shownHolding === null && (
         <p className="text-sm text-neutral-500">
           Nothing held in {symbol}. It may have been sold, or the ticker may not be in this portfolio.
         </p>
       )}
 
-      {holding && (
+      {shownHolding && (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 md:gap-3 text-sm mb-6">
-            <StatTile label="Average cost" value={holding.quantity > 0 ? money(holding.avgCost) : "—"} />
-            <StatTile label="Last price" value={holding.price !== null ? money(holding.price) : "no price"} />
-            <StatTile label="Cost basis" value={money(holding.costBasis)} />
+            <StatTile label="Average cost" value={shownHolding.quantity > 0 ? money(shownHolding.avgCost) : "—"} />
+            <StatTile label="Last price" value={shownHolding.price !== null ? money(shownHolding.price) : "no price"} />
+            <StatTile label="Cost basis" value={money(shownHolding.costBasis)} />
             <StatTile
               label="Unrealised"
-              value={holding.unrealizedPnl !== null
-                ? `${money(holding.unrealizedPnl)}${pct !== null ? ` (${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%)` : ""}`
+              value={shownHolding.unrealizedPnl !== null
+                ? `${money(shownHolding.unrealizedPnl)}${pct !== null ? ` (${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%)` : ""}`
                 : "—"}
-              signed={holding.unrealizedPnl ?? undefined}
+              signed={shownHolding.unrealizedPnl ?? undefined}
             />
-            <StatTile label="Realised" value={money(holding.realizedPnl)} signed={holding.realizedPnl} />
-            <StatTile label="Fees" value={money(holding.fees)} />
+            <StatTile label="Realised" value={money(shownHolding.realizedPnl)} signed={shownHolding.realizedPnl} />
+            <StatTile label="Fees" value={money(shownHolding.fees)} />
           </div>
 
           <div className="flex items-center gap-2 mb-2 flex-wrap">
@@ -234,7 +259,7 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
       </div>
       <PriceChart bars={bars} txs={txs} hideValues={hideAmounts} />
 
-          <AssetInfoPanel symbol={symbol} assetType={holding.assetType ?? "crypto"} />
+          <AssetInfoPanel symbol={symbol} assetType={shownHolding.assetType ?? "crypto"} />
 
           <section className="mt-8">
             <div className="flex items-baseline gap-2 mb-2">

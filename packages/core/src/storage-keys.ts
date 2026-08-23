@@ -14,6 +14,16 @@ export const KEYS = {
   privacyEvent: `${PREFIX}privacy`,
   rangePortfolio: `${PREFIX}range:portfolio`,
   rangeAsset: `${PREFIX}range:asset`,
+  /**
+   * The portfolio a screen last resolved.
+   *
+   * The ledger learns which portfolio it is showing from the network, so
+   * without a remembered id its cached valuation is unreachable until the
+   * very request the cache exists to hide has already returned. This is a
+   * hint, never an authority: the fetch still decides, and a wrong guess
+   * costs one corrected render.
+   */
+  lastPortfolio: `${PREFIX}last-portfolio`,
 } as const;
 
 /** Read a key, adopting any value the old name still holds. */

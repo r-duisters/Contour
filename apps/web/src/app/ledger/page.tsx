@@ -6,6 +6,8 @@ import { ArrowLeft, BookText } from "lucide-react";
 import PageLabel from "@/components/PageLabel";
 import { useDataClient } from "@/data/client/context";
 import { money, quantity, setDisplayCurrency } from "@/lib/display";
+import { useCachedValuation, useLastPortfolio } from "@/components/useCachedValuation";
+import StaleNote from "@/components/StaleNote";
 import { usePrivacy } from "@/components/usePrivacy";
 
 /**
@@ -35,11 +37,28 @@ export default function LedgerPage() {
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
   const [totals, setTotals] = useState<Totals | null>(null);
   const [cashRows, setCashRows] = useState<CashRow[]>([]);
+  // Which portfolio to ask the cache about before the list of portfolios has
+  // arrived. The fetch below still decides; this only picks the screen the
+  // user most likely left.
+  const remembered = useLastPortfolio();
+  const { cached, at: stale, remember } = useCachedValuation(portfolioId ?? remembered);
   const [byYear, setByYear] = useState<{ year: number; net: number }[]>([]);
   const [snapDate, setSnapDate] = useState("");
   const [snap, setSnap] = useState<Snap | null>(null);
   const [snapLoading, setSnapLoading] = useState(false);
   usePrivacy(); // re-render when amounts are hidden or shown
+
+  // Last night's accounting rows, on screen while the priced valuation loads.
+  // Derived rather than copied into state: the cache is a stand-in for what
+  // has not arrived, and two copies of the same figures can disagree.
+  // Set during render, not in an effect: `money()` reads a module variable
+  // rather than React state, so an effect would run after the figures below
+  // had already been formatted — and with the cache derived rather than
+  // copied into state there is no second render to correct them. The call is
+  // an idempotent assignment, so repeating it costs nothing.
+  if (cached?.currency) setDisplayCurrency(cached.currency);
+  const shownTotals = totals ?? cached?.totals ?? null;
+  const shownCash = totals ? cashRows : (cached?.holdings.filter((h) => h.assetType === "cash") ?? []);
 
   // Box 3 is assessed on 1 January, so that is the date worth defaulting to.
   useEffect(() => { setSnapDate(`${new Date().getFullYear()}-01-01`); }, []);
@@ -60,12 +79,18 @@ export default function LedgerPage() {
       ]);
       if (cancelled) return;
       setDisplayCurrency(val?.currency ?? "USD");
-      setTotals(val?.totals ?? null);
-      setCashRows((val?.holdings ?? []).filter((h) => h.assetType === "cash"));
+      // A failed valuation leaves whatever the cache put on screen: replacing
+      // real figures with "Loading…" because a refresh failed is strictly
+      // worse than showing them and saying when they are from.
+      if (val) {
+        setTotals(val.totals);
+        setCashRows(val.holdings.filter((h) => h.assetType === "cash"));
+        remember(id, val);
+      }
       setByYear(ins?.byYear ?? []);
     })();
     return () => { cancelled = true; };
-  }, [client]);
+  }, [client, remember]);
 
   const loadSnapshot = useCallback(async () => {
     if (!portfolioId || !snapDate) return;
@@ -76,7 +101,7 @@ export default function LedgerPage() {
   }, [client, portfolioId, snapDate]);
 
   const costPct = (n: number) =>
-    totals && totals.costBasis > 0 ? (n / totals.costBasis) * 100 : null;
+    shownTotals && shownTotals.costBasis > 0 ? (n / shownTotals.costBasis) * 100 : null;
   const yearMax = Math.max(...byYear.map((y) => Math.abs(y.net)), 1);
 
   return (
@@ -89,21 +114,22 @@ export default function LedgerPage() {
         <PageLabel icon={BookText}>Ledger</PageLabel>
       </div>
 
-      {!totals && <p className="text-sm text-neutral-500">Loading…</p>}
+      {!shownTotals && <p className="text-sm text-neutral-500">Loading…</p>}
+      <StaleNote at={stale} />
 
-      {totals && (
+      {shownTotals && (
         <>
           {/* Rows rather than tiles: these are read one after another, not
               scanned, and a row gives the figure room to be the point. */}
           <section className="mb-10 divide-y divide-neutral-800 border-b border-neutral-800">
-            <Row label="Cost basis" value={money(totals.costBasis)} />
-            <Row label="Unrealised" value={money(totals.unrealizedPnl)}
-                 signed={totals.unrealizedPnl} pct={costPct(totals.unrealizedPnl)} />
-            <Row label="Realised" value={money(totals.realizedPnl)}
-                 signed={totals.realizedPnl} pct={costPct(totals.realizedPnl)} />
-            <Row label="Fees paid" value={money(totals.fees)} muted />
-            {typeof totals.cash === "number" && (
-              <Row label="Cash" value={money(totals.cash)} />
+            <Row label="Cost basis" value={money(shownTotals.costBasis)} />
+            <Row label="Unrealised" value={money(shownTotals.unrealizedPnl)}
+                 signed={shownTotals.unrealizedPnl} pct={costPct(shownTotals.unrealizedPnl)} />
+            <Row label="Realised" value={money(shownTotals.realizedPnl)}
+                 signed={shownTotals.realizedPnl} pct={costPct(shownTotals.realizedPnl)} />
+            <Row label="Fees paid" value={money(shownTotals.fees)} muted />
+            {typeof shownTotals.cash === "number" && (
+              <Row label="Cash" value={money(shownTotals.cash)} />
             )}
           </section>
 
@@ -199,13 +225,13 @@ export default function LedgerPage() {
             </p>
           </section>
 
-          {cashRows.length > 0 && (
+          {shownCash.length > 0 && (
             <section className="mb-10">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-4">
                 Cash
               </h2>
               <div className="divide-y divide-neutral-800 border-b border-neutral-800">
-                {cashRows.map((c) => (
+                {shownCash.map((c) => (
                   <div key={c.symbol} className="py-3 flex justify-between items-baseline">
                     <span className="text-sm font-mono text-neutral-400">{c.symbol}</span>
                     <span className="text-sm tabular-nums">

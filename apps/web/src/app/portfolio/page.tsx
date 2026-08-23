@@ -15,6 +15,8 @@ import { KEYS } from "@/lib/storage-keys";
 import dynamic from "next/dynamic";
 import RangePicker from "@/components/RangePicker";
 import { usePrivacy } from "@/components/usePrivacy";
+import { useCachedValuation } from "@/components/useCachedValuation";
+import StaleNote from "@/components/StaleNote";
 import { RANGE_KEYS, type RangeKey } from "@/lib/ranges";
 
 // ~300 KB of charting: loaded after the figures are on screen, never on the
@@ -82,7 +84,6 @@ export default function PortfolioPage() {
   const [transactions, setTransactions] = useState<Tx[]>([]);
   const [valuation, setValuation] = useState<Valuation | null>(null);
   const [valuationLoading, setValuationLoading] = useState(false);
-  const [stale, setStale] = useState<number | null>(null);
   const [series, setSeries] = useState<{ t: number; value: number }[] | null>(null);
   // Opening the app asks "what happened today" — unless a period was chosen
   // before, in which case it asks that again.
@@ -110,19 +111,17 @@ export default function PortfolioPage() {
 
   // Opening the app should show last night's numbers instantly, then correct
   // them, rather than a spinner over an empty screen.
-  useEffect(() => {
-    if (!selectedId) return;
-    try {
-      const raw = localStorage.getItem(`valuation:${selectedId}`);
-      if (!raw) return;
-      const cached = JSON.parse(raw) as { at: number; valuation: Valuation };
-      setDisplayCurrency(cached.valuation.currency ?? "USD");
-      setValuation((current) => current ?? cached.valuation);
-      setStale(cached.at);
-    } catch {
-      // a corrupt cache is not worth reporting; the fetch will replace it
-    }
-  }, [selectedId]);
+  const { cached, at: stale, remember } = useCachedValuation<Valuation>(selectedId);
+  // Set during render, not in an effect: `money()` reads a module variable
+  // rather than React state, so an effect would run after the figures below
+  // had already been formatted — and with the cache derived rather than
+  // copied into state there is no second render to correct them. The call is
+  // an idempotent assignment, so repeating it costs nothing.
+  if (cached?.currency) setDisplayCurrency(cached.currency);
+  // Derived, not copied into state: the cache is a fallback for what has not
+  // arrived yet, and holding the same figures in two places is how the two
+  // disagree.
+  const shown = valuation ?? cached;
 
   const loadSelected = useCallback(async () => {
     if (!selectedId) { setTransactions([]); setValuation(null); setSeries(null); return; }
@@ -138,15 +137,10 @@ export default function PortfolioPage() {
     if (val) {
       setDisplayCurrency(val.currency ?? "USD");
       setValuation(val);
-      setStale(null);
-      try {
-        localStorage.setItem(`valuation:${selectedId}`, JSON.stringify({ at: Date.now(), valuation: val }));
-      } catch {
-        // storage full or blocked: caching is an optimisation, not a feature
-      }
+      remember(selectedId, val);
     }
     setValuationLoading(false);
-  }, [client, selectedId]);
+  }, [client, selectedId, remember]);
 
   // The value history is slow to build, so it loads after the numbers and
   // refetches only when the selected range changes.
@@ -197,12 +191,12 @@ export default function PortfolioPage() {
     return () => { cancelled = true; };
   }, [client, selectedId, range, rangeReady]);
 
-  const allHoldings = valuation?.holdings ?? [];
+  const allHoldings = shown?.holdings ?? [];
   // A closed position has nothing left to decide about; it belongs in history,
   // not in the list you scan every morning.
   const closed = allHoldings.filter((h) => h.quantity <= 1e-12);
   const holdings = showClosed ? allHoldings : allHoldings.filter((h) => h.quantity > 1e-12);
-  const totalValue = valuation?.totals.value ?? 0;
+  const totalValue = shown?.totals.value ?? 0;
   const sortedHoldings = [...holdings].sort((a, b) => {
     const pct = (h: ValuedHolding) =>
       h.costBasis > 0 && h.unrealizedPnl !== null ? h.unrealizedPnl / h.costBasis : -Infinity;
@@ -268,7 +262,7 @@ export default function PortfolioPage() {
 
       {selectedId && (
         <>
-          {valuation && (
+          {shown && (
             <>
               {/* The page answers one question: what is it worth, and what has
                   it done over the chosen period. Cost basis, realised P&L,
@@ -276,7 +270,7 @@ export default function PortfolioPage() {
                   Insights. */}
               <header className="mb-6">
                 <div className="text-[34px] md:text-[42px] font-semibold tracking-tight leading-none">
-                  {fmtUsd(valuation.totals.value)}
+                  {fmtUsd(shown.totals.value)}
                 </div>
                 {rangeChange && (
                   <div className="flex items-center gap-2 text-sm mt-1.5">
@@ -300,11 +294,7 @@ export default function PortfolioPage() {
                   </div>
                 )}
               </header>
-              {stale !== null && (
-                <p className="text-xs text-neutral-500 mb-3">
-                  Showing values from {new Date(stale).toLocaleTimeString()} while refreshing…
-                </p>
-              )}
+              <StaleNote at={stale} />
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <RangePicker value={range} onChange={setRange} />
               </div>
@@ -442,7 +432,7 @@ export default function PortfolioPage() {
               )}
             </>
           )}
-          {valuationLoading && !valuation && (
+          {valuationLoading && !shown && (
             <p className="text-sm text-neutral-500 mb-8">Loading valuation…</p>
           )}
 

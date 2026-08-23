@@ -33,7 +33,7 @@ them needs fixing:
 
 Ordered by what a user would notice, not by effort.
 
-### 1. Two screens show a spinner where a cached value exists
+### 1. Two screens show a spinner where a cached value exists — RESOLVED 2026-08-23
 
 `BRAND.md` names this an anti-pattern and prescribes the alternative: *"Show
 cached values immediately and say they are stale."*
@@ -45,6 +45,11 @@ storage, renders it at once, and marks it *"Showing values from …"*
 Nothing else does. `/ledger:92` and `/portfolio/[symbol]:201` both block on a
 bare `Loading…` with no cached fallback, and both display figures that were on
 screen moments earlier.
+
+**Resolved.** All three screens now share one cached valuation through
+`useCachedValuation`, derived at render rather than copied into state, and
+each says when its figures are from via `StaleNote`. Verified with the API
+throttled: cold shows `Loading…`, warm shows the full figures at 1.5s.
 
 **Why it matters more than it looks:** on a phone on a slow connection this is
 the difference between an app that feels instant and one that feels broken —
