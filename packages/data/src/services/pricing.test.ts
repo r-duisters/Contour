@@ -60,6 +60,19 @@ describe("displayContext", () => {
     expect(ctx.toDisplay).toBe(1);
   });
 
+  it("shares one EUR rate across concurrent callers, so a page rendering two panels converts both at the same number", async () => {
+    const store = MemoryStore({ settings: { displayCurrency: "EUR" } });
+    const net = FakeNet({ [EURUSD]: { rates: { USD: 1.08 } } });
+
+    // The portfolio page resolves a context for `valuation` and one for
+    // `series` at once. `cached()` collapses them onto one in-flight request;
+    // without that the two panels could be converted at two different rates.
+    const [a, b] = await Promise.all([displayContext(store, net), displayContext(store, net)]);
+
+    expect(a.displayUsd).toBe(b.displayUsd);
+    expect(net.calls.map((c) => c.url)).toEqual([EURUSD]);
+  });
+
   it("passes the equity provider and API key through from settings", async () => {
     const store = MemoryStore({
       settings: { displayCurrency: "USD", equityProvider: "stooq", equityApiKey: "key-1" },

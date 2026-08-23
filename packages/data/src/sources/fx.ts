@@ -52,8 +52,19 @@ async function fetchEcbRatesUncached(
  * still throw (that split is the whole reason `request()` exists — see
  * `packages/data/src/ports/net.ts`), so the try/catch here is what restores
  * the old all-failures-are-null behaviour on top of it.
+ *
+ * The `eurusd-latest` cache is not only about round trips. `cached()` also
+ * collapses *concurrent* callers of one key onto a single in-flight promise,
+ * and the portfolio page fires `valuation` and `series` together, each of
+ * which resolves its own display context. Without the shared entry the value
+ * panel and the history chart could be converted at two different EUR rates
+ * within one render.
  */
-export async function fetchLatestEurUsd(net: Net): Promise<number | null> {
+export function fetchLatestEurUsd(net: Net): Promise<number | null> {
+  return cached("eurusd-latest", 3_600_000, () => fetchLatestEurUsdUncached(net));
+}
+
+async function fetchLatestEurUsdUncached(net: Net): Promise<number | null> {
   try {
     const res = await net.request("https://api.frankfurter.dev/v1/latest?base=EUR&symbols=USD");
     if (!res.ok) return null;
