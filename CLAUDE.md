@@ -4,6 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Brand and layout
 
+`docs/carried-forward.md` lists what is known about and not done: verified
+bugs, the capability gaps Phase 4 inherits, deferred review findings, and the
+decisions waiting on a person. Read it before planning a phase — the per-phase
+ledgers that used to hold this are deleted when their phase merges.
+
 `BRAND.md` is the guide for anything user-facing: the app's name, voice,
 colour, layout rules, established components and the anti-patterns already
 removed once. Read it before writing UI or copy.
