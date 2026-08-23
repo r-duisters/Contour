@@ -258,7 +258,20 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
           </span>
         )}
       </div>
-      <PriceChart bars={bars} txs={txs} hideValues={hideAmounts} />
+      {/* Crypto only. The detailed chart is fed by /api/candles, which is
+          Binance, so an equity would open an empty pane — and a tap that
+          leads nowhere is worse than no tap. */}
+      {(shownHolding.assetType ?? "crypto") === "crypto" ? (
+        <Link
+          href={`/chart?symbol=${encodeURIComponent(symbol)}`}
+          aria-label={`Open ${symbol} in the detailed chart`}
+          className="block rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+        >
+          <PriceChart bars={bars} txs={txs} hideValues={hideAmounts} />
+        </Link>
+      ) : (
+        <PriceChart bars={bars} txs={txs} hideValues={hideAmounts} />
+      )}
 
           <AssetInfoPanel symbol={symbol} assetType={shownHolding.assetType ?? "crypto"} />
 

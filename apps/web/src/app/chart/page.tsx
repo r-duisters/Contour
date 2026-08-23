@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   createChart, CandlestickSeries, LineSeries, createSeriesMarkers,
   type IChartApi, type ISeriesApi, type ISeriesMarkersPluginApi, type Time,
@@ -14,8 +15,25 @@ import SymbolPicker from "@/components/SymbolPicker";
 const BUY_LIMIT = 0.25;
 const SELL_LIMIT = 0.80;
 
+/**
+ * `useSearchParams` opts a client page out of static prerendering unless it
+ * sits behind a Suspense boundary, and this page is prerendered. The fallback
+ * is never really seen — the parameter is known on the first client render.
+ */
 export default function ChartPage() {
-  const [symbol, setSymbol] = useState("BTCUSDT");
+  return (
+    <Suspense fallback={<main className="min-h-screen" />}>
+      <Chart />
+    </Suspense>
+  );
+}
+
+function Chart() {
+  // A holding's sparkline links here with ?symbol=…, which is the only reason
+  // this page is reachable from the portfolio at all. The picker still works
+  // and is still the way to change it once you are here.
+  const asked = useSearchParams().get("symbol");
+  const [symbol, setSymbol] = useState((asked ?? "BTCUSDT").toUpperCase());
   const [bars, setBars] = useState<Bar[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "live" | "error">("idle");
 
@@ -94,6 +112,22 @@ export default function ChartPage() {
     return () => { cancelled = true; };
   }, [symbol]);
 
+  /**
+   * Whether the risk ladder means anything for this symbol.
+   *
+   * The metric is Oakley Wood's Bitcoin script: each of its three sub-metrics
+   * is divided by a curve fitted to Bitcoin's own history. Measured over 3,000
+   * daily bars, BTC stays inside 0–1 for 99% of them and fires 5 sell signals;
+   * XRP reaches 1.92 and fires 135, because the `> 0.95` tier has no latch and
+   * so repeats every bar it is above.
+   *
+   * The line is still a fair read of where an asset sits in its own range. The
+   * ladder is not, off the asset it was fitted to — so the line is drawn and
+   * the thresholds, the markers and the risk colouring are withheld.
+   * Issue #13 covers recalibrating per asset.
+   */
+  const calibrated = symbol.toUpperCase() === "BTCUSDT";
+
   const { signals, series } = useMemo(() => run(bars), [bars]);
 
   useEffect(() => {
@@ -106,11 +140,19 @@ export default function ChartPage() {
       .map((b, i) => ({ time: tSec(b.t), value: series.riskMetric[i]! }))
       .filter((p) => Number.isFinite(p.value));
     riskRef.current.setData(riskPoints);
+    // Off Bitcoin the thresholds are hidden, not cleared. `visible: false`
+    // takes them out of the pane's autoscale, so the axis fits the line's own
+    // range — but the series keeps its points, and that matters: the two
+    // charts mirror each other by *logical index*, so a series spanning fewer
+    // bars than the candles shifts the price pane to an unrelated window.
+    // Clearing them scrolled ETH to 2022.
     buyLineRef.current.setData(bars.map((b) => ({ time: tSec(b.t), value: BUY_LIMIT })));
     sellLineRef.current.setData(bars.map((b) => ({ time: tSec(b.t), value: SELL_LIMIT })));
+    buyLineRef.current.applyOptions({ visible: calibrated });
+    sellLineRef.current.applyOptions({ visible: calibrated });
 
     markersRef.current?.setMarkers(
-      signals.map((s) => ({
+      !calibrated ? [] : signals.map((s) => ({
         time: tSec(s.barTime),
         position: s.kind === "long" ? "belowBar" : "aboveBar",
         color: s.kind === "long" ? "#22c55e" : "#ef4444",
@@ -118,7 +160,7 @@ export default function ChartPage() {
         text: s.tag ?? s.kind,
       })),
     );
-  }, [bars, signals, series]);
+  }, [bars, signals, series, calibrated]);
 
   // Poll the last bar every 60s (daily bars don't change often).
   useEffect(() => {
@@ -153,9 +195,15 @@ export default function ChartPage() {
             sits apart from the two controls rather than between them. */}
         <span className="ml-auto text-xs text-neutral-500 text-right">
           1d · {status}
-          <span className="hidden sm:inline"> · {bars.length} bars · {signals.length} signals</span>
+          <span className="hidden sm:inline">
+            {" · "}{bars.length} bars
+            {/* The count is withheld with the markers it counts: reporting 56
+                signals beside a pane that draws none invites the reader to go
+                looking for them. */}
+            {calibrated && <> · {signals.length} signals</>}
+          </span>
           {latestRisk !== null && (
-            <> · risk: <span className={latestRisk < BUY_LIMIT ? "text-green-500" : latestRisk > SELL_LIMIT ? "text-red-500" : "text-neutral-300"}>
+            <> · risk: <span className={!calibrated ? "text-neutral-300" : latestRisk < BUY_LIMIT ? "text-green-500" : latestRisk > SELL_LIMIT ? "text-red-500" : "text-neutral-300"}>
               {latestRisk.toFixed(3)}
             </span></>
           )}
@@ -164,6 +212,12 @@ export default function ChartPage() {
       </header>
       <div ref={priceContainer} className="h-[45vh] min-h-[260px] md:h-auto md:flex-1 md:min-h-[300px]" />
       <div ref={riskContainer} className="h-[30vh] min-h-[180px] md:h-auto md:flex-1 md:min-h-[200px] border-t border-neutral-800" />
+      {!calibrated && (
+        <p className="px-3 md:px-4 py-2 text-xs text-neutral-500 border-t border-neutral-800">
+          Risk levels are calibrated for Bitcoin. The line is shown for {symbol};
+          the buy and sell markers are not.
+        </p>
+      )}
     </main>
   );
 }
