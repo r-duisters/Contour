@@ -277,6 +277,19 @@ export function runStoreContract(name: string, makeStore: () => Promise<Store>):
       await expect(store.portfolios.rename("does-not-exist", "x")).rejects.toThrow();
     });
 
+    it("rejects an update of an id that does not exist", async () => {
+      // Same reasoning as the remove and rename cases: `PATCH
+      // /api/transactions/[id]` has no existence check of its own, so an
+      // unknown id has always been a 500. A store that answered with a
+      // no-op — or with a freshly invented row — would turn that into a
+      // silent success only the device build ever sees.
+      const p = await store.portfolios.create("Main");
+      const added = await store.transactions.add(p.id, tx());
+      await store.transactions.remove(added.id);
+      await expect(store.transactions.update(added.id, { quantity: 2 })).rejects.toThrow();
+      await expect(store.transactions.update("does-not-exist", { quantity: 2 })).rejects.toThrow();
+    });
+
     it("treats removeAllIn on an empty or unknown portfolio as a no-op", async () => {
       const p = await store.portfolios.create("Main");
       await store.transactions.removeAllIn(p.id);
