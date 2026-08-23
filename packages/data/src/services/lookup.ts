@@ -1,0 +1,50 @@
+import type { AssetInfo } from "@/core/asset-info";
+import type { Net } from "../ports/net";
+import { fetchUsdtSymbols } from "../sources/binance";
+import { assetInfo as fetchCryptoAssetInfo } from "../sources/asset-info";
+
+/**
+ * The full USDT symbol list, and one asset's background/sentiment/headlines
+ * panel. No query argument on `symbols` — the old route took none either; the
+ * importer and the symbol picker both want the whole list and filter it
+ * client-side.
+ */
+
+/**
+ * `sources/binance.ts`'s `fetchUsdtSymbols` already memoises the ~2MB
+ * `exchangeInfo` fetch for an hour, under the key `"usdt-symbols"` it shares
+ * with `packages/core/src/binance.ts` — deliberately, so a converted and an
+ * unconverted caller pay for that fetch once between them. That TTL cache
+ * buys freshness, not resilience: once the hour is up, a failed refetch
+ * throws straight through it with no memory of the last good answer.
+ *
+ * `lastGood` is that memory, and it is genuinely new logic rather than a
+ * second copy of the TTL cache — the old `symbols/route.ts` module-level
+ * `cache` variable did exactly this (serve the previous list forever on
+ * failure, no expiry of its own), so it moves here rather than staying in the
+ * route. A module-level variable in a service is per-process on a device too,
+ * the same guarantee it has today on the server.
+ */
+let lastGood: string[] | null = null;
+
+export async function symbols(net: Net): Promise<string[]> {
+  try {
+    const list = await fetchUsdtSymbols(net);
+    lastGood = list;
+    return list;
+  } catch (err) {
+    if (lastGood) return lastGood;
+    throw err;
+  }
+}
+
+/**
+ * Crypto only. Yahoo's quoteSummary endpoint (the equity half of the old
+ * `@/lib/asset-info`) needs a session cookie read off a response header that
+ * `Net` has no way to expose — see `sources/asset-info.ts`'s file comment.
+ * `asset/[symbol]/route.ts` calls this for `assetType: "crypto"` and falls
+ * back to the original fetch-based function for `"equity"`.
+ */
+export function assetInfo(net: Net, symbol: string): Promise<AssetInfo> {
+  return fetchCryptoAssetInfo(net, symbol);
+}

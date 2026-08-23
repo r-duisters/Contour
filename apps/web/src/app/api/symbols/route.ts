@@ -1,22 +1,18 @@
 import { NextResponse } from "next/server";
-import { fetchUsdtSymbols } from "@/lib/binance";
+import { deps } from "@/lib/deps";
+import { symbols } from "@/data/services/lookup";
 
 export const dynamic = "force-dynamic";
 
-// exchangeInfo is ~2MB and changes rarely; cache the filtered list for an hour.
-let cache: { symbols: string[]; at: number } | null = null;
-const TTL_MS = 3_600_000;
-
+// The stale-if-error fallback (serve the last successful list when Binance is
+// down) and the one-hour freshness cache both now live in the service layer
+// — see `packages/data/src/services/lookup.ts`'s comment on `symbols` — so a
+// 502 here only ever means "Binance failed and we have never once succeeded".
 export async function GET() {
-  if (cache && Date.now() - cache.at < TTL_MS) {
-    return NextResponse.json({ symbols: cache.symbols });
-  }
+  const { net } = deps();
   try {
-    const symbols = await fetchUsdtSymbols();
-    cache = { symbols, at: Date.now() };
-    return NextResponse.json({ symbols });
+    return NextResponse.json({ symbols: await symbols(net) });
   } catch (e) {
-    if (cache) return NextResponse.json({ symbols: cache.symbols });
     return NextResponse.json({ error: (e as Error).message }, { status: 502 });
   }
 }

@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { HomeAssistantNotifier } from "@/lib/notifier/home-assistant";
 import type { Notifier } from "@/lib/notifier";
 import { makeWebPushNotifier } from "@/lib/notifier/web-push";
+import { deps } from "@/lib/deps";
+import { getSettings, saveSettings } from "@/data/services/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -15,35 +17,34 @@ const Body = z.object({
   equityApiKey: z.string().max(200).nullable().optional(),
 });
 
-const SETTINGS_SELECT = {
-  id: true,
-  haUrl: true,
-  haWebhookId: true,
-  mqttBrokerUrl: true,
-  mqttTopicPrefix: true,
-  displayCurrency: true,
-  equityProvider: true,
-  equityApiKey: true,
-} as const;
+// The row id is always 1 — a hard-coded singleton, never a stored field on
+// the `Store` port's `Settings` (which has no id at all, and never leaks
+// `passwordHash` either). The wire shape has always included it, so it is
+// added back here rather than changing what every settings screen reads.
+function toJson(s: Awaited<ReturnType<typeof getSettings>>) {
+  return { id: 1, ...s };
+}
 
 export async function GET() {
-  const s = await prisma.settings.findUnique({ where: { id: 1 }, select: SETTINGS_SELECT });
-  return NextResponse.json({ settings: s ?? null });
+  const { store } = deps();
+  return NextResponse.json({ settings: toJson(await getSettings(store)) });
 }
 
 export async function PUT(req: NextRequest) {
   const body = Body.safeParse(await req.json());
   if (!body.success) return NextResponse.json({ error: body.error.flatten() }, { status: 400 });
-  const s = await prisma.settings.upsert({
-    where: { id: 1 },
-    update: body.data,
-    create: { id: 1, ...body.data },
-    select: SETTINGS_SELECT,
-  });
-  return NextResponse.json({ settings: s });
+  const { store } = deps();
+  const s = await saveSettings(store, body.data);
+  return NextResponse.json({ settings: toJson(s) });
 }
 
-// POST sends a synthetic signal through every configured notifier (HA + Web Push).
+/**
+ * Sends a synthetic signal through every configured notifier (HA + Web Push).
+ * Left inline rather than moved behind the ports: this is a server-only
+ * integration test-ping, the one handler in this file the mobile/APK build
+ * will never call, and moving it would put Home Assistant / web-push wiring
+ * into a package that has to run inside an APK with none of it available.
+ */
 export async function POST() {
   const s = await prisma.settings.findUnique({ where: { id: 1 } });
   const notifiers: { name: string; n: Notifier }[] = [];
