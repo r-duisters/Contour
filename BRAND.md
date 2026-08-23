@@ -269,8 +269,17 @@ differences before it was extracted.
 - **Holding row** — borderless, separated by space (`space-y-7`), 40px icon,
   then two aligned lines: name against value, ticker · quantity · share
   against the period change. No card, no chevron.
-- **Top bar** — small uppercase label on the left, circular icon buttons on
-  the right. The page label is subordinate to the value beneath it.
+- **`PageLabel`** — how a page says which page it is: an 18px icon in
+  `text-neutral-500` beside the page label. Every screen uses it and no screen
+  leads with a large title. Four of them once did it four different ways — a
+  title here, a subtitle there, an icon at two sizes in two greys, and no
+  identity at all on the chart. The icon comes from the nav's mapping in
+  `TabBar`/`TopNav`, never a second list.
+- **Top bar** — `PageLabel` on the left, circular icon buttons on the right.
+  The page label is subordinate to the value beneath it. The row is each
+  page's own: the portfolio hangs a picker and an add button off it, the chart
+  keeps it inside a bordered bar so the panes lose no height, and a page with
+  no controls just renders the label. Only the label pair is shared.
 - **Disclosure** — a text button that toggles a panel. Used for Manage, the
   transaction form and closed positions.
 - **Empty state** — one muted sentence saying what to do, never an

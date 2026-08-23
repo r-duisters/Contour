@@ -94,7 +94,7 @@ exists below them, spelled differently each time:
 Two axes vary independently — weight and colour — which is the signature of a
 tier nobody decided on.
 
-### 5. Two page-header idioms, with no rule for which applies
+### 5. Two page-header idioms, with no rule for which applies — **RESOLVED 2026-08-23**
 
 `/portfolio` uses the documented subordinate page label — small, uppercase,
 `tracking-widest`, `text-neutral-500` — with the value dominating beneath it.
@@ -107,6 +107,14 @@ portfolio treatment, so today the choice looks arbitrary rather than principled.
 
 This is a **product decision, not a cleanup** — it changes how three screens
 read. It wants an answer before it wants an edit.
+
+**Resolved.** The owner chose the eyebrow everywhere, and named the chart as
+the worst offender — it had no page identity at all. `PageLabel` now carries
+the icon-and-label pair; the row around it stays each page's own, because the
+portfolio's controls and the chart's bordered bar are real differences rather
+than drift. The ledger's subtitle went: its sentence already lives in this
+guide as the question the page answers. Written into `BRAND.md`, so the next
+screen inherits it instead of re-inventing it. (`32dbe30`)
 
 ### 6. Empty states vary in tier, spacing and helpfulness
 
