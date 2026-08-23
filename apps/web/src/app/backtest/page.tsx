@@ -3,7 +3,9 @@
 import { History } from "lucide-react";
 import { useState } from "react";
 import StatTile from "@/components/StatTile";
-import { percent } from "@/lib/display";
+import { percent, quantity } from "@/lib/display";
+import Button from "@/components/Button";
+import { field } from "@/components/field";
 
 /**
  * A backtest figure. It is neither the owner's money nor denominated in the
@@ -55,19 +57,16 @@ export default function BacktestPage() {
       <h1 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6 flex items-center gap-2"><History size={20} aria-hidden className="text-neutral-400" />Backtest</h1>
 
       <div className="flex flex-wrap gap-2 mb-6">
-        <input className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm uppercase"
+        <input className={field("uppercase")}
                value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} />
         {/* The indicator's curves are anchored to daily and weekly closes, so
             the timeframe is fixed. A one-option picker is a dead control. */}
         <span className="text-xs text-neutral-500 self-center">daily bars ·</span>
         <input type="number" min={1} max={5000}
-               className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm w-24"
+               className={field("w-24")}
                value={days} onChange={(e) => setDays(Number(e.target.value))} />
         <span className="text-xs text-neutral-500 self-center">days back</span>
-        <button onClick={runBacktest} disabled={running}
-                className="bg-blue-600 disabled:opacity-50 text-white rounded px-3 py-1 text-sm">
-          {running ? "Running…" : "Run"}
-        </button>
+        <Button onClick={runBacktest} disabled={running}>{running ? "Running…" : "Run"}</Button>
       </div>
 
       {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
@@ -109,7 +108,7 @@ export default function BacktestPage() {
                       <td className="py-1 text-neutral-300">{t.kind === "buy" ? "Buy" : "Sell"}</td>
                       <td className="py-1 text-neutral-400">{new Date(t.time).toISOString().slice(0, 10)}</td>
                       <td className="py-1 text-right">{num(t.price)}</td>
-                      <td className="py-1 text-right">{t.units.toFixed(6)}</td>
+                      <td className="py-1 text-right">{quantity(t.units)}</td>
                       <td className={`py-1 text-right ${t.cashDelta > 0 ? "text-green-500" : t.cashDelta < 0 ? "text-red-500" : ""}`}>
                         {num(t.cashDelta)}
                       </td>

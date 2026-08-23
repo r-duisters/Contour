@@ -121,10 +121,18 @@ Rules that keep it coherent:
 - **Progressive disclosure over density.** Rows expand or link; forms hide
   behind a button; timeframes beyond the everyday five hide behind "More" on
   phones and appear inline on desktop.
-- **Shared units, not copies.** `StatTile` is the labelled figure and
-  `RangePicker` is the timeframe control, everywhere. Both existed three or
-  four times over with small differences before they were extracted; a new
-  local copy is a bug, not a variation.
+- **Shared units, not copies.** `StatTile` is the labelled figure,
+  `RangePicker` the timeframe control, `PageLabel` the page identity,
+  `StaleNote` the "these figures are from a moment ago" line, `Button` the
+  filled action, and `field()` the class every text input, date, number and
+  select wears. Each existed three to thirteen times over with small
+  differences before it was extracted; a new local copy is a bug, not a
+  variation, and `packages/ui/src/shared-units.test.ts` now fails the build
+  rather than waiting for the next audit to count them.
+  - `Button` is `variant="primary"` (blue) or `"secondary"` (neutral), with
+    `block` for a full-width submit. It always dims when disabled — that used
+    to be a coin flip decided by which line the class was copied from — and
+    has no hover state, because this guide never gave it one.
 - **Never block the screen on the network.** Show cached values immediately and
   say they are stale; let slow parts (charts, history) fill in behind.
 

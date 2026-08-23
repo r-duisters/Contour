@@ -2,6 +2,8 @@
 
 import { FlaskConical } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import Button from "@/components/Button";
+import { field } from "@/components/field";
 
 type Severity = "warning" | "info" | "suggestion";
 type Finding = {
@@ -161,7 +163,7 @@ export default function AnalyzePage() {
         <label className="text-sm">
           <span className="text-neutral-400 mr-2">Library:</span>
           <select
-            className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm"
+            className={field()}
             value={selected}
             onChange={(e) => loadScript(e.target.value)}
           >
@@ -187,18 +189,13 @@ export default function AnalyzePage() {
       />
 
       <div className="mt-3 flex gap-2 items-center">
-        <button onClick={analyze} disabled={busy || !source.trim()}
-                className="bg-blue-600 disabled:opacity-50 text-white rounded px-3 py-1 text-sm">
+        <Button onClick={analyze} disabled={busy || !source.trim()}>
           {busy ? "Working…" : "Analyse"}
-        </button>
+        </Button>
         {findings !== null && (
-          <button
-            onClick={previewFixes}
-            disabled={busy || picked.size === 0}
-            className="bg-blue-600 disabled:opacity-50 text-white rounded px-3 py-1 text-sm"
-          >
+          <Button onClick={previewFixes} disabled={busy || picked.size === 0}>
             Apply {picked.size} fix{picked.size === 1 ? "" : "es"}
-          </button>
+          </Button>
         )}
         {summary && <span className="text-xs text-neutral-400">{summary}</span>}
         {findings !== null && automatableCount > 0 && (
@@ -251,9 +248,7 @@ export default function AnalyzePage() {
         <section className="mt-8 border-t border-neutral-800 pt-6">
           <div className="flex items-center gap-3 mb-3">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Preview</h2>
-            <button onClick={saveAsNew} disabled={busy} className="bg-blue-600 text-white rounded px-3 py-1 text-sm">
-              Save as new version
-            </button>
+            <Button onClick={saveAsNew} disabled={busy}>Save as new version</Button>
             {savedName && <span className="text-xs text-neutral-400">Saved as {savedName}</span>}
           </div>
           <pre className="bg-black/60 border border-neutral-800 rounded p-3 text-xs font-mono overflow-x-auto max-h-[60vh]">{preview}</pre>

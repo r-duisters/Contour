@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import SymbolPicker from "@/components/SymbolPicker";
 import { quoteAsset } from "@/components/CoinIcon";
+import Button from "./Button";
+import { field } from "./field";
 
 export type NewTx = {
   symbol: string;
@@ -60,7 +62,7 @@ export default function TxForm({
     setQuantity(""); setPrice(""); setFee(""); setWhen(localNow());
   }
 
-  const input = "bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm";
+  const input = field();
   // A crypto pair names its own quote asset; a listed security is priced in
   // its venue's currency, which the ticker does not carry. The field said
   // "USDT" either way, which was wrong on every equity.
@@ -87,9 +89,7 @@ export default function TxForm({
         <input className={`${input} w-24`} value={fee} onChange={(e) => setFee(e.target.value)}
                placeholder="Fee" inputMode="decimal" />
         <input className={input} type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />
-        <button onClick={submit} className="bg-blue-600 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1">
-          <Plus size={14} aria-hidden />Add
-        </button>
+        <Button onClick={submit}><Plus size={14} aria-hidden />Add</Button>
       </div>
       {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
     </div>

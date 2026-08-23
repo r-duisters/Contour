@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { browserSupportsWebAuthn, startAuthentication } from "@simplewebauthn/browser";
 import { Fingerprint } from "lucide-react";
+import Button from "@/components/Button";
 
 // Only follow same-origin, relative paths for post-login redirects. Anything
 // else (absolute URLs, protocol-relative "//host" paths, backslash variants
@@ -95,9 +96,11 @@ export default function LoginForm({ mode }: { mode: "login" | "setup" }) {
                  value={confirm} onChange={(e) => setConfirm(e.target.value)} />
         </label>
       )}
-      <button disabled={busy} className="w-full bg-blue-600 disabled:opacity-50 text-white rounded px-3 py-2 text-sm">
+      {/* The form's submit: implicit here before, which the explicit
+          type="button" on the passkey button below depended on. */}
+      <Button block type="submit" disabled={busy}>
         {mode === "setup" ? "Set password" : "Log in"}
-      </button>
+      </Button>
       {passkeyReady && (
         <button type="button" disabled={busy} onClick={passkeyLogin}
                 className="w-full bg-neutral-800 border border-neutral-700 disabled:opacity-50 text-white rounded px-3 py-2 text-sm inline-flex items-center justify-center gap-2">

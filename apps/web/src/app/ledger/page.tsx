@@ -9,6 +9,8 @@ import { money, quantity, setDisplayCurrency } from "@/lib/display";
 import { useCachedValuation, useLastPortfolio } from "@/components/useCachedValuation";
 import StaleNote from "@/components/StaleNote";
 import { usePrivacy } from "@/components/usePrivacy";
+import Button from "@/components/Button";
+import { field } from "@/components/field";
 
 /**
  * What went in, what came out, and what it cost.
@@ -175,14 +177,11 @@ export default function LedgerPage() {
               <input
                 type="date"
                 aria-label="Valuation date"
-                className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm"
+                className={field()}
                 value={snapDate}
                 onChange={(e) => setSnapDate(e.target.value)}
               />
-              <button onClick={loadSnapshot} disabled={!snapDate}
-                      className="bg-blue-600 disabled:opacity-50 text-white rounded px-3 py-1 text-sm">
-                Value it
-              </button>
+              <Button onClick={loadSnapshot} disabled={!snapDate}>Value it</Button>
               {snapLoading && <span className="text-xs text-neutral-500">valuing…</span>}
               <span className="flex-1" />
               {snap && (

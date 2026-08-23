@@ -56,7 +56,14 @@ the difference between an app that feels instant and one that feels broken —
 and it is the screen behaviour Phase 4 inherits, where the data is local and
 only the prices are remote.
 
-### 2. The primary button is written out thirteen times in six spellings
+### 2. The primary button is written out thirteen times in six spellings — RESOLVED 2026-08-23
+
+**Resolved.** `packages/ui/src/Button.tsx`, with a `secondary` variant for the
+three `bg-neutral-700` buttons the audit did not count. All sixteen call sites
+converted; every filled button now dims to 0.5 when disabled, verified in the
+browser. The login form's implicit submit is explicit now, since the component
+defaults to `type="button"`.
+
 
 There is no button component. Every screen re-types the string, and they have
 drifted:
@@ -78,7 +85,13 @@ not just a class-string difference.
 a bug, not a variation"* — but a button is not among them, so nothing was
 being violated. The gap is in the guide.
 
-### 3. The input class string is duplicated verbatim three times
+### 3. The input class string is duplicated verbatim three times — RESOLVED 2026-08-23
+
+**Resolved.** Nine sites, not three — the count missed the `<select>`s and
+`backtest`'s two variants. `field()` in `packages/ui/src/field.ts` takes the
+per-site extras (`uppercase`, `w-24`, `w-36`) so real differences stay visible.
+A constant rather than a component, because the callers are not one element.
+
 
 `alerts/page.tsx:96` and `TxForm.tsx:63` declare an identical
 `const input = "bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm"`,
@@ -138,7 +151,11 @@ Several do not:
 - *"No portfolio yet."* (`insights:178`)
 - *"No priced holdings."* (`insights:291`)
 
-### 7. One quantity bypasses the display layer
+### 7. One quantity bypasses the display layer — RESOLVED 2026-08-23
+
+**Resolved.** `backtest/page.tsx` renders `quantity(t.units)`, which stops the
+padding to six decimals and brings the figure under privacy mode.
+
 
 `backtest/page.tsx:112` renders `{t.units.toFixed(6)}`. `BRAND.md` says
 quantities go up to eight decimals and are **never padded**, and that formatting

@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { browserSupportsWebAuthn, startRegistration } from "@simplewebauthn/browser";
 import { useDataClient } from "@/data/client/context";
+import Button from "@/components/Button";
 
 export default function SettingsPage() {
   const client = useDataClient();
@@ -258,9 +259,9 @@ export default function SettingsPage() {
           </span>
         </label>
         <div className="flex gap-2">
-          <button onClick={save} className="bg-blue-600 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1"><Save size={14} aria-hidden />Save</button>
+          <Button onClick={save}><Save size={14} aria-hidden />Save</Button>
           {sendTest && (
-            <button onClick={test} className="bg-neutral-700 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1"><Send size={14} aria-hidden />Send test</button>
+            <Button variant="secondary" onClick={test}><Send size={14} aria-hidden />Send test</Button>
           )}
         </div>
         {msg && <p className="text-sm text-neutral-400">{msg}</p>}
@@ -273,14 +274,13 @@ export default function SettingsPage() {
           </p>
         )}
         {pushState !== "unsupported" && (
-          <button
+          <Button
             disabled={pushState === "busy"}
             onClick={pushState === "on" ? disablePush : enablePush}
-            className="bg-blue-600 disabled:opacity-50 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1"
           >
             {pushState === "on" ? <BellOff size={14} aria-hidden /> : <BellRing size={14} aria-hidden />}
             {pushState === "on" ? "Disable notifications" : "Enable notifications"}
-          </button>
+          </Button>
         )}
         <p className="text-xs text-neutral-500">“Send test” above exercises both Home Assistant and Web Push.</p>
       </section>
@@ -292,10 +292,9 @@ export default function SettingsPage() {
           </p>
         )}
         {passkeySupported && (
-          <button onClick={addPasskey}
-                  className="bg-blue-600 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1">
+          <Button onClick={addPasskey}>
             <Fingerprint size={14} aria-hidden />Add passkey
-          </button>
+          </Button>
         )}
         <ul className="divide-y divide-neutral-800">
           {passkeys.map((k) => (
@@ -328,8 +327,8 @@ export default function SettingsPage() {
                  value={newPw} onChange={(e) => setNewPw(e.target.value)} />
         </label>
         <div className="flex gap-2">
-          <button onClick={changePassword} className="bg-blue-600 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1"><KeyRound size={14} aria-hidden />Change password</button>
-          <button onClick={logout} className="bg-neutral-700 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1"><LogOut size={14} aria-hidden />Log out</button>
+          <Button onClick={changePassword}><KeyRound size={14} aria-hidden />Change password</Button>
+          <Button variant="secondary" onClick={logout}><LogOut size={14} aria-hidden />Log out</Button>
         </div>
         {pwMsg && <p className="text-sm text-neutral-400">{pwMsg}</p>}
       </section>

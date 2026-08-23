@@ -1,0 +1,70 @@
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+
+/**
+ * `BRAND.md`: "a new local copy is a bug, not a variation."
+ *
+ * That rule was written for `StatTile` and `RangePicker` and enforced by
+ * nothing, so the primary button reached thirteen copies in six spellings and
+ * the form field reached nine before an audit counted them. Six of the
+ * thirteen dimmed when disabled and seven did not — a behavioural difference
+ * that grew purely out of which line each was copied from.
+ *
+ * Prose cannot catch the fourteenth. This can.
+ */
+
+/** Files allowed to spell a shared unit, and why each is not a copy. */
+const ALLOWED = {
+  "bg-blue-600": [
+    // The component that defines the primary action.
+    "packages/ui/src/Button.tsx",
+    // The circular unlock button: `BRAND.md` documents circular icon buttons
+    // as their own shape, with a hover state the flat button does not have.
+    "packages/ui/src/BiometricLock.tsx",
+  ],
+  "bg-neutral-700": ["packages/ui/src/Button.tsx"],
+  "bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm": [
+    "packages/ui/src/field.ts",
+  ],
+};
+
+const ROOTS = ["packages/ui/src", "apps/web/src"];
+
+function sourceFiles(dir: string): string[] {
+  return readdirSync(dir).flatMap((entry) => {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) return sourceFiles(full);
+    if (!full.endsWith(".ts") && !full.endsWith(".tsx")) return [];
+    if (full.endsWith(".test.ts") || full.endsWith(".test.tsx")) return [];
+    return [full];
+  });
+}
+
+describe("shared units are not re-typed", () => {
+  const files = ROOTS.flatMap(sourceFiles);
+
+  it("scans a plausible number of files", () => {
+    // Guards the guard: a walker that silently found nothing would pass every
+    // assertion below.
+    expect(files.length).toBeGreaterThan(30);
+  });
+
+  for (const [needle, allowed] of Object.entries(ALLOWED)) {
+    it(`only ${allowed.join(" and ")} spells "${needle.slice(0, 40)}…"`, () => {
+      const offenders = files.filter(
+        (f) => readFileSync(f, "utf8").includes(needle) && !allowed.includes(f),
+      );
+      expect(offenders, `use the shared unit instead of re-typing it`).toEqual([]);
+    });
+  }
+
+  it("every allowed file actually contains what it is allowed to spell", () => {
+    // An entry left behind after a refactor is a hole in the guard, not a
+    // harmless leftover: it would permit a fresh copy in that same file.
+    const stale = Object.entries(ALLOWED).flatMap(([needle, allowed]) =>
+      allowed.filter((f) => !readFileSync(f, "utf8").includes(needle)).map((f) => `${f} :: ${needle}`),
+    );
+    expect(stale).toEqual([]);
+  });
+});

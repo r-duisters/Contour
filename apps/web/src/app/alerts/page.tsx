@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import SymbolPicker from "@/components/SymbolPicker";
 import { quoteAsset } from "@/components/CoinIcon";
 import { Bell, Pause, Play, Plus, Trash2 } from "lucide-react";
+import Button from "@/components/Button";
+import { field } from "@/components/field";
 
 type Alert = {
   id: string;
@@ -93,7 +95,7 @@ export default function AlertsPage() {
     await load();
   }
 
-  const input = "bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm";
+  const input = field();
 
   return (
     <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-4 py-5 md:p-8 max-w-4xl mx-auto">
@@ -146,10 +148,10 @@ export default function AlertsPage() {
           </label>
         )}
 
-        <button onClick={create} className="bg-blue-600 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1"><Plus size={14} aria-hidden />Create</button>
-        <button onClick={evaluateNow} className="bg-neutral-700 text-white rounded px-3 py-1 text-sm inline-flex items-center gap-1">
+        <Button onClick={create}><Plus size={14} aria-hidden />Create</Button>
+        <Button variant="secondary" onClick={evaluateNow}>
           <Play size={14} aria-hidden />Evaluate now
-        </button>
+        </Button>
       </div>
       {error && <p className="text-xs text-red-500 mb-4">{error}</p>}
       {kind === "price_target" && (

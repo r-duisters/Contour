@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { useDataClient } from "@/data/client/context";
+import { field } from "./field";
 
 // Shared across all picker instances in the session; the list rarely changes.
 let cachedSymbols: string[] | null = null;
@@ -70,7 +71,7 @@ export default function SymbolPicker({
       <input
         className={`${
           className ??
-          "bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm uppercase w-36"
+          field("uppercase w-36")
         } pr-7`}
         value={query ?? value}
         onFocus={() => { setOpen(true); setQuery(""); }}

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, Plus, Trash2, Upload } from "lucide-react";
 import { useDataClient } from "@/data/client/context";
+import { field } from "./field";
 
 type PortfolioRow = { id: string; name: string; transactionCount: number };
 
@@ -116,7 +117,7 @@ export default function PortfolioManager() {
 
       {portfolios.length > 1 && (
         <select
-          className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm"
+          className={field()}
           value={selectedId ?? ""}
           onChange={(e) => setSelectedId(e.target.value || null)}
         >
@@ -158,7 +159,7 @@ export default function PortfolioManager() {
 
       <div className="flex gap-2 flex-wrap items-center">
         <input
-          className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm"
+          className={field()}
           placeholder="New portfolio name"
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
