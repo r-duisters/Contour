@@ -88,7 +88,9 @@ broke.
 packages/core/src/       Pure logic — no I/O, no framework. Runs in the browser, on the
                           server, and inside the Android APK.
   types.ts                Bar, Signal, Timeframe
-  binance.ts              fetchKlines, fetchKlinesRange, fetchPrices, fetchUsdtSymbols, fetchPricesSafe
+                          (No transport lives here. Binance, Frankfurter/ECB, the equity
+                          providers and CoinGecko are all in packages/data/src/sources/,
+                          behind the injected Net; boundary.test.ts enforces it.)
   indicator/
     primitives.ts           sma, ema, rma, stdev, highest, lowest, crossover, crossunder, change, nz
     resample.ts             dailyToWeekly, projectWeeklyOntoDaily
@@ -101,7 +103,8 @@ packages/core/src/       Pure logic — no I/O, no framework. Runs in the browse
     apply.ts                 applyImprovements(source, ids) → rewritten source + applied/skipped
     *.test.ts                Vitest specs (rules + transforms, 23 tests)
   boundary.test.ts         Fails the build if anything above imports Prisma, `node:fs`,
-                          `web-push`, `ws` or `next/server` — see Workspaces below.
+                          `web-push`, `ws` or `next/server`, or calls the global `fetch`
+                          — see Workspaces below.
   portfolio.ts, delta-csv.ts, insights.ts, performance.ts, display.ts, display-tx.ts,
   export.ts, fx.ts, cash.ts, ranges.ts, chart-data.ts, asset-info.ts, asset-names.ts,
   alerts.ts, equity.ts, cache.ts, session.ts, storage-keys.ts

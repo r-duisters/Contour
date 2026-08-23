@@ -12,10 +12,8 @@ import { assetInfo as fetchCryptoAssetInfo } from "../sources/asset-info";
 
 /**
  * `sources/binance.ts`'s `fetchUsdtSymbols` already memoises the ~2MB
- * `exchangeInfo` fetch for an hour, under the key `"usdt-symbols"` it shares
- * with `packages/core/src/binance.ts` — deliberately, so a converted and an
- * unconverted caller pay for that fetch once between them. That TTL cache
- * buys freshness, not resilience: once the hour is up, a failed refetch
+ * `exchangeInfo` fetch for an hour, under the key `"usdt-symbols"`. That TTL
+ * cache buys freshness, not resilience: once the hour is up, a failed refetch
  * throws straight through it with no memory of the last good answer.
  *
  * `lastGood` is that memory, and it is genuinely new logic rather than a
@@ -53,11 +51,11 @@ export async function symbols(net: Net): Promise<string[]> {
 }
 
 /**
- * Crypto only. Yahoo's quoteSummary endpoint (the equity half of the old
- * `@/lib/asset-info`) needs a session cookie read off a response header that
- * `Net` has no way to expose — see `sources/asset-info.ts`'s file comment.
- * `asset/[symbol]/route.ts` calls this for `assetType: "crypto"` and falls
- * back to the original fetch-based function for `"equity"`.
+ * Crypto only. Yahoo's quoteSummary endpoint, which the equity half needs,
+ * wants a session cookie read off a response header that `Net` has no way to
+ * expose — see `sources/asset-info.ts`'s file comment. `asset/[symbol]/route.ts`
+ * calls this for `assetType: "crypto"` and the server-only
+ * `apps/web/src/lib/equity-info.ts` for `"equity"`.
  */
 export function assetInfo(net: Net, symbol: string): Promise<AssetInfo> {
   return fetchCryptoAssetInfo(net, symbol);

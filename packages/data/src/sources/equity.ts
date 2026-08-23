@@ -4,10 +4,10 @@ import type { Net } from "../ports/net";
 /**
  * The three equity price providers, reached through an injected `Net`.
  *
- * A copy of `packages/core/src/equity.ts`'s classes against the port rather
- * than the global `fetch`; the interface, the quote shape and
- * `currencyForTicker` are imported from there so the two cannot drift on what
- * a quote *is*. See `sources/binance.ts` for why the original stays.
+ * The only copy: `packages/core/src/equity.ts`'s `fetch`-based classes were
+ * deleted, and what remains there is the interface, the quote shape and
+ * `currencyForTicker` — imported here rather than restated, so there is one
+ * definition of what a quote *is*.
  */
 
 /**

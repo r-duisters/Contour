@@ -42,13 +42,18 @@ const PORTABLE_PACKAGES = ["packages/core/src", "packages/ui/src", "packages/dat
  * device — but it is a portability failure: a native WebView request is subject
  * to CORS, which is why `Net` exists at all (spec §4.2).
  *
- * Only `packages/data` is listed. `packages/core` still calls `fetch` directly
- * in binance.ts, equity.ts, fx.ts and asset-info.ts, and `packages/ui` does in
- * three components; those move behind `Net` later in Phase 2, and each should
- * join this list as it does. Listing them now would fail the suite on work that
- * has not happened yet, which teaches everyone to ignore it.
+ * `packages/core` joined with no exemption once its transport moved out: what
+ * was portable went to `packages/data/src/sources/`, and the one piece that
+ * could not — Yahoo's cookie-and-crumb handshake, which `Net` has no response
+ * headers to express — went to `apps/web/src/lib/equity-info.ts`, outside every
+ * package this guard covers. Core is now pure.
+ *
+ * `packages/ui` is still absent: three components fetch directly. Those move
+ * behind `Net` later, and it joins the list when they do. Listing it now would
+ * fail the suite on work that has not happened yet, which teaches everyone to
+ * ignore it.
  */
-const NET_ONLY_PACKAGES = ["packages/data/src"];
+const NET_ONLY_PACKAGES = ["packages/data/src", "packages/core/src"];
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
@@ -101,7 +106,7 @@ describe("packages/core, packages/ui and packages/data stay portable", () => {
     }
     // A walk that silently returns zero files would make this test pass
     // vacuously — a guard that can't fail isn't a guard. The floor is well
-    // under the current combined count (26 in core, 18 in ui, 6 in data) so it
+    // under the current combined count (25 in core, 18 in ui, 19 in data) so it
     // only trips if the walk itself breaks, not as a file-count tripwire.
     expect(scanned).toBeGreaterThan(30);
     expect(offenders).toEqual([]);

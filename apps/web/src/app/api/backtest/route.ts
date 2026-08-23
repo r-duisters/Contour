@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { fetchKlinesRange } from "@/lib/binance";
+import { fetchKlinesRange } from "@/data/sources/binance";
+import { deps } from "@/lib/deps";
 import { run } from "@/lib/indicator";
 import { simulate } from "@/lib/backtest";
 import { prisma } from "@/lib/db";
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
   }
   const { symbol, interval, from, to, params } = parsed.data;
 
-  const bars = await fetchKlinesRange({
+  const bars = await fetchKlinesRange(deps().net, {
     symbol, interval: interval as Timeframe, from, to,
   });
   const { signals, series } = run(bars, params ?? {});

@@ -6,9 +6,9 @@ import type { Net } from "../ports/net";
  * series and the latest EUR->USD spot, so the whole of this transport lives in
  * one place rather than half here and half in the pricing service.
  *
- * The `packages/core/src/fx.ts` original stays for the routes that keep inline
- * logic; see the note in `sources/binance.ts` for why both exist and why they
- * share a cache key.
+ * The `fetch`-based original in `packages/core/src/fx.ts` is gone; only its
+ * pure `rateOn` stayed behind. The cache key is the one that original used —
+ * see the note in `sources/binance.ts` about caching in front of a `Net`.
  */
 const ISO = (t: number) => new Date(t).toISOString().slice(0, 10);
 

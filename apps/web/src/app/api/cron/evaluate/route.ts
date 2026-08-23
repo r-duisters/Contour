@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Alert } from "@prisma/client";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
 import { prisma } from "@/lib/db";
-import { fetchKlines, fetchPricesSafe } from "@/lib/binance";
+import { fetchKlines, fetchPricesSafe } from "@/data/sources/binance";
+import { deps } from "@/lib/deps";
 import { run } from "@/lib/indicator";
 import {
   evaluatePctMove, evaluatePriceTarget, PctMoveParams, PriceTargetParams, utcDayOpen,
@@ -95,7 +96,7 @@ async function dispatch(
 
 async function evalIndicator(a: Alert, notifiers: Notifier[]): Promise<Summary> {
   if (!a.symbol) return { alertId: a.id, fired: 0, skipped: 0, error: "indicator alert has no symbol" };
-  const bars = await fetchKlines({
+  const bars = await fetchKlines(deps().net, {
     symbol: a.symbol, interval: a.timeframe as Timeframe, limit: 500,
   });
   // Drop the in-progress bar; only act on closed bars.
@@ -125,7 +126,7 @@ async function evalIndicator(a: Alert, notifiers: Notifier[]): Promise<Summary> 
 async function evalPriceTarget(a: Alert, notifiers: Notifier[]): Promise<Summary> {
   if (!a.symbol) return { alertId: a.id, fired: 0, skipped: 0, error: "price_target alert has no symbol" };
   const params = PriceTargetParams.parse(JSON.parse(a.params));
-  const price = (await fetchPricesSafe([a.symbol]))[a.symbol];
+  const price = (await fetchPricesSafe(deps().net, [a.symbol]))[a.symbol];
   if (price === undefined) {
     return { alertId: a.id, fired: 0, skipped: 0, error: `no price for ${a.symbol}` };
   }
@@ -161,12 +162,12 @@ async function evalPctMove(a: Alert, notifiers: Notifier[]): Promise<Summary> {
     return { alertId: a.id, fired: 0, skipped: 0 };
   }
 
-  const prices = await fetchPricesSafe(symbols);
+  const prices = await fetchPricesSafe(deps().net, symbols);
   let fired = 0, skipped = 0;
   for (const symbol of symbols) {
     const price = prices[symbol];
     if (price === undefined) continue;
-    const daily = await fetchKlines({ symbol, interval: "1d", limit: 2 });
+    const daily = await fetchKlines(deps().net, { symbol, interval: "1d", limit: 2 });
     const prevClose = daily.length >= 2 ? daily[daily.length - 2]!.c : NaN;
     const hit = evaluatePctMove(params, prevClose, price);
     if (!hit) continue;

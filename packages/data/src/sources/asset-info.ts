@@ -4,24 +4,22 @@ import { baseTicker } from "@/core/asset-names";
 import type { Net } from "../ports/net";
 
 /**
- * The crypto/news/sentiment half of `packages/core/src/asset-info.ts`, reached
- * through an injected `Net`.
+ * The crypto/news/sentiment half of what used to be
+ * `packages/core/src/asset-info.ts`, reached through an injected `Net`. That
+ * module is now pure: only the types and the parsing helpers stayed, and both
+ * halves import them from there.
  *
- * `equityInfo` — the other half — is deliberately **not** ported here. It
- * needs a Yahoo session cookie read back off the *first* response's
- * `Set-Cookie` header before the crumb-bearing second request can be made, and
- * `Net`/`NetResponse` (`ports/net.ts`) is body-only on both sides — no
- * response header reader exists on `json()`, `text()`, or `request()`. Adding
- * one is a real port change (`WebNet`, `FakeNet`, and eventually a device
- * `Net` all have to grow it) that is out of scope for a lookup conversion, so
- * `asset/[symbol]/route.ts` keeps calling the original fetch-based
- * `@/lib/asset-info` for `assetType: "equity"` — unconverted, the same
- * treatment `settings/route.ts`'s `POST` gets.
+ * The equity half is **not** here. It needs a Yahoo session cookie read back
+ * off the *first* response's `Set-Cookie` header before the crumb-bearing
+ * second request can be made, and `Net`/`NetResponse` (`ports/net.ts`) is
+ * body-only on both sides — no response header reader exists on `json()`,
+ * `text()`, or `request()`, and a browser `fetch` could not read `Set-Cookie`
+ * even if one did. Growing the port a cookie jar is a task of its own, so that
+ * half lives server-only in `apps/web/src/lib/equity-info.ts`, beside its one
+ * caller.
  *
- * The cache key (`info:${assetType}:${symbol}`) matches core's exactly, so a
- * crypto lookup answered here and one answered by the old code before this
- * task never fight over the same entry — though in practice nothing still
- * calls the old crypto path once the route is converted.
+ * The cache key (`info:crypto:${symbol}`) is the one core used, so nothing was
+ * lost when core's copy went.
  */
 
 const UA =

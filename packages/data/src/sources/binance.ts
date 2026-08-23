@@ -3,30 +3,25 @@ import type { Bar, Timeframe } from "@/core/types";
 import type { Net } from "../ports/net";
 
 /**
- * Binance's public REST surface, reached through an injected `Net`.
- *
- * `packages/core/src/binance.ts` is the same code against the global `fetch`.
- * It stays: `candles`, `risk`, `backtest` and the alert evaluator keep their
- * inline logic permanently (they are server-only), so there is no signature to
- * migrate them to. Rather than thread a `Net` through routes that will never
- * run on a device, the portable copy lives here.
+ * Binance's public REST surface, and the only copy of it — the `fetch`-based
+ * original in `packages/core/src/binance.ts` was deleted once every caller,
+ * `candles` / `risk` / `backtest` / the alert evaluator included, was passing a
+ * `Net` from `@/lib/deps`.
  *
  * ## The shared cache, and the trap it sets
  *
- * These functions memoise through `packages/core/src/cache.ts` under the
- * **same keys as core's copies**, deliberately: one process-local map means a
- * converted route and an unconverted one pay for a given upstream call once
- * between them rather than twice.
+ * These functions memoise through `packages/core/src/cache.ts`, one
+ * process-local map shared with everything else that caches. The keys are
+ * unchanged from core's copy, so the deletion cost no warm entries.
  *
- * The cost is that a cache hit answers before the `Net` is ever consulted — so
- * an entry written by an unconverted route through the global `fetch` will be
- * served to a converted one, and the injected transport is bypassed entirely.
- * Correct in production, where both would have fetched the same bytes anyway.
+ * The cost of caching at all is that a hit answers before the `Net` is ever
+ * consulted, so the injected transport is bypassed entirely. Harmless in
+ * production, where the alternative was fetching the same bytes again.
  *
  * **In a test it is a live trap.** A `FakeNet` proves nothing if a real value
- * left over from another test — or from core — satisfies the call first, and
- * the test still passes. Every suite exercising these must call `invalidate()`
- * from `@/core/cache` in `beforeEach`; `services/valuation.test.ts` and
+ * left over from another test satisfies the call first, and the test still
+ * passes. Every suite exercising these must call `invalidate()` from
+ * `@/core/cache` in `beforeEach`; `services/valuation.test.ts` and
  * `services/pricing.test.ts` both do. Adding a suite that touches `sources/`
  * without that is how a green test starts meaning nothing.
  */
@@ -107,8 +102,8 @@ async function fetchKlinesRangeUncached(net: Net, opts: {
 
 /**
  * Every USDT spot pair Binance currently trades. The importer uses it to tell a
- * coin from an equity ticker, so the same key as core's copy ("usdt-symbols")
- * keeps the two from each fetching a 2MB exchangeInfo payload.
+ * coin from an equity ticker, and the payload is ~2MB, so it is cached for an
+ * hour under "usdt-symbols".
  */
 export function fetchUsdtSymbols(net: Net): Promise<string[]> {
   return cached("usdt-symbols", 3_600_000, () => fetchUsdtSymbolsUncached(net));

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { assetInfo as equityAssetInfo } from "@/lib/asset-info";
+import { equityInfo } from "@/lib/equity-info";
 import { assetInfo as cryptoAssetInfo } from "@/data/services/lookup";
 import { deps } from "@/lib/deps";
 
@@ -16,11 +16,11 @@ const Query = z.object({
  * valuation call because none of it is needed to answer "what is it worth",
  * and every source here is someone else's server.
  *
- * `assetType: "equity"` still calls the original fetch-based `@/lib/asset-info`
- * — unconverted. Its Yahoo quoteSummary lookup needs a session cookie read off
- * a response header, and `Net` (`@/data/ports/net`) exposes no header reader on
- * either side; see `packages/data/src/sources/asset-info.ts`'s file comment.
- * Only `"crypto"`, the default, goes through the injected `Net`.
+ * `assetType: "equity"` calls the server-only `@/lib/equity-info` — unconverted.
+ * Its Yahoo quoteSummary lookup needs a session cookie read off a response
+ * header, and `Net` (`@/data/ports/net`) exposes no header reader on either
+ * side; that file's comment has the detail. Only `"crypto"`, the default, goes
+ * through the injected `Net`.
  */
 export async function GET(req: NextRequest, ctx: { params: Promise<{ symbol: string }> }) {
   const { symbol: rawSymbol } = await ctx.params;
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ symbol: str
   try {
     const info =
       assetType === "equity"
-        ? await equityAssetInfo(symbol.toUpperCase(), assetType)
+        ? await equityInfo(symbol.toUpperCase())
         : await cryptoAssetInfo(deps().net, symbol.toUpperCase());
     return NextResponse.json(info);
   } catch {
