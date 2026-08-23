@@ -105,6 +105,25 @@ async function fetchKlinesRangeUncached(net: Net, opts: {
   return out;
 }
 
+/**
+ * Every USDT spot pair Binance currently trades. The importer uses it to tell a
+ * coin from an equity ticker, so the same key as core's copy ("usdt-symbols")
+ * keeps the two from each fetching a 2MB exchangeInfo payload.
+ */
+export function fetchUsdtSymbols(net: Net): Promise<string[]> {
+  return cached("usdt-symbols", 3_600_000, () => fetchUsdtSymbolsUncached(net));
+}
+
+async function fetchUsdtSymbolsUncached(net: Net): Promise<string[]> {
+  const raw = await net.json<{
+    symbols: { symbol: string; status: string; quoteAsset: string; isSpotTradingAllowed: boolean }[];
+  }>(`${REST}/api/v3/exchangeInfo`);
+  return raw.symbols
+    .filter((s) => s.status === "TRADING" && s.quoteAsset === "USDT" && s.isSpotTradingAllowed)
+    .map((s) => s.symbol)
+    .sort();
+}
+
 /** Current spot prices for the given symbols, as symbol -> price. Unknown symbols are omitted. */
 export async function fetchPrices(net: Net, symbols: string[]): Promise<Record<string, number>> {
   if (symbols.length === 0) return {};
