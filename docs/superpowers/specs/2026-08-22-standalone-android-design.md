@@ -140,25 +140,45 @@ interface Store {
   portfolios: {
     list(): Promise<Portfolio[]>;
     get(id: string): Promise<PortfolioWithTransactions | null>;
-    create(input: NewPortfolio): Promise<Portfolio>;
-    update(id: string, patch: PortfolioPatch): Promise<Portfolio>;
-    delete(id: string): Promise<void>;
+    create(name: string): Promise<Portfolio>;
+    rename(id: string, name: string): Promise<Portfolio>;
+    remove(id: string): Promise<void>;
     count(): Promise<number>;
   };
   transactions: {
-    listFor(portfolioId: string): Promise<Transaction[]>;
-    create(portfolioId: string, tx: NewTransaction): Promise<Transaction>;
-    createMany(portfolioId: string, txs: NewTransaction[]): Promise<number>;
+    add(portfolioId: string, tx: NewTransaction): Promise<Transaction>;
+    addMany(portfolioId: string, txs: NewTransaction[]): Promise<number>;
     update(id: string, patch: TransactionPatch): Promise<Transaction>;
-    delete(id: string): Promise<void>;
-    deleteFor(portfolioId: string): Promise<void>;
+    remove(id: string): Promise<void>;
+    removeMany(ids: string[]): Promise<number>;
+    removeAllIn(portfolioId: string): Promise<void>;
+    countByPortfolio(): Promise<Record<string, number>>;
   };
   settings: {
-    get(): Promise<Settings | null>;
+    get(): Promise<Settings>;
     save(patch: SettingsPatch): Promise<Settings>;
   };
 }
 ```
+
+> **As built (Phase 2).** The signatures above are the shipped ones in
+> `packages/data/src/ports/store.ts`; the first draft of this section named them
+> `create`/`update`/`delete`/`createMany`/`deleteFor`. Four differences are worth
+> the note:
+>
+> - `create`/`rename` take the field rather than a patch object, because a
+>   portfolio has exactly one mutable field and a `PortfolioPatch` type would
+>   have had one member.
+> - `remove` rather than `delete`: `delete` is a reserved word, so a
+>   `store.portfolios.delete` shorthand method is awkward to write in an object
+>   literal and impossible to reference bare.
+> - `transactions.listFor` was never needed — every caller already holds the
+>   portfolio, whose `get` returns its transactions — and was dropped rather
+>   than shipped unused.
+> - Two methods the draft did not have earn their place as *aggregates the
+>   backing store can do far better than the caller*: `countByPortfolio()`,
+>   which replaced an N+1 over the portfolio list, and `removeMany(ids)`, which
+>   is one `deleteMany` on Prisma instead of a delete per row.
 
 The `id: 1` singleton disappears into `settings.get()`. It is correct on both
 targets — one settings row per server, one per install — and the twenty call
@@ -185,6 +205,55 @@ Every outbound call in `packages/core` — `binance.ts`, `equity.ts`, `fx.ts`,
 `fetch`. This is the single most invasive change to `packages/core` and the
 main reason those files are not a pure move.
 
+> **Superseded by Phase 2.** Transport does not live in `packages/core` taking a
+> `Net`; it lives in `packages/data/src/sources/` (`binance.ts`, `fx.ts`,
+> `equity.ts`, `asset-info.ts`), and `packages/core` is now *pure* — it has no
+> outbound calls at all, and `packages/core/src/boundary.test.ts` fails the
+> build if one reappears.
+>
+> The reason is that by the time the services were converted, only four
+> server-only consumers of core's transport were left. Threading a `Net`
+> through core in place would have meant invasive surgery on code that will
+> never run on a device, to reach four call sites — where moving the four
+> files across gave the same portability with a smaller diff and a stronger
+> guarantee, since "core is pure" is a rule a test can state, and "core takes a
+> `Net` everywhere" is a habit.
+>
+> `Net` also ships a third method the draft above omits, `request(url, init):
+> Promise<NetResponse>`, exposing `ok`/`status` for the seven call sites that
+> treat a non-2xx as a value rather than an error. Without it those sites would
+> have had to catch, which also swallows the JSON-parse and transport failures
+> that should propagate.
+
+#### Known gap: `Net` cannot express the cookie-and-crumb handshake
+
+The feasibility argument above rests on `CapacitorHttp` being able to perform
+Yahoo's handshake. `Net`, as built, cannot ask for it: `NetResponse` exposes
+`ok`, `status`, `text()` and `json()` — **no response headers** — so a caller
+cannot read the `Set-Cookie` that the crumb request depends on. This is not an
+oversight to patch by adding a header getter, either: `Set-Cookie` is
+unreadable from browser `fetch` regardless of what the interface offers, so a
+header-reading contract is one only a Node `WebNet` could honestly keep, and
+`CapacitorNet` would satisfy it in name only.
+
+Consequently the equity asset-info path was **not** converted in Phase 2. It
+remains server-only, in `apps/web/src/lib/equity-info.ts`, reached directly by
+`GET /api/asset/[symbol]` when `assetType=equity`. Equity *quotes* went through
+fine; it is only the quoteSummary profile lookup that needs the handshake.
+
+**Decided remedy, for Phase 3 or 4:** give `Net` **cookie-jar semantics** rather
+than header reading. Requests issued through one `Net` instance share a cookie
+jar, so a caller performs the handshake by making the two requests in order and
+never touches a header. Both implementations can satisfy that honestly — a Node
+`WebNet` with an explicit jar, a `CapacitorNet` on the native HTTP stack's own
+cookie store — which is exactly the property the header contract lacks.
+
+**Until that lands, §4.2's feasibility claim is argued, not demonstrated.** The
+native shell is *expected* to make the handshake work; nothing in the tree yet
+proves a `Net` implementation can do it. The Phase 3 or 4 task that adds the
+cookie jar should port `equity-info.ts` behind it, and that port is what turns
+the argument into evidence.
+
 ### 4.3 `services`
 
 One function per operation, each taking its dependencies explicitly:
@@ -203,6 +272,15 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   return NextResponse.json(await valuation(prismaStore, webNet, id));
 }
 ```
+
+> **As built.** The two implementations are not free variables; the route asks
+> `deps()` (`apps/web/src/lib/deps.ts`) for `{ store, net }`, which is the one
+> module on the server that knows `PrismaStore` and `WebNet` exist. Phase 4
+> supplies its own `deps()` against the same interfaces. Handlers do keep one
+> job beyond "no logic of its own": mapping a `NotFoundError` to a 404, and
+> response *shaping* — a display sort order, a legacy `id: 1`, an ISO date
+> string. Those are the wire format, which is a route's business and not a
+> service's.
 
 ### 4.4 `DataClient`
 

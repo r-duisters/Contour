@@ -17,14 +17,24 @@ Superdesign command.
 
 ## What this is
 
-A Next.js (App Router, TypeScript) web app that brings **one specific PineScript** to life outside
-TradingView: Oakley Wood's "Risk Metric Strategy" for Bitcoin. The app provides a live candlestick
-chart with the risk-metric pane, historical backtesting, and alerts that fire into **Home Assistant**
-via a webhook (HA fans out — mobile push, Telegram, etc.).
+A Next.js (App Router, TypeScript) **self-hosted portfolio tracker** for crypto and equities, for one
+user on their own machine. The screens are portfolio (holdings, valuation, history), ledger
+(transactions), insights (benchmarks, what made the money, concentration) and settings, with
+import from a Delta-by-eToro CSV export and export back out again. It is passkey- or
+password-locked, installs as a PWA, and pushes notifications.
 
-Market data: **Binance** public REST + WebSocket (no API key required), forced to **daily timeframe**
-because the indicator's formulas are anchored to daily and weekly closes.
+Alongside that it keeps the tool it grew out of: a port of **one specific PineScript**, Oakley Wood's
+"Risk Metric Strategy" for Bitcoin, with a live candlestick chart and risk-metric pane, historical
+backtesting, a PineScript analyzer, and alerts that fire into **Home Assistant** via a webhook (HA
+fans out — mobile push, Telegram, etc.). That part is one section of the app now, not the whole of it.
+
+Market data: **Binance** public REST + WebSocket for crypto (no API key required), Yahoo /
+Twelve Data / Alpha Vantage for equities, and Frankfurter/ECB for fiat rates.
 Persistence: **SQLite via Prisma 6**.
+
+Where it is going: the logic is being moved out of the server so the same code can run inside an
+Android APK with no server behind it. Phase 2 built that seam — see **The data seam** below. The
+plan is `docs/superpowers/specs/2026-08-22-standalone-android-design.md`.
 
 ## The indicator
 
@@ -111,6 +121,21 @@ packages/core/src/       Pure logic — no I/O, no framework. Runs in the browse
                           Portfolio maths, the Delta-by-eToro CSV importer, benchmark and
                           contributor insights, and the other pure logic shared by every screen.
 
+packages/data/src/        The data seam (Phase 2) — portable, and depends on packages/core.
+                          See "The data seam" below for the rule it enforces.
+  ports/
+    store.ts                Store — everything persisted (portfolios, transactions, settings)
+    net.ts                  Net — everything fetched
+  services/               valuation, series, portfolios, transactions, transfer, pricing,
+                          lookup, settings. Each takes a Store and/or a Net and does no
+                          I/O of its own; the route handlers are thin wrappers over these.
+    services.test.ts        Fails if a service imports @/lib/db or next/*, or calls fetch.
+  sources/                binance, fx (Frankfurter/ECB), equity, asset-info — the only
+                          transport in any package, all of it behind the injected Net.
+  testing/                MemoryStore, FakeNet, and store-contract.ts — one contract suite
+                          run against both MemoryStore and the app's PrismaStore.
+  errors.ts               NotFoundError, which routes map to a 404.
+
 packages/ui/src/          Shared React components (18) plus useFitChart, usePrivacy and
                           useStoredRange. Depends on packages/core, not on apps/web.
 
@@ -178,6 +203,71 @@ Three workspaces, and the rule that keeps them apart:
 `packages/*` are consumed through tsconfig path aliases, not node resolution.
 There is no build step and no `main` field, and `@/lib/*` and `@/components/*`
 still resolve exactly as they always did.
+
+## The data seam
+
+Phase 2 moved the logic out of the route handlers into a portable service layer so the same code can
+answer an HTTP request today and run inside an APK with no server in Phase 4. The rule is short:
+**a service takes its outside world as arguments.**
+
+**Two ports, in `packages/data/src/ports/`.**
+
+- `Store` (`store.ts`) — everything persisted: portfolios, transactions, settings. Methods, not
+  tables: `portfolios.list/get/create/rename/remove/count`, `transactions.add/addMany/update/remove/
+  removeMany/removeAllIn/countByPortfolio`, `settings.get/save`.
+- `Net` (`net.ts`) — everything fetched. `net.json(url)` for the common case, `net.request(url)` when
+  a caller needs to tell a non-2xx apart from a transport failure.
+
+They are injected because the implementations differ per platform and nothing else does. The server
+wires them once in `apps/web/src/lib/deps.ts` (`PrismaStore` + `WebNet`); tests wire `MemoryStore` +
+`FakeNet` from `packages/data/src/testing/`; Phase 4 wires `SqliteStore` + `CapacitorNet`. The
+service in between cannot tell which it got, which is the whole point.
+
+**Services are pure of HTTP and persistence.** No `prisma`, no `next/*`, no global `fetch` —
+`packages/data/src/services/services.test.ts` fails if one of those appears, naming the rule that
+broke. `packages/core/src/boundary.test.ts` guards the packages more broadly; the overlap is
+deliberate, since the failure worth catching is a service quietly reaching for `prisma` because the
+route it was extracted from used to.
+
+**Route handlers are wrappers, and must stay that way.** Parse the request, call the service, map
+errors to statuses, respond. Response *shaping* (a display order, a legacy `id: 1`, an ISO string) is
+a route's job — a service has no route to please. Business logic is not. If a handler grows past
+about forty lines, the excess almost certainly belongs in a service.
+
+**Deliberately left inline, permanently:** the alerts routes, the strategy tooling (`backtest`,
+`candles`, `risk`, `analyze`, `scripts`, `cron/evaluate`), auth (`login`, `webauthn/*`, `setup`),
+push, the icon and APK-download routes, and `POST /api/settings` — all server-only integrations the
+mobile build will never call, and moving them would drag Home Assistant, web-push and the filesystem
+into a package that has to run inside an APK with none of them available. One partial exception:
+`GET /api/asset/[symbol]` is converted for crypto but still calls the server-only
+`apps/web/src/lib/equity-info.ts` for equities, because Yahoo's cookie-and-crumb handshake needs a
+response header that `Net` does not expose. That gap and its remedy are written up in spec §4.2.
+
+**The parity harness** is how "this conversion changed no behaviour" becomes checkable:
+
+```bash
+npm run build && npm run start -- -p 3001 &
+node scripts/parity.mjs capture .parity-baseline.json /api/portfolios /api/settings ...
+# convert, rebuild, restart
+node scripts/parity.mjs compare .parity-baseline.json
+```
+
+**What it cannot catch**, and this matters more than the green tick: a constant proportional shift
+under a tolerance. The `rel` bounds are per-leaf and relative, so an error scaling every number by
+the same small factor passes every one of them — a systematic 1% error across all 365 points of
+`series[]` looks exactly like ordinary price drift at each point. That is the most likely way a
+currency conversion or a fee treatment goes wrong. It also only issues GETs, so write paths have no
+coverage at all. A green `compare` is necessary, not sufficient: on anything touching valuation or
+series maths, check two or three absolute figures by hand against the previous build.
+
+Capture and compare on the **same UTC day**. Every windowed endpoint (`series`, `history`,
+`benchmark`) is anchored to "now", so a baseline from yesterday shifts the whole array one position
+and reports a DIFF on all of them for no reason at all. If a compare lights up across exactly those
+routes, check the baseline's `capturedAt` before reading anything into it.
+
+**What comes next.** Phase 3 replaces the UI's `fetch("/api/…")` call sites with a `DataClient`, so a
+screen asks for data without knowing whether it crosses a network. Phase 4 adds `SqliteStore` and
+`CapacitorNet` and builds the APK against the same two interfaces.
 
 ## The load-bearing contract
 

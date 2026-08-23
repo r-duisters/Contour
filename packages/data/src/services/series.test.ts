@@ -335,6 +335,16 @@ describe("history", () => {
     await history(MemoryStore(), net, "BTCUSDT", "crypto", "1d");
     expect(net.calls[0]!.url).toContain("interval=1h");
 
+    // A week is hourly here too, unlike /series, where 1w draws daily bars.
+    // Narrowing this branch to range === "1d" would quietly turn a week of
+    // 168 hourly points into about seven daily ones, with the shape of the
+    // response unchanged and nothing else to notice it.
+    invalidate();
+    net.calls.length = 0;
+    await history(MemoryStore(), net, "BTCUSDT", "crypto", "1w");
+    expect(net.calls[0]!.url).toContain("interval=1h");
+    expect(net.calls[0]!.url).toContain("limit=168");
+
     invalidate();
     net.calls.length = 0;
     await history(MemoryStore(), net, "BTCUSDT", "crypto", "1m");

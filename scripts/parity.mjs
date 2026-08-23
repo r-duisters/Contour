@@ -104,15 +104,37 @@ const RULES = [
   { path: "points[].index", rel: 0.01 },
   { path: "sameFlows.finalValue", rel: 0.01 },
   { path: "sameFlows.series[].value", rel: 0.01 },
+  // derived from finalValue and the series above, both of which are tolerated:
+  // byte-comparing it would report a DIFF for drift the harness has already
+  // decided to accept. Matches the bound on mwr.annualPct, its counterpart.
+  { path: "sameFlows.annualPct", rel: 0.05 },
 ];
 
 function ruleFor(path) {
   return RULES.find((r) => matches(r.path, path));
 }
 
+/**
+ * Keys are escaped on the way into a path, because a response key may itself
+ * contain a dot. `/changes` is keyed by symbol, and every European ticker has
+ * an exchange suffix: `changes.SHELL.AS` split naively is three segments, so
+ * `changes.*` — two — did not match it, and the six dotted tickers in the
+ * captured portfolio were byte-compared on exactly the figure the rules
+ * declare unbounded. They reported a DIFF on every run while `changes.OPUSDT`
+ * beside them was correctly ignored.
+ *
+ * Rule patterns are written unescaped, since none targets a literal dotted
+ * key; a rule that ever needs one must spell it `changes.SHELL\.AS`.
+ */
+const escapeKey = (k) => String(k).replace(/\\/g, "\\\\").replace(/\./g, "\\.");
+
+function splitPath(path) {
+  return path.split(/(?<!\\)\./);
+}
+
 function matches(pattern, path) {
-  const p = pattern.split(".");
-  const q = path.split(".");
+  const p = splitPath(pattern);
+  const q = splitPath(path);
   if (p.length !== q.length) return false;
   return p.every((seg, i) => seg === "*" || seg === q[i] || (seg.endsWith("[]") && seg.slice(0, -2) === "*"));
 }
@@ -163,7 +185,7 @@ function reconcile(before, after) {
       const outA = {};
       const outB = {};
       for (const k of keys) {
-        const [x, y] = walk(a[k], b[k], path ? `${path}.${k}` : k);
+        const [x, y] = walk(a[k], b[k], path ? `${path}.${escapeKey(k)}` : escapeKey(k));
         outA[k] = x;
         outB[k] = y;
       }
