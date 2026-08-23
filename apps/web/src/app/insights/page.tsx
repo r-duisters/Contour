@@ -9,13 +9,13 @@ const ComparisonChart = dynamic(() => import("@/components/ComparisonChart"), {
   ssr: false,
   loading: () => <div className="h-56 md:h-72 border border-neutral-800 rounded" />,
 });
-import { BarChart3, TrendingDown, TrendingUp } from "lucide-react";
+import { BarChart3, ChevronRight, TrendingDown, TrendingUp } from "lucide-react";
 import PageLabel from "@/components/PageLabel";
 import CoinIcon from "@/components/CoinIcon";
 import { useDataClient } from "@/data/client/context";
 import { money as fmtMoney, percent, setDisplayCurrency } from "@/lib/display";
 import { usePrivacy } from "@/components/usePrivacy";
-import { classSplit, concentration, contributions, type TradeStats } from "@/lib/insights";
+import { allocation, concentration, contributions, type AllocationClass, type TradeStats } from "@/lib/insights";
 import type { ValuedHolding } from "@/lib/portfolio";
 import RangePicker from "@/components/RangePicker";
 import { PERFORMANCE_RANGES, rangeLabel, type RangeKey } from "@/lib/ranges";
@@ -164,7 +164,7 @@ export default function InsightsPage() {
     return () => { cancelled = true; };
   }, [client, portfolioId, chartRange, benchKey, chartMode]);
 
-  const split = holdings ? classSplit(holdings) : [];
+  const alloc = holdings ? allocation(holdings) : [];
   const conc = holdings ? concentration(holdings) : null;
   const contrib = holdings ? contributions(holdings) : [];
   const winners = contrib.filter((c) => c.total > 0).slice(0, 5);
@@ -268,29 +268,10 @@ export default function InsightsPage() {
           </Section>
 
           <Section title="Balance between assets">
-            <div className="grid sm:grid-cols-[1fr_240px] gap-6 mb-6 items-start">
-              <div className="space-y-4">
-                <ul className="space-y-2">
-                  {split.map((c) => (
-                    <li key={c.label}>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span>{c.label}</span>
-                        <span className="text-neutral-400">{money(c.value)} · {c.share.toFixed(1)}%</span>
-                      </div>
-                      <div className="h-2 bg-neutral-800 rounded overflow-hidden">
-                        <div
-                          className={
-                            c.label === "Crypto" ? "h-full bg-blue-500"
-                            : c.label === "Cash" ? "h-full bg-neutral-500"
-                            : "h-full bg-green-500"
-                          }
-                          style={{ width: `${c.share}%` }}
-                        />
-                      </div>
-                    </li>
-                  ))}
-                  {split.length === 0 && <li className="text-sm text-neutral-500">No priced holdings.</li>}
-                </ul>
+            <div className="grid sm:grid-cols-[1fr_240px] gap-6 items-start">
+              {alloc.length > 0
+                ? <Allocation rows={alloc} />
+                : <p className="text-sm text-neutral-500">No priced holdings yet.</p>}
               <dl className="text-sm space-y-2">
                 <Row label="Priced positions" value={conc?.pricedCount ?? "—"} />
                 <Row
@@ -308,8 +289,6 @@ export default function InsightsPage() {
                     : "—"}
                 />
               </dl>
-              </div>
-              {holdings && <AllocationDonut holdings={holdings} />}
             </div>
           </Section>
 
@@ -418,53 +397,100 @@ function ContribList({
   );
 }
 
-const SLICE_COLORS = ["#3b82f6", "#22c55e", "#eab308", "#a855f7", "#ef4444", "#14b8a6", "#f97316", "#64748b"];
 
-/** Per-asset allocation. Lives here rather than on the daily dashboard.
+/**
+ * One accent, four weights, largest class first.
+ *
+ * BRAND.md keeps colour for meaning and gives green and red to money moved,
+ * so four category hues were not available — the donut this replaced used
+ * eight, including both. Encoding *magnitude* in the opacity of a single hue
+ * stays inside the rule, and it survives privacy mode: the amounts mask, the
+ * proportions still read.
  */
-function AllocationDonut({ holdings }: { holdings: Holding[] }) {
-  const slices = holdings
-    .filter((h) => (h.value ?? 0) > 0)
-    .sort((a, b) => b.value! - a.value!);
-  const total = slices.reduce((a, h) => a + h.value!, 0);
-  if (total <= 0) return null;
+const WEIGHTS = ["rgba(59,130,246,1)", "rgba(59,130,246,0.7)", "rgba(59,130,246,0.45)", "rgba(59,130,246,0.25)"];
 
-  const R = 70;
-  const C = 2 * Math.PI * R;
-  let offset = 0;
+/** Positions shown before a class folds the rest into one row. */
+const SHOWN = 5;
+
+/**
+ * Where the money is: the class mix as one bar, then each class opening onto
+ * its own positions.
+ *
+ * A pie was the obvious shape and the wrong one. A real portfolio is a few
+ * large positions and a long tail of small ones, which is exactly what a pie
+ * renders as an unlabelled fan of slivers — and drilling into Crypto would
+ * have produced twenty more. Rows carry the figures a pie cannot: right
+ * aligned, `tabular-nums`, readable at 390px and at 1280px alike.
+ */
+function Allocation({ rows }: { rows: AllocationClass[] }) {
+  const [open, setOpen] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState<string | null>(null);
 
   return (
     <div>
-      <svg viewBox="0 0 200 200" className="w-full max-w-[260px]">
-        {slices.map((h, i) => {
-          const frac = h.value! / total;
-          const dash = frac * C;
-          const el = (
-            <circle
-              key={h.symbol}
-              cx="100" cy="100" r={R}
-              fill="none"
-              stroke={SLICE_COLORS[i % SLICE_COLORS.length]}
-              strokeWidth="28"
-              strokeDasharray={`${dash} ${C - dash}`}
-              strokeDashoffset={-offset}
-              transform="rotate(-90 100 100)"
-            />
-          );
-          offset += dash;
-          return el;
-        })}
-      </svg>
-      <ul className="mt-3 space-y-1 text-xs hidden md:block">
-        {slices.map((h, i) => (
-          <li key={h.symbol} className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-sm inline-block"
-                  style={{ background: SLICE_COLORS[i % SLICE_COLORS.length] }} />
-            <CoinIcon symbol={h.symbol} size={16} assetType={h.assetType} />
-            <span className="font-mono">{h.symbol}</span>
-            <span className="text-neutral-500">{((h.value! / total) * 100).toFixed(1)}%</span>
-          </li>
+      <div className="flex h-2.5 rounded overflow-hidden mb-4" role="img"
+           aria-label={rows.map((r) => `${r.label} ${r.share.toFixed(0)}%`).join(", ")}>
+        {rows.map((r, i) => (
+          <div key={r.label} style={{ width: `${r.share}%`, background: WEIGHTS[i % WEIGHTS.length] }} />
         ))}
+      </div>
+
+      <ul className="space-y-1">
+        {rows.map((r, i) => {
+          const expandable = r.positions.length > 1;
+          const isOpen = open === r.label;
+          const all = showAll === r.label;
+          const shown = all ? r.positions : r.positions.slice(0, SHOWN);
+          const rest = r.positions.length - shown.length;
+          return (
+            <li key={r.label}>
+              <button
+                type="button"
+                onClick={() => { setOpen(isOpen ? null : r.label); setShowAll(null); }}
+                disabled={!expandable}
+                aria-expanded={expandable ? isOpen : undefined}
+                className="w-full flex items-center gap-2.5 py-1.5 text-sm text-left disabled:cursor-default"
+              >
+                <span className="w-2.5 h-2.5 rounded-sm shrink-0"
+                      style={{ background: WEIGHTS[i % WEIGHTS.length] }} aria-hidden />
+                <span className="flex-1">{r.label}</span>
+                <span className="tabular-nums text-neutral-400">{money(r.value)}</span>
+                <span className="tabular-nums text-neutral-500 w-12 text-right">{r.share.toFixed(1)}%</span>
+                <ChevronRight
+                  size={14}
+                  aria-hidden
+                  className={`shrink-0 transition-transform ${expandable ? "text-neutral-600" : "text-transparent"} ${isOpen ? "rotate-90" : ""}`}
+                />
+              </button>
+
+              {isOpen && (
+                <ul className="pl-5 pb-2 space-y-1">
+                  {shown.map((p) => (
+                    <li key={p.symbol} className="flex items-center gap-2.5 text-sm">
+                      <CoinIcon symbol={p.symbol} size={16} assetType={r.label === "Crypto" ? "crypto" : r.label === "Cash" ? "cash" : "equity"} />
+                      <span className="flex-1 truncate text-neutral-300">{p.name ?? p.symbol}</span>
+                      <span className="tabular-nums text-neutral-400">{money(p.value)}</span>
+                      <span className="tabular-nums text-neutral-500 w-12 text-right">{p.share.toFixed(1)}%</span>
+                    </li>
+                  ))}
+                  {rest > 0 && (
+                    <li>
+                      {/* The tail is admitted rather than drawn. A pie draws all
+                          twenty whether or not any of them can be read. */}
+                      <button
+                        type="button"
+                        onClick={() => setShowAll(r.label)}
+                        className="text-xs text-neutral-500 underline py-1"
+                      >
+                        {rest} smaller {rest === 1 ? "position" : "positions"}
+                      </button>
+                    </li>
+                  )}
+                </ul>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

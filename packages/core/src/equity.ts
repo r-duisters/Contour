@@ -6,7 +6,16 @@
  * this interface so the two cannot drift on the shape of a quote.
  */
 
-export type EquityQuote = { price: number; currency: string; prevClose?: number; name?: string };
+/**
+ * `instrumentType` is the provider's own word for what the security is —
+ * Yahoo answers "EQUITY" or "ETF". It is grouping information only: nothing
+ * writes it back, because `Transaction.assetType` describes how the app
+ * prices a holding, not how a fund differs from a share.
+ */
+export type EquityQuote = {
+  price: number; currency: string; prevClose?: number; name?: string;
+  instrumentType?: string;
+};
 
 /** A source of stock/ETF prices. Symbols are exchange tickers (ASML.AS, AMD). */
 export interface EquitySource {

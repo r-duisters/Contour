@@ -119,18 +119,82 @@ export function contributions(
     .sort((a, b) => b.total - a.total);
 }
 
-/** Value split between asset classes. */
-export function classSplit(
-  holdings: (ValuedHolding & { assetType?: "crypto" | "equity" | "cash" })[],
-): { label: string; value: number; share: number }[] {
-  const totals = new Map<string, number>();
-  for (const h of holdings) {
-    const key = h.assetType === "equity" ? "Stocks & ETFs" : h.assetType === "cash" ? "Cash" : "Crypto";
-    totals.set(key, (totals.get(key) ?? 0) + (h.value ?? 0));
+export type AssetClass = "Crypto" | "Stocks" | "ETFs" | "Cash";
+
+export type AllocationPosition = {
+  symbol: string;
+  name?: string | null;
+  value: number;
+  /** Of the whole portfolio, not of the class — so a row can be read alone. */
+  share: number;
+};
+
+export type AllocationClass = {
+  label: AssetClass;
+  value: number;
+  share: number;
+  /** Largest first. Empty only when the class itself has no priced holding. */
+  positions: AllocationPosition[];
+};
+
+/**
+ * Which asset class a holding belongs to.
+ *
+ * `assetType` in the database has three values, and its `equity` covers both
+ * a share and a fund. The distinction comes from the price provider instead —
+ * Yahoo reports `instrumentType` beside the name — and is used for grouping
+ * only: nothing is written back, so the schema, the Delta importer and the
+ * `Store` port all stay as they are.
+ *
+ * A provider that reports nothing yields `Stocks`. Guessing a fund from a
+ * ticker is how an equity ends up in the wrong class on a screen whose whole
+ * job is to say where the money is.
+ */
+function assetClass(assetType: string | undefined, instrumentType: string | null | undefined): AssetClass {
+  if (assetType === "cash") return "Cash";
+  if (assetType !== "equity") return "Crypto";
+  return instrumentType?.toUpperCase() === "ETF" ? "ETFs" : "Stocks";
+}
+
+const CLASS_ORDER: AssetClass[] = ["Crypto", "Stocks", "ETFs", "Cash"];
+
+/**
+ * Value by asset class, each class carrying the positions inside it.
+ *
+ * One structure rather than two: the page used to draw a class bar list and a
+ * per-asset donut side by side, which answered "where is the money" twice and
+ * disagreed about how to show it.
+ *
+ * Unpriced holdings are absent rather than zero. A holding whose price could
+ * not be fetched has an unknown value, and drawing it as nothing would quietly
+ * understate a class — the totals elsewhere already say how many are unpriced.
+ */
+export function allocation(
+  holdings: (ValuedHolding & {
+    assetType?: "crypto" | "equity" | "cash";
+    name?: string | null;
+    instrumentType?: string | null;
+  })[],
+): AllocationClass[] {
+  const priced = holdings.filter((h) => (h.value ?? 0) > 0);
+  const sum = priced.reduce((a, h) => a + h.value!, 0);
+  if (sum <= 0) return [];
+
+  const byClass = new Map<AssetClass, AllocationPosition[]>();
+  for (const h of priced) {
+    const key = assetClass(h.assetType, h.instrumentType);
+    const share = (h.value! / sum) * 100;
+    byClass.set(key, [...(byClass.get(key) ?? []), {
+      symbol: h.symbol, name: h.name, value: h.value!, share,
+    }]);
   }
-  const sum = [...totals.values()].reduce((a, b) => a + b, 0);
-  return [...totals.entries()]
-    .filter(([, v]) => v > 0)
-    .map(([label, value]) => ({ label, value, share: sum > 0 ? (value / sum) * 100 : 0 }))
+
+  return CLASS_ORDER
+    .filter((label) => byClass.has(label))
+    .map((label) => {
+      const positions = byClass.get(label)!.sort((a, b) => b.value - a.value);
+      const value = positions.reduce((a, p) => a + p.value, 0);
+      return { label, value, share: (value / sum) * 100, positions };
+    })
     .sort((a, b) => b.value - a.value);
 }

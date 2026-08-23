@@ -114,7 +114,7 @@ export async function fetchEquityPricesUsd(
   symbols: string[],
   provider: string | null | undefined,
   apiKey: string | null | undefined,
-): Promise<Record<string, { price: number; prevClose?: number; name?: string }>> {
+): Promise<Record<string, { price: number; prevClose?: number; name?: string; instrumentType?: string }>> {
   if (symbols.length === 0) return {};
   const source = makeEquitySource(net, provider, apiKey);
   let quotes: Record<string, EquityQuote> = {};
@@ -123,11 +123,11 @@ export async function fetchEquityPricesUsd(
   } catch {
     return {};
   }
-  const out: Record<string, { price: number; prevClose?: number; name?: string }> = {};
+  const out: Record<string, { price: number; prevClose?: number; name?: string; instrumentType?: string }> = {};
   const fxCache = new Map<string, number | null>();
   for (const [symbol, q] of Object.entries(quotes)) {
     const cur = q.currency.toUpperCase();
-    if (cur === "USD") { out[symbol] = { price: q.price, prevClose: q.prevClose, name: q.name }; continue; }
+    if (cur === "USD") { out[symbol] = { price: q.price, prevClose: q.prevClose, name: q.name, instrumentType: q.instrumentType }; continue; }
     // Some venues quote in minor units (GBp on LSE).
     const minor = cur === "GBP" && q.price > 1000 ? 100 : 1;
     const price = q.price / minor;
@@ -147,6 +147,7 @@ export async function fetchEquityPricesUsd(
         price: price * rate,
         prevClose: q.prevClose !== undefined ? (q.prevClose / minor) * rate : undefined,
         name: q.name,
+        instrumentType: q.instrumentType,
       };
     }
   }

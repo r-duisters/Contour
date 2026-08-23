@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classSplit, concentration, contributions, flowsByYear, tradeStats } from "./insights";
+import { allocation, concentration, contributions, flowsByYear, tradeStats } from "./insights";
 import type { Tx, ValuedHolding } from "./portfolio";
 
 const DAY = 86_400_000;
@@ -106,13 +106,56 @@ describe("contributions", () => {
   });
 });
 
-describe("classSplit", () => {
-  it("splits value between crypto and equities", () => {
-    const rows = classSplit([
-      { ...holding({ symbol: "BTCUSDT", value: 300 }), assetType: "crypto" as const },
-      { ...holding({ symbol: "ASML.AS", value: 700 }), assetType: "equity" as const },
+describe("allocation", () => {
+  const mixed = [
+    { ...holding({ symbol: "BTCUSDT", value: 600 }), assetType: "crypto" as const },
+    { ...holding({ symbol: "ETHUSDT", value: 200 }), assetType: "crypto" as const },
+    { ...holding({ symbol: "ASML.AS", value: 100 }), assetType: "equity" as const, instrumentType: "EQUITY" },
+    { ...holding({ symbol: "EUDF.DE", value: 60 }), assetType: "equity" as const, instrumentType: "ETF" },
+    { ...holding({ symbol: "EUR", value: 40 }), assetType: "cash" as const },
+  ];
+
+  it("separates funds from shares using the provider's instrument type", () => {
+    const rows = allocation(mixed);
+    expect(rows.map((r) => r.label)).toEqual(["Crypto", "Stocks", "ETFs", "Cash"]);
+    expect(rows.map((r) => r.value)).toEqual([800, 100, 60, 40]);
+  });
+
+  it("shares are of the whole portfolio, and add up to it", () => {
+    const rows = allocation(mixed);
+    expect(rows.map((r) => r.share)).toEqual([80, 10, 6, 4]);
+    expect(rows.reduce((a, r) => a + r.share, 0)).toBeCloseTo(100);
+  });
+
+  // A provider that does not report the type must not invent a fund.
+  it("treats an equity of unknown type as a share", () => {
+    const rows = allocation([
+      { ...holding({ symbol: "AMD", value: 1 }), assetType: "equity" as const },
+      { ...holding({ symbol: "GME", value: 1 }), assetType: "equity" as const, instrumentType: null },
     ]);
-    expect(rows[0]).toEqual({ label: "Stocks & ETFs", value: 700, share: 70 });
-    expect(rows[1]).toEqual({ label: "Crypto", value: 300, share: 30 });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.label).toBe("Stocks");
+  });
+
+  it("carries each class's own positions, largest first, shared against the whole", () => {
+    const crypto = allocation(mixed)[0]!;
+    expect(crypto.positions.map((p) => p.symbol)).toEqual(["BTCUSDT", "ETHUSDT"]);
+    // 600 of a 1000 portfolio, not 75% of its own class.
+    expect(crypto.positions[0]!.share).toBe(60);
+  });
+
+  it("leaves out classes and positions with no value", () => {
+    const rows = allocation([
+      { ...holding({ symbol: "BTCUSDT", value: 100 }), assetType: "crypto" as const },
+      { ...holding({ symbol: "SUBUSDT", value: null }), assetType: "crypto" as const },
+      { ...holding({ symbol: "AMD", value: 0 }), assetType: "equity" as const },
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.positions.map((p) => p.symbol)).toEqual(["BTCUSDT"]);
+  });
+
+  it("is empty rather than dividing by zero when nothing is priced", () => {
+    expect(allocation([{ ...holding({ symbol: "SUBUSDT", value: null }), assetType: "crypto" as const }]))
+      .toEqual([]);
   });
 });

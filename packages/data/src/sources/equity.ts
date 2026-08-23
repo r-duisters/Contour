@@ -37,6 +37,7 @@ type YahooChart = {
         currency?: string;
         longName?: string;
         shortName?: string;
+        instrumentType?: string;
       };
     }[];
   };
@@ -82,6 +83,7 @@ class YahooSource implements EquitySource {
             currency: meta?.currency ?? "USD",
             prevClose: typeof prev === "number" ? prev : undefined,
             name: meta?.longName ?? meta?.shortName ?? undefined,
+            instrumentType: meta?.instrumentType ?? undefined,
           }];
         } catch {
           return null;

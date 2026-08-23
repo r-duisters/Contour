@@ -118,6 +118,9 @@ export async function valuation(store: Store, net: Net, id: string): Promise<Val
       ...h,
       assetType,
       name: assetName(h.symbol, assetType, equityPrices[h.symbol]?.name),
+      // Carried for the allocation grouping only. Absent for crypto, and for
+      // any equity provider that does not report it — those group as shares.
+      instrumentType: equityPrices[h.symbol]?.instrumentType,
       dayChange,
     };
   });
