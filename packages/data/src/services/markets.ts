@@ -1,0 +1,154 @@
+import type { Net } from "../ports/net";
+import { fetch24hTicker } from "../sources/binance";
+import { fetchScreener, fetchTopByMarketCap } from "../sources/markets";
+
+/**
+ * The Markets board: what moved today and what is largest, for one category.
+ *
+ * A service, so it takes its outside world as an argument and does no I/O of
+ * its own. The route handler is a wrapper over this, and Phase 4's LocalClient
+ * will call the same function with a different `Net`.
+ */
+
+export type MarketRow = {
+  symbol: string;
+  name?: string;
+  price: number;
+  changePct: number;
+  marketCap?: number;
+  assetType: "crypto" | "equity";
+};
+
+export type MarketBoard = {
+  up: MarketRow[];
+  down: MarketRow[];
+  largest: MarketRow[];
+  source: string;
+  at: number;
+};
+
+export type MarketCategory = "crypto" | "stocks";
+
+/** How many rows each column carries. */
+const COLUMN = 5;
+const RANKED = 10;
+
+/**
+ * Pegged assets, excluded by name rather than by behaviour.
+ *
+ * Sorting by percentage change parks every stablecoin at the flat end
+ * permanently — EURI and RLUSD both surfaced among the five weakest liquid
+ * pairs on the day this was designed, at -1.0% and -0.0%. A volume floor does
+ * not remove them because their volume is real. Only a list does.
+ */
+const PEGGED = new Set([
+  "USDC", "FDUSD", "TUSD", "BUSD", "DAI", "USDP", "AEUR", "EUR", "EURI",
+  "USD1", "USDE", "PYUSD", "XUSD", "RLUSD", "USDT",
+]);
+
+/** Below this, a 90% move is one trade rather than a market. */
+const MIN_QUOTE_VOLUME = 10_000_000;
+
+/**
+ * Binance lists leveraged and index products against USDT too, and a 3× token
+ * tracking a coin already in the column is noise rather than a second mover.
+ */
+const DERIVED = /(UP|DOWN|BULL|BEAR)$/;
+
+export async function getMarkets(net: Net, category: MarketCategory): Promise<MarketBoard> {
+  return category === "crypto" ? cryptoBoard(net) : stockBoard(net);
+}
+
+async function cryptoBoard(net: Net): Promise<MarketBoard> {
+  const [tickers, ranked] = await Promise.all([
+    fetch24hTicker(net),
+    fetchTopByMarketCap(net, RANKED),
+  ]);
+
+  const liquid = tickers.filter((t) => {
+    if (!t.symbol.endsWith("USDT")) return false;
+    const base = t.symbol.slice(0, -4);
+    if (base === "" || PEGGED.has(base) || DERIVED.test(base)) return false;
+    return t.quoteVolume >= MIN_QUOTE_VOLUME && Number.isFinite(t.priceChangePercent);
+  });
+
+  const row = (t: (typeof liquid)[number]): MarketRow => ({
+    symbol: t.symbol.slice(0, -4),
+    price: t.lastPrice,
+    changePct: t.priceChangePercent,
+    assetType: "crypto",
+  });
+
+  // Filtered by sign, not merely sorted: on a day when everything liquid is
+  // green, the bottom five are still gains, and a "down today" column full of
+  // gains is a lie. An empty column is not.
+  const up = liquid
+    .filter((t) => t.priceChangePercent > 0)
+    .sort((a, b) => b.priceChangePercent - a.priceChangePercent)
+    .slice(0, COLUMN)
+    .map(row);
+
+  const down = liquid
+    .filter((t) => t.priceChangePercent < 0)
+    .sort((a, b) => a.priceChangePercent - b.priceChangePercent)
+    .slice(0, COLUMN)
+    .map(row);
+
+  // One freshness per screen. CoinGecko decides the ranking and supplies the
+  // cap, but its price is up to fifteen minutes old, and showing it beside a
+  // one-minute-old price for the same coin puts two figures for BTC on one
+  // page. Reprice from the ticker, and keep CoinGecko's price only where there
+  // is no pair to reprice from — USDT is the quote asset, so USDTUSDT does not
+  // exist.
+  const byBase = new Map(tickers.filter((t) => t.symbol.endsWith("USDT"))
+    .map((t) => [t.symbol.slice(0, -4), t]));
+
+  const largest = ranked.map((c): MarketRow => {
+    const live = byBase.get(c.symbol);
+    return {
+      symbol: c.symbol,
+      name: c.name,
+      price: live ? live.lastPrice : c.price,
+      changePct: live ? live.priceChangePercent : c.changePct,
+      marketCap: c.marketCap,
+      assetType: "crypto",
+    };
+  });
+
+  return { up, down, largest, source: "Binance and CoinGecko", at: Date.now() };
+}
+
+async function stockBoard(net: Net): Promise<MarketBoard> {
+  const [gainers, losers, actives] = await Promise.all([
+    fetchScreener(net, "day_gainers", COLUMN),
+    fetchScreener(net, "day_losers", COLUMN),
+    fetchScreener(net, "most_actives", 25),
+  ]);
+
+  const row = (e: { symbol: string; name: string; price: number; changePct: number; marketCap: number | null }): MarketRow => ({
+    symbol: e.symbol,
+    name: e.name,
+    price: e.price,
+    changePct: e.changePct,
+    ...(e.marketCap === null ? {} : { marketCap: e.marketCap }),
+    assetType: "equity",
+  });
+
+  // Yahoo has no "largest by market cap" screener, so the ranking is the most
+  // active list sorted by cap. It is the largest of the actively traded, which
+  // is what a browsing surface wants and is not quite the same claim — the
+  // heading says "largest by market cap" of what is on the board.
+  const largest = actives
+    .filter((e) => typeof e.marketCap === "number")
+    .sort((a, b) => (b.marketCap ?? 0) - (a.marketCap ?? 0))
+    .slice(0, RANKED)
+    .map(row);
+
+  return {
+    up: gainers.filter((e) => e.changePct > 0).slice(0, COLUMN).map(row),
+    down: losers.filter((e) => e.changePct < 0).slice(0, COLUMN).map(row),
+    largest,
+    source: "Yahoo Finance",
+    at: Date.now(),
+  };
+}
