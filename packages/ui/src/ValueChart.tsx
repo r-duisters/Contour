@@ -71,17 +71,25 @@ export default function ValueChart({ series }: {
   return (
     <div className="relative">
       <div ref={container} className="h-56 md:h-64 border border-neutral-800 rounded" />
-      {/* One grey for both, because they do the same job. They were 11px in
-          neutral-500 and neutral-600 — the smallest size the guide allows and
-          two different weights for one pair — and over the area fill they were
-          missed entirely. Secondary text at text-xs is legible without turning
-          the corners into a second axis. */}
+      {/* `z-10` is what makes these visible at all. lightweight-charts fills
+          the container with its own absolutely-positioned canvases, and with
+          `auto` these sat in the same stacking context and were painted behind
+          them — present in the DOM, correctly sized, and never once on screen.
+          Querying for them is not evidence they render; `elementFromPoint` at
+          their centre returned the canvas.
+
+          One grey for both, because they do the same job: they were 11px in
+          neutral-500 and neutral-600, two weights for one pair, with the low
+          in the grey the guide reserves for footnotes. */}
       {extent && !hidden && (
         <>
-          <span className="pointer-events-none absolute top-1.5 right-2 text-xs tabular-nums text-neutral-400">
+          <span className="pointer-events-none absolute z-10 top-1.5 right-2 text-xs tabular-nums text-neutral-400">
             {money(extent.hi)}
           </span>
-          <span className="pointer-events-none absolute bottom-1.5 right-2 text-xs tabular-nums text-neutral-400">
+          {/* Clear of the time scale, which lightweight-charts draws as a
+              28px canvas along the bottom of the same container. At
+              `bottom-1.5` this sat inside it and collided with a date. */}
+          <span className="pointer-events-none absolute z-10 bottom-8 right-2 text-xs tabular-nums text-neutral-400">
             {money(extent.lo)}
           </span>
         </>
