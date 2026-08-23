@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import { thin, targetPoints } from "@/lib/chart-data";
+import { thin } from "@/lib/chart-data";
 import { useFitChart } from "@/components/useFitChart";
 import { usePrivacy } from "@/components/usePrivacy";
 import { money } from "@/lib/display";
@@ -23,6 +23,24 @@ const AXIS_PX = 28;
  * through a timeframe change or a resize without a single coordinate read.
  */
 const EDGE = 0.1;
+
+/**
+ * How many points this chart draws, whatever the period.
+ *
+ * It answers one question — what is it worth and which way has it gone — so
+ * it wants a shape, not a record. The shared `targetPoints` budget aims at
+ * roughly one point every three pixels, which is right for the asset page's
+ * price history and for the benchmark comparison, and far too fine here: a
+ * two-year window arrived as ~320 samples of visible noise while a week
+ * arrived as seven, so the same control drew two different kinds of picture.
+ *
+ * Twenty to forty keeps every period in one visual register. Thinning only
+ * ever removes points, so a period the server samples more coarsely than this
+ * — a week, which it returns as seven daily closes — still draws what it has.
+ */
+function valuePoints(widthPx: number): number {
+  return Math.max(20, Math.min(40, Math.round(widthPx / 24)));
+}
 
 /** Portfolio value over the selected period. */
 export default function ValueChart({ series }: {
@@ -84,7 +102,7 @@ export default function ValueChart({ series }: {
   useEffect(() => {
     if (!area.current || !series) return;
     const width = container.current?.clientWidth ?? 360;
-    const points = thin(series.map((p) => ({ t: p.t, v: p.value })), targetPoints(width));
+    const points = thin(series.map((p) => ({ t: p.t, v: p.value })), valuePoints(width));
     area.current.setData(points.map((p) => ({ time: Math.floor(p.t / 1000) as Time, value: p.v })));
   }, [series]);
 
