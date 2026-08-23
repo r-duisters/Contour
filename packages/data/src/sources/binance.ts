@@ -151,3 +151,37 @@ async function fetchPricesSafeUncached(net: Net, symbols: string[]): Promise<Rec
     return out;
   }
 }
+
+/** One pair's rolling 24-hour statistics, with Binance's strings coerced to numbers. */
+export type Ticker = {
+  symbol: string;
+  lastPrice: number;
+  priceChangePercent: number;
+  quoteVolume: number;
+};
+
+/**
+ * Rolling 24-hour statistics for every spot pair — around 3,000 rows and
+ * ~1MB, which is why the Markets board takes one of these rather than a price
+ * lookup per coin.
+ *
+ * A minute: the movers board is a browsing surface, not a trading one, and a
+ * shorter window would refetch a megabyte on every category toggle.
+ */
+export function fetch24hTicker(net: Net): Promise<Ticker[]> {
+  const bucket = Math.floor(Date.now() / 60_000);
+  return cached(`binance:ticker24h:${bucket}`, 60_000, async () => {
+    const raw = await net.json<{
+      symbol: string;
+      lastPrice: string;
+      priceChangePercent: string;
+      quoteVolume: string;
+    }[]>(`${REST}/api/v3/ticker/24hr`);
+    return raw.map((r) => ({
+      symbol: r.symbol,
+      lastPrice: Number(r.lastPrice),
+      priceChangePercent: Number(r.priceChangePercent),
+      quoteVolume: Number(r.quoteVolume),
+    }));
+  });
+}

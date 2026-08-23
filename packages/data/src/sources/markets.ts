@@ -1,0 +1,141 @@
+import { cached } from "@/core/cache";
+import type { Net } from "../ports/net";
+
+/**
+ * The market-board transport: CoinGecko for what the largest coins are, and
+ * Yahoo's predefined screeners for equities. Binance's own 24-hour ticker
+ * lives in `./binance.ts` beside the rest of that host's surface.
+ *
+ * Everything here memoises through `@/core/cache`, which is process-local and
+ * shared. Read the header of `./binance.ts` before writing a test that touches
+ * these — a cache hit answers before the injected `Net` is consulted, so a
+ * suite without `invalidate()` in `beforeEach` can pass against nothing.
+ */
+
+/**
+ * Whether the US equity market is open, to the nearest hour that matters.
+ *
+ * 09:30–16:00 New York, Monday to Friday. Deliberately ignores public
+ * holidays: the only cost of missing one is a handful of refreshes on a day
+ * the figures do not move, and a holiday calendar is a dependency and a
+ * maintenance burden for that.
+ *
+ * DST is handled by taking the offset from the date itself rather than
+ * assuming one: New York is UTC-4 from the second Sunday in March to the
+ * first Sunday in November, and UTC-5 otherwise.
+ */
+export function usMarketOpen(now: number): boolean {
+  const d = new Date(now);
+  const offset = nyOffsetHours(d);
+  const ny = new Date(now + offset * 3_600_000);
+  const day = ny.getUTCDay();
+  if (day === 0 || day === 6) return false;
+  const mins = ny.getUTCHours() * 60 + ny.getUTCMinutes();
+  return mins >= 9 * 60 + 30 && mins < 16 * 60;
+}
+
+function nyOffsetHours(d: Date): number {
+  const y = d.getUTCFullYear();
+  const march = new Date(Date.UTC(y, 2, 1));
+  const dstStart = Date.UTC(y, 2, 8 + ((7 - march.getUTCDay()) % 7), 7);
+  const nov = new Date(Date.UTC(y, 10, 1));
+  const dstEnd = Date.UTC(y, 10, 1 + ((7 - nov.getUTCDay()) % 7), 6);
+  const t = d.getTime();
+  return t >= dstStart && t < dstEnd ? -4 : -5;
+}
+
+/** One coin as CoinGecko ranks it: the cap is theirs, the price may be repriced later. */
+export type CoinRow = {
+  symbol: string;
+  name: string;
+  price: number;
+  changePct: number;
+  marketCap: number;
+};
+
+/** One equity as a Yahoo screener returns it. `marketCap` is absent for some funds. */
+export type EquityRow = {
+  symbol: string;
+  name: string;
+  price: number;
+  changePct: number;
+  marketCap: number | null;
+};
+
+/**
+ * The largest coins by market cap, in CoinGecko's order.
+ *
+ * Fifteen minutes: a ranking that reorders on a fifteen-minute boundary is
+ * still telling the truth about which coins are the largest, and CoinGecko's
+ * free tier is rate-limited per minute.
+ */
+export function fetchTopByMarketCap(net: Net, limit: number): Promise<CoinRow[]> {
+  const bucket = Math.floor(Date.now() / 900_000);
+  return cached(`coingecko:top:${limit}:${bucket}`, 900_000, async () => {
+    const raw = await net.json<{
+      symbol: string;
+      name: string;
+      current_price: number;
+      price_change_percentage_24h: number | null;
+      market_cap: number;
+    }[]>(
+      "https://api.coingecko.com/api/v3/coins/markets" +
+        `?vs_currency=usd&order=market_cap_desc&per_page=${limit}&page=1`,
+    );
+    return raw.map((r) => ({
+      symbol: r.symbol.toUpperCase(),
+      name: r.name,
+      price: r.current_price,
+      changePct: r.price_change_percentage_24h ?? 0,
+      marketCap: r.market_cap,
+    }));
+  });
+}
+
+export type ScreenerId = "day_gainers" | "day_losers" | "most_actives";
+
+/**
+ * One of Yahoo's predefined screeners.
+ *
+ * Refreshed every five minutes while New York is open and hourly when it is
+ * not — the figures do not move outside the session, so a shorter window buys
+ * nothing but requests.
+ *
+ * This is an undocumented endpoint that answers 401 when it feels like it, so
+ * a response without `finance.result[0].quotes` yields an empty list rather
+ * than throwing. A Markets page missing one column is better than one that
+ * fails to render.
+ */
+export function fetchScreener(net: Net, id: ScreenerId, count: number): Promise<EquityRow[]> {
+  const ttl = usMarketOpen(Date.now()) ? 300_000 : 3_600_000;
+  const bucket = Math.floor(Date.now() / ttl);
+  return cached(`yahoo:screener:${id}:${count}:${bucket}`, ttl, async () => {
+    const url =
+      "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved" +
+      `?scrIds=${id}&count=${count}`;
+    let raw: { finance?: { result?: { quotes?: RawQuote[] }[] | null } };
+    try {
+      raw = await net.json(url);
+    } catch {
+      return [];
+    }
+    const quotes = raw.finance?.result?.[0]?.quotes;
+    if (!Array.isArray(quotes)) return [];
+    return quotes.map((q) => ({
+      symbol: q.symbol,
+      name: q.shortName ?? q.longName ?? q.symbol,
+      price: q.regularMarketPrice ?? 0,
+      changePct: q.regularMarketChangePercent ?? 0,
+      marketCap: typeof q.marketCap === "number" ? q.marketCap : null,
+    }));
+  });
+}
+
+type RawQuote = {
+  symbol: string;
+  shortName?: string;
+  longName?: string;
+  regularMarketPrice?: number;
+  regularMarketChangePercent?: number;
+  marketCap?: number;
+};
