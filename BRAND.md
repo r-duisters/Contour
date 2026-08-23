@@ -94,7 +94,7 @@ Mobile first, and mobile means a 390 px phone held one-handed.
 The bottom padding is applied once, by the shell in `layout.tsx`, not by each
 page. A page that adds its own is doubling it.
 
-Portfolio, Insights, Ledger and Chart share one column, and `TopNav` shares it
+Portfolio, Markets, Insights, Ledger and Chart share one column, and `TopNav` shares it
 too, so the mark sits directly above the page label. Per-type widths were tried
 and abandoned: they put the widest shell around the holdings *list* and the
 narrowest around the ledger's five-column *table*, and on a desktop the four
@@ -116,8 +116,10 @@ Rules that keep it coherent:
   it performed, and against what* — benchmarks, allocation, contributors,
   activity. Ledger: *what went in, what came out, what it cost* — cost basis,
   unrealised, realised, fees, cash, net invested by year, and the January
-  valuation. Chart: *the indicator.* More: *everything else.* If two pages
-  answer the same question, one is wrong.
+  valuation. Markets: *what is the market doing, whether or not you hold it*
+  — movers and the largest by market cap. More: *everything else*, the
+  indicator chart among them. If two pages answer the same question, one is
+  wrong.
 - **Progressive disclosure over density.** Rows expand or link; forms hide
   behind a button; timeframes beyond the everyday five hide behind "More" on
   phones and appear inline on desktop.
@@ -295,6 +297,11 @@ differences before it was extracted.
 - **`RangePicker`** — the timeframe control. Renders the canonical list in
   `lib/ranges.ts`; a screen narrows it with `only`, which is a filter over
   that list and never a second list of its own.
+- **`Segmented`** — a pill switch between two or more mutually exclusive
+  views, as on Markets. It shares `RangePicker`'s shell and deliberately not
+  its behaviour: a range picker hides its rarer periods behind "More" on a
+  phone, which would turn a page's other half into a setting. Two components,
+  one look, and the guard allows exactly those two to spell it.
 - **`CoinIcon`** — circular asset icon, proxied through `/api/icon` so no
   third party learns the holdings.
 - **`TxForm`** — add a transaction. `lockedSymbol` fixes the asset on a
@@ -328,10 +335,11 @@ differences before it was extracted.
 
 One structure, two renderings, never both visible at once.
 
-- **Phone** — `TabBar`, fixed to the bottom, four slots: Portfolio, Chart,
+- **Phone** — `TabBar`, fixed to the bottom, four slots: Portfolio, Markets,
   Insights, More. Every page carries `pb-20` to clear it.
 - **`md:` and up** — `TopNav`, sticky at the top, the mark at the left and the
-  destinations inline: Portfolio, Chart, Insights, Ledger, Alerts, then More.
+  destinations inline: Portfolio, Markets, Insights, Ledger, Alerts, then
+  More.
 
 **More is a phone compromise, not an idea.** It exists because four slots do
 not hold the app's destinations; a wide screen has the room, so the desktop

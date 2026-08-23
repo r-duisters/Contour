@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, CandlestickChart, Menu, Wallet } from "lucide-react";
+import { BarChart3, Menu, TrendingUp, Wallet } from "lucide-react";
 
 const TABS = [
   { href: "/portfolio", label: "Portfolio", Icon: Wallet },
-  { href: "/chart", label: "Chart", Icon: CandlestickChart },
+  { href: "/markets", label: "Markets", Icon: TrendingUp },
   { href: "/insights", label: "Insights", Icon: BarChart3 },
   { href: "/more", label: "More", Icon: Menu },
 ];

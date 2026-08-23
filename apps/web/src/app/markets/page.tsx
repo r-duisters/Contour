@@ -37,12 +37,12 @@ export default function MarketsPage() {
 
   useEffect(() => {
     let live = true;
-    setFailed(false);
     // The previous category's board stays on screen while the next one is in
     // flight. Blanking to a spinner on every toggle makes a switch that takes
-    // 400ms feel like a page load.
+    // 400ms feel like a page load. For the same reason the failure notice is
+    // cleared when the next board *arrives*, not when its request starts.
     client.getMarkets(category)
-      .then((b) => { if (live) setBoard(b); })
+      .then((b) => { if (live) { setBoard(b); setFailed(false); } })
       .catch(() => { if (live) setFailed(true); });
     return () => { live = false; };
   }, [client, category]);

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  BarChart3, Bell, BookText, CandlestickChart, Settings, Wallet,
+  BarChart3, Bell, BookText, Settings, TrendingUp, Wallet,
 } from "lucide-react";
 import ContourMark from "@/components/ContourMark";
 
@@ -20,7 +20,7 @@ import ContourMark from "@/components/ContourMark";
  */
 const PRIMARY = [
   { href: "/portfolio", label: "Portfolio", Icon: Wallet },
-  { href: "/chart", label: "Chart", Icon: CandlestickChart },
+  { href: "/markets", label: "Markets", Icon: TrendingUp },
   { href: "/insights", label: "Insights", Icon: BarChart3 },
   { href: "/ledger", label: "Ledger", Icon: BookText },
   { href: "/alerts", label: "Alerts", Icon: Bell },

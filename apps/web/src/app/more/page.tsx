@@ -1,7 +1,7 @@
 import Link from "next/link";
 import PortfolioManager from "@/components/PortfolioManager";
 import PrivacyToggle from "@/components/PrivacyToggle";
-import { Bell, BookText, Download, FlaskConical, History, Settings } from "lucide-react";
+import { Bell, BookText, CandlestickChart, Download, FlaskConical, History, Settings } from "lucide-react";
 
 const LINKS = [
   { href: "/ledger", label: "Ledger", Icon: BookText,
@@ -12,6 +12,10 @@ const LINKS = [
 
 // Tools for the trading strategy itself rather than the portfolio.
 const STRATEGY = [
+  // The chart lost its tab to Markets. Without a home here it would be
+  // reachable only from a crypto holding, so an owner holding none could not
+  // reach it at all.
+  { href: "/chart", label: "Chart the indicator", Icon: CandlestickChart },
   { href: "/backtest", label: "Backtest the strategy", Icon: History },
   { href: "/analyze", label: "Review the script", Icon: FlaskConical },
 ];

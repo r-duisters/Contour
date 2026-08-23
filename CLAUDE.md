@@ -133,10 +133,10 @@ packages/data/src/        The data seam (Phase 2) and the UI's data client (Phas
     store.ts                Store — everything persisted (portfolios, transactions, settings)
     net.ts                  Net — everything fetched
   services/               valuation, series, portfolios, transactions, transfer, pricing,
-                          lookup, settings. Each takes a Store and/or a Net and does no
+                          lookup, settings, markets. Each takes a Store and/or a Net and does no
                           I/O of its own; the route handlers are thin wrappers over these.
-    services.test.ts        Fails if a service imports @/lib/* or next/*, reaches Prisma,
-                          or calls global fetch.
+    (guarded by ../layer.test.ts — fails if a service imports @/lib/* or
+     next/*, reaches Prisma, or calls global fetch.)
   client/
     data-client.ts          DataClient — everything a screen is allowed to ask for, plus
                           the rules every implementation obeys. Read this one first.
@@ -146,7 +146,8 @@ packages/data/src/        The data seam (Phase 2) and the UI's data client (Phas
     stub-client.test.ts     The second implementation: the services over a MemoryStore,
                           held to the same suite. Not shipped — see the file's header
                           for what running it taught us.
-  sources/                binance, fx (Frankfurter/ECB), equity, asset-info — the only
+  sources/                binance, fx (Frankfurter/ECB), equity, asset-info, markets
+                          (CoinGecko + Yahoo screeners) — the only
                           transport in packages/core and packages/data, all of it behind
                           the injected Net. Nothing in packages/ui calls global fetch any
                           more; boundary.test.ts enforces that.
@@ -167,11 +168,16 @@ apps/web/src/             The Next server app.
   app/
     page.tsx                Redirects to /portfolio — the app's home is the portfolio,
                           and the tab bar and More page already list every destination.
-                          Tab bar (TabBar.tsx): portfolio, chart, insights, more.
+                          Tab bar (TabBar.tsx): portfolio, markets, insights, more.
     portfolio/page.tsx      Holdings, valuation, day change and the history chart
     portfolio/[symbol]/     One holding: its trades, its chart, its background panel
     insights/page.tsx       Benchmarks, what made the money, concentration, activity
-    chart/page.tsx          Live candlestick chart with indicator overlay
+    markets/page.tsx        Crypto and stock movers, and the largest by market cap
+    chart/page.tsx          Live candlestick chart with indicator overlay. Takes
+                          ?symbol=, which a crypto holding's sparkline links to.
+                          Off BTCUSDT the risk line is drawn but its ladder is
+                          not — the curves are fitted to Bitcoin. Reached from
+                          More, not from a tab.
     more/page.tsx           The overflow menu — ledger, alerts, backtest, analyze, settings
                           Reached from More:
     ledger/page.tsx         Every transaction, with Delta CSV import and export
@@ -186,7 +192,7 @@ apps/web/src/             The Next server app.
                           place in apps/web that names an implementation.
     globals.css             Tailwind entry point; its `@source` directive names
                           packages/ui/src so Tailwind scans the shared components too.
-    api/                  Twenty-one route groups. The converted ones are wrappers over
+    api/                  Twenty-two route groups. The converted ones are wrappers over
                           packages/data/src/services — see "The data seam" below; the
                           rest are listed there as deliberately server-only.
       portfolios/             CRUD, plus [id]/{valuation,series,changes,insights,
@@ -195,6 +201,7 @@ apps/web/src/             The Next server app.
       symbols/ asset/ history/ benchmark/
                           Symbol search, per-asset background, price history, benchmarks
       settings/               GET/PUT settings; POST sends a test signal to HA + Web Push
+      markets/                The movers board — a wrapper over services/markets
       login/ logout/ setup/ webauthn/ push/
                           Auth, first-run and notification subscriptions — server-only
       candles/ backtest/ risk/ analyze/ scripts/ scripts/[name]/ cron/evaluate/
@@ -268,7 +275,7 @@ service in between cannot tell which it got, which is the whole point.
 **Services are pure of HTTP and persistence.** No `prisma`, no `next/*`, no global `fetch`, and no
 `@/lib/*` — that alias is a fallback array under `apps/web`'s tsconfig and reaches the server-only
 `apps/web/src/lib`, so portable code uses the unambiguous `@/core/*`.
-`packages/data/src/services/services.test.ts` fails if one of those appears, naming the rule that
+`packages/data/src/layer.test.ts` fails if one of those appears, naming the rule that
 broke. `packages/core/src/boundary.test.ts` guards the packages more broadly; the overlap is
 deliberate, since the failure worth catching is a service quietly reaching for `prisma` because the
 route it was extracted from used to.
