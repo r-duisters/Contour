@@ -87,12 +87,24 @@ Mobile first, and mobile means a 390 px phone held one-handed.
 | | Phone | md and up |
 |---|---|---|
 | Page shell | `px-3 py-4` (data-dense) or `px-4 py-5` | `p-8` |
-| Max width | full | `max-w-xl` settings · `max-w-3xl` lists · `max-w-4xl` forms · `max-w-5xl` insights · `max-w-6xl` portfolio |
+| Max width | full | `max-w-5xl` — every primary screen, and `TopNav`. `max-w-xl` settings · `max-w-4xl` forms |
 | Headings | `text-xl` | `text-2xl` |
 | Body bottom padding | `pb-20` (clears the tab bar) | `pb-0` |
 
 The bottom padding is applied once, by the shell in `layout.tsx`, not by each
 page. A page that adds its own is doubling it.
+
+Portfolio, Insights, Ledger and Chart share one column, and `TopNav` shares it
+too, so the mark sits directly above the page label. Per-type widths were tried
+and abandoned: they put the widest shell around the holdings *list* and the
+narrowest around the ledger's five-column *table*, and on a desktop the four
+screens visibly failed to line up. A page whose content genuinely wants less
+room still narrows inside the column rather than shrinking the shell.
+
+The chart is the one exception, and only half of one: its bar takes the column
+so the eyebrow aligns, while the two panes keep the whole window. Letterboxing
+1460 daily bars to match a text column would cost the page the thing it exists
+to show.
 
 Rules that keep it coherent:
 

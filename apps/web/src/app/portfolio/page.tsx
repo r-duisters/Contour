@@ -233,7 +233,7 @@ export default function PortfolioPage() {
   const visibleHoldings = (tabs.find((t) => t.key === assetTab) ?? tabs[0]!).items;
 
   return (
-    <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-3 py-4 md:p-8 max-w-6xl mx-auto">
+    <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-3 py-4 md:p-8 max-w-5xl mx-auto">
       <div className="flex items-center gap-2 mb-4 md:mb-6">
         <PageLabel icon={Wallet}>Portfolio</PageLabel>
         <span className="flex-1" />

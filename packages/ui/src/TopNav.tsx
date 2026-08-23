@@ -33,7 +33,10 @@ export default function TopNav() {
 
   return (
     <nav className="hidden md:block sticky top-0 z-30 bg-neutral-950/95 backdrop-blur border-b border-neutral-800">
-      <div className="max-w-6xl mx-auto px-8 h-14 flex items-center gap-6">
+      {/* Same column as every page's content, so the mark sits directly above
+          the page label rather than two rems to its left. The bar itself still
+          spans the window; only what is in it is constrained. */}
+      <div className="max-w-5xl mx-auto px-8 h-14 flex items-center gap-6">
         <Link href="/portfolio" aria-label="Contour" className="shrink-0">
           <ContourMark size={22} />
         </Link>

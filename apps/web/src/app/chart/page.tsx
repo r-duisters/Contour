@@ -140,7 +140,13 @@ export default function ChartPage() {
 
   return (
     <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] flex flex-col">
-      <header className="p-3 md:p-4 flex gap-2 items-center border-b border-neutral-800">
+      {/* The bar is full-bleed so its rule spans the window, but its contents
+          sit in the same 5xl column as every other page — otherwise the Chart
+          eyebrow starts at the window edge while the other three start at the
+          centred column. The panes below deliberately keep the whole width:
+          1460 daily bars need the pixels. */}
+      <header className="border-b border-neutral-800">
+        <div className="p-3 md:p-4 max-w-5xl mx-auto flex gap-2 items-center">
         <PageLabel icon={CandlestickChart}>Chart</PageLabel>
         <SymbolPicker value={symbol} onChange={setSymbol} />
         {/* The status is the only thing here that changes on its own, so it
@@ -154,6 +160,7 @@ export default function ChartPage() {
             </span></>
           )}
         </span>
+        </div>
       </header>
       <div ref={priceContainer} className="h-[45vh] min-h-[260px] md:h-auto md:flex-1 md:min-h-[300px]" />
       <div ref={riskContainer} className="h-[30vh] min-h-[180px] md:h-auto md:flex-1 md:min-h-[200px] border-t border-neutral-800" />
