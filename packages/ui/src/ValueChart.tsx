@@ -71,12 +71,17 @@ export default function ValueChart({ series }: {
   return (
     <div className="relative">
       <div ref={container} className="h-56 md:h-64 border border-neutral-800 rounded" />
+      {/* One grey for both, because they do the same job. They were 11px in
+          neutral-500 and neutral-600 — the smallest size the guide allows and
+          two different weights for one pair — and over the area fill they were
+          missed entirely. Secondary text at text-xs is legible without turning
+          the corners into a second axis. */}
       {extent && !hidden && (
         <>
-          <span className="pointer-events-none absolute top-1.5 right-2 text-[11px] tabular-nums text-neutral-500">
+          <span className="pointer-events-none absolute top-1.5 right-2 text-xs tabular-nums text-neutral-400">
             {money(extent.hi)}
           </span>
-          <span className="pointer-events-none absolute bottom-1.5 right-2 text-[11px] tabular-nums text-neutral-600">
+          <span className="pointer-events-none absolute bottom-1.5 right-2 text-xs tabular-nums text-neutral-400">
             {money(extent.lo)}
           </span>
         </>
