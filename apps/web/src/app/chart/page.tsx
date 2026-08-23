@@ -7,6 +7,8 @@ import {
 } from "lightweight-charts";
 import { run } from "@/lib/indicator";
 import type { Bar } from "@/lib/types";
+import { CandlestickChart } from "lucide-react";
+import PageLabel from "@/components/PageLabel";
 import SymbolPicker from "@/components/SymbolPicker";
 
 const BUY_LIMIT = 0.25;
@@ -139,8 +141,11 @@ export default function ChartPage() {
   return (
     <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] flex flex-col">
       <header className="p-3 md:p-4 flex gap-2 items-center border-b border-neutral-800">
+        <PageLabel icon={CandlestickChart}>Chart</PageLabel>
         <SymbolPicker value={symbol} onChange={setSymbol} />
-        <span className="text-xs text-neutral-500">
+        {/* The status is the only thing here that changes on its own, so it
+            sits apart from the two controls rather than between them. */}
+        <span className="ml-auto text-xs text-neutral-500 text-right">
           1d · {status}
           <span className="hidden sm:inline"> · {bars.length} bars · {signals.length} signals</span>
           {latestRisk !== null && (

@@ -10,6 +10,7 @@ const ComparisonChart = dynamic(() => import("@/components/ComparisonChart"), {
   loading: () => <div className="h-56 md:h-72 border border-neutral-800 rounded" />,
 });
 import { BarChart3, TrendingDown, TrendingUp } from "lucide-react";
+import PageLabel from "@/components/PageLabel";
 import CoinIcon from "@/components/CoinIcon";
 import { useDataClient } from "@/data/client/context";
 import { money as fmtMoney, percent, setDisplayCurrency } from "@/lib/display";
@@ -171,9 +172,9 @@ export default function InsightsPage() {
 
   return (
     <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-3 py-4 md:p-8 max-w-5xl mx-auto">
-      <h1 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6 flex items-center gap-2">
-        <BarChart3 size={20} aria-hidden className="text-neutral-400" />Insights
-      </h1>
+      <div className="flex items-center gap-2 mb-4 md:mb-6">
+        <PageLabel icon={BarChart3}>Insights</PageLabel>
+      </div>
 
       {!portfolioId && <p className="text-sm text-neutral-500">No portfolio yet.</p>}
 

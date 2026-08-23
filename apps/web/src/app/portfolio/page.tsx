@@ -7,6 +7,7 @@ import {
   ArrowUpDown, BarChart3, Plus, TrendingDown, TrendingUp, Wallet, X,
 } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
+import PageLabel from "@/components/PageLabel";
 import { useDataClient } from "@/data/client/context";
 import { money, quantity, setDisplayCurrency } from "@/lib/display";
 import { useStoredRange } from "@/components/useStoredRange";
@@ -234,12 +235,7 @@ export default function PortfolioPage() {
   return (
     <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-3 py-4 md:p-8 max-w-6xl mx-auto">
       <div className="flex items-center gap-2 mb-4 md:mb-6">
-        <span className="inline-flex items-center gap-2">
-          <Wallet size={18} aria-hidden className="text-neutral-500" />
-          <h1 className="text-sm font-semibold uppercase tracking-widest text-neutral-500">
-            Portfolio
-          </h1>
-        </span>
+        <PageLabel icon={Wallet}>Portfolio</PageLabel>
         <span className="flex-1" />
         {portfolios.length > 1 && (
           <select

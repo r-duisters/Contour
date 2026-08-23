@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, BookText } from "lucide-react";
+import PageLabel from "@/components/PageLabel";
 import { useDataClient } from "@/data/client/context";
 import { money, quantity, setDisplayCurrency } from "@/lib/display";
 import { usePrivacy } from "@/components/usePrivacy";
@@ -84,10 +85,9 @@ export default function LedgerPage() {
         <ArrowLeft size={14} aria-hidden />More
       </Link>
 
-      <header className="mb-8">
-        <h1 className="text-xl md:text-2xl font-semibold mb-1">Ledger</h1>
-        <p className="text-xs text-neutral-500">What went in, what came out, and what it cost.</p>
-      </header>
+      <div className="flex items-center gap-2 mb-4 md:mb-6">
+        <PageLabel icon={BookText}>Ledger</PageLabel>
+      </div>
 
       {!totals && <p className="text-sm text-neutral-500">Loading…</p>}
 
