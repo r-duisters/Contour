@@ -1,12 +1,27 @@
 "use client";
 
+/**
+ * Three of this screen's twelve requests go through `DataClient`: reading the
+ * settings row, saving it, and firing the test signal. Everything else here —
+ * `/api/logout`, `/api/push/*`, `/api/settings/password`, `/api/webauthn/*` —
+ * stays on raw `fetch` on purpose, and the file is not half-converted.
+ *
+ * Those nine are session auth, passkeys and Web Push: browser-and-server
+ * mechanisms that a device build has no counterpart for. Putting them behind
+ * the client would widen the interface with methods `LocalClient` could only
+ * ever implement by throwing, which is a worse answer than leaving them where
+ * the reader can see they are server-shaped.
+ */
+
 import { useEffect, useState } from "react";
 import {
   BellOff, BellRing, Fingerprint, KeyRound, LogOut, Save, Send, Settings as SettingsIcon, Trash2,
 } from "lucide-react";
 import { browserSupportsWebAuthn, startRegistration } from "@simplewebauthn/browser";
+import { useDataClient } from "@/data/client/context";
 
 export default function SettingsPage() {
+  const client = useDataClient();
   const [haUrl, setHaUrl] = useState("");
   const [haWebhookId, setHaWebhookId] = useState("");
   const [displayCurrency, setDisplayCurrency] = useState<"USD" | "EUR">("USD");
@@ -57,16 +72,21 @@ export default function SettingsPage() {
   }
 
   useEffect(() => {
-    fetch("/api/settings").then((r) => r.json()).then((d) => {
-      if (d.settings) {
-        setHaUrl(d.settings.haUrl ?? "");
-        setHaWebhookId(d.settings.haWebhookId ?? "");
-        setDisplayCurrency(d.settings.displayCurrency === "EUR" ? "EUR" : "USD");
-        setEquityProvider(d.settings.equityProvider ?? "yahoo");
-        setEquityApiKey(d.settings.equityApiKey ?? "");
-      }
-    });
-  }, []);
+    // `null` is a virgin install, not a failure: the fields stay on their
+    // first-run defaults rather than showing a saved row that isn't there.
+    client.getSettings()
+      .then((s) => {
+        if (!s) return;
+        setHaUrl(s.haUrl ?? "");
+        setHaWebhookId(s.haWebhookId ?? "");
+        setDisplayCurrency(s.displayCurrency === "EUR" ? "EUR" : "USD");
+        setEquityProvider(s.equityProvider ?? "yahoo");
+        setEquityApiKey(s.equityApiKey ?? "");
+      })
+      // Unreachable server leaves the defaults standing, as before — the bare
+      // fetch had no handler at all, so it did the same thing by rejecting.
+      .catch(() => {});
+  }, [client]);
 
   useEffect(() => {
     setPasskeySupported(browserSupportsWebAuthn() && window.isSecureContext);
@@ -131,18 +151,28 @@ export default function SettingsPage() {
 
   async function save() {
     setMsg(null);
-    const r = await fetch("/api/settings", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ haUrl: haUrl || null, haWebhookId: haWebhookId || null, displayCurrency, equityProvider, equityApiKey: equityApiKey || null }),
-    });
-    setMsg(r.ok ? "Saved." : `Error: ${await r.text()}`);
+    try {
+      await client.saveSettings({
+        haUrl: haUrl || null,
+        haWebhookId: haWebhookId || null,
+        displayCurrency,
+        equityProvider,
+        equityApiKey: equityApiKey || null,
+      });
+      setMsg("Saved.");
+    } catch (e) {
+      setMsg(`Error: ${(e as Error).message}`);
+    }
   }
 
   async function test() {
     setMsg(null);
-    const r = await fetch("/api/settings", { method: "POST" });
-    setMsg(r.ok ? "Test signal sent. Check Home Assistant." : `Error: ${await r.text()}`);
+    try {
+      await client.sendTestNotification();
+      setMsg("Test signal sent. Check Home Assistant.");
+    } catch (e) {
+      setMsg(`Error: ${(e as Error).message}`);
+    }
   }
 
   async function changePassword() {
