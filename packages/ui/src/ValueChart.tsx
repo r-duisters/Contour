@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { thin, targetPoints } from "@/lib/chart-data";
 import { useFitChart } from "@/components/useFitChart";
 import { usePrivacy } from "@/components/usePrivacy";
 import { money } from "@/lib/display";
 import {
-  AreaSeries, createChart, LineType, type IChartApi, type ISeriesApi, type Time,
+  AreaSeries, createChart, LineStyle, LineType,
+  type IChartApi, type IPriceLine, type ISeriesApi, type Time,
 } from "lightweight-charts";
 
 /** Portfolio value over the selected period. */
@@ -16,6 +17,9 @@ export default function ValueChart({ series }: {
   const container = useRef<HTMLDivElement>(null);
   const chart = useRef<IChartApi | null>(null);
   const area = useRef<ISeriesApi<"Area"> | null>(null);
+  const priceLines = useRef<IPriceLine[]>([]);
+  // Where the two rules landed, in pixels down from the top of the container.
+  const [levels, setLevels] = useState<{ hi: number; lo: number } | null>(null);
   // Reading privacy here rather than as a prop: these labels are the only
   // amounts the chart prints, so the component that draws them owns the guard.
   const hidden = usePrivacy();
@@ -66,7 +70,62 @@ export default function ValueChart({ series }: {
     area.current.setData(points.map((p) => ({ time: Math.floor(p.t / 1000) as Time, value: p.v })));
   }, [series]);
 
+  /**
+   * A rule at each end of the range, so a figure means a level rather than
+   * floating in a corner. Quieter than the series and solid, where the
+   * library's own last-value line is dashed — three horizontal lines only read
+   * as three different things if they do not all look alike.
+   */
+  useEffect(() => {
+    const s = area.current;
+    if (!s) return;
+    for (const line of priceLines.current) s.removePriceLine(line);
+    priceLines.current = [];
+    if (!extent) return;
+    for (const price of [extent.hi, extent.lo]) {
+      priceLines.current.push(s.createPriceLine({
+        price,
+        color: "#404040",
+        lineWidth: 1,
+        lineStyle: LineStyle.Solid,
+        // The price axis is hidden, so the library has nowhere to draw a
+        // label; the figures beside the rules are ours.
+        axisLabelVisible: false,
+      }));
+    }
+  }, [extent, series]);
+
+  /**
+   * Put each figure on its own rule. The default scale margins leave 20% of
+   * headroom above the high and 10% below the low, so a label pinned to the
+   * container's corners would sit well clear of the line it belongs to and
+   * claim a level the chart never draws.
+   */
+  const measure = useCallback(() => {
+    const s = area.current;
+    if (!s || !extent) { setLevels(null); return; }
+    const hi = s.priceToCoordinate(extent.hi);
+    const lo = s.priceToCoordinate(extent.lo);
+    setLevels(hi !== null && lo !== null ? { hi, lo } : null);
+  }, [extent]);
+
   useFitChart(chart, container, series);
+
+  // After the fit, not before: fitting changes the scale, and a coordinate
+  // read on the previous one puts both labels in the wrong place.
+  useEffect(() => {
+    const id = requestAnimationFrame(measure);
+    return () => cancelAnimationFrame(id);
+  }, [measure, series]);
+
+  // The coordinates are in pixels, so every resize invalidates them.
+  useEffect(() => {
+    const el = container.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [measure]);
 
   return (
     <div className="relative">
@@ -81,15 +140,20 @@ export default function ValueChart({ series }: {
           One grey for both, because they do the same job: they were 11px in
           neutral-500 and neutral-600, two weights for one pair, with the low
           in the grey the guide reserves for footnotes. */}
-      {extent && !hidden && (
+      {extent && levels && !hidden && (
         <>
-          <span className="pointer-events-none absolute z-10 top-1.5 right-2 text-xs tabular-nums text-neutral-400">
+          {/* Sat on the rule, and nudged clear of it, so the figure reads as
+              that level rather than as a caption for the whole chart. */}
+          <span
+            style={{ top: levels.hi }}
+            className="pointer-events-none absolute z-10 right-2 -translate-y-full -mt-0.5 text-xs tabular-nums text-neutral-400"
+          >
             {money(extent.hi)}
           </span>
-          {/* Clear of the time scale, which lightweight-charts draws as a
-              28px canvas along the bottom of the same container. At
-              `bottom-1.5` this sat inside it and collided with a date. */}
-          <span className="pointer-events-none absolute z-10 bottom-8 right-2 text-xs tabular-nums text-neutral-400">
+          <span
+            style={{ top: levels.lo }}
+            className="pointer-events-none absolute z-10 right-2 mt-0.5 text-xs tabular-nums text-neutral-400"
+          >
             {money(extent.lo)}
           </span>
         </>
