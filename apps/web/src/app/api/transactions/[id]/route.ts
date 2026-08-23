@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deps } from "@/lib/deps";
 import { deleteTransaction, updateTransaction } from "@/data/services/transactions";
-import { serializeTx, TxInput } from "../../portfolios/tx";
+import { serializeTx, TxPatch } from "../../portfolios/tx";
 
 export const dynamic = "force-dynamic";
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  const body = TxInput.partial().safeParse(await req.json());
+  const body = TxPatch.safeParse(await req.json());
   if (!body.success) return NextResponse.json({ error: body.error.flatten() }, { status: 400 });
   const { time, symbol, ...rest } = body.data;
   const { store } = deps();

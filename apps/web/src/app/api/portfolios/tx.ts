@@ -11,6 +11,23 @@ export const TxInput = z.object({
   note: z.string().max(500).optional(),
 });
 
+/**
+ * The body of a PATCH, which is not a partial `TxInput`.
+ *
+ * `.partial()` makes every key optional and leaves its default in place, so
+ * `TxInput.partial().parse({ price: 5 })` returns `{ price: 5, fee: 0 }`. A
+ * body that never mentioned the fee arrived carrying one, and the update
+ * wrote that zero over whatever was stored — editing a price silently erased
+ * the fee, and with it part of the cost basis.
+ *
+ * Overriding `fee` here strips the default, so absent means absent. The
+ * default itself is right where it is: a created row needs a number, and
+ * `TxInput` is still what POST parses.
+ */
+export const TxPatch = TxInput.partial().extend({
+  fee: z.number().nonnegative().optional(),
+});
+
 export function serializeTx(tx: Transaction) {
   return {
     id: tx.id,
