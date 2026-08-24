@@ -15,8 +15,19 @@ const TABS = [
 
 export default function TabBar() {
   const pathname = usePathname();
-  const [open, setOpen] = useState(false);
+  /**
+   * Which route the menu was opened on — not a boolean.
+   *
+   * It is open only while the page underneath is still the page it was opened
+   * over, so any navigation closes it: a link inside it, a back gesture, a
+   * forward one. A boolean plus a popstate listener was the first attempt and
+   * did not survive a real back — the event fires, but the listener is gone by
+   * the time it does. Derivation cannot miss an event it never listens for.
+   */
+  const [openedOn, setOpenedOn] = useState<string | null>(null);
   if (pathname === "/login" || pathname === "/setup") return null;
+  const open = openedOn === pathname;
+  const setOpen = (next: boolean) => setOpenedOn(next ? pathname : null);
   const active = (href: string) => pathname === href || pathname.startsWith(href + "/");
   // The fourth slot lights up for anything behind the menu, so a person on the
   // ledger can still see which quarter of the app they are in.
@@ -44,7 +55,7 @@ export default function TabBar() {
                 you decide none of these was what you wanted. */}
             <button
               type="button"
-              onClick={() => setOpen((v) => !v)}
+              onClick={() => setOpen(!open)}
               aria-expanded={open}
               aria-haspopup="dialog"
               className={`w-full flex flex-col items-center gap-0.5 text-center text-xs py-2 ${

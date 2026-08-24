@@ -4,6 +4,9 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.WindowManager;
+import android.webkit.WebView;
+
+import androidx.activity.OnBackPressedCallback;
 
 import com.getcapacitor.BridgeActivity;
 
@@ -25,6 +28,42 @@ public class MainActivity extends BridgeActivity {
                 startActivity(intent);
             }
         );
+
+        handleBackButton();
+    }
+
+    /**
+     * Make the system back gesture walk the app's own history.
+     *
+     * Capacitor 8's BridgeActivity registers nothing for back, and
+     * @capacitor/app is not installed, so Android's default applied: back
+     * finished the activity and the app shut, from any screen, even four
+     * pages deep.
+     *
+     * Registered on the OnBackPressedDispatcher rather than by overriding
+     * onBackPressed(). At targetSdk 36 the predictive back gesture is on by
+     * default and onBackPressed() is no longer called at all, so the override
+     * would compile, look right, and never run.
+     *
+     * The WebView's history includes Next's client-side pushState entries, so
+     * this walks the routes a person actually visited. When there is nothing
+     * left to go back to, the callback disables itself and re-dispatches, which
+     * hands the press to the system default — closing the app, which at the
+     * first screen is the right answer.
+     */
+    private void handleBackButton() {
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                WebView webView = getBridge().getWebView();
+                if (webView.canGoBack()) {
+                    webView.goBack();
+                } else {
+                    setEnabled(false);
+                    getOnBackPressedDispatcher().onBackPressed();
+                }
+            }
+        });
     }
 
     /**
