@@ -514,24 +514,30 @@ export async function history(
           return source.history(symbol, y.range, y.interval);
         }
 
+        // Crypto only: `pricingPair` cannot tell a coin from a ticker, and
+        // would answer ASML.ASUSDT for an equity — a symbol that does not
+        // exist, charting the holding as nothing.
+        const pair = pricingPair(symbol);
         // "all" here means everything the source will give, not the portfolio's
         // first transaction: this endpoint knows nothing about a portfolio.
         const from = windowStart(range, 0);
         const hourly = range === "1d" || range === "1w";
         if (hourly) {
           const limit = range === "1d" ? 25 : 168;
-          const raw = await fetchKlines(net, { symbol, interval: "1h", limit });
+          const raw = await fetchKlines(net, { symbol: pair, interval: "1h", limit });
           return raw.map((b) => ({ t: b.t, c: b.c }));
         }
         // Daily bars: one page is enough for a year, longer windows paginate.
         if (from === 0 || Date.now() - from > 1000 * DAY_MS) {
           const raw = await fetchKlinesRange(net, {
-            symbol, interval: "1d", from: from || Date.parse("2017-01-01"), to: Date.now(),
+            symbol: pair, interval: "1d", from: from || Date.parse("2017-01-01"), to: Date.now(),
           });
           return raw.map((b) => ({ t: b.t, c: b.c }));
         }
         const days = Math.ceil((Date.now() - from) / DAY_MS) + 1;
-        const raw = await fetchKlines(net, { symbol, interval: "1d", limit: Math.min(1000, days) });
+        const raw = await fetchKlines(net, {
+          symbol: pair, interval: "1d", limit: Math.min(1000, days),
+        });
         return raw.filter((b) => b.t >= from).map((b) => ({ t: b.t, c: b.c }));
       },
     );
