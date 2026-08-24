@@ -382,7 +382,7 @@ function ContribList({
         {rows.map((r) => (
           <li key={r.symbol}>
             <Link
-              href={`/portfolio/${encodeURIComponent(r.symbol)}`}
+              href={`/portfolio/${encodeURIComponent(r.symbol)}?type=${r.assetType}`}
               className="flex items-center gap-2 text-sm"
             >
               <CoinIcon symbol={r.symbol} size={20} assetType={r.assetType} />

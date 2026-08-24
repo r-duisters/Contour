@@ -410,7 +410,11 @@ export default function PortfolioPage() {
                         <div className="flex items-center gap-4">{inner}</div>
                       ) : (
                         <Link
-                          href={`/portfolio/${encodeURIComponent(h.symbol)}?p=${encodeURIComponent(selectedId ?? "")}`}
+                          // The kind travels with the link because this row knows it and the
+                          // asset page would otherwise have to guess from the ticker —
+                          // and a bare coin name like ETH looks exactly like a stock.
+                          href={`/portfolio/${encodeURIComponent(h.symbol)}?type=${h.assetType}`
+                            + `&p=${encodeURIComponent(selectedId ?? "")}`}
                           className="flex items-center gap-4 active:opacity-70 transition-opacity"
                         >
                           {inner}

@@ -111,16 +111,37 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
   if (cached?.currency) setDisplayCurrency(cached.currency);
   const cachedHolding = cached?.holdings.find((h) => assetOf(h.symbol) === symbol) as Holding | undefined;
   const shownHolding = holding === undefined ? cachedHolding : holding;
+  // Read by the fetch effect without making it a dependency — see below.
+  // Written in an effect rather than during render: the compiler rejects a
+  // ref write in the render body, and the read happens after two awaits, long
+  // after effects have flushed.
+  const cachedRef = useRef(cachedHolding);
+  useEffect(() => { cachedRef.current = cachedHolding; }, [cachedHolding]);
   /**
    * The holding knows best; without one, the link's hint; without that, the
    * ticker. A cash row is cast to crypto here as it always was — its history
    * request is refused either way, and narrowing would ask for coin bars under
    * a currency's name.
    */
-  const resolvedType: "crypto" | "equity" =
+  const knownType: "crypto" | "equity" | null =
     shownHolding?.assetType === "equity" ? "equity"
     : shownHolding?.assetType === "crypto" ? "crypto"
-    : linkedType ?? (symbol.endsWith("USDT") ? "crypto" : "equity");
+    : linkedType ?? null;
+  /**
+   * Null means not known yet, and the kind-dependent parts of the page wait
+   * rather than guess. This used to read the ticker — `endsWith("USDT")` —
+   * which worked only while every coin was stored as a pair. Once symbols
+   * became assets, `ETH` stopped looking like a coin and every holding opened
+   * as a stock for a few hundred milliseconds: the wrong icon, the words
+   * "Stock / ETF", and a genuine request for whatever security trades under
+   * that ticker, whose price was briefly drawn as if it were yours.
+   *
+   * The fallback is only reached by a hand-typed URL for something not held —
+   * every link into this page carries the kind. A dot is a market suffix
+   * (`ASML.AS`), which no coin has.
+   */
+  const resolvedType: "crypto" | "equity" =
+    knownType ?? (symbol.includes(".") ? "equity" : "crypto");
   /** Loaded, and this portfolio does not hold it. */
   const notHeld = shownHolding === null;
   const lastClose = bars && bars.length > 0 ? bars[bars.length - 1]!.c : null;
@@ -156,12 +177,18 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
       // A failed one leaves the cached position on screen; with nothing
       // cached there is nothing to protect, so the empty state is the truth.
       if (val) setHolding(found ?? null);
-      else if (!cachedHolding) setHolding(null);
+      else if (!cachedRef.current) setHolding(null);
       setTxs((detail?.transactions ?? []).filter((t) => assetOf(t.symbol) === symbol));
 
     })();
     return () => { cancelled = true; };
-  }, [client, symbol, wantedId, remember, cachedHolding]);
+    // `cachedHolding` is deliberately absent: it is derived from the cache
+    // object this effect itself replaces through `remember`, so listing it
+    // made the effect its own trigger — valuation, portfolio and history
+    // refetched roughly three times a second, for as long as the page stayed
+    // open. It is read through a ref instead, which is what it was ever used
+    // for: a yes/no on whether anything is already on screen to protect.
+  }, [client, symbol, wantedId, remember]);
 
   // Price history reloads when the period changes, not when the page does.
   useEffect(() => {
@@ -243,7 +270,7 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
                 provider, so plenty of pages fall back to the ticker up there —
                 and printing it twice reads as a rendering fault. */}
             {title !== symbol && <span className="font-mono">{symbol}{" · "}</span>}
-            {resolvedType === "equity" ? "Stock / ETF" : "Crypto"}
+            {knownType === null ? "—" : knownType === "equity" ? "Stock / ETF" : "Crypto"}
             {shownHolding
               ? <>{" · "}{qty(shownHolding.quantity)} held</>
               : notHeld && <>{" · "}not in this portfolio</>}
@@ -331,7 +358,10 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
         <PriceChart bars={bars} txs={txs} hideValues={hideAmounts} />
       )}
 
-          <AssetInfoPanel symbol={symbol} assetType={resolvedType} />
+          {/* Waits for the kind rather than asking about the wrong asset:
+              a background panel fetched as an equity describes a listed
+              security that merely shares the ticker. */}
+          {knownType !== null && <AssetInfoPanel symbol={symbol} assetType={knownType} />}
 
           <section className="mt-8">
             <div className="flex items-baseline gap-2 mb-2">
