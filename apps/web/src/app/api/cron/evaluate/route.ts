@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Alert } from "@prisma/client";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
 import { prisma } from "@/lib/db";
+import { pricingPair } from "@/core/symbols";
 import { fetchKlines, fetchPricesSafe } from "@/data/sources/binance";
 import { deps } from "@/lib/deps";
 import { run } from "@/lib/indicator";
@@ -162,12 +163,19 @@ async function evalPctMove(a: Alert, notifiers: Notifier[]): Promise<Summary> {
     return { alertId: a.id, fired: 0, skipped: 0 };
   }
 
-  const prices = await fetchPricesSafe(deps().net, symbols);
+  // Binance prices pairs; a held symbol names the asset. Before the symbols
+  // were renamed these happened to coincide for coins, and this line asked for
+  // the stored spelling directly — which then became ETH, ADA, BTC, none of
+  // which Binance lists. `fetchPricesSafe` omits what it cannot price, so
+  // every portfolio-scoped alert quietly stopped firing rather than erroring.
+  const pairOf = new Map(symbols.map((s) => [s, pricingPair(s)]));
+  const prices = await fetchPricesSafe(deps().net, [...pairOf.values()]);
   let fired = 0, skipped = 0;
   for (const symbol of symbols) {
-    const price = prices[symbol];
+    const pair = pairOf.get(symbol)!;
+    const price = prices[pair];
     if (price === undefined) continue;
-    const daily = await fetchKlines(deps().net, { symbol, interval: "1d", limit: 2 });
+    const daily = await fetchKlines(deps().net, { symbol: pair, interval: "1d", limit: 2 });
     const prevClose = daily.length >= 2 ? daily[daily.length - 2]!.c : NaN;
     const hit = evaluatePctMove(params, prevClose, price);
     if (!hit) continue;
