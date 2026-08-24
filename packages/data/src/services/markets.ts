@@ -86,9 +86,18 @@ function indicesFor(net: Net, category: MarketCategory): Promise<IndexSeries[]> 
 
 export type MarketCategory = "crypto" | "stocks";
 
-/** How many rows each column carries. */
+/** How many rows each movers column carries. */
 const COLUMN = 5;
-const RANKED = 10;
+/**
+ * How deep the ranked table goes.
+ *
+ * The screen shows ten and adds ten per tap, so this is the ceiling on that —
+ * five taps. Fetched whole rather than paged, because both venues answer a
+ * fifty-row request in the same round trip as a ten-row one, and paging would
+ * buy a little idle traffic back in exchange for a spinner in the middle of
+ * the only interaction the table has.
+ */
+const RANKED = 50;
 
 /**
  * Pegged assets, excluded by name rather than by behaviour.
@@ -182,7 +191,7 @@ async function stockBoard(net: Net): Promise<MarketBoard> {
   const [gainers, losers, actives, indices] = await Promise.all([
     fetchScreener(net, "day_gainers", COLUMN),
     fetchScreener(net, "day_losers", COLUMN),
-    fetchScreener(net, "most_actives", 25),
+    fetchScreener(net, "most_actives", RANKED + 25),
     indicesFor(net, "stocks"),
   ]);
 

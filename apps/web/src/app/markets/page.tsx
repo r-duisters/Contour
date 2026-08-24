@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, TrendingUp } from "lucide-react";
+import { ArrowUpDown, ChevronDown, TrendingUp } from "lucide-react";
 import PageLabel from "@/components/PageLabel";
 import CoinIcon from "@/components/CoinIcon";
 import EmptyState from "@/components/EmptyState";
@@ -24,6 +24,40 @@ import { marketCap, marketMoney, percent } from "@/lib/display";
  * non-masking formatter, and says so.
  */
 
+/** Rows revealed per tap of More, and the first page. */
+const PAGE = 10;
+
+type SortKey = "marketCap" | "changeDesc" | "changeAsc" | "price" | "name";
+
+const SORTS: { key: SortKey; label: string }[] = [
+  { key: "marketCap", label: "market cap" },
+  { key: "changeDesc", label: "biggest gain" },
+  { key: "changeAsc", label: "biggest fall" },
+  { key: "price", label: "price" },
+  { key: "name", label: "name" },
+];
+
+/**
+ * The ranked table in the chosen order.
+ *
+ * Sorting happens over everything fetched, not over the ten on screen — a sort
+ * that only reordered the visible page would answer a different question each
+ * time More was pressed.
+ */
+function sortRows(rows: MarketRow[], key: SortKey): MarketRow[] {
+  const by = [...rows];
+  switch (key) {
+    case "changeDesc": return by.sort((a, b) => b.changePct - a.changePct);
+    case "changeAsc": return by.sort((a, b) => a.changePct - b.changePct);
+    case "price": return by.sort((a, b) => b.price - a.price);
+    case "name": return by.sort((a, b) =>
+      (a.name ?? a.symbol).localeCompare(b.name ?? b.symbol));
+    // The order the board arrived in already is market cap; re-sorting keeps
+    // the rows CoinGecko ranked without a cap out of the way at the end.
+    default: return by.sort((a, b) => (b.marketCap ?? -1) - (a.marketCap ?? -1));
+  }
+}
+
 const CATEGORIES = [
   { key: "crypto" as const, label: "Crypto" },
   { key: "stocks" as const, label: "Stocks" },
@@ -42,6 +76,9 @@ export default function MarketsPage() {
   const [expanded, setExpanded] = useState<Record<MarketCategory, boolean>>({
     crypto: false, stocks: false,
   });
+  const [sortKey, setSortKey] = useState<SortKey>("marketCap");
+  /** How many ranked rows are on screen. Ten more per tap. */
+  const [shown, setShown] = useState(PAGE);
 
   useEffect(() => {
     let live = true;
@@ -72,11 +109,20 @@ export default function MarketsPage() {
     return () => { live = false; };
   }, [client]);
 
+  const ranked = board ? sortRows(board.largest, sortKey) : [];
+
   return (
     <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-4 py-5 md:p-8 max-w-3xl mx-auto">
       <div className="flex items-center justify-between gap-3 mb-3">
         <PageLabel icon={TrendingUp}>Markets</PageLabel>
-        <Segmented value={category} options={CATEGORIES} onChange={setCategory} />
+        {/* Paging resets with the category rather than in an effect watching
+            it: carrying forty rows of crypto into the stocks table answers a
+            question nobody asked, and a switch is an event, not a sync. */}
+        <Segmented
+          value={category}
+          options={CATEGORIES}
+          onChange={(next) => { setCategory(next); setShown(PAGE); }}
+        />
       </div>
 
       {board && (
@@ -100,7 +146,49 @@ export default function MarketsPage() {
 
       {board && (
         <>
-          <div className="grid gap-6 md:grid-cols-2 mb-8">
+          {/* The ranked table leads. A movers column is a list of outliers, and
+              opening on it says the market is whatever its extremes did. */}
+          <section className="mb-8">
+            <div className="flex items-baseline justify-between gap-3 mb-2">
+              <SubHeading>
+                {sortKey === "marketCap" ? "Largest by market cap" : "Ranked"}
+              </SubHeading>
+              <label className="text-xs text-neutral-500 inline-flex items-center gap-1">
+                <ArrowUpDown size={12} aria-hidden />
+                <span className="sr-only">Sort by</span>
+                <select
+                  className="bg-transparent text-xs text-neutral-500 border-0 p-0 pr-4"
+                  value={sortKey}
+                  onChange={(e) => setSortKey(e.target.value as SortKey)}
+                >
+                  {SORTS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+                </select>
+              </label>
+            </div>
+            <Rows
+              rows={ranked.slice(0, shown)}
+              held={held}
+              portfolioId={portfolioId}
+              showCap
+              ranked
+            />
+            {shown < ranked.length && (
+              <button
+                type="button"
+                onClick={() => setShown((n) => n + PAGE)}
+                className="mt-2.5 w-full flex items-center justify-center gap-1.5 py-1.5
+                           rounded border border-neutral-800/60 text-xs text-neutral-500"
+              >
+                More
+                <span className="rounded-full border border-neutral-800 px-1.5 text-[11px] tabular-nums">
+                  {Math.min(PAGE, ranked.length - shown)}
+                </span>
+                <ChevronDown size={12} aria-hidden />
+              </button>
+            )}
+          </section>
+
+          <div className="grid gap-6 md:grid-cols-2">
             <section>
               <SubHeading className="mb-2">Up today</SubHeading>
               <Rows rows={board.up} held={held} portfolioId={portfolioId} />
@@ -112,11 +200,6 @@ export default function MarketsPage() {
                 : <Rows rows={board.down} held={held} portfolioId={portfolioId} />}
             </section>
           </div>
-
-          <section>
-            <SubHeading className="mb-2">Largest by market cap</SubHeading>
-            <Rows rows={board.largest} held={held} portfolioId={portfolioId} showCap ranked />
-          </section>
         </>
       )}
     </main>

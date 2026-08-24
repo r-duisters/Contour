@@ -178,8 +178,10 @@ apps/web/src/             The Next server app.
                           asset kind, since without a holding there is nothing
                           to read it off.
     insights/page.tsx       Benchmarks, what made the money, concentration, activity
-    markets/page.tsx        Crypto and stock movers, the largest by market cap, and an
-                          index strip: two cards drawn, the rest behind "More"
+    markets/page.tsx        An index strip (two cards drawn, the rest behind "More"),
+                          then the ranked table — ten rows, sortable, ten more per
+                          tap out of the fifty the board carries — then the day's
+                          winners and losers
     chart/page.tsx          Live candlestick chart with indicator overlay. Takes
                           ?symbol=, which a crypto holding's sparkline links to.
                           Off BTCUSDT the risk line is drawn but its ladder is
