@@ -135,6 +135,7 @@ function seededNet(): FakeNetInstance {
         },
       };
     },
+    "/api/quotes/": { quotes: ["USDT", "EUR", "BTC"] },
     "/api/transactions/": (url: string) =>
       url.includes(GONE_TRANSACTION_ID) ? serverError : { ok: true },
     "/api/benchmark": {

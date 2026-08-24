@@ -164,6 +164,11 @@ export function HttpClient(net: Net, baseUrl = ""): DataClient {
       return d.transaction;
     },
 
+    listQuotes(asset: string): Promise<string[]> {
+      return send<{ quotes: string[] }>("GET", `/api/quotes/${encodeURIComponent(asset)}`)
+        .then((d) => d.quotes);
+    },
+
     deleteTransaction(id: string): Promise<void> {
       return sendVoid("DELETE", `/api/transactions/${id}`);
     },

@@ -231,6 +231,11 @@ export function runDataClientContract(
       expect(tx.nativePrice).toBe(2000);
     });
 
+    it("lists the currencies an asset can be priced in", async () => {
+      const quotes = await makeClient().listQuotes("ETH");
+      expect(quotes).toContain("USDT");
+    });
+
     it("deletes a transaction", async () => {
       await expect(makeClient().deleteTransaction(TRANSACTION_ID)).resolves.toBeUndefined();
     });

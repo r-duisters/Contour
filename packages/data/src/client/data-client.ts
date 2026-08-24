@@ -165,6 +165,12 @@ export interface DataClient {
 
   /** @throws NotFoundError when no portfolio has that id. */
   addTransaction(portfolioId: string, tx: NewTransactionInput): Promise<TransactionDto>;
+  /**
+   * Which currencies this asset's price can be quoted in. Empty for an equity,
+   * whose currency is its venue's and is not a choice, and for a coin with no
+   * listed pair.
+   */
+  listQuotes(asset: string): Promise<string[]>;
   /** @throws RequestFailedError — see the note above on delete and 500s. */
   deleteTransaction(id: string): Promise<void>;
 

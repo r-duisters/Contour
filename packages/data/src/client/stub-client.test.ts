@@ -7,6 +7,7 @@ import type { Net } from "../ports/net";
 import type { SettingsPatch, Store, Transaction } from "../ports/store";
 import { FakeNet } from "../testing/fake-net";
 import { MemoryStore } from "../testing/memory-store";
+import { fetchQuotesFor } from "../sources/binance";
 import * as portfolios from "../services/portfolios";
 import * as settingsService from "../services/settings";
 import * as transactions from "../services/transactions";
@@ -232,6 +233,10 @@ function StubClient(store: Store, net: Net): DataClient {
       });
     },
 
+    listQuotes(asset: string): Promise<string[]> {
+      return attempt(() => fetchQuotesFor(net, asset));
+    },
+
     async deleteTransaction(id: string): Promise<void> {
       await attempt(() => transactions.deleteTransaction(store, id));
     },
@@ -435,6 +440,12 @@ function seededNet(): Net {
     // No previous closes: day change is unknown, which the fixture does not
     // assert and the valuation reports as uncovered rather than as zero.
     "api.binance.com/api/v3/klines": [],
+    "api.binance.com/api/v3/exchangeInfo": {
+      symbols: [
+        { symbol: "ETHUSDT", baseAsset: "ETH", quoteAsset: "USDT", status: "TRADING", isSpotTradingAllowed: true },
+        { symbol: "ETHEUR", baseAsset: "ETH", quoteAsset: "EUR", status: "TRADING", isSpotTradingAllowed: true },
+      ],
+    },
     // The markets board. Volumes clear the service's floor so the rows are not
     // filtered away; the point of the contract case is the shape, not the
     // ranking.
