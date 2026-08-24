@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import SymbolPicker from "@/components/SymbolPicker";
 import { quoteAsset } from "@/components/CoinIcon";
 import { Bell, Pause, Play, Plus, Trash2 } from "lucide-react";
@@ -22,11 +23,45 @@ type Alert = {
 
 type PortfolioRow = { id: string; name: string };
 
+/**
+ * The threshold the suggested portfolio-wide alert uses.
+ *
+ * Ten percent in a day is rare enough on an equity to mean something and
+ * common enough on a coin to fire a few times a year — which is the band
+ * where a notification is still read rather than dismissed.
+ */
+const DEFAULT_SWING = 10;
+
+/**
+ * `useSearchParams` opts a client page out of static prerendering unless it
+ * sits behind Suspense, and this page is prerendered. The fallback is never
+ * really seen — the parameter is known on the first client render.
+ */
 export default function AlertsPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen" />}>
+      <Alerts />
+    </Suspense>
+  );
+}
+
+function Alerts() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [suggestionDismissed, setSuggestionDismissed] = useState(false);
+  /**
+   * An asset page can send you here with its own ticker: `?symbol=ETHUSDT`.
+   *
+   * A link rather than a form over there, deliberately. The alerts routes are
+   * server-only by design — `CLAUDE.md` lists them among the endpoints the
+   * mobile build will never call — so an inline form would need either a
+   * DataClient method that contradicts that, or an exemption in
+   * `screen-boundary.test.ts`. This costs one tap and no debt, and it lands on
+   * the full form rather than a reduced copy of it that would drift.
+   */
+  const asked = useSearchParams().get("symbol");
   const [portfolios, setPortfolios] = useState<PortfolioRow[]>([]);
-  const [kind, setKind] = useState<Alert["kind"]>("indicator");
-  const [symbol, setSymbol] = useState("BTCUSDT");
+  const [kind, setKind] = useState<Alert["kind"]>(asked ? "price_target" : "indicator");
+  const [symbol, setSymbol] = useState(asked?.toUpperCase() || "BTCUSDT");
   const [timeframe, setTimeframe] = useState("1h");
   const [direction, setDirection] = useState<"above" | "below">("above");
   const [targetPrice, setTargetPrice] = useState("");
@@ -75,6 +110,33 @@ export default function AlertsPage() {
     await load();
   }
 
+  /**
+   * Whether anything already watches a whole portfolio for a swing.
+   *
+   * A per-symbol pct_move does not count: it covers the one asset it names,
+   * and the gap this fills is the coin bought last week that nobody thought
+   * to add an alert for.
+   */
+  const needsSwingAlert =
+    portfolios.length > 0 &&
+    !alerts.some((a) => a.kind === "pct_move" && a.portfolioId !== null);
+
+  async function addSwingAlert() {
+    const target = portfolioId || portfolios[0]?.id;
+    if (!target) return;
+    const res = await fetch("/api/alerts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        kind: "pct_move",
+        portfolioId: target,
+        params: { threshold: DEFAULT_SWING },
+      }),
+    });
+    if (!res.ok) { setError("Failed to create alert."); return; }
+    await load();
+  }
+
   async function toggle(a: Alert) {
     await fetch(`/api/alerts/${a.id}`, {
       method: "PATCH",
@@ -101,6 +163,34 @@ export default function AlertsPage() {
   return (
     <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-4 py-5 md:p-8 max-w-4xl mx-auto">
       <h1 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6 flex items-center gap-2"><Bell size={20} aria-hidden className="text-neutral-400" />Alerts</h1>
+
+      {/*
+        Offered, not seeded.
+        Portfolio-wide swing alerts have worked since the pct_move kind was
+        added — the model carries a portfolioId, the evaluator expands it over
+        every held symbol — and nobody had ever made one, because making one
+        means knowing the kind exists and picking the right scope. This is the
+        same alert the form builds, in one tap.
+
+        It creates nothing on its own. A self-hosted tool that starts pushing
+        notifications through Home Assistant without being asked is worse than
+        one you have to switch on.
+      */}
+      {!suggestionDismissed && needsSwingAlert && (
+        <div className="border border-neutral-800 rounded p-3 mb-6">
+          <p className="text-sm mb-1">Nothing watches the portfolio as a whole</p>
+          <p className="text-xs text-neutral-500 mb-3">
+            A {DEFAULT_SWING}% move in a day on any holding would go unnoticed. One
+            alert covers every symbol you hold, and follows the holdings as they change.
+          </p>
+          <div className="flex gap-2 flex-wrap">
+            <Button onClick={addSwingAlert}>Add swing alert</Button>
+            <Button variant="secondary" onClick={() => setSuggestionDismissed(true)}>
+              Not now
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="flex gap-2 mb-2 flex-wrap items-center">
         <select className={input} value={kind} onChange={(e) => setKind(e.target.value as Alert["kind"])}>

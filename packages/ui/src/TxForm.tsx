@@ -29,13 +29,19 @@ function localNow(): string {
  * `lockedSymbol` fixes the asset and hides the picker — on an asset's own page
  * the ticker is already decided, and offering it again invites recording a
  * trade against the wrong holding.
+ *
+ * `livePrice` is what the asset costs right now, offered as a one-tap fill.
+ * Most trades are recorded moments after they happen, and retyping a number
+ * the page is already showing is both tedious and the easiest place in the
+ * form to fat-finger a digit.
  */
 export default function TxForm({
-  onSubmit, error, lockedSymbol,
+  onSubmit, error, lockedSymbol, livePrice,
 }: {
   onSubmit: (tx: NewTx) => void;
   error: string | null;
   lockedSymbol?: string;
+  livePrice?: number | null;
 }) {
   const [symbol, setSymbol] = useState(lockedSymbol ?? "BTCUSDT");
   const [side, setSide] = useState<NewTx["side"]>("buy");

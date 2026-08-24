@@ -311,11 +311,12 @@ because a canvas cannot read `var(--font-geist-sans)`.
   Averaged into buckets, never sampled — a dropped point takes a peak with it.
   First and last observations pass through exactly, so the endpoint always
   equals the figure printed beside the chart.
-- **A price axis only where the level is read.** The portfolio value chart and
-  the Insights comparison hide it: the value is printed above the chart, and
-  the axis spent a fifth of a 390px screen restating it. The asset price chart
-  keeps it — a price chart is read against its levels and its trade markers —
-  with `axisMoney()` compact labels, so `€142.580,42` becomes `€143k`.
+- **No chart carries a price axis.** The value is printed above every one of
+  them, and the column spent a fifth of a 390px screen restating it. The asset
+  price chart was the exception on the grounds that a price is read against
+  its levels — but the levels are the high and low in the corners, which it
+  now shows, and the exception was really a second chart idiom in an app with
+  four charts.
 - **Where the axis is hidden, label the high and low** in the chart's corners.
   A shape without a scale can flatter or alarm: a 2% wobble and a 40%
   drawdown draw the same curve. (`createPriceLine` does not solve this — its

@@ -4,22 +4,22 @@ import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
-  createChart, createSeriesMarkers, LineSeries, LineType,
+  AreaSeries, createChart, createSeriesMarkers, LineType,
   type IChartApi, type ISeriesApi, type ISeriesMarkersPluginApi, type Time,
 } from "lightweight-charts";
 import { chartTheme, directionColors, roseOverPeriod } from "@/components/chart-theme";
 import {
-  ArrowDown, ArrowLeft, ArrowUp, ChevronLeft, ChevronRight, Plus, Trash2,
+  ArrowDown, ArrowLeft, ArrowUp, Bell, ChevronLeft, ChevronRight, Plus, Trash2,
 } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
 import { useDataClient } from "@/data/client/context";
 import {
-  axisMoney, marketMoney, money as fmtMoney, percent, quantity, setDisplayCurrency,
+  marketMoney, money as fmtMoney, percent, quantity, setDisplayCurrency,
 } from "@/lib/display";
 import { assetName } from "@/lib/asset-names";
 import { annotateTransactions } from "@/lib/portfolio";
 import { useFitChart } from "@/components/useFitChart";
-import { thin, targetPoints } from "@/lib/chart-data";
+import { shapePoints, thinKeepingExtremes } from "@/lib/chart-data";
 import { useStoredRange } from "@/components/useStoredRange";
 import { KEYS } from "@/lib/storage-keys";
 import { useCachedValuation, useLastPortfolio } from "@/components/useCachedValuation";
@@ -332,6 +332,15 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
               </h2>
               {!notHeld && <span className="text-xs text-neutral-500">{txs.length}</span>}
               <span className="flex-1" />
+              {/* Alerts live on their own page and their routes are
+                  server-only by design, so this hands the ticker over rather
+                  than growing a second, smaller alert form here. */}
+              <Link
+                href={`/alerts?symbol=${encodeURIComponent(symbol)}`}
+                className="text-xs text-neutral-300 inline-flex items-center gap-1"
+              >
+                <Bell size={12} aria-hidden />Alert me
+              </Link>
               <button
                 onClick={() => setAddOpen((v) => !v)}
                 className="text-xs text-neutral-300 inline-flex items-center gap-1"
@@ -340,7 +349,8 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
               </button>
             </div>
             {addOpen && (
-              <TxForm onSubmit={addTransaction} error={formError} lockedSymbol={symbol} />
+              <TxForm onSubmit={addTransaction} error={formError} lockedSymbol={symbol}
+                      livePrice={shownHolding?.price ?? lastClose} />
             )}
             {notHeld
               ? !addOpen && (
@@ -357,6 +367,18 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
 }
 
 
+/**
+ * The time scale's own canvas, along the bottom of the container. Measured,
+ * not guessed — the corner labels are placed from the plot above it.
+ */
+const AXIS_PX = 28;
+/**
+ * Share of the plot reserved above the high and below the low. Equal at both
+ * ends, so the high sits at `EDGE` of the plot's height and the low at
+ * `1 - EDGE` and each label lands on its own line without measuring.
+ */
+const EDGE = 0.1;
+
 /** Price history with this portfolio's own buys and sells marked. */
 function PriceChart({
   bars, txs, hideValues = false,
@@ -367,7 +389,7 @@ function PriceChart({
 }) {
   const container = useRef<HTMLDivElement>(null);
   const chart = useRef<IChartApi | null>(null);
-  const line = useRef<ISeriesApi<"Line"> | null>(null);
+  const line = useRef<ISeriesApi<"Area"> | null>(null);
   const markers = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
 
   useEffect(() => {
@@ -375,20 +397,31 @@ function PriceChart({
     const c = createChart(container.current, {
       ...chartTheme(),
       autoSize: true,
-      // The axis stays — a price chart is read against its levels — but its
-      // labels are compacted so the column does not dominate the phone.
-      localization: { priceFormatter: axisMoney },
+      // No price axis, matching the portfolio's chart. `BRAND.md` used to make
+      // this one the exception — "a price chart is read against its levels" —
+      // and the levels are still there, as the high and low in the corners.
+      // What the column actually cost was a fifth of a 390px screen and a
+      // second chart idiom in an app with four of them.
+      //
+      // The margins are pinned for the same reason ValueChart pins them: the
+      // two labels are placed from these fractions rather than measured.
+      rightPriceScale: { visible: false, scaleMargins: { top: EDGE, bottom: EDGE } },
       timeScale: { timeVisible: false, fixLeftEdge: true, fixRightEdge: true },
       handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
     });
     chart.current = c;
-    line.current = c.addSeries(LineSeries, {
+    line.current = c.addSeries(AreaSeries, {
       // Recoloured with the data below. The line takes the period's direction,
       // as the portfolio's does; the buy and sell markers keep the same green
       // and red, which is a real overlap — they are triangles at the edge of a
       // bar against a two-pixel line, and the alternative was a third pair of
       // colours nobody has a meaning for.
-      color: "#22c55e", lineWidth: 2, lineType: LineType.Curved,
+      ...directionColors(true),
+      lineWidth: 2,
+      lineType: LineType.Curved,
+      // The last value is printed in the header; a third rule competed with
+      // the two that carry the range.
+      priceLineVisible: false,
     });
     markers.current = createSeriesMarkers(line.current);
     return () => { c.remove(); chart.current = null; line.current = null; markers.current = null; };
@@ -399,19 +432,28 @@ function PriceChart({
     [txs],
   );
 
-  // A price axis is a price: hide it with the rest of the amounts.
-  useEffect(() => {
-    chart.current?.applyOptions({ rightPriceScale: { visible: !hideValues } });
-  }, [hideValues]);
+  /** The period's high and low, which the corner labels claim. */
+  const extent = useMemo(() => {
+    if (!bars || bars.length === 0) return null;
+    const closes = bars.map((b) => b.c);
+    const hi = Math.max(...closes);
+    const lo = Math.min(...closes);
+    return hi > lo ? { hi, lo } : null;
+  }, [bars]);
+
 
   useEffect(() => {
     if (!line.current || !bars) return;
-    const points = thin(
+    // `shapePoints`, as the portfolio chart uses — the register that makes a
+    // week and a year read as the same kind of picture. `targetPoints` drew
+    // this one three times as finely as every other line in the app.
+    // Extremes are kept because the corner labels claim them.
+    const points = thinKeepingExtremes(
       bars.map((b) => ({ t: b.t, v: b.c })),
-      targetPoints(container.current?.clientWidth ?? 360),
+      shapePoints(container.current?.clientWidth ?? 360),
     );
     line.current.setData(points.map((p) => ({ time: Math.floor(p.t / 1000) as Time, value: p.v })));
-    line.current.applyOptions({ color: directionColors(roseOverPeriod(points.map((p) => p.v))).lineColor });
+    line.current.applyOptions(directionColors(roseOverPeriod(points.map((p) => p.v))));
     const first = bars[0]?.t ?? 0;
     markers.current?.setMarkers(
       trades.filter((t) => t.time >= first).map((t) => ({
@@ -429,7 +471,32 @@ function PriceChart({
   if (bars !== null && bars.length === 0) {
     return <EmptyState>No price history for this asset.</EmptyState>;
   }
-  return <div ref={container} className="h-56 md:h-72 border border-neutral-800 rounded" />;
+  return (
+    <div className="relative h-56 md:h-72 border border-neutral-800 rounded">
+      <div ref={container} className="absolute inset-0" />
+      {/* With the axis gone the levels have to come back somewhere, or the
+          shape can flatter or alarm — a 2% wobble and a 40% drawdown draw the
+          same curve. `z-10` because lightweight-charts fills the container
+          with its own absolutely-positioned canvases and these would otherwise
+          be painted behind them: present, sized, and never on screen. */}
+      {extent && !hideValues && (
+        <>
+          <span
+            style={{ top: `calc((100% - ${AXIS_PX}px) * ${EDGE})` }}
+            className="pointer-events-none absolute z-10 right-2 -translate-y-full -mt-0.5 text-xs tabular-nums text-neutral-500"
+          >
+            {fmtMoney(extent.hi)}
+          </span>
+          <span
+            style={{ top: `calc((100% - ${AXIS_PX}px) * ${1 - EDGE})` }}
+            className="pointer-events-none absolute z-10 right-2 mt-0.5 text-xs tabular-nums text-neutral-500"
+          >
+            {fmtMoney(extent.lo)}
+          </span>
+        </>
+      )}
+    </div>
+  );
 }
 
 /**
