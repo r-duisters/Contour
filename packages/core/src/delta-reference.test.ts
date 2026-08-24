@@ -19,6 +19,7 @@ import { parseDeltaCsv } from "./delta-csv";
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const CSV = readFileSync(join(REPO, "samples/delta/delta-export-reference.csv"), "utf8");
+const ETORO = readFileSync(join(REPO, "samples/delta/etoro-statement-reference.csv"), "utf8");
 
 describe("the reference Delta export", () => {
   const { rows, skipped } = parseDeltaCsv(CSV);
@@ -63,5 +64,23 @@ describe("the reference Delta export", () => {
     expect(skipped).toHaveLength(1);
     expect(skipped[0]!.reason).toContain("DIVIDEND");
     expect(rows).toHaveLength(6);
+  });
+});
+
+describe("an eToro account statement, which is not a Delta export", () => {
+  // Delta is eToro's app, so the two names travel together and the wrong file
+  // is an easy mistake for exactly this app's audience to make. eToro's own
+  // statement has no base/quote columns at all — a dividend is
+  // `Dividend,NKE/USD,0.17`, with the ticker inside a free-text field.
+  const { rows, skipped } = parseDeltaCsv(ETORO);
+
+  it("is refused at the header, importing nothing at all", () => {
+    // The property worth having is all-or-nothing. Twenty-eight rows that
+    // half-parse into a ledger would be far worse than a rejected file,
+    // because the damage is silent and already committed.
+    expect(rows).toEqual([]);
+    expect(skipped).toHaveLength(1);
+    expect(skipped[0]!.line).toBe(1);
+    expect(skipped[0]!.reason).toContain("missing required column");
   });
 });
