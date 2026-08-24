@@ -101,8 +101,19 @@ function seededNet(): FakeNetInstance {
         };
       }
       if (sub.startsWith("/transactions")) {
-        return missing ? notFound : {
-          transaction: { ...FIXTURE.newTransaction, id: "t-new", portfolioId: id, note: null },
+        if (missing) return notFound;
+        // Echo what was posted, as the real route does. A fake that answered
+        // the fixture whatever it was sent would let a client drop a field on
+        // the way out and still satisfy every assertion about it.
+        const sent = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+        return {
+          transaction: {
+            ...FIXTURE.newTransaction,
+            ...sent,
+            nativeCurrency: sent.nativeCurrency ?? null,
+            nativePrice: sent.nativePrice ?? null,
+            id: "t-new", portfolioId: id, note: null,
+          },
         };
       }
       if (sub.startsWith("/import")) {

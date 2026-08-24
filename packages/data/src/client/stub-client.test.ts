@@ -128,6 +128,8 @@ function toDto(t: Transaction): TransactionDto {
     fee: t.fee,
     time: t.time,
     note: t.note,
+    nativeCurrency: t.nativeCurrency,
+    nativePrice: t.nativePrice,
   };
 }
 
@@ -218,12 +220,12 @@ function StubClient(store: Store, net: Net): DataClient {
       return attempt(async () => {
         const row = await transactions.addTransaction(store, net, portfolioId, {
           ...tx,
-          // The defaults the manual-entry route has always applied; the input
-          // DTO deliberately cannot express anything else.
+          // `assetType` is still the route's default: cash and income arrive
+          // with a later plan. The native figures now come from the input.
           assetType: "crypto",
-          nativeCurrency: null,
-          nativePrice: null,
-          nativeFee: null,
+          nativeCurrency: tx.nativeCurrency ?? null,
+          nativePrice: tx.nativePrice ?? null,
+          nativeFee: tx.nativeFee ?? null,
           note: tx.note ?? null,
         });
         return toDto(row);
