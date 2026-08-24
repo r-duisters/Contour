@@ -6,6 +6,7 @@ import {
   createChart, CandlestickSeries, LineSeries, createSeriesMarkers,
   type IChartApi, type ISeriesApi, type ISeriesMarkersPluginApi, type Time,
 } from "lightweight-charts";
+import { chartTheme } from "@/components/chart-theme";
 import { run } from "@/lib/indicator";
 import type { Bar } from "@/lib/types";
 import { CandlestickChart } from "lucide-react";
@@ -51,17 +52,7 @@ function Chart() {
   useEffect(() => {
     if (!priceContainer.current || !riskContainer.current) return;
     const common = {
-      layout: {
-        background: { color: "#0a0a0a" }, textColor: "#d4d4d4",
-        // The library's licence asks for the attribution notice and a link to
-        // tradingview.com somewhere the user can reach. Its logo satisfies
-        // that, and so does the credit on the More page — which is where ours
-        // lives, so the logo comes off the four charts it was sitting on.
-        // Removing it without that credit would breach the licence; the two
-        // changes are one change.
-        attributionLogo: false,
-      },
-      grid: { vertLines: { color: "#1f1f1f" }, horzLines: { color: "#1f1f1f" } },
+      ...chartTheme(),
       autoSize: true,
       timeScale: { timeVisible: true, secondsVisible: false },
       // Vertical swipes must scroll the page on touch devices; horizontal

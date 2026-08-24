@@ -9,6 +9,7 @@ import {
   AreaSeries, createChart, LineStyle, LineType,
   type IChartApi, type IPriceLine, type ISeriesApi, type Time,
 } from "lightweight-charts";
+import { chartTheme, directionColors, roseOverPeriod } from "./chart-theme";
 
 /**
  * The time scale is a canvas lightweight-charts lays along the bottom of the
@@ -53,19 +54,7 @@ export default function ValueChart({ series }: {
   useEffect(() => {
     if (!container.current) return;
     const c = createChart(container.current, {
-      layout: {
-        background: { color: "#0a0a0a" }, textColor: "#d4d4d4",
-        // The library's licence asks for the attribution notice and a link to
-        // tradingview.com somewhere the user can reach. Its logo satisfies
-        // that, and so does the credit on the More page — which is where ours
-        // lives, so the logo comes off the four charts it was sitting on.
-        // Removing it without that credit would breach the licence; the two
-        // changes are one change.
-        attributionLogo: false,
-      },
-      // #171717, as the asset and comparison charts already use. BRAND.md
-      // lists both greys, which is why this one drifted.
-      grid: { vertLines: { color: "#171717" }, horzLines: { color: "#171717" } },
+      ...chartTheme(),
       autoSize: true,
       // No price axis: the value is printed above the chart, and on a 390px
       // screen the column cost more width than the reading was worth.
@@ -82,9 +71,8 @@ export default function ValueChart({ series }: {
     });
     chart.current = c;
     area.current = c.addSeries(AreaSeries, {
-      lineColor: "#3b82f6",
-      topColor: "rgba(59, 130, 246, 0.3)",
-      bottomColor: "rgba(59, 130, 246, 0.0)",
+      // Recoloured below whenever the data changes; this is only the first paint.
+      ...directionColors(true),
       lineWidth: 2,
       // Daily closes are jagged enough that the corners read as noise.
       lineType: LineType.Curved,
@@ -102,6 +90,10 @@ export default function ValueChart({ series }: {
     const raw = series.map((p) => ({ t: p.t, v: p.value }));
     const points = thinKeepingExtremes(raw, shapePoints(width));
     area.current.setData(points.map((p) => ({ time: Math.floor(p.t / 1000) as Time, value: p.v })));
+    // Green if the window ended above where it opened, red if below — read off
+    // the drawn points, so the colour agrees with the line rather than with a
+    // figure computed somewhere else.
+    area.current.applyOptions(directionColors(roseOverPeriod(points.map((p) => p.v))));
   }, [series]);
 
   /**
@@ -144,7 +136,9 @@ export default function ValueChart({ series }: {
 
           One grey for both, because they do the same job: they were 11px in
           neutral-500 and neutral-600, two weights for one pair, with the low
-          in the grey the guide reserves for footnotes. */}
+          in the grey the guide reserves for footnotes. Both now sit at
+          neutral-500, the tone the Markets cards use for the same kind of
+          label — a step dimmer than they were, so the line keeps the eye. */}
       {extent && !hidden && (
         <>
           {/* Placed from the same margins the price scale uses, so each label
@@ -154,13 +148,13 @@ export default function ValueChart({ series }: {
               figures drifted off their lines. */}
           <span
             style={{ top: `calc((100% - ${AXIS_PX}px) * ${EDGE})` }}
-            className="pointer-events-none absolute z-10 right-2 -translate-y-full -mt-0.5 text-xs tabular-nums text-neutral-400"
+            className="pointer-events-none absolute z-10 right-2 -translate-y-full -mt-0.5 text-xs tabular-nums text-neutral-500"
           >
             {money(extent.hi.value)}
           </span>
           <span
             style={{ top: `calc((100% - ${AXIS_PX}px) * ${1 - EDGE})` }}
-            className="pointer-events-none absolute z-10 right-2 mt-0.5 text-xs tabular-nums text-neutral-400"
+            className="pointer-events-none absolute z-10 right-2 mt-0.5 text-xs tabular-nums text-neutral-500"
           >
             {money(extent.lo.value)}
           </span>

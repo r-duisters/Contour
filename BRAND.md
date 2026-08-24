@@ -286,7 +286,23 @@ Numbers:
 
 ## Charts
 
-`lightweight-charts`, one convention across all of them.
+`lightweight-charts`, one convention across all of them, and
+`packages/ui/src/chart-theme.ts` is where it lives. Four charts hand-wrote the
+same `layout` and `grid` block, which is how one drifted onto a different grid
+grey and how all four spent a year setting their axis labels in **Trebuchet
+MS** — the library's default, which nobody had overridden and which never
+looked wrong enough to notice. `chartTheme()` resolves the family off `body`,
+because a canvas cannot read `var(--font-geist-sans)`.
+
+- **A value or price line takes the period's direction**: `#22c55e` if it
+  ended above where it opened, `#ef4444` if below, with a wash of the same hue
+  at 28% fading to nothing before the baseline. `directionColors()` owns the
+  pair. This overrides the older rule that the accent blue is "you on a
+  chart" — that now applies only to the benchmark comparison, where two
+  colours separate two *series* and direction has nothing to say.
+- **The high and the low sit at `text-neutral-500`**, one step dimmer than
+  they were, matching the Markets cards. One grey for both: they do the same
+  job, and two greys for one pair reads as a hierarchy that is not there.
 
 - **Curved lines** (`lineType: LineType.Curved`), and **thin dense series** to
   roughly one point per three pixels. Curving alone does nothing when there

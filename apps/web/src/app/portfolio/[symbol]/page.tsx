@@ -7,6 +7,7 @@ import {
   createChart, createSeriesMarkers, LineSeries, LineType,
   type IChartApi, type ISeriesApi, type ISeriesMarkersPluginApi, type Time,
 } from "lightweight-charts";
+import { chartTheme, directionColors, roseOverPeriod } from "@/components/chart-theme";
 import {
   ArrowDown, ArrowLeft, ArrowUp, ChevronLeft, ChevronRight, Plus, Trash2,
 } from "lucide-react";
@@ -317,17 +318,7 @@ function PriceChart({
   useEffect(() => {
     if (!container.current) return;
     const c = createChart(container.current, {
-      layout: {
-        background: { color: "#0a0a0a" }, textColor: "#d4d4d4",
-        // The library's licence asks for the attribution notice and a link to
-        // tradingview.com somewhere the user can reach. Its logo satisfies
-        // that, and so does the credit on the More page — which is where ours
-        // lives, so the logo comes off the four charts it was sitting on.
-        // Removing it without that credit would breach the licence; the two
-        // changes are one change.
-        attributionLogo: false,
-      },
-      grid: { vertLines: { color: "#171717" }, horzLines: { color: "#171717" } },
+      ...chartTheme(),
       autoSize: true,
       // The axis stays — a price chart is read against its levels — but its
       // labels are compacted so the column does not dominate the phone.
@@ -337,7 +328,12 @@ function PriceChart({
     });
     chart.current = c;
     line.current = c.addSeries(LineSeries, {
-      color: "#3b82f6", lineWidth: 2, lineType: LineType.Curved,
+      // Recoloured with the data below. The line takes the period's direction,
+      // as the portfolio's does; the buy and sell markers keep the same green
+      // and red, which is a real overlap — they are triangles at the edge of a
+      // bar against a two-pixel line, and the alternative was a third pair of
+      // colours nobody has a meaning for.
+      color: "#22c55e", lineWidth: 2, lineType: LineType.Curved,
     });
     markers.current = createSeriesMarkers(line.current);
     return () => { c.remove(); chart.current = null; line.current = null; markers.current = null; };
@@ -360,6 +356,7 @@ function PriceChart({
       targetPoints(container.current?.clientWidth ?? 360),
     );
     line.current.setData(points.map((p) => ({ time: Math.floor(p.t / 1000) as Time, value: p.v })));
+    line.current.applyOptions({ color: directionColors(roseOverPeriod(points.map((p) => p.v))).lineColor });
     const first = bars[0]?.t ?? 0;
     markers.current?.setMarkers(
       trades.filter((t) => t.time >= first).map((t) => ({

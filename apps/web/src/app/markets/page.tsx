@@ -227,20 +227,32 @@ function Rows({
               <span className="w-4 text-[11px] text-neutral-500 tabular-nums shrink-0">{i + 1}</span>
             )}
             <CoinIcon symbol={r.symbol} size={20} assetType={r.assetType} />
+            {/*
+              Name leads, ticker beneath — the portfolio's row, at this list's
+              density. The same asset read two ways on two screens was the last
+              thing separating them. Crypto movers arrive with no name, so the
+              ticker steps up rather than leaving the line empty; that is a
+              fallback, not a second idiom.
+
+              The cap rides on the sub-line rather than in a column of its own:
+              a phone has no room for a fourth column, and a heading that says
+              "largest by market cap" over a table with no cap in it asks the
+              reader to take the ranking on trust.
+            */}
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-2">
-                <span className="font-mono tracking-wider text-sm">{r.symbol}</span>
+                <span className="text-sm font-medium truncate">{r.name ?? r.symbol}</span>
                 {held.has(baseOf(r.symbol)) && (
-                  <span className="text-[11px] uppercase tracking-wide text-neutral-500">Held</span>
+                  <span className="text-[11px] uppercase tracking-wide text-neutral-500 shrink-0">Held</span>
                 )}
               </span>
+              {/* The ticker is only worth a line of its own when the name
+                  above it is something else. A crypto mover arrives with no
+                  name, so the primary is already the ticker and repeating it
+                  underneath read as "PROM / PROM". */}
               {(r.name || (showCap && r.marketCap !== undefined)) && (
-                // The cap rides with the name rather than in a column of its
-                // own: a phone has no room for a fourth column, and a heading
-                // that says "largest by market cap" over a table with no cap
-                // in it is asking the reader to take the ranking on trust.
                 <span className="block text-[11px] text-neutral-500 tabular-nums truncate">
-                  {r.name}
+                  {r.name && <span className="font-mono tracking-wider">{r.symbol}</span>}
                   {showCap && r.marketCap !== undefined && (
                     <>{r.name ? " · " : ""}{marketCap(r.marketCap)}</>
                   )}
