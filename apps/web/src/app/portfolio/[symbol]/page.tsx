@@ -389,8 +389,13 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
             </div>
             <Sheet open={addOpen} onClose={() => setAddOpen(false)} title="Add a transaction">
               <div className="p-3">
+                {/* `lastClose` and not the holding's `price`: the holding is
+                    valued in the *display* currency and this field is in the
+                    asset's own. Measured on the live ledger, AMD reads 457.58
+                    from the series and €389.13 on the holding — the same asset,
+                    differing by the exchange rate. */}
                 <TxForm onSubmit={addTransaction} error={formError} lockedSymbol={symbol}
-                        livePrice={shownHolding?.price ?? lastClose} />
+                        assetType={resolvedType} livePrice={lastClose} />
               </div>
             </Sheet>
             {/* The empty state no longer hides while the form is open: an
