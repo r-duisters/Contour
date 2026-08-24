@@ -97,18 +97,36 @@ is correct but must be visible.
 **Round-tripping.** The backup and CSV exports carry symbols. Both need to
 read old files and write new ones, or a restore silently reintroduces pairs.
 
-## Decisions that need a person
+## Decisions, settled 2026-08-24
 
-1. **Do the strategy alerts follow?** `Alert.symbol` holds `BTCUSDT` on two
-   rows. Those alerts evaluate Binance klines, so the pair is arguably correct
-   there — but then two columns named `symbol` mean different things.
-   *Recommendation: leave alerts on pairs and rename the field's meaning in a
-   comment, because that is what they genuinely address.*
-2. **What does the asset page URL become?** `/portfolio/ETHUSDT` today.
-   `/portfolio/ETH` is the honest form, and old links break.
-   *Recommendation: accept both, resolving a pair to its base.*
-3. **Does the importer keep writing pairs?** It should not, but Delta's export
-   speaks pairs, so the mapping moves into the importer.
+1. **Strategy alerts keep their pairs.** `Alert.symbol` holds `BTCUSDT` and
+   stays that way: those alerts fetch Binance klines, so a pair is genuinely
+   what they address. The two columns named `symbol` will mean different
+   things, and each needs a comment saying which.
+2. **Both URLs resolve.** `/portfolio/ETH` is the honest form and
+   `/portfolio/ETHUSDT` keeps working, resolving to the same asset — old links
+   and bookmarks do not break.
+3. **Nothing moves into the importer, because the mapping is already there.**
+
+### On the third
+
+There is no pair→asset mapping to relocate. Delta's export has *separate*
+`Base currency` and `Quote currency` columns, and `delta-csv.ts` already reads
+both: the base becomes `ParsedTx.base`, and the quote is resolved into
+`nativeCurrency` / `nativePrice` a few lines above. Then line 279 throws the
+truth away:
+
+```ts
+symbol: assetType === "equity" ? baseCurrency : `${baseCurrency}USDT`,
+```
+
+The suffix is a constant. It is not read from the file, it is not derived from
+the venue, and it contradicts the `quoteCurrency` the same row just parsed —
+which is precisely how 172 rows came to disagree with themselves.
+
+So the importer's part of this work is deleting a concatenation. That also
+means the 52 coin-settled rows were never lossy: `IOTA` bought for `ETH` has
+carried both facts all along, under a name that said neither.
 
 ## Out of scope
 
