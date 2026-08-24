@@ -29,3 +29,50 @@ export function cashBalances(txs: CashRelevantTx[]): Record<string, number> {
   }
   return out;
 }
+
+/** A cash movement with the moment it happened, for the running-balance form. */
+export type TimedCashTx = CashRelevantTx & { time: number };
+
+/**
+ * The same balances as `cashBalances`, but as they stood at each of the given
+ * moments — what the value chart needs to draw cash alongside the holdings.
+ *
+ * `times` must be ascending; the transactions need not be. One pass over each,
+ * rather than re-filtering the ledger per bar.
+ *
+ * A negative balance is reported, not suppressed. The caller decides what an
+ * impossible balance means — `valuation` declines to let one subtract from the
+ * portfolio's worth — and hiding it here would leave no way to tell "no cash"
+ * from "the ledger is missing its deposits".
+ */
+export function cashBalancesOver(
+  txs: TimedCashTx[],
+  times: number[],
+): Record<string, number>[] {
+  const moves = txs
+    .filter((t) => t.assetType === "cash" && t.nativeCurrency)
+    .sort((a, b) => a.time - b.time);
+
+  const running: Record<string, number> = {};
+  const out: Record<string, number>[] = [];
+  let i = 0;
+  for (const at of times) {
+    while (i < moves.length && moves[i]!.time <= at) {
+      const m = moves[i]!;
+      const signed = m.side === "transfer_in" || m.side === "buy" ? m.quantity : -m.quantity;
+      running[m.nativeCurrency!] = (running[m.nativeCurrency!] ?? 0) + signed;
+      i++;
+    }
+    out.push(prune(running));
+  }
+  return out;
+}
+
+/** A copy with the dust dropped, matching what `cashBalances` returns. */
+function prune(balances: Record<string, number>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [currency, amount] of Object.entries(balances)) {
+    if (Math.abs(amount) >= 0.005) out[currency] = amount;
+  }
+  return out;
+}

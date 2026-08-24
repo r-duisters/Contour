@@ -159,6 +159,38 @@ export async function valuation(store: Store, net: Net, id: string): Promise<Val
   };
 }
 
+/**
+ * Today's rate from each held currency into the display currency.
+ *
+ * Exported because the value series has to convert cash exactly as this does,
+ * or the line will not end on the figure printed above it. A currency whose
+ * rate cannot be fetched is absent from the map rather than assumed to be 1 —
+ * leaving it out understates the total, where guessing would misstate it.
+ *
+ * Today's rate, deliberately, even for a balance held years ago: the whole
+ * value series is already reported in today's currency terms, and giving cash
+ * a per-day rate while the holdings keep one would make the two halves of a
+ * single line disagree about what a euro is.
+ */
+export async function currentCashRates(
+  net: Net,
+  currencies: string[],
+  currency: "USD" | "EUR",
+): Promise<Map<string, number>> {
+  const rates = new Map<string, number>();
+  for (const cur of currencies) {
+    if (cur === currency) { rates.set(cur, 1); continue; }
+    try {
+      const window = await fetchEcbRates(net, cur, currency, Date.now() - 10 * DAY_MS, Date.now());
+      const r = rateOn(window, Date.now());
+      if (r) rates.set(cur, r);
+    } catch {
+      // leave it out rather than guess
+    }
+  }
+  return rates;
+}
+
 /** Cash balances: deposits and withdrawals, less what trades spent. */
 async function valueCash(
   net: Net,
@@ -166,17 +198,7 @@ async function valueCash(
   currency: "USD" | "EUR",
 ): Promise<CashRow[]> {
   const balances = cashBalances(transactions);
-  const cashRates = new Map<string, number>();
-  for (const cur of Object.keys(balances)) {
-    if (cur === currency) { cashRates.set(cur, 1); continue; }
-    try {
-      const rates = await fetchEcbRates(net, cur, currency, Date.now() - 10 * DAY_MS, Date.now());
-      const r = rateOn(rates, Date.now());
-      if (r) cashRates.set(cur, r);
-    } catch {
-      // leave it out rather than guess
-    }
-  }
+  const cashRates = await currentCashRates(net, Object.keys(balances), currency);
   return Object.entries(balances)
     .filter(([cur]) => cashRates.has(cur))
     .map(([cur, amount]) => {

@@ -1,5 +1,6 @@
 import { cached } from "@/core/cache";
 import { toDisplayTxs } from "@/core/display-tx";
+import { cashBalancesOver } from "@/core/cash";
 import { currencyForTicker } from "@/core/equity";
 import { rateOn } from "@/core/fx";
 import {
@@ -10,12 +11,13 @@ import { portfolioValueSeries } from "@/core/portfolio";
 import type { RangeKey } from "@/core/ranges";
 import type { Bar } from "@/core/types";
 import type { Net } from "../ports/net";
-import type { Store } from "../ports/store";
+import type { Store, Transaction } from "../ports/store";
 import { fetchKlines, fetchKlinesRange } from "../sources/binance";
 import { makeEquitySource } from "../sources/equity";
 import { fetchEcbRates } from "../sources/fx";
 import { getPortfolio } from "./portfolios";
 import { displayContext } from "./pricing";
+import { currentCashRates } from "./valuation";
 
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
@@ -181,9 +183,24 @@ export async function series(
     }
   }
 
-  const points: SeriesPoint[] = portfolioValueSeries(txs, candles, barMs)
+  const assetPoints: SeriesPoint[] = portfolioValueSeries(txs, candles, barMs)
     .filter((p) => p.t >= windowFrom)
     .map((p) => ({ t: p.t, value: p.value * toDisplay }));
+
+  // Cash rides on the drawn line and nowhere else.
+  //
+  // The line has to end where the figure printed above it sits — `BRAND.md`
+  // requires it, and the two disagreed by the whole cash balance for as long
+  // as this endpoint has existed. But the returns below must stay on the
+  // holdings alone: TWR divides by a value whose flows it has been told
+  // about, and those flows are the asset trades. Feeding it a series that
+  // jumps on every deposit while withholding the deposit from `windowFlows`
+  // would report funding the account as performance.
+  const cash = await cashOver(net, portfolio.transactions, assetPoints.map((p) => p.t), currency);
+  const points: SeriesPoint[] = assetPoints.map((p, i) => ({
+    t: p.t,
+    value: p.value + (cash[i] ?? 0),
+  }));
 
   // Baseline is the first point that actually holds something: the earliest
   // bars of an "all" window predate the first fill and are legitimately zero.
@@ -204,17 +221,20 @@ export async function series(
   // would have done, with deposits and withdrawals removed.
   const windowTxs = txs.filter((t) => t.time >= windowFrom);
   const windowFlows = flowsByBar(windowTxs, barMs);
-  const twr = timeWeightedSeries(points, windowFlows);
+  const twr = timeWeightedSeries(assetPoints, windowFlows);
 
   // Money-weighted return: annualised, and sensitive to when money went in.
   // The opening value counts as an investment made at the window's start.
-  const opening = points[0]?.value ?? 0;
-  const closing = points[points.length - 1]?.value ?? 0;
-  const closingAt = points[points.length - 1]?.t ?? Date.now();
+  // Money-weighted return is measured on the holdings too, for the same reason
+  // TWR is: its flow list is the asset trades, so its opening and closing
+  // values must be of the same thing.
+  const opening = assetPoints[0]?.value ?? 0;
+  const closing = assetPoints[assetPoints.length - 1]?.value ?? 0;
+  const closingAt = assetPoints[assetPoints.length - 1]?.t ?? Date.now();
   const cashFlows = [
-    ...(opening > 0 ? [{ t: points[0]!.t, amount: opening }] : []),
+    ...(opening > 0 ? [{ t: assetPoints[0]!.t, amount: opening }] : []),
     ...[...windowFlows.entries()]
-      .filter(([t]) => t > (points[0]?.t ?? 0))
+      .filter(([t]) => t > (assetPoints[0]?.t ?? 0))
       .map(([t, amount]) => ({ t, amount })),
   ];
   const mwrPct = moneyWeightedReturn(cashFlows, closing, closingAt);
@@ -517,4 +537,40 @@ export async function history(
   } catch (e) {
     return { bars: [], range, changePct: null, error: (e as Error).message };
   }
+}
+
+/**
+ * The portfolio's cash at each bar, in the display currency.
+ *
+ * Mirrors `valuation` exactly, and has to: the last point of the drawn line is
+ * the figure printed above it, so any difference in how the two count cash
+ * shows up as a chart that stops short of its own headline.
+ *
+ * That includes the awkward part. A currency whose balance is negative is left
+ * out rather than allowed to subtract — `valuation` made that call, on the
+ * grounds that an impossible balance should not reduce what the portfolio is
+ * said to be worth. It hides a real problem, which is why `auditLedger` now
+ * reports the same condition in plain words at import; but the chart's job is
+ * to agree with the headline, not to disagree with it more accurately.
+ */
+async function cashOver(
+  net: Net,
+  transactions: Transaction[],
+  times: number[],
+  currency: "USD" | "EUR",
+): Promise<number[]> {
+  if (times.length === 0) return [];
+  const balances = cashBalancesOver(transactions, times);
+  const currencies = [...new Set(balances.flatMap((b) => Object.keys(b)))];
+  if (currencies.length === 0) return times.map(() => 0);
+
+  const rates = await currentCashRates(net, currencies, currency);
+  return balances.map((b) =>
+    Object.entries(b).reduce((total, [cur, amount]) => {
+      const rate = rates.get(cur);
+      // Negative balances excluded, as above; an unpriced currency likewise.
+      if (rate === undefined || amount <= 0) return total;
+      return total + amount * rate;
+    }, 0),
+  );
 }

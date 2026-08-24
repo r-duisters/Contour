@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cashBalances, type CashRelevantTx } from "./cash";
+import { cashBalances, cashBalancesOver, type CashRelevantTx } from "./cash";
 
 function cash(side: string, quantity: number, currency = "EUR"): CashRelevantTx {
   return { assetType: "cash", side, quantity, nativeCurrency: currency };
@@ -47,5 +47,51 @@ describe("cashBalances", () => {
   it("drops balances rounded away to nothing", () => {
     expect(cashBalances([cash("transfer_in", 100), cash("transfer_out", 100)])).toEqual({});
     expect(cashBalances([cash("transfer_in", 100), cash("transfer_out", 99.999)])).toEqual({});
+  });
+});
+
+describe("cashBalancesOver", () => {
+  const DAY = 86_400_000;
+  const tx = (day: number, side: string, quantity: number, nativeCurrency = "EUR") =>
+    ({ assetType: "cash", side, quantity, nativeCurrency });
+
+  it("gives the balance as it stood at each moment", () => {
+    const txs = [tx(0, "transfer_in", 100), tx(0, "transfer_out", 30)];
+    const at = [0, 1, 2].map((d) => d * DAY);
+    // Both movements share a timestamp of 0 here; the shape under test is the
+    // running total, so drive it with times rather than days.
+    expect(cashBalancesOver(
+      [{ ...txs[0]!, time: 0 }, { ...txs[1]!, time: DAY }],
+      at,
+    )).toEqual([{ EUR: 100 }, { EUR: 70 }, { EUR: 70 }]);
+  });
+
+  it("is empty before the first movement", () => {
+    expect(cashBalancesOver([{ ...tx(0, "transfer_in", 100), time: DAY }], [0])).toEqual([{}]);
+  });
+
+  it("keeps currencies apart", () => {
+    const txs = [
+      { ...tx(0, "transfer_in", 100, "EUR"), time: 0 },
+      { ...tx(0, "transfer_in", 50, "USD"), time: 0 },
+    ];
+    expect(cashBalancesOver(txs, [0])).toEqual([{ EUR: 100, USD: 50 }]);
+  });
+
+  it("reports a negative balance rather than hiding it", () => {
+    // The caller decides what to do with an impossible balance; suppressing it
+    // here would leave no way to tell "no cash" from "the ledger is wrong".
+    const txs = [{ ...tx(0, "transfer_out", 40, "EUR"), time: 0 }];
+    expect(cashBalancesOver(txs, [0])).toEqual([{ EUR: -40 }]);
+  });
+
+  it("agrees with cashBalances at the final moment", () => {
+    const txs = [
+      { ...tx(0, "transfer_in", 100, "EUR"), time: 0 },
+      { ...tx(0, "transfer_out", 25, "EUR"), time: DAY },
+      { ...tx(0, "transfer_in", 7, "USD"), time: 2 * DAY },
+    ];
+    const [last] = cashBalancesOver(txs, [3 * DAY]);
+    expect(last).toEqual(cashBalances(txs));
   });
 });

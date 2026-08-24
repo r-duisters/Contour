@@ -198,6 +198,50 @@ describe("series", () => {
     expect(out.currency).toBe("USD");
   });
 
+  it("draws cash on the line, so the last point is the whole portfolio", async () => {
+    // One coin worth 100, plus 500 deposited. The line must show 600.
+    const store = MemoryStore({
+      settings: { displayCurrency: "USD" },
+      portfolios: [{ id: "p1", name: "Main", transactions: [
+        tx({ time: TODAY - 5 * DAY_MS }),
+        tx({ symbol: "USD", assetType: "cash", side: "transfer_in", quantity: 500,
+             price: 1, time: TODAY - 4 * DAY_MS, nativeCurrency: "USD", nativePrice: 1 }),
+      ] }],
+    });
+    const out = await series(store, flatNet(), "p1", "1m");
+    if (!("windowFrom" in out)) throw new Error("expected a populated series");
+
+    expect(out.series[out.series.length - 1]!.value).toBeCloseTo(FLAT + 500, 6);
+    // ...and not before the deposit landed.
+    expect(out.series[0]!.value).toBeCloseTo(FLAT, 6);
+  });
+
+  it("keeps cash out of the time-weighted return, which measures the holdings", async () => {
+    // A deposit is not performance. TWR is fed the asset trades as its flow
+    // list, so a line that jumps on funding while the flow list stays silent
+    // would report the deposit as a gain — the reason cash was excluded from
+    // this service in the first place, and the part that must not regress.
+    const withCash = MemoryStore({
+      settings: { displayCurrency: "USD" },
+      portfolios: [{ id: "p1", name: "Main", transactions: [
+        tx({ time: TODAY - 5 * DAY_MS }),
+        tx({ symbol: "USD", assetType: "cash", side: "transfer_in", quantity: 9_000,
+             price: 1, time: TODAY - 3 * DAY_MS, nativeCurrency: "USD", nativePrice: 1 }),
+      ] }],
+    });
+    const without = MemoryStore({
+      settings: { displayCurrency: "USD" },
+      portfolios: [{ id: "p1", name: "Main", transactions: [tx({ time: TODAY - 5 * DAY_MS })] }],
+    });
+
+    const a = await series(withCash, flatNet(), "p1", "1m");
+    const b = await series(without, flatNet(), "p1", "1m");
+    if (!("twr" in a) || !("twr" in b)) throw new Error("expected populated series");
+
+    const tail = (x: typeof a) => x.twr.points[x.twr.points.length - 1]!.index;
+    expect(tail(a)).toBeCloseTo(tail(b), 9);
+  });
+
   it("answers a portfolio holding nothing priceable with an empty series", async () => {
     const store = MemoryStore({
       settings: { displayCurrency: "USD" },
