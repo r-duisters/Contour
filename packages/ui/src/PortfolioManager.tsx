@@ -1,9 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Download, Plus, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, Download, Plus, Trash2, Upload } from "lucide-react";
 import { useDataClient } from "@/data/client/context";
+import type { ImportReport } from "@/data/services/transfer";
+import type { Finding } from "@/core/ledger-audit";
 import { field } from "./field";
+import Button from "./Button";
 
 type PortfolioRow = { id: string; name: string; transactionCount: number };
 
@@ -12,12 +15,33 @@ type PortfolioRow = { id: string; name: string; transactionCount: number };
  * deleting, importing, exporting and restoring. It lives on More so the
  * portfolio screen can be nothing but the money.
  */
+/**
+ * One plain sentence per finding.
+ *
+ * Each says what is wrong and what it means for the figures, and none of them
+ * says "invalid" — the file is fine. It is the history behind it that has a
+ * hole, and telling somebody their export is broken sends them to re-download
+ * the wrong thing.
+ */
+function findingText(f: Finding): string {
+  if (f.kind === "underfunded-currency") {
+    const when = new Date(f.at).toLocaleDateString();
+    return `${f.currency} is short ${f.shortfall.toLocaleString()} by ${when}: more was spent than the ledger shows arriving. Deposits are probably missing.`;
+  }
+  if (f.kind === "inconsistent-cash-legs") {
+    return `Only ${f.withLeg} of ${f.total} ${f.currency} trades record the matching cash movement, so any cash balance drawn from them counts some purchases and not others.`;
+  }
+  return `${f.symbol}: ${f.shortfall.toLocaleString()} more was sold than was ever bought or received, so some purchases are missing.`;
+}
+
 export default function PortfolioManager() {
   const client = useDataClient();
   const [portfolios, setPortfolios] = useState<PortfolioRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
+  /** A previewed import waiting on a decision: the file, and what it found. */
+  const [pending, setPending] = useState<{ csv: string; report: ImportReport } | null>(null);
   const csvRef = useRef<HTMLInputElement>(null);
   const backupRef = useRef<HTMLInputElement>(null);
 
@@ -60,11 +84,40 @@ export default function PortfolioManager() {
     }
   }
 
+  /**
+   * Import in two beats: preview, then commit.
+   *
+   * The preview is skipped silently when the audit finds nothing, which is the
+   * common case — a clean file should not cost a confirmation. A person only
+   * meets the panel when their ledger will not balance, and then they are
+   * choosing with the findings in front of them rather than after the fact.
+   */
   async function importCsv(file: File) {
     if (!selectedId) return;
-    setMsg("Importing…");
+    setMsg("Checking the file…");
+    setPending(null);
     try {
       const csv = await file.text();
+      const preview = await client.importCsv(selectedId, csv, { dryRun: true });
+      if (preview.audit.length > 0) {
+        setPending({ csv, report: preview });
+        setMsg(null);
+        return;
+      }
+      await commitImport(csv);
+    } catch (e) {
+      // A refused import used to be reported from the response body here; the
+      // client now carries that same sentence on the error, so both the refusal
+      // and an unreachable server land in this one branch.
+      setMsg(`Import failed: ${(e as Error).message}`);
+    }
+  }
+
+  async function commitImport(csv: string) {
+    if (!selectedId) return;
+    setPending(null);
+    setMsg("Importing…");
+    try {
       const d = await client.importCsv(selectedId, csv);
       const parts = [`Imported ${d.imported} transactions`];
       if (d.duplicates) parts.push(`${d.duplicates} already present (skipped)`);
@@ -77,9 +130,6 @@ export default function PortfolioManager() {
       setMsg(parts.join(" · "));
       await load();
     } catch (e) {
-      // A refused import used to be reported from the response body here; the
-      // client now carries that same sentence on the error, so both the refusal
-      // and an unreachable server land in this one branch.
       setMsg(`Import failed: ${(e as Error).message}`);
     }
   }
@@ -125,6 +175,32 @@ export default function PortfolioManager() {
             <option key={p.id} value={p.id}>{p.name} ({p.transactionCount})</option>
           ))}
         </select>
+      )}
+
+      {pending && (
+        <div className="border border-amber-900/60 bg-amber-950/20 rounded p-3 space-y-2">
+          <p className="flex items-center gap-2 text-sm text-amber-500">
+            <AlertTriangle size={14} aria-hidden />
+            This file imports cleanly, but the ledger it produces does not balance
+          </p>
+          <ul className="space-y-1 text-xs text-neutral-400 list-disc pl-4">
+            {pending.report.audit.map((f, i) => <li key={i}>{findingText(f)}</li>)}
+          </ul>
+          <p className="text-xs text-neutral-500">
+            {pending.report.imported > 0
+              ? `${pending.report.imported} new ${pending.report.imported === 1 ? "transaction is" : "transactions are"} ready to import.`
+              : "This file adds nothing new — every row is already here."}
+            {" "}Nothing has been written yet. Importing is safe either way; the
+            figures will simply be wrong in the ways listed above until the
+            missing rows are added.
+          </p>
+          <div className="flex gap-2 flex-wrap">
+            <Button onClick={() => commitImport(pending.csv)}>Import anyway</Button>
+            <Button variant="secondary" onClick={() => { setPending(null); setMsg("Import cancelled. Nothing was changed."); }}>
+              Cancel and fix the export
+            </Button>
+          </div>
+        </div>
       )}
 
       <input ref={csvRef} type="file" accept=".csv,text/csv" className="hidden"

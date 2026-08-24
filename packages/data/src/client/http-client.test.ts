@@ -99,7 +99,14 @@ function seededNet(): FakeNetInstance {
       }
       if (sub.startsWith("/import")) {
         if (method(init) === "DELETE") return { deleted: missing ? 0 : FIXTURE.clearedCount };
-        return missing ? notFound : FIXTURE.importReport;
+        if (missing) return notFound;
+        // The real route echoes `previewed` for a dry run, and the contract
+        // pins that the client passes the flag through. A fake that answered
+        // the same body either way would let a client drop it silently.
+        const body = JSON.parse(String(init?.body ?? "{}")) as { dryRun?: boolean };
+        return body.dryRun
+          ? { ...FIXTURE.importReport, previewed: true }
+          : FIXTURE.importReport;
       }
       if (method(init) === "DELETE") return id === GONE_PORTFOLIO_ID ? serverError : { ok: true };
       return missing ? notFound : {

@@ -1,5 +1,6 @@
 import { parseDeltaCsv, venueAssetType, type ParsedTx, type SkippedRow } from "@/core/delta-csv";
 import { toDisplayTxs } from "@/core/display-tx";
+import { auditLedger, type Finding } from "@/core/ledger-audit";
 import {
   BACKUP_VERSION, ghostfolioCsv, parseBackup, transactionsCsv, type ExportTx,
 } from "@/core/export";
@@ -32,6 +33,18 @@ export type ImportReport = {
   skipped: SkippedRow[];
   /** Rows that were written but could not be priced. */
   warnings: SkippedRow[];
+  /**
+   * What the ledger looks like once this file is part of it: gaps that no
+   * single row reveals. Computed against the *merged* set, because a file that
+   * balances on its own can still leave the portfolio overdrawn.
+   *
+   * On a dry run these are the whole point of the call — the caller shows them
+   * and asks whether to go ahead. On a real import they are the same findings,
+   * reported after the fact.
+   */
+  audit: Finding[];
+  /** True when nothing was written and `imported` is what *would* be. */
+  previewed?: boolean;
 };
 
 /** A downloadable file: the bytes, and the name the browser should save it as. */
@@ -152,9 +165,18 @@ async function reclassifyNonCoins(net: Net, rows: ParsedTx[]): Promise<void> {
   }
 }
 
-/** Read a Delta export into a portfolio, skipping rows it already holds. */
+/**
+ * Read a Delta export into a portfolio, skipping rows it already holds.
+ *
+ * With `dryRun`, nothing is written: the same work happens, the same report
+ * comes back, and `previewed` says so. That is how the upload flow can tell a
+ * person their ledger will not balance *before* they commit to it — the
+ * alternative is importing and then offering an undo, which asks them to
+ * gamble first and read afterwards.
+ */
 export async function importDelta(
   store: Store, net: Net, id: string, csv: string,
+  opts: { dryRun?: boolean } = {},
 ): Promise<ImportReport> {
   const portfolio = await getPortfolio(store, id);
 
@@ -170,7 +192,7 @@ export async function importDelta(
   );
   const fresh = rows.filter((r) => !seen.has(`${r.symbol}|${r.side}|${r.quantity}|${r.time}`));
 
-  if (fresh.length > 0) {
+  if (fresh.length > 0 && !opts.dryRun) {
     await store.transactions.addMany(id, fresh.map((r): NewTransaction => ({
       symbol: r.symbol,
       assetType: r.assetType,
@@ -185,11 +207,18 @@ export async function importDelta(
       note: "delta-import",
     })));
   }
+  // Audited against what the portfolio *will* hold, not against the file. A
+  // deposit recorded last year and a purchase in this file only contradict
+  // each other once they sit in the same ledger.
+  const audit = auditLedger([...portfolio.transactions, ...fresh]);
+
   return {
     imported: fresh.length,
     duplicates: rows.length - fresh.length,
     skipped,
     warnings: [...warnings, ...fxWarnings],
+    audit,
+    ...(opts.dryRun ? { previewed: true } : {}),
   };
 }
 

@@ -6,7 +6,11 @@ import { clearPortfolio, importDelta } from "@/data/services/transfer";
 
 export const dynamic = "force-dynamic";
 
-const Body = z.object({ csv: z.string().min(1).max(5_000_000) });
+const Body = z.object({
+  csv: z.string().min(1).max(5_000_000),
+  /** Parse, price and audit, but write nothing. */
+  dryRun: z.boolean().optional(),
+});
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
@@ -15,7 +19,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const { store, net } = deps();
   try {
-    return NextResponse.json(await importDelta(store, net, id, body.data.csv));
+    return NextResponse.json(
+      await importDelta(store, net, id, body.data.csv, { dryRun: body.data.dryRun }),
+    );
   } catch (err) {
     if (err instanceof NotFoundError) return NextResponse.json({ error: "not found" }, { status: 404 });
     throw err;

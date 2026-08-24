@@ -225,7 +225,14 @@ export interface DataClient {
   /* --------------------------------------------------- import and restore */
 
   /** @throws NotFoundError when no portfolio has that id. */
-  importCsv(portfolioId: string, csv: string): Promise<ImportReport>;
+  /**
+   * Read a Delta export into a portfolio.
+   *
+   * `dryRun` writes nothing and returns the report the real call would have
+   * produced, `previewed: true` included. The upload flow uses it to show a
+   * person what the file does to their ledger before they commit to it.
+   */
+  importCsv(portfolioId: string, csv: string, opts?: { dryRun?: boolean }): Promise<ImportReport>;
   /** Removes every CSV-imported transaction; `0` for an unknown portfolio. */
   clearImported(portfolioId: string): Promise<number>;
   /** Always into a NEW portfolio. @throws RequestFailedError on an unreadable backup. */

@@ -254,9 +254,9 @@ export function HttpClient(net: Net, baseUrl = ""): DataClient {
 
     /* --------------------------------------------------- import and restore */
 
-    importCsv(portfolioId: string, csv: string): Promise<ImportReport> {
+    importCsv(portfolioId: string, csv: string, opts?: { dryRun?: boolean }): Promise<ImportReport> {
       return send("POST", `/api/portfolios/${portfolioId}/import`, {
-        body: { csv },
+        body: opts?.dryRun ? { csv, dryRun: true } : { csv },
         subject: portfolio(portfolioId),
       });
     },

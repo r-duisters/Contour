@@ -326,10 +326,17 @@ function StubClient(store: Store, net: Net): DataClient {
 
     /* --------------------------------------------------- import and restore */
 
-    /** CANNED report; the existence check and its error are real. */
-    async importCsv(portfolioId: string, _csv: string): Promise<ImportReport> {
+    /**
+     * CANNED report; the existence check, its error, and the dry-run
+     * distinction are real. The last of those matters: a preview that quietly
+     * wrote would be the worst possible bug in this method, so the stub must
+     * be capable of getting it wrong.
+     */
+    async importCsv(portfolioId: string, _csv: string, opts?: { dryRun?: boolean }): Promise<ImportReport> {
       await mustExist(portfolioId);
-      return FIXTURE.importReport;
+      return opts?.dryRun
+        ? { ...FIXTURE.importReport, previewed: true }
+        : FIXTURE.importReport;
     },
 
     /** CANNED count; `0` for an unknown portfolio, as the interface requires. */

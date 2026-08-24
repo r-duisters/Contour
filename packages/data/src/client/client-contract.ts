@@ -132,7 +132,7 @@ export const FIXTURE = {
     mqttTopicPrefix: null,
   },
   csv: "Date,Type,Base amount\n",
-  importReport: { imported: 3, duplicates: 1, skipped: [], warnings: [] },
+  importReport: { imported: 3, duplicates: 1, skipped: [], warnings: [], audit: [] },
   /** What a CSV import into `PORTFOLIO_ID` has left behind. */
   clearedCount: 3,
   /**
@@ -349,6 +349,19 @@ export function runDataClientContract(
       await expect(makeClient().importCsv(PORTFOLIO_ID, FIXTURE.csv)).resolves.toEqual(
         FIXTURE.importReport,
       );
+    });
+
+    it("previews an import without writing it", async () => {
+      // The distinction the upload flow depends on: a dry run must report what
+      // *would* happen and leave the portfolio exactly as it found it.
+      const client = makeClient();
+      const before = (await client.getPortfolio(PORTFOLIO_ID)).transactions.length;
+      const report = await client.importCsv(PORTFOLIO_ID, FIXTURE.csv, { dryRun: true });
+      expect(report.previewed).toBe(true);
+      expect(Array.isArray(report.audit)).toBe(true);
+      await expect(
+        client.getPortfolio(PORTFOLIO_ID).then((p) => p.transactions.length),
+      ).resolves.toBe(before);
     });
 
     it("clears imported transactions and reports how many", async () => {
