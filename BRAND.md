@@ -233,6 +233,12 @@ row at two densities, and the parts do not move between them:
 | Ticker, inside the sub-line | `font-mono tracking-wider` |
 | Change | `text-[11px]`, `text-green-500` or `text-red-500` |
 
+**A ticker names the asset, never the market it was bought on.** `ETH`, not
+`ETHUSDT` — the suffix is a Binance product name, and showing it tells a person
+their own holding is called something it is not. `pricingPair()` builds the
+pair for a request; it never reaches a screen. The one place a pair is right is
+the alerts list, where the thing being watched genuinely is a market.
+
 The ticker is the only part set in mono, and it is mono because it is an
 identifier — not because it is short. A price beside it is a figure and takes
 `tabular-nums` in the sans face, per the rule above. The Markets index cards

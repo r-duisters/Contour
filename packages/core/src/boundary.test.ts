@@ -205,6 +205,24 @@ describe("packages/core, packages/ui and packages/data stay portable", () => {
     expect(offenders).toEqual([]);
   });
 
+  it("never glues a quote asset onto a stored symbol", () => {
+    // The importer did this for years, writing `${baseCurrency}USDT` into a
+    // column that names what a person owns. `pricingPair` is the only place
+    // allowed to build a pair, and it builds one for a request, never for a
+    // row. Comments are stripped first, so the prose above does not trip it.
+    const offenders: string[] = [];
+    for (const pkg of NET_ONLY_PACKAGES) {
+      for (const file of sourceFiles(join(process.cwd(), pkg))) {
+        if (file.endsWith("symbols.ts")) continue;
+        const src = stripComments(readFileSync(file, "utf8"));
+        if (/`\$\{[^}]+\}(USDT|USDC|FDUSD|BUSD)`|\+ ?"(USDT|USDC|FDUSD|BUSD)"/.test(src)) {
+          offenders.push(file.replace(process.cwd() + "/", ""));
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
   it("keeps no /api/ URL in a shared component that the allowlist has not justified", () => {
     const offenders: string[] = [];
     for (const file of sourceFiles(join(process.cwd(), "packages/ui/src"))) {

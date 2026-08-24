@@ -373,6 +373,24 @@ describe("history", () => {
     expect(net.calls.some((c) => c.url.includes("binance"))).toBe(false);
   });
 
+  it("charts a bare asset by asking Binance for its pair", async () => {
+    const net = FakeNet({ "api.binance.com/api/v3/klines": binanceKlines(() => FLAT) });
+    const out = await history(MemoryStore(), net, "BTC", "crypto", "1m");
+
+    expect(net.calls[0]!.url).toContain("symbol=BTCUSDT");
+    expect(out.changePct).toBe(0);
+  });
+
+  it("does not build a pair for an equity", async () => {
+    // FakeNet throws on an unmatched URL, so a request for ASML.ASUSDT — what
+    // `pricingPair` would answer for a ticker — fails this outright.
+    const net = FakeNet({
+      "chart/ASML.AS": yahooChart([{ t: TODAY - DAY_MS, c: 600 }, { t: TODAY, c: 600 }]),
+    });
+    await expect(history(MemoryStore(), net, "ASML.AS", "equity", "1y")).resolves.toBeDefined();
+    expect(net.calls[0]!.url).toContain("chart/ASML.AS?");
+  });
+
   it("asks for hourly bars over a day, and daily ones over a month", async () => {
     const net = FakeNet({ "api.binance.com/api/v3/klines": binanceKlines(() => FLAT) });
 

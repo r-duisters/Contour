@@ -7,6 +7,7 @@ import {
   AreaSeries, createChart, createSeriesMarkers, LineType,
   type IChartApi, type ISeriesApi, type ISeriesMarkersPluginApi, type Time,
 } from "lightweight-charts";
+import { assetOf, pricingPair } from "@/core/symbols";
 import { chartTheme, directionColors, roseOverPeriod } from "@/components/chart-theme";
 import {
   ArrowDown, ArrowLeft, ArrowUp, Bell, ChevronLeft, ChevronRight, Plus, Trash2,
@@ -64,7 +65,12 @@ const qty = quantity;
 
 export default function SymbolPage({ params }: { params: Promise<{ symbol: string }> }) {
   const { symbol: raw } = use(params);
-  const symbol = decodeURIComponent(raw).toUpperCase();
+  // Both forms resolve, per the spec's second decision: `/portfolio/ETH` is the
+  // honest URL and `/portfolio/ETHUSDT` is every link and bookmark that
+  // predates the rename. Everything downstream compares assets too — the store
+  // may still hold the pair, so matching a holding on the stored spelling
+  // would lose it for exactly as long as the rename is pending.
+  const symbol = assetOf(decodeURIComponent(raw));
 
   const client = useDataClient();
   // Which portfolio the holding was opened from. Absent on a direct visit.
@@ -103,7 +109,7 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
   // copied into state there is no second render to correct them. The call is
   // an idempotent assignment, so repeating it costs nothing.
   if (cached?.currency) setDisplayCurrency(cached.currency);
-  const cachedHolding = cached?.holdings.find((h) => h.symbol === symbol) as Holding | undefined;
+  const cachedHolding = cached?.holdings.find((h) => assetOf(h.symbol) === symbol) as Holding | undefined;
   const shownHolding = holding === undefined ? cachedHolding : holding;
   /**
    * The holding knows best; without one, the link's hint; without that, the
@@ -145,13 +151,13 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
       if (cancelled) return;
       setDisplayCurrency(val?.currency ?? "USD");
       if (val) remember(id, val);
-      const found: Holding | undefined = val?.holdings.find((h) => h.symbol === symbol);
+      const found: Holding | undefined = val?.holdings.find((h) => assetOf(h.symbol) === symbol);
       // Only a valuation that actually arrived may say "nothing held here".
       // A failed one leaves the cached position on screen; with nothing
       // cached there is nothing to protect, so the empty state is the truth.
       if (val) setHolding(found ?? null);
       else if (!cachedHolding) setHolding(null);
-      setTxs((detail?.transactions ?? []).filter((t) => t.symbol === symbol));
+      setTxs((detail?.transactions ?? []).filter((t) => assetOf(t.symbol) === symbol));
 
     })();
     return () => { cancelled = true; };
@@ -184,10 +190,10 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
       client.getPortfolio(portfolioId).catch(() => null),
       client.getValuation(portfolioId).catch(() => null),
     ]);
-    setTxs((detail?.transactions ?? []).filter((t) => t.symbol === symbol));
+    setTxs((detail?.transactions ?? []).filter((t) => assetOf(t.symbol) === symbol));
     // The position and its cost move with every trade, so the tiles above the
     // table have to be refetched alongside it.
-    const found: Holding | undefined = val?.holdings.find((h) => h.symbol === symbol);
+    const found: Holding | undefined = val?.holdings.find((h) => assetOf(h.symbol) === symbol);
     if (found) setHolding(found);
     // The setters are listed because the React Compiler infers them and
     // refuses to optimise the component when the written list disagrees.
@@ -313,7 +319,9 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
           leads nowhere is worse than no tap. */}
       {resolvedType === "crypto" ? (
         <Link
-          href={`/chart?symbol=${encodeURIComponent(symbol)}`}
+          // Both destinations address a venue, not a holding: the chart proxies
+          // Binance klines and an alert evaluates them, so each wants the pair.
+          href={`/chart?symbol=${encodeURIComponent(pricingPair(symbol))}`}
           aria-label={`Open ${symbol} in the detailed chart`}
           className="block rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
         >
@@ -336,7 +344,7 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
                   server-only by design, so this hands the ticker over rather
                   than growing a second, smaller alert form here. */}
               <Link
-                href={`/alerts?symbol=${encodeURIComponent(symbol)}`}
+                href={`/alerts?symbol=${encodeURIComponent(pricingPair(symbol))}`}
                 className="text-xs text-neutral-300 inline-flex items-center gap-1"
               >
                 <Bell size={12} aria-hidden />Alert me

@@ -13,6 +13,7 @@ import { useDataClient } from "@/data/client/context";
 import type { MarketBoard, MarketCategory, MarketRow } from "@/data/client/data-client";
 import type { IndexSeries } from "@/data/sources/markets";
 import { marketCap, marketMoney, percent } from "@/lib/display";
+import { assetOf } from "@/core/symbols";
 
 /**
  * What the market did today, for people who are not looking at their own
@@ -267,7 +268,10 @@ function IndexCard({ index }: { index: IndexSeries }) {
   const href = index.slug
     ? `/markets/${index.slug}`
     : index.pair
-      ? `/portfolio/${encodeURIComponent(index.pair)}?type=crypto`
+      // The asset, not the pair: the asset page builds the pricing pair it
+      // needs, and a link that says BTCUSDT names a Binance product rather
+      // than the coin the card is about.
+      ? `/portfolio/${encodeURIComponent(assetOf(index.pair))}?type=crypto`
       : null;
   const inner = (
     <div className="rounded-lg border border-neutral-800/60 bg-neutral-900/40 px-2.5 pt-2 pb-1.5 min-w-0 h-full">
@@ -326,11 +330,11 @@ function Rows({
             // The asset page reads its kind off the holding, and a mover is
             // usually not one — so the row that knows says so. Without this an
             // equity ticker would be fetched as a coin and come back empty.
-            // The pair when there is one, because the price history is keyed
-            // on it; the display symbol otherwise, which opens a page with
-            // everything but a chart. And the kind, because the asset page
-            // reads that off a holding and a mover is usually not one.
-            href={`/portfolio/${encodeURIComponent(r.pair ?? r.symbol)}?type=${r.assetType}`
+            // The asset itself, not the pair: the asset page now builds the
+            // pricing pair it needs, so a link no longer has to know one.
+            // And the kind, because that page reads it off a holding and a
+            // mover is usually not one.
+            href={`/portfolio/${encodeURIComponent(r.symbol)}?type=${r.assetType}`
               + (portfolioId ? `&p=${portfolioId}` : "")}
             className="flex items-center gap-3 py-2.5"
           >

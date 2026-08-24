@@ -90,14 +90,14 @@ describe("importDelta", () => {
     const { report } = await seeded();
     expect(report.warnings).toHaveLength(1);
     expect(report.warnings[0]!.reason).toBe(
-      "no ZWLUSDT market to price SOLUSDT — imported with price 0",
+      "no ZWLUSDT market to price SOL — imported with price 0",
     );
   });
 
   it("prices a EUR-quoted buy through that day's EURUSDT close, keeping the native figures", async () => {
     const { store, id } = await seeded();
     const rows = (await store.portfolios.get(id))!.transactions;
-    const btc = rows.find((t) => t.symbol === "BTCUSDT" && t.side === "buy")!;
+    const btc = rows.find((t) => t.symbol === "BTC" && t.side === "buy")!;
     expect(btc.price).toBeCloseTo(44_000, 6);   // 20000/0.5 EUR * 1.10
     expect(btc.fee).toBeCloseTo(11, 6);         // 10 EUR * 1.10
     expect(btc.nativeCurrency).toBe("EUR");
@@ -120,7 +120,7 @@ describe("importDelta", () => {
     expect(eur.assetType).toBe("cash");
     expect(eur.side).toBe("transfer_in");
     expect(eur.nativeCurrency).toBe("EUR");
-    const deposit = rows.find((t) => t.symbol === "BTCUSDT" && t.side === "transfer_in")!;
+    const deposit = rows.find((t) => t.symbol === "BTC" && t.side === "transfer_in")!;
     expect(deposit.assetType).toBe("crypto");
   });
 
@@ -167,7 +167,7 @@ describe("exportCsv", () => {
     const lines = body.trimEnd().split("\r\n");
     expect(lines[0]).toBe("Date,Symbol,Type,Quantity,UnitPrice,Fee,Currency");
     expect(lines).toHaveLength(6); // header + 5 non-cash rows
-    expect(lines[1]).toBe("2024-03-01,BTCUSDT,BUY,0.5,44000,11,USD");
+    expect(lines[1]).toBe("2024-03-01,BTC,BUY,0.5,44000,11,USD");
   });
 
   it("keeps the full transactions column order", async () => {
@@ -185,9 +185,9 @@ describe("exportCsv", () => {
     const { body } = await exportCsv(store, net, id, "ghostfolio");
     const btc = body.split("\r\n").find((l) => l.startsWith("2024-03-01"))!;
     // The EUR-native buy keeps 40 000, not 44 000/1.25; the USD-quoted sell converts.
-    expect(btc).toBe("2024-03-01,BTCUSDT,BUY,0.5,40000,10,EUR");
+    expect(btc).toBe("2024-03-01,BTC,BUY,0.5,40000,10,EUR");
     const eth = body.split("\r\n").find((l) => l.startsWith("2024-04-01"))!;
-    expect(eth).toBe("2024-04-01,ETHUSDT,SELL,2,2800,2.8000000000000003,EUR");
+    expect(eth).toBe("2024-04-01,ETH,SELL,2,2800,2.8000000000000003,EUR");
   });
 
   it("labels the figures USD when the euro rate cannot be fetched", async () => {
@@ -219,7 +219,7 @@ describe("exportJson and restore", () => {
     const { store, id } = await seeded();
     const { portfolio } = await restore(store, (await exportJson(store, id)).body);
     const btc = (await store.portfolios.get(portfolio.id))!.transactions
-      .find((t) => t.symbol === "BTCUSDT" && t.side === "buy")!;
+      .find((t) => t.symbol === "BTC" && t.side === "buy")!;
     expect(btc.nativeCurrency).toBe("EUR");
     expect(btc.nativePrice).toBe(40_000);
     expect(btc.nativeFee).toBe(10);

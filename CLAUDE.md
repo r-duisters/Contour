@@ -448,5 +448,12 @@ MQTT is a viable alternative (publish to `trader/signals/<symbol>`), but isn't i
 - **Bar timestamps are ms** internally; convert to seconds (`/1000`) only when handing to `lightweight-charts`.
 - **Indicator series return `NaN` during warm-up** (matching Pine's `na`). Strip with `Number.isFinite` before plotting.
 - **`BigInt` for `barTime` in Prisma**. Convert to `number` at API boundaries.
+- **A stored symbol is an asset, not a pair.** `Transaction.symbol` holds `ETH`;
+  `pricingPair()` in `packages/core/src/symbols.ts` builds `ETHUSDT` for a
+  request and nothing stores the result. `assetOf()` goes the other way, and
+  both are idempotent so either form may be read. `Alert.symbol` is the
+  documented exception — an alert addresses a Binance market, so it keeps the
+  pair. `boundary.test.ts` fails the build if a quote asset is glued onto a
+  symbol anywhere else.
 - API route bodies are validated with **Zod** at every entry point.
 - `export const dynamic = "force-dynamic"` on routes that read live data or DB, to opt out of build-time evaluation.

@@ -12,6 +12,7 @@ import type { RangeKey } from "@/core/ranges";
 import type { Bar } from "@/core/types";
 import type { Net } from "../ports/net";
 import type { Store, Transaction } from "../ports/store";
+import { pricingPair } from "@/core/symbols";
 import { fetchKlines, fetchKlinesRange } from "../sources/binance";
 import { makeEquitySource } from "../sources/equity";
 import { fetchEcbRates } from "../sources/fx";
@@ -138,10 +139,12 @@ export async function series(
   const histories = await Promise.allSettled(
     symbols.map(async (s): Promise<Bar[]> => {
       if (!equitySymbols.has(s)) {
+        // Binance prices the pair; the store may hold either form.
+        const pair = pricingPair(s);
         return barMs === DAY_MS
-          ? fetchKlinesRange(net, { symbol: s, interval: "1d", from, to: Date.now() })
-          : cached(`h1:${s}:${Math.floor(Date.now() / 300_000)}`, 300_000, () =>
-              fetchKlines(net, { symbol: s, interval: "1h", limit: 26 }),
+          ? fetchKlinesRange(net, { symbol: pair, interval: "1d", from, to: Date.now() })
+          : cached(`h1:${pair}:${Math.floor(Date.now() / 300_000)}`, 300_000, () =>
+              fetchKlines(net, { symbol: pair, interval: "1h", limit: 26 }),
             );
       }
       const rows = await cached(
@@ -298,11 +301,14 @@ export async function changes(
             );
             return rows.filter((r) => r.t >= from).map((r) => r.c);
           }
+          const pair = pricingPair(symbol);
           if (range === "1d") {
-            const bars = await fetchKlines(net, { symbol, interval: "1h", limit: 25 });
+            const bars = await fetchKlines(net, { symbol: pair, interval: "1h", limit: 25 });
             return bars.map((b) => b.c);
           }
-          const bars = await fetchKlinesRange(net, { symbol, interval: "1d", from, to: Date.now() });
+          const bars = await fetchKlinesRange(net, {
+            symbol: pair, interval: "1d", from, to: Date.now(),
+          });
           return bars.map((b) => b.c);
         },
       );
@@ -508,24 +514,30 @@ export async function history(
           return source.history(symbol, y.range, y.interval);
         }
 
+        // Crypto only: `pricingPair` cannot tell a coin from a ticker, and
+        // would answer ASML.ASUSDT for an equity — a symbol that does not
+        // exist, charting the holding as nothing.
+        const pair = pricingPair(symbol);
         // "all" here means everything the source will give, not the portfolio's
         // first transaction: this endpoint knows nothing about a portfolio.
         const from = windowStart(range, 0);
         const hourly = range === "1d" || range === "1w";
         if (hourly) {
           const limit = range === "1d" ? 25 : 168;
-          const raw = await fetchKlines(net, { symbol, interval: "1h", limit });
+          const raw = await fetchKlines(net, { symbol: pair, interval: "1h", limit });
           return raw.map((b) => ({ t: b.t, c: b.c }));
         }
         // Daily bars: one page is enough for a year, longer windows paginate.
         if (from === 0 || Date.now() - from > 1000 * DAY_MS) {
           const raw = await fetchKlinesRange(net, {
-            symbol, interval: "1d", from: from || Date.parse("2017-01-01"), to: Date.now(),
+            symbol: pair, interval: "1d", from: from || Date.parse("2017-01-01"), to: Date.now(),
           });
           return raw.map((b) => ({ t: b.t, c: b.c }));
         }
         const days = Math.ceil((Date.now() - from) / DAY_MS) + 1;
-        const raw = await fetchKlines(net, { symbol, interval: "1d", limit: Math.min(1000, days) });
+        const raw = await fetchKlines(net, {
+          symbol: pair, interval: "1d", limit: Math.min(1000, days),
+        });
         return raw.filter((b) => b.t >= from).map((b) => ({ t: b.t, c: b.c }));
       },
     );

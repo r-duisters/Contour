@@ -276,7 +276,11 @@ export function parseDeltaCsv(text: string): DeltaImport {
       : nativeCurrency === "USD" ? fee || undefined : undefined;
 
     rows.push({
-      symbol: assetType === "equity" ? baseCurrency : `${baseCurrency}USDT`,
+      // The base currency IS the asset. This used to append "USDT" for every
+      // crypto row, contradicting the quote currency parsed six lines above
+      // and producing 172 rows whose symbol disagreed with their own
+      // nativeCurrency.
+      symbol: baseCurrency,
       assetType, base: baseCurrency, venue: cell(cols.venue), side, quantity, price, fee, time,
       pendingQuote, feeRaw, nativeCurrency, nativePrice, nativeFee,
     });
