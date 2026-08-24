@@ -19,6 +19,25 @@ describe("parseCsv", () => {
 });
 
 describe("parseDeltaCsv", () => {
+  it("records the asset bought, not a pair it made up", () => {
+    // Delta gives base and quote in their own columns. The importer used to
+    // append a constant "USDT" regardless of what the quote column said.
+    const { rows } = parseDeltaCsv(csv("2024-01-15,BUY,Bitvavo,1,ETH,2000,EUR,0,EUR,,,"));
+    expect(rows[0]!.symbol).toBe("ETH");
+    expect(rows[0]!.nativeCurrency).toBe("EUR");
+  });
+
+  it("records a coin bought with another coin", () => {
+    // 52 rows in the live ledger are this shape, and none of them could say so.
+    const { rows } = parseDeltaCsv(csv("2024-01-15,BUY,Binance,100,IOTA,0.5,ETH,,,1200,USD,"));
+    expect(rows[0]!.symbol).toBe("IOTA");
+  });
+
+  it("leaves an equity ticker alone", () => {
+    const { rows } = parseDeltaCsv(csv("2024-01-15,BUY,eToro,10,ASML.AS,6000,EUR,0,EUR,,,"));
+    expect(rows[0]!.symbol).toBe("ASML.AS");
+  });
+
   it("maps a buy with USD quote to price per unit and fee", () => {
     const { rows, skipped, warnings } = parseDeltaCsv(
       csv("2024-01-15 10:30:00,BUY,Binance,0.5,BTC,21000,USDT,10,USDT,,,"),
@@ -26,7 +45,7 @@ describe("parseDeltaCsv", () => {
     expect(skipped).toEqual([]);
     expect(warnings).toEqual([]);
     expect(rows).toEqual([{
-      symbol: "BTCUSDT", assetType: "crypto", base: "BTC", venue: "Binance",
+      symbol: "BTC", assetType: "crypto", base: "BTC", venue: "Binance",
       side: "buy", quantity: 0.5, price: 42000, fee: 10,
       time: Date.parse("2024-01-15T10:30:00"), pendingQuote: undefined, feeRaw: undefined,
       nativeCurrency: "USD", nativePrice: 42000, nativeFee: 10,
@@ -133,7 +152,7 @@ describe("parseDeltaCsv", () => {
     const { rows } = parseDeltaCsv(
       csv('2024-01-15,BUY,Binance,10,"DOT* (POLKADOT)",70,"USDT (TETHER)",,,,,'),
     );
-    expect(rows[0]!.symbol).toBe("DOTUSDT");
+    expect(rows[0]!.symbol).toBe("DOT");
     expect(rows[0]!.price).toBe(7); // USDT (TETHER) recognized as a stable
   });
 
@@ -158,10 +177,10 @@ describe("parseDeltaCsv", () => {
     expect(rows[0]).toMatchObject({ assetType: "cash", side: "transfer_out", quantity: 250 });
   });
 
-  it("marks coin rows as crypto and suffixes them with USDT", () => {
+  it("marks coin rows as crypto and names them by the asset", () => {
     const { rows } = parseDeltaCsv(csv("2024-01-15,BUY,Binance,1,BTC,40000,USDT,,,,,"));
     expect(rows[0]!.assetType).toBe("crypto");
-    expect(rows[0]!.symbol).toBe("BTCUSDT");
+    expect(rows[0]!.symbol).toBe("BTC");
   });
 
   it("captures the venue and classifies it", () => {
