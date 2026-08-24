@@ -1,37 +1,62 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BarChart3, Menu, TrendingUp, Wallet } from "lucide-react";
+import MoreMenu from "./MoreMenu";
+import { MORE_HREFS } from "./more-menu";
 
 const TABS = [
   { href: "/portfolio", label: "Portfolio", Icon: Wallet },
   { href: "/markets", label: "Markets", Icon: TrendingUp },
   { href: "/insights", label: "Insights", Icon: BarChart3 },
-  { href: "/more", label: "More", Icon: Menu },
 ];
 
 export default function TabBar() {
   const pathname = usePathname();
+  const [open, setOpen] = useState(false);
   if (pathname === "/login" || pathname === "/setup") return null;
+  const active = (href: string) => pathname === href || pathname.startsWith(href + "/");
+  // The fourth slot lights up for anything behind the menu, so a person on the
+  // ledger can still see which quarter of the app they are in.
+  const inMore = MORE_HREFS.some(active);
+
   return (
-    <nav className="fixed bottom-0 inset-x-0 md:hidden bg-neutral-950/95 border-t border-neutral-800 backdrop-blur pb-[env(safe-area-inset-bottom)]">
-      <ul className="grid grid-cols-4">
-        {TABS.map(({ href, label, Icon }) => {
-          const active = pathname === href || pathname.startsWith(href + "/");
-          return (
+    <>
+      <MoreMenu open={open} onClose={() => setOpen(false)} variant="sheet" />
+      <nav className="fixed bottom-0 inset-x-0 md:hidden z-40 bg-neutral-950/95 border-t border-neutral-800 backdrop-blur pb-[env(safe-area-inset-bottom)]">
+        <ul className="grid grid-cols-4">
+          {TABS.map(({ href, label, Icon }) => (
             <li key={href}>
               <Link
                 href={href}
-                className={`flex flex-col items-center gap-0.5 text-center text-xs py-2 ${active ? "text-blue-500" : "text-neutral-400"}`}
+                className={`flex flex-col items-center gap-0.5 text-center text-xs py-2 ${active(href) ? "text-blue-500" : "text-neutral-400"}`}
               >
                 <Icon size={20} aria-hidden />
                 {label}
               </Link>
             </li>
-          );
-        })}
-      </ul>
-    </nav>
+          ))}
+          <li>
+            {/* A button, not a link: it opens over the page rather than
+                replacing it, so the page you were reading is still there when
+                you decide none of these was what you wanted. */}
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              aria-expanded={open}
+              aria-haspopup="dialog"
+              className={`w-full flex flex-col items-center gap-0.5 text-center text-xs py-2 ${
+                open || inMore ? "text-blue-500" : "text-neutral-400"
+              }`}
+            >
+              <Menu size={20} aria-hidden />
+              More
+            </button>
+          </li>
+        </ul>
+      </nav>
+    </>
   );
 }

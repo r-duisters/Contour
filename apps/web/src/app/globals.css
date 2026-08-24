@@ -41,3 +41,11 @@ body {
      won over it, so two fonts were downloaded and neither was used. */
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
+
+/* The sheet rises from the edge it is anchored to. One keyframe, used by
+   MoreMenu alone; Tailwind has no built-in for it and a utility class would
+   be a second place to look. */
+@keyframes more-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}

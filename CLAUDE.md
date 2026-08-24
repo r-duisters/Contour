@@ -168,7 +168,8 @@ apps/web/src/             The Next server app.
   app/
     page.tsx                Redirects to /portfolio — the app's home is the portfolio,
                           and the tab bar and More page already list every destination.
-                          Tab bar (TabBar.tsx): portfolio, markets, insights, more.
+                          Tab bar (TabBar.tsx): portfolio, markets, insights, and a
+                          More button that opens MoreMenu over the page.
     portfolio/page.tsx      Holdings, valuation, day change and the history chart
     portfolio/[symbol]/     One asset. The half about the asset — price, chart,
                           background panel — renders whether or not it is held,
@@ -184,7 +185,9 @@ apps/web/src/             The Next server app.
                           Off BTCUSDT the risk line is drawn but its ladder is
                           not — the curves are fitted to Bitcoin. Reached from
                           More, not from a tab.
-    more/page.tsx           The overflow menu — ledger, alerts, backtest, analyze, settings
+    more/page.tsx           "Portfolio data" — the import, the exports, the Android
+                          build, the TradingView credit. The destinations that
+                          used to live here are `MoreMenu`, opened from either nav
                           Reached from More:
     ledger/page.tsx         Every transaction, with Delta CSV import and export
     settings/page.tsx       Display currency, equity provider, HA URL + webhook, passkeys

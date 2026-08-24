@@ -1,11 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  BarChart3, Bell, BookText, Settings, TrendingUp, Wallet,
+  BarChart3, Bell, BookText, ChevronDown, Settings, TrendingUp, Wallet,
 } from "lucide-react";
 import ContourMark from "@/components/ContourMark";
+import MoreMenu from "./MoreMenu";
+import { MORE_HREFS } from "./more-menu";
 
 /**
  * Desktop navigation.
@@ -28,6 +31,7 @@ const PRIMARY = [
 
 export default function TopNav() {
   const pathname = usePathname();
+  const [open, setOpen] = useState(false);
   if (pathname === "/login" || pathname === "/setup") return null;
   const active = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
@@ -58,19 +62,32 @@ export default function TopNav() {
             </li>
           ))}
         </ul>
-        {/* Settings and the rest keep their own page; the icon is the shortcut,
-            "More" is still where anything not listed above lives. */}
-        <Link
-          href="/more"
-          aria-label="More"
-          aria-current={active("/more") ? "page" : undefined}
-          className={`inline-flex items-center gap-2 px-3 py-1.5 rounded text-sm ${
-            active("/more") ? "bg-neutral-900 text-neutral-100" : "text-neutral-500 hover:text-neutral-300"
-          }`}
-        >
-          <Settings size={16} aria-hidden />
-          More
-        </Link>
+        {/* A dropdown rather than a page, and the same list the phone's sheet
+            shows — one component, so the two cannot drift. `relative` is on
+            this wrapper because the panel anchors to the control, not to the
+            bar, which spans the window. */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            aria-haspopup="menu"
+            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded text-sm ${
+              open || MORE_HREFS.some(active)
+                ? "bg-neutral-900 text-neutral-100"
+                : "text-neutral-500 hover:text-neutral-300"
+            }`}
+          >
+            <Settings size={16} aria-hidden />
+            More
+            <ChevronDown
+              size={14}
+              aria-hidden
+              className={`transition-transform motion-reduce:transition-none ${open ? "rotate-180" : ""}`}
+            />
+          </button>
+          <MoreMenu open={open} onClose={() => setOpen(false)} variant="dropdown" />
+        </div>
       </div>
     </nav>
   );

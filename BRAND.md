@@ -405,6 +405,17 @@ One structure, two renderings, never both visible at once.
 
 - **Phone** — `TabBar`, fixed to the bottom, four slots: Portfolio, Markets,
   Insights, More. Every page carries `pb-20` to clear it.
+- **More is a menu, not a destination.** The fourth slot opens `MoreMenu` over
+  the page — a sheet from the bottom on a phone, a dropdown under the control
+  on a desktop — because its contents are a handful of links, and making
+  someone load a screen to read a list of links, then go back when none of
+  them was it, spends a navigation on a decision. One component renders both,
+  so the two cannot list different things; `more-menu.ts` holds the list.
+  The sheet ends *above* the tab bar rather than behind it, and the More slot
+  stays lit, so it is visibly the bar's own drawer.
+- **`/more` survives for what a menu cannot hold**: the portfolio manager and
+  its import, the Android build, the TradingView credit. It is titled
+  "Portfolio data", which is what it is.
 - **`md:` and up** — `TopNav`, sticky at the top, the mark at the left and the
   destinations inline: Portfolio, Markets, Insights, Ledger, Alerts, then
   More.
