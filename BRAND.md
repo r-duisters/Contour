@@ -215,7 +215,49 @@ small uppercase label *on a figure* is a different thing and keeps its own
 spelling — the ledger's row labels, the analyzer's severity line.
 
 **Nothing below 11px.** A 10px control was drawn once and rejected: it fails
-on a 390px phone held at arm's length.
+on a 390px phone held at arm's length. This one is now enforced —
+`packages/ui/src/shared-units.test.ts` fails the build on `text-[10px]` and
+below, because Markets shipped four of them past the prose above.
+
+### A list row
+
+Every list of assets — holdings, market movers, the cap ranking — is the same
+row at two densities, and the parts do not move between them:
+
+| Part | Class |
+|---|---|
+| Icon | `CoinIcon`, `size={40}` on a portfolio row, `size={20}` in a dense list |
+| Primary | `text-base font-medium truncate` (dense: `text-sm`) |
+| Figure | same size as the primary, plus `tabular-nums tracking-tight` |
+| Sub-line | `text-[11px] text-neutral-500 tabular-nums truncate` |
+| Ticker, inside the sub-line | `font-mono tracking-wider` |
+| Change | `text-[11px]`, `text-green-500` or `text-red-500` |
+
+The ticker is the only part set in mono, and it is mono because it is an
+identifier — not because it is short. A price beside it is a figure and takes
+`tabular-nums` in the sans face, per the rule above. The Markets index cards
+had it the other way round for one commit: a mono price and a 10px label.
+
+**Gain is `text-green-500` and nothing else.** `emerald-500` is a second green
+four shades away that reads as identical in isolation and wrong beside a real
+one; it reached two Markets figures before the guard existed. Same for
+`rose` against `red-500`.
+
+### A market card
+
+The index strip's card, which is a row turned on its side:
+
+| Part | Class |
+|---|---|
+| Index name | `text-[11px] text-neutral-500 truncate` |
+| Price, coins only | `text-[11px] text-neutral-500 tabular-nums` |
+| Line | `Sparkline`, 34px, no axis |
+| Change | `text-xs tabular-nums`, green or red |
+| Window | `text-[11px] text-neutral-500` |
+
+An equity index carries no price: "S&P 500 7,674" is a level almost nobody
+reads, and the percentage is the whole message. A coin's price people do
+know.
 
 Numbers:
 

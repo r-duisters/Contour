@@ -75,6 +75,29 @@ describe("shared units are not re-typed", () => {
     });
   }
 
+  /**
+   * Spellings the guide rules out, wherever they appear.
+   *
+   * Different from `ALLOWED` above, which asks *who* may write a shared unit.
+   * These are not shared units at all — they are near-misses of documented
+   * values, and the guide already forbade both in prose. The Markets screen
+   * shipped with four `text-[10px]` labels and two `text-emerald-500` gains
+   * anyway, because prose does not fail a build.
+   */
+  const BANNED: [string, string][] = [
+    ["text-[10px]", "BRAND.md: nothing below 11px — a 10px control fails at arm's length on a 390px phone"],
+    ["text-[9px]", "BRAND.md: nothing below 11px"],
+    ["text-emerald-", "BRAND.md: gain is text-green-500 (#22c55e); emerald is a second, near-identical green"],
+    ["text-rose-", "BRAND.md: loss is text-red-500 (#ef4444)"],
+  ];
+
+  for (const [needle, why] of BANNED) {
+    it(`never spells "${needle}"`, () => {
+      const offenders = files.filter((f) => readFileSync(f, "utf8").includes(needle));
+      expect(offenders, why).toEqual([]);
+    });
+  }
+
   it("every allowed file actually contains what it is allowed to spell", () => {
     // An entry left behind after a refactor is a hole in the guard, not a
     // harmless leftover: it would permit a fresh copy in that same file.

@@ -159,7 +159,7 @@ function IndexStrip({
         >
           {open ? "Less" : "More"}
           {!open && (
-            <span className="rounded-full border border-neutral-800 px-1.5 text-[10px] tabular-nums">
+            <span className="rounded-full border border-neutral-800 px-1.5 text-[11px] tabular-nums">
               {rest.length}
             </span>
           )}
@@ -179,21 +179,21 @@ function IndexCard({ index }: { index: IndexSeries }) {
   return (
     <div className="rounded-lg border border-neutral-800/60 bg-neutral-900/40 px-2.5 pt-2 pb-1.5 min-w-0">
       <div className="flex items-baseline justify-between gap-1.5">
-        <span className="text-[11px] text-neutral-400 truncate">{index.label}</span>
+        <span className="text-[11px] text-neutral-500 truncate">{index.label}</span>
         {/* A price only where somebody reads one. "S&P 500 7,674" is a level
             almost nobody holds in their head; a coin's price they do. */}
         {index.price !== undefined && (
-          <span className="text-[10px] text-neutral-600 font-mono shrink-0">
+          <span className="text-[11px] text-neutral-500 tabular-nums shrink-0">
             {marketMoney(index.price)}
           </span>
         )}
       </div>
       <Sparkline points={index.points} up={up} />
       <div className="flex items-baseline justify-between">
-        <span className={`text-xs tabular-nums ${up ? "text-emerald-500" : "text-red-500"}`}>
+        <span className={`text-xs tabular-nums ${up ? "text-green-500" : "text-red-500"}`}>
           {percent(index.changePct)}
         </span>
-        <span className="text-[10px] text-neutral-600">30d</span>
+        <span className="text-[11px] text-neutral-500">30d</span>
       </div>
     </div>
   );
@@ -224,14 +224,14 @@ function Rows({
             className="flex items-center gap-3 py-2.5"
           >
             {ranked && (
-              <span className="w-4 text-xs text-neutral-600 tabular-nums shrink-0">{i + 1}</span>
+              <span className="w-4 text-[11px] text-neutral-500 tabular-nums shrink-0">{i + 1}</span>
             )}
             <CoinIcon symbol={r.symbol} size={20} assetType={r.assetType} />
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-2">
-                <span className="font-mono text-sm">{r.symbol}</span>
+                <span className="font-mono tracking-wider text-sm">{r.symbol}</span>
                 {held.has(baseOf(r.symbol)) && (
-                  <span className="text-[10px] uppercase tracking-wide text-neutral-500">Held</span>
+                  <span className="text-[11px] uppercase tracking-wide text-neutral-500">Held</span>
                 )}
               </span>
               {(r.name || (showCap && r.marketCap !== undefined)) && (
@@ -239,7 +239,7 @@ function Rows({
                 // own: a phone has no room for a fourth column, and a heading
                 // that says "largest by market cap" over a table with no cap
                 // in it is asking the reader to take the ranking on trust.
-                <span className="block text-xs text-neutral-500 truncate">
+                <span className="block text-[11px] text-neutral-500 tabular-nums truncate">
                   {r.name}
                   {showCap && r.marketCap !== undefined && (
                     <>{r.name ? " · " : ""}{marketCap(r.marketCap)}</>
@@ -250,8 +250,8 @@ function Rows({
             <span className="text-right shrink-0">
               <span className="block text-sm tabular-nums">{marketMoney(r.price)}</span>
               <span
-                className={`block text-xs tabular-nums ${
-                  r.changePct >= 0 ? "text-emerald-500" : "text-red-500"
+                className={`block text-[11px] tabular-nums ${
+                  r.changePct >= 0 ? "text-green-500" : "text-red-500"
                 }`}
               >
                 {percent(r.changePct)}
