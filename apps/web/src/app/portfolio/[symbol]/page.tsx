@@ -13,7 +13,10 @@ import {
 } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
 import { useDataClient } from "@/data/client/context";
-import { axisMoney, money as fmtMoney, quantity, setDisplayCurrency } from "@/lib/display";
+import {
+  axisMoney, marketMoney, money as fmtMoney, percent, quantity, setDisplayCurrency,
+} from "@/lib/display";
+import { assetName } from "@/lib/asset-names";
 import { annotateTransactions } from "@/lib/portfolio";
 import { useFitChart } from "@/components/useFitChart";
 import { thin, targetPoints } from "@/lib/chart-data";
@@ -65,7 +68,15 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
 
   const client = useDataClient();
   // Which portfolio the holding was opened from. Absent on a direct visit.
-  const wantedId = useSearchParams().get("p") || null;
+  const query = useSearchParams();
+  const wantedId = query.get("p") || null;
+  /**
+   * What kind of asset this is, for a page reached without a holding to read
+   * it off. Markets passes it; a bare URL falls back to the ticker's shape,
+   * which is right for every USDT pair and for a suffixed European listing.
+   */
+  const linkedType = query.get("type") === "equity" ? "equity" as const
+    : query.get("type") === "crypto" ? "crypto" as const : null;
   const [holding, setHolding] = useState<Holding | null | undefined>(undefined);
   const [txs, setTxs] = useState<Tx[]>([]);
   const [bars, setBars] = useState<{ t: number; c: number }[] | null>(null);
@@ -94,6 +105,20 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
   if (cached?.currency) setDisplayCurrency(cached.currency);
   const cachedHolding = cached?.holdings.find((h) => h.symbol === symbol) as Holding | undefined;
   const shownHolding = holding === undefined ? cachedHolding : holding;
+  /**
+   * The holding knows best; without one, the link's hint; without that, the
+   * ticker. A cash row is cast to crypto here as it always was — its history
+   * request is refused either way, and narrowing would ask for coin bars under
+   * a currency's name.
+   */
+  const resolvedType: "crypto" | "equity" =
+    shownHolding?.assetType === "equity" ? "equity"
+    : shownHolding?.assetType === "crypto" ? "crypto"
+    : linkedType ?? (symbol.endsWith("USDT") ? "crypto" : "equity");
+  /** Loaded, and this portfolio does not hold it. */
+  const notHeld = shownHolding === null;
+  const lastClose = bars && bars.length > 0 ? bars[bars.length - 1]!.c : null;
+  const title = shownHolding?.name ?? assetName(symbol, resolvedType) ?? symbol;
 
   useEffect(() => {
     let cancelled = false;
@@ -140,7 +165,7 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
     // A cash row has no price history and the request has always been refused
     // for one, landing in the catch below. The cast keeps that: narrowing here
     // instead would ask for crypto bars under a currency's name.
-    const assetType = (shownHolding?.assetType ?? "crypto") as "crypto" | "equity";
+    const assetType = resolvedType;
     // The client encodes the symbol itself, so this must not — a dotted equity
     // ticker would otherwise arrive double-encoded.
     client.getHistory(symbol, assetType, range)
@@ -151,7 +176,7 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
       })
       .catch(() => { if (!cancelled) { setBars([]); setChangePct(null); } });
     return () => { cancelled = true; };
-  }, [client, symbol, range, shownHolding, rangeReady]);
+  }, [client, symbol, range, shownHolding, rangeReady, resolvedType]);
 
   const reload = useCallback(async () => {
     if (!portfolioId) return;
@@ -164,7 +189,10 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
     // table have to be refetched alongside it.
     const found: Holding | undefined = val?.holdings.find((h) => h.symbol === symbol);
     if (found) setHolding(found);
-  }, [client, portfolioId, symbol]);
+    // The setters are listed because the React Compiler infers them and
+    // refuses to optimise the component when the written list disagrees.
+    // They are stable, so naming them costs nothing.
+  }, [client, portfolioId, symbol, setTxs, setHolding]);
 
   async function deleteTx(id: string) {
     // The delete's own answer has never been read here: the reload below is
@@ -200,38 +228,48 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
       <div className="flex items-center gap-3 mb-6">
         {shownHolding === undefined
           ? <span className="w-10 h-10 rounded-full bg-neutral-900 border border-neutral-800 shrink-0" />
-          : <CoinIcon symbol={symbol} size={40} assetType={shownHolding?.assetType} />}
-        <div>
-          <h1 className="text-xl md:text-2xl font-semibold">{shownHolding?.name ?? symbol}</h1>
-          {shownHolding && (
-            <p className="text-xs text-neutral-500">
-              <span className="font-mono">{symbol}</span>
-              {" · "}{shownHolding.assetType === "equity" ? "Stock / ETF" : "Crypto"}
-              {" · "}{qty(shownHolding.quantity)} held
-            </p>
-          )}
+          : <CoinIcon symbol={symbol} size={40} assetType={resolvedType} />}
+        <div className="min-w-0">
+          <h1 className="text-xl md:text-2xl font-semibold truncate">{title}</h1>
+          <p className="text-xs text-neutral-500">
+            {/* The ticker earns its line only when the heading is a name.
+                `assetName` knows a few hundred coins and no equities without a
+                provider, so plenty of pages fall back to the ticker up there —
+                and printing it twice reads as a rendering fault. */}
+            {title !== symbol && <span className="font-mono">{symbol}{" · "}</span>}
+            {resolvedType === "equity" ? "Stock / ETF" : "Crypto"}
+            {shownHolding
+              ? <>{" · "}{qty(shownHolding.quantity)} held</>
+              : notHeld && <>{" · "}not in this portfolio</>}
+          </p>
         </div>
         <span className="flex-1" />
-        {shownHolding?.value !== null && shownHolding && (
-          <div className="text-right">
-            <div className="text-xl font-medium">{money(shownHolding.value!)}</div>
+        {/* What it is worth to you, or — when you hold none — simply what it
+            costs. The second is a market price and not the owner's money, so
+            it is not masked and says which period it moved over. */}
+        {shownHolding && shownHolding.value !== null ? (
+          <div className="text-right shrink-0">
+            <div className="text-xl font-medium">{money(shownHolding.value)}</div>
             {shownHolding.dayChange && (
               <div className={`text-xs ${shownHolding.dayChange.pct >= 0 ? "text-green-500" : "text-red-500"}`}>
                 {shownHolding.dayChange.pct >= 0 ? "+" : ""}{shownHolding.dayChange.pct.toFixed(2)}% today
               </div>
             )}
           </div>
-        )}
+        ) : lastClose !== null ? (
+          <div className="text-right shrink-0">
+            <div className="text-xl font-medium tabular-nums">{marketMoney(lastClose)}</div>
+            {changePct !== null && (
+              <div className={`text-xs ${changePct >= 0 ? "text-green-500" : "text-red-500"}`}>
+                {percent(changePct)} <span className="text-neutral-500">{rangeLabel(range)}</span>
+              </div>
+            )}
+          </div>
+        ) : null}
       </div>
 
       {shownHolding === undefined && <p className="text-sm text-neutral-500">Loading…</p>}
       <StaleNote at={stale} />
-      {shownHolding === null && (
-        <EmptyState>
-          Nothing held in {symbol}. It may have been sold, or the ticker may not be in this portfolio.
-        </EmptyState>
-      )}
-
       {shownHolding && (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 md:gap-3 text-sm mb-6">
@@ -248,7 +286,18 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
             <StatTile label="Realised" value={money(shownHolding.realizedPnl)} signed={shownHolding.realizedPnl} />
             <StatTile label="Fees" value={money(shownHolding.fees)} />
           </div>
+        </>
+      )}
 
+      {/*
+        Everything from here down is about the asset, not about your position
+        in it, so it renders whether or not you hold any. It used to sit inside
+        the gate above, which meant every Markets row led to an icon, a ticker
+        and the words "Nothing held" — and a sold position reached the same
+        dead end.
+      */}
+      {shownHolding !== undefined && (
+        <>
           <div className="flex items-center gap-2 mb-2 flex-wrap">
         <RangePicker value={range} onChange={setRange} />
         <span className="flex-1" />
@@ -262,7 +311,7 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
       {/* Crypto only. The detailed chart is fed by /api/candles, which is
           Binance, so an equity would open an empty pane — and a tap that
           leads nowhere is worse than no tap. */}
-      {(shownHolding.assetType ?? "crypto") === "crypto" ? (
+      {resolvedType === "crypto" ? (
         <Link
           href={`/chart?symbol=${encodeURIComponent(symbol)}`}
           aria-label={`Open ${symbol} in the detailed chart`}
@@ -274,14 +323,14 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
         <PriceChart bars={bars} txs={txs} hideValues={hideAmounts} />
       )}
 
-          <AssetInfoPanel symbol={symbol} assetType={shownHolding.assetType ?? "crypto"} />
+          <AssetInfoPanel symbol={symbol} assetType={resolvedType} />
 
           <section className="mt-8">
             <div className="flex items-baseline gap-2 mb-2">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
-                Transactions
+                {notHeld ? "Start a position" : "Transactions"}
               </h2>
-              <span className="text-xs text-neutral-500">{txs.length}</span>
+              {!notHeld && <span className="text-xs text-neutral-500">{txs.length}</span>}
               <span className="flex-1" />
               <button
                 onClick={() => setAddOpen((v) => !v)}
@@ -293,7 +342,13 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
             {addOpen && (
               <TxForm onSubmit={addTransaction} error={formError} lockedSymbol={symbol} />
             )}
-            <TransactionTable txs={txs} onDelete={deleteTx} />
+            {notHeld
+              ? !addOpen && (
+                  <EmptyState>
+                    You hold none of this. Add a transaction to start tracking it here.
+                  </EmptyState>
+                )
+              : <TransactionTable txs={txs} onDelete={deleteTx} />}
           </section>
         </>
       )}

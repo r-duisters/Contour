@@ -170,7 +170,12 @@ apps/web/src/             The Next server app.
                           and the tab bar and More page already list every destination.
                           Tab bar (TabBar.tsx): portfolio, markets, insights, more.
     portfolio/page.tsx      Holdings, valuation, day change and the history chart
-    portfolio/[symbol]/     One holding: its trades, its chart, its background panel
+    portfolio/[symbol]/     One asset. The half about the asset — price, chart,
+                          background panel — renders whether or not it is held,
+                          which is what Markets links into; the tiles and the
+                          transaction table need a holding. Takes ?type= for the
+                          asset kind, since without a holding there is nothing
+                          to read it off.
     insights/page.tsx       Benchmarks, what made the money, concentration, activity
     markets/page.tsx        Crypto and stock movers, the largest by market cap, and an
                           index strip: two cards drawn, the rest behind "More"

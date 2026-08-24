@@ -220,7 +220,15 @@ function Rows({
       {rows.map((r, i) => (
         <li key={r.symbol}>
           <Link
-            href={`/portfolio/${encodeURIComponent(r.symbol)}${portfolioId ? `?p=${portfolioId}` : ""}`}
+            // The asset page reads its kind off the holding, and a mover is
+            // usually not one — so the row that knows says so. Without this an
+            // equity ticker would be fetched as a coin and come back empty.
+            // The pair when there is one, because the price history is keyed
+            // on it; the display symbol otherwise, which opens a page with
+            // everything but a chart. And the kind, because the asset page
+            // reads that off a holding and a mover is usually not one.
+            href={`/portfolio/${encodeURIComponent(r.pair ?? r.symbol)}?type=${r.assetType}`
+              + (portfolioId ? `&p=${portfolioId}` : "")}
             className="flex items-center gap-3 py-2.5"
           >
             {ranked && (

@@ -11,7 +11,16 @@ import { fetchIndexSeries, fetchScreener, fetchTopByMarketCap, type IndexSeries,
  */
 
 export type MarketRow = {
+  /** What to show: a base asset for a coin, a ticker for an equity. */
   symbol: string;
+  /**
+   * What to *ask for*, when that differs. A coin is displayed as BTC and
+   * traded as BTCUSDT, and the price history is keyed on the pair — a link
+   * built from the display symbol alone lands on a page with no chart.
+   * Absent when there is no pair, which is every equity and every coin
+   * CoinGecko ranks that Binance does not list.
+   */
+  pair?: string;
   name?: string;
   price: number;
   changePct: number;
@@ -123,6 +132,7 @@ async function cryptoBoard(net: Net): Promise<MarketBoard> {
 
   const row = (t: (typeof liquid)[number]): MarketRow => ({
     symbol: t.symbol.slice(0, -4),
+    pair: t.symbol,
     price: t.lastPrice,
     changePct: t.priceChangePercent,
     assetType: "crypto",
@@ -156,6 +166,7 @@ async function cryptoBoard(net: Net): Promise<MarketBoard> {
     const live = byBase.get(c.symbol);
     return {
       symbol: c.symbol,
+      ...(live ? { pair: live.symbol } : {}),
       name: c.name,
       price: live ? live.lastPrice : c.price,
       changePct: live ? live.priceChangePercent : c.changePct,

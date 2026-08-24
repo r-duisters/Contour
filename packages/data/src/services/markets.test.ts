@@ -62,6 +62,20 @@ describe("getMarkets crypto", () => {
     expect(board.up.map((r) => r.symbol)).toEqual(["BTC"]);
   });
 
+  it("carries the tradable pair beside the display symbol", async () => {
+    // BTC is what a row says and BTCUSDT is what the price history is keyed
+    // on; a link built from the first alone opens a page with no chart.
+    const net = fakeNetWith(
+      ticker([["BTCUSDT", 65000, 1.1, 9e8]]),
+      [{ symbol: "usdt", name: "Tether", current_price: 1, price_change_percentage_24h: 0, market_cap: 1.8e11 }],
+    );
+    const board = await getMarkets(net, "crypto");
+    expect(board.up[0]).toMatchObject({ symbol: "BTC", pair: "BTCUSDT" });
+    // USDT is the quote asset — there is no USDTUSDT to link to, so the row
+    // carries no pair and the page it opens simply has no chart.
+    expect(board.largest.find((r) => r.symbol === "USDT")).not.toHaveProperty("pair");
+  });
+
   it("prices the ranked table from Binance, not CoinGecko", async () => {
     // One freshness per screen: the cap table's price column must match the
     // movers' price column, or the same coin shows two prices on one page.
