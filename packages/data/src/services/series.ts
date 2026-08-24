@@ -12,6 +12,7 @@ import type { RangeKey } from "@/core/ranges";
 import type { Bar } from "@/core/types";
 import type { Net } from "../ports/net";
 import type { Store, Transaction } from "../ports/store";
+import { pricingPair } from "@/core/symbols";
 import { fetchKlines, fetchKlinesRange } from "../sources/binance";
 import { makeEquitySource } from "../sources/equity";
 import { fetchEcbRates } from "../sources/fx";
@@ -138,10 +139,12 @@ export async function series(
   const histories = await Promise.allSettled(
     symbols.map(async (s): Promise<Bar[]> => {
       if (!equitySymbols.has(s)) {
+        // Binance prices the pair; the store may hold either form.
+        const pair = pricingPair(s);
         return barMs === DAY_MS
-          ? fetchKlinesRange(net, { symbol: s, interval: "1d", from, to: Date.now() })
-          : cached(`h1:${s}:${Math.floor(Date.now() / 300_000)}`, 300_000, () =>
-              fetchKlines(net, { symbol: s, interval: "1h", limit: 26 }),
+          ? fetchKlinesRange(net, { symbol: pair, interval: "1d", from, to: Date.now() })
+          : cached(`h1:${pair}:${Math.floor(Date.now() / 300_000)}`, 300_000, () =>
+              fetchKlines(net, { symbol: pair, interval: "1h", limit: 26 }),
             );
       }
       const rows = await cached(
@@ -298,11 +301,14 @@ export async function changes(
             );
             return rows.filter((r) => r.t >= from).map((r) => r.c);
           }
+          const pair = pricingPair(symbol);
           if (range === "1d") {
-            const bars = await fetchKlines(net, { symbol, interval: "1h", limit: 25 });
+            const bars = await fetchKlines(net, { symbol: pair, interval: "1h", limit: 25 });
             return bars.map((b) => b.c);
           }
-          const bars = await fetchKlinesRange(net, { symbol, interval: "1d", from, to: Date.now() });
+          const bars = await fetchKlinesRange(net, {
+            symbol: pair, interval: "1d", from, to: Date.now(),
+          });
           return bars.map((b) => b.c);
         },
       );

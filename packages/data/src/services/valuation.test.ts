@@ -82,6 +82,48 @@ function yahooQuote(meta: Record<string, unknown>) {
 }
 
 describe("valuation", () => {
+  it("prices a bare asset by its pair", async () => {
+    // The store holds ETH; Binance only knows ETHUSDT. A holding is asked for
+    // by pair and reported by asset.
+    const now = Date.now();
+    const store = MemoryStore({
+      settings: { displayCurrency: "USD" },
+      portfolios: [{
+        id: "p1",
+        name: "Main",
+        transactions: [tx({ symbol: "ETH", quantity: 2, price: 1_000 })],
+      }],
+    });
+    const net = FakeNet({
+      "api.binance.com/api/v3/ticker/price": binanceTicker({ ETHUSDT: 3_000 }),
+      "api.binance.com/api/v3/klines": binanceDailyPair({ ETHUSDT: 2_900 }, now),
+    });
+
+    const out = await valuation(store, net, "p1");
+
+    const eth = out.holdings.find((h) => h.symbol === "ETH");
+    expect(eth?.value).toBe(6_000);
+    expect(eth?.dayChange).toEqual({ abs: 200, pct: (100 / 2_900) * 100 });
+  });
+
+  it("still prices a stored pair, because the database has not moved yet", async () => {
+    const store = MemoryStore({
+      settings: { displayCurrency: "USD" },
+      portfolios: [{
+        id: "p1",
+        name: "Main",
+        transactions: [tx({ symbol: "ETHUSDT", quantity: 2, price: 1_000 })],
+      }],
+    });
+    const net = FakeNet({
+      "api.binance.com/api/v3/ticker/price": binanceTicker({ ETHUSDT: 3_000 }),
+      "api.binance.com/api/v3/klines": [],
+    });
+
+    const out = await valuation(store, net, "p1");
+    expect(out.holdings.find((h) => h.symbol === "ETHUSDT")?.value).toBe(6_000);
+  });
+
   it("values a crypto-only USD portfolio: quantities, prices, day change and totals", async () => {
     const now = Date.now();
     const store = MemoryStore({

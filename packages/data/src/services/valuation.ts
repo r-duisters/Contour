@@ -6,6 +6,7 @@ import { currencyForTicker } from "@/core/equity";
 import { rateOn } from "@/core/fx";
 import { flowsByYear, tradeStats, type TradeStats } from "@/core/insights";
 import { computeHoldings, valueHoldings, type ValuedHolding } from "@/core/portfolio";
+import { pricingPair } from "@/core/symbols";
 import type { Net } from "../ports/net";
 import type { Store, Transaction } from "../ports/store";
 import { fetchKlinesRange, fetchPricesSafe } from "../sources/binance";
@@ -92,19 +93,27 @@ export async function valuation(store: Store, net: Net, id: string): Promise<Val
   const cryptoSymbols = held.filter((s) => !equitySymbols.has(s));
   const heldEquities = held.filter((s) => equitySymbols.has(s));
 
+  // Asked for by pair, reported by asset: the store may hold either form while
+  // the rename is pending, and Binance only knows the pair.
+  const pairOf = new Map(cryptoSymbols.map((s) => [s, pricingPair(s)]));
+
   const [cryptoPrices, equityPrices, cryptoPrev] = await Promise.all([
-    fetchPricesSafe(net, cryptoSymbols),
+    fetchPricesSafe(net, [...pairOf.values()]),
     fetchEquityPricesUsd(net, heldEquities, equityProvider, equityApiKey),
-    fetchCryptoPrevCloses(net, cryptoSymbols),
+    fetchCryptoPrevCloses(net, [...pairOf.values()]),
   ]);
   const prices: Record<string, number> = {};
   const prevCloses: Record<string, number> = {};
-  for (const [sym, usd] of Object.entries(cryptoPrices)) prices[sym] = usd * toDisplay;
+  for (const [symbol, pair] of pairOf) {
+    const usd = cryptoPrices[pair];
+    if (usd !== undefined) prices[symbol] = usd * toDisplay;
+    const prev = cryptoPrev[pair];
+    if (prev !== undefined) prevCloses[symbol] = prev * toDisplay;
+  }
   for (const [sym, q] of Object.entries(equityPrices)) {
     prices[sym] = q.price * toDisplay;
     if (q.prevClose !== undefined) prevCloses[sym] = q.prevClose * toDisplay;
   }
-  for (const [sym, usd] of Object.entries(cryptoPrev)) prevCloses[sym] = usd * toDisplay;
 
   const cashHoldings = await valueCash(net, portfolio.transactions, currency);
 
