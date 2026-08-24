@@ -53,7 +53,16 @@ export default function ValueChart({ series }: {
   useEffect(() => {
     if (!container.current) return;
     const c = createChart(container.current, {
-      layout: { background: { color: "#0a0a0a" }, textColor: "#d4d4d4" },
+      layout: {
+        background: { color: "#0a0a0a" }, textColor: "#d4d4d4",
+        // The library's licence asks for the attribution notice and a link to
+        // tradingview.com somewhere the user can reach. Its logo satisfies
+        // that, and so does the credit on the More page — which is where ours
+        // lives, so the logo comes off the four charts it was sitting on.
+        // Removing it without that credit would breach the licence; the two
+        // changes are one change.
+        attributionLogo: false,
+      },
       // #171717, as the asset and comparison charts already use. BRAND.md
       // lists both greys, which is why this one drifted.
       grid: { vertLines: { color: "#171717" }, horzLines: { color: "#171717" } },

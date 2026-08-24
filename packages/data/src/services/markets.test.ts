@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { invalidate } from "@/core/cache";
-import { FakeNet } from "../testing/fake-net";
+import { FakeNet, respondWith } from "../testing/fake-net";
 import { getMarkets } from "./markets";
 
 // The sources memoise; without this a neighbouring test's value answers before
@@ -25,10 +25,14 @@ type GeckoRow = {
   market_cap: number;
 };
 
+const klines = (closes: number[]) =>
+  closes.map((c, i) => [i, "0", "0", "0", String(c), "0", i + 1, "0", 0, "0", "0", "0"]);
+
 const fakeNetWith = (rows: ReturnType<typeof ticker>, gecko: GeckoRow[] = []) =>
   FakeNet({
     "/api/v3/ticker/24hr": rows,
     "api.coingecko.com": gecko,
+    "/api/v3/klines": klines([100, 110]),
   });
 
 describe("getMarkets crypto", () => {
@@ -85,6 +89,9 @@ const quote = (symbol: string, name: string, price: number, changePct: number, m
 
 const fakeStockNet = () =>
   FakeNet({
+    "query1.finance.yahoo.com/v8/finance/chart": {
+      chart: { result: [{ timestamp: [1, 2], indicators: { quote: [{ close: [100, 105] }] } }] },
+    },
     "scrIds=day_gainers": { finance: { result: [{ quotes: [quote("HOOD", "Robinhood", 42.5, 13.7, 3.7e10)] }] } },
     "scrIds=day_losers": { finance: { result: [{ quotes: [quote("PLUG", "Plug Power", 1.9, -8.2, 1.6e9)] }] } },
     "scrIds=most_actives": {
@@ -95,6 +102,36 @@ const fakeStockNet = () =>
       ] }] },
     },
   });
+
+describe("getMarkets indices", () => {
+  it("leads with the two the strip shows, in the order it shows them", async () => {
+    const board = await getMarkets(fakeNetWith(ticker([["BTCUSDT", 65000, 1, 9e8]])), "crypto");
+    expect(board.indices.slice(0, 2).map((i) => i.label)).toEqual(["Bitcoin", "Ethereum"]);
+    expect(board.indices).toHaveLength(6);
+  });
+
+  it("puts the S&P and the eurozone first for stocks", async () => {
+    const board = await getMarkets(fakeStockNet(), "stocks");
+    expect(board.indices.slice(0, 2).map((i) => i.label)).toEqual(["S&P 500", "Euro Stoxx 50"]);
+    expect(board.indices).toHaveLength(8);
+  });
+
+  it("drops an index whose venue failed rather than failing the board", async () => {
+    // Eight cards, one dead symbol: the page still has a board and seven cards.
+    const net = FakeNet({
+      "scrIds=": { finance: { result: [{ quotes: [] }] } },
+      "query1.finance.yahoo.com/v8/finance/chart": {
+        chart: { result: [{ timestamp: [1, 2], indicators: { quote: [{ close: [100, 105] }] } }] },
+      },
+      // FakeNet resolves the *longest* matching key, so the override has to be
+      // longer than the generic chart route above, not merely more specific.
+      "https://query1.finance.yahoo.com/v8/finance/chart/%5EFTSE": respondWith(404, "gone"),
+    });
+    const board = await getMarkets(net, "stocks");
+    expect(board.indices.map((i) => i.label)).not.toContain("FTSE 100");
+    expect(board.indices).toHaveLength(7);
+  });
+});
 
 describe("getMarkets stocks", () => {
   it("ranks the most active by market cap and drops those without one", async () => {

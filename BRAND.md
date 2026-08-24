@@ -266,6 +266,16 @@ Numbers:
   past it on a phone.
 - Fit to content on load and on data change; never leave the viewport drifted
   off the data.
+- **`Sparkline` is the one line not drawn by `lightweight-charts`.** The
+  Markets strip draws up to eight at 34px, and eight canvases plus a charting
+  library on a page that loads none otherwise is a lot of machinery for a line
+  with fourteen segments. It keeps the rules that matter — thinned to
+  `shapePoints`, averaged not sampled, endpoints exact, curved — and skips the
+  library. Anything larger than a strip card uses the real thing.
+- **No TradingView logo on the charts.** `attributionLogo: false` on all four,
+  because the licence's link requirement is met by the credit on the More page
+  instead. The two are one decision: remove that credit and the four charts
+  become a licence breach.
 - **The indicator chart is the exception, deliberately.** `/chart` draws
   candlesticks, which cannot be curved, and a risk metric read against the
   fixed threshold lines it plots at 0.25 and 0.80. Curving would bend the line away from levels

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { invalidate } from "@/core/cache";
-import { FakeNet } from "../testing/fake-net";
-import { fetchScreener, fetchTopByMarketCap, usMarketOpen } from "./markets";
+import { FakeNet, respondWith } from "../testing/fake-net";
+import { fetchIndexSeries, fetchScreener, fetchTopByMarketCap, usMarketOpen } from "./markets";
 import { fetch24hTicker } from "./binance";
 
 // These fetchers memoise through the process-local cache in @/core/cache, and
@@ -70,5 +70,49 @@ describe("fetch24hTicker", () => {
     expect(await fetch24hTicker(net)).toEqual([
       { symbol: "BTCUSDT", lastPrice: 65000.10, priceChangePercent: 1.2, quoteVolume: 9e8 },
     ]);
+  });
+});
+
+describe("fetchIndexSeries", () => {
+  it("reads Yahoo's chart into closes, dropping the gaps", async () => {
+    // A closed session comes back as a null close beside a real timestamp.
+    const net = FakeNet({
+      "query1.finance.yahoo.com/v8/finance/chart/%5EGSPC": {
+        chart: { result: [{
+          timestamp: [1, 2, 3],
+          indicators: { quote: [{ close: [100, null, 102] }] },
+        }] },
+      },
+    });
+    expect(await fetchIndexSeries(net, { symbol: "^GSPC", label: "S&P 500", kind: "equity" }))
+      .toEqual({ label: "S&P 500", points: [100, 102], changePct: 2 });
+  });
+
+  it("reads Binance klines for a coin, and carries the price", async () => {
+    const net = FakeNet({
+      "api.binance.com/api/v3/klines": [
+        [1, "0", "0", "0", "100", "0", 2, "0", 0, "0", "0", "0"],
+        [2, "0", "0", "0", "150", "0", 3, "0", 0, "0", "0", "0"],
+      ],
+    });
+    expect(await fetchIndexSeries(net, { symbol: "BTCUSDT", label: "Bitcoin", kind: "crypto" }))
+      .toEqual({ label: "Bitcoin", points: [100, 150], changePct: 50, price: 150 });
+  });
+
+  it("answers null rather than throwing when a venue is unreachable", async () => {
+    // One index down must not take the whole board with it.
+    const net = FakeNet({ "query1.finance.yahoo.com": respondWith(404, "no such symbol") });
+    expect(await fetchIndexSeries(net, { symbol: "^NOPE", label: "Nope", kind: "equity" }))
+      .toBeNull();
+  });
+
+  it("answers null for a series too short to have a shape", async () => {
+    const net = FakeNet({
+      "query1.finance.yahoo.com": {
+        chart: { result: [{ timestamp: [1], indicators: { quote: [{ close: [100] }] } }] },
+      },
+    });
+    expect(await fetchIndexSeries(net, { symbol: "^THIN", label: "Thin", kind: "equity" }))
+      .toBeNull();
   });
 });

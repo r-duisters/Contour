@@ -35,7 +35,16 @@ export default function ComparisonChart({
   useEffect(() => {
     if (!container.current) return;
     const c = createChart(container.current, {
-      layout: { background: { color: "#0a0a0a" }, textColor: "#d4d4d4" },
+      layout: {
+        background: { color: "#0a0a0a" }, textColor: "#d4d4d4",
+        // The library's licence asks for the attribution notice and a link to
+        // tradingview.com somewhere the user can reach. Its logo satisfies
+        // that, and so does the credit on the More page — which is where ours
+        // lives, so the logo comes off the four charts it was sitting on.
+        // Removing it without that credit would breach the licence; the two
+        // changes are one change.
+        attributionLogo: false,
+      },
       grid: { vertLines: { color: "#171717" }, horzLines: { color: "#171717" } },
       autoSize: true,
       // Rebased lines: what matters is the gap between them, which the legend

@@ -139,3 +139,70 @@ type RawQuote = {
   regularMarketChangePercent?: number;
   marketCap?: number;
 };
+
+/** One index or coin the Markets strip can draw. */
+export type IndexSpec = { symbol: string; label: string; kind: "equity" | "crypto" };
+
+/** A drawn index: its closes over the window, and what they add up to. */
+export type IndexSeries = {
+  label: string;
+  /** Daily closes, oldest first. Sent raw — the caller thins to its own width. */
+  points: number[];
+  changePct: number;
+  /** Only for coins: an index level is not a price anybody reads. */
+  price?: number;
+};
+
+/**
+ * A month of daily closes for one index or coin.
+ *
+ * `null` rather than a throw when a venue is unreachable or answers with
+ * nothing usable. The strip draws eight of these and one bad symbol must not
+ * take the board with it — the same reasoning as the screeners above.
+ *
+ * An hour, for both venues. These are month-long lines: a fresher figure would
+ * move the last pixel and nothing else.
+ */
+export function fetchIndexSeries(net: Net, spec: IndexSpec): Promise<IndexSeries | null> {
+  const bucket = Math.floor(Date.now() / 3_600_000);
+  return cached(`index:${spec.symbol}:${bucket}`, 3_600_000, async () => {
+    try {
+      const closes = spec.kind === "crypto"
+        ? await cryptoCloses(net, spec.symbol)
+        : await equityCloses(net, spec.symbol);
+      // Two points is the minimum that has a direction; one is a dot.
+      if (closes.length < 2) return null;
+      const first = closes[0]!;
+      const last = closes[closes.length - 1]!;
+      if (!(first > 0)) return null;
+      return {
+        label: spec.label,
+        points: closes,
+        changePct: ((last - first) / first) * 100,
+        ...(spec.kind === "crypto" ? { price: last } : {}),
+      };
+    } catch {
+      return null;
+    }
+  });
+}
+
+async function equityCloses(net: Net, symbol: string): Promise<number[]> {
+  const raw = await net.json<{
+    chart?: { result?: { timestamp?: number[]; indicators?: { quote?: { close?: (number | null)[] }[] } }[] | null };
+  }>(
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}` +
+      "?range=1mo&interval=1d",
+    { headers: { "User-Agent": "Mozilla/5.0", Accept: "application/json" } },
+  );
+  const closes = raw.chart?.result?.[0]?.indicators?.quote?.[0]?.close ?? [];
+  // A closed session arrives as a null beside a real timestamp.
+  return closes.filter((c): c is number => typeof c === "number");
+}
+
+async function cryptoCloses(net: Net, symbol: string): Promise<number[]> {
+  const raw = await net.json<unknown[][]>(
+    `https://api.binance.com/api/v3/klines?symbol=${encodeURIComponent(symbol)}&interval=1d&limit=31`,
+  );
+  return raw.map((k) => Number(k[4])).filter((c) => Number.isFinite(c));
+}

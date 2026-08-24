@@ -2,14 +2,16 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { TrendingUp } from "lucide-react";
+import { ChevronDown, TrendingUp } from "lucide-react";
 import PageLabel from "@/components/PageLabel";
 import CoinIcon from "@/components/CoinIcon";
 import EmptyState from "@/components/EmptyState";
 import SubHeading from "@/components/SubHeading";
 import Segmented from "@/components/Segmented";
+import Sparkline from "@/components/Sparkline";
 import { useDataClient } from "@/data/client/context";
 import type { MarketBoard, MarketCategory, MarketRow } from "@/data/client/data-client";
+import type { IndexSeries } from "@/data/sources/markets";
 import { marketCap, marketMoney, percent } from "@/lib/display";
 
 /**
@@ -34,6 +36,12 @@ export default function MarketsPage() {
   const [failed, setFailed] = useState(false);
   const [held, setHeld] = useState<Set<string>>(new Set());
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
+  // Per category: someone who opens the crypto strip has said nothing about
+  // the stock one. Not persisted — a fresh visit starts from the two that
+  // matter, and re-opening is one tap.
+  const [expanded, setExpanded] = useState<Record<MarketCategory, boolean>>({
+    crypto: false, stocks: false,
+  });
 
   useEffect(() => {
     let live = true;
@@ -82,6 +90,14 @@ export default function MarketsPage() {
       )}
       {!board && !failed && <EmptyState>Loading the board…</EmptyState>}
 
+      {board && board.indices.length > 0 && (
+        <IndexStrip
+          indices={board.indices}
+          open={expanded[category]}
+          onToggle={() => setExpanded((e) => ({ ...e, [category]: !e[category] }))}
+        />
+      )}
+
       {board && (
         <>
           <div className="grid gap-6 md:grid-cols-2 mb-8">
@@ -104,6 +120,82 @@ export default function MarketsPage() {
         </>
       )}
     </main>
+  );
+}
+
+/**
+ * The market before its outliers: two cards, and the rest a tap down.
+ *
+ * Two because that is what fits above the fold without pushing the movers off
+ * it — the whole point of the strip is to be read before them, not instead of
+ * them. Every card is already loaded, so opening it costs no request and shows
+ * no spinner.
+ */
+function IndexStrip({
+  indices, open, onToggle,
+}: {
+  indices: IndexSeries[];
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const [lead, rest] = [indices.slice(0, 2), indices.slice(2)];
+  return (
+    <section className="mb-6">
+      <div className="grid grid-cols-2 gap-2.5">
+        {lead.map((ix) => <IndexCard key={ix.label} index={ix} />)}
+      </div>
+      {open && rest.length > 0 && (
+        <div className="grid grid-cols-2 gap-2.5 mt-2.5">
+          {rest.map((ix) => <IndexCard key={ix.label} index={ix} />)}
+        </div>
+      )}
+      {rest.length > 0 && (
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          className="mt-2.5 w-full flex items-center justify-center gap-1.5 py-1.5
+                     rounded border border-neutral-800/60 text-xs text-neutral-500"
+        >
+          {open ? "Less" : "More"}
+          {!open && (
+            <span className="rounded-full border border-neutral-800 px-1.5 text-[10px] tabular-nums">
+              {rest.length}
+            </span>
+          )}
+          <ChevronDown
+            size={12}
+            aria-hidden
+            className={`transition-transform motion-reduce:transition-none ${open ? "rotate-180" : ""}`}
+          />
+        </button>
+      )}
+    </section>
+  );
+}
+
+function IndexCard({ index }: { index: IndexSeries }) {
+  const up = index.changePct >= 0;
+  return (
+    <div className="rounded-lg border border-neutral-800/60 bg-neutral-900/40 px-2.5 pt-2 pb-1.5 min-w-0">
+      <div className="flex items-baseline justify-between gap-1.5">
+        <span className="text-[11px] text-neutral-400 truncate">{index.label}</span>
+        {/* A price only where somebody reads one. "S&P 500 7,674" is a level
+            almost nobody holds in their head; a coin's price they do. */}
+        {index.price !== undefined && (
+          <span className="text-[10px] text-neutral-600 font-mono shrink-0">
+            {marketMoney(index.price)}
+          </span>
+        )}
+      </div>
+      <Sparkline points={index.points} up={up} />
+      <div className="flex items-baseline justify-between">
+        <span className={`text-xs tabular-nums ${up ? "text-emerald-500" : "text-red-500"}`}>
+          {percent(index.changePct)}
+        </span>
+        <span className="text-[10px] text-neutral-600">30d</span>
+      </div>
+    </div>
   );
 }
 

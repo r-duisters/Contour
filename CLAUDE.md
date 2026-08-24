@@ -172,7 +172,8 @@ apps/web/src/             The Next server app.
     portfolio/page.tsx      Holdings, valuation, day change and the history chart
     portfolio/[symbol]/     One holding: its trades, its chart, its background panel
     insights/page.tsx       Benchmarks, what made the money, concentration, activity
-    markets/page.tsx        Crypto and stock movers, and the largest by market cap
+    markets/page.tsx        Crypto and stock movers, the largest by market cap, and an
+                          index strip: two cards drawn, the rest behind "More"
     chart/page.tsx          Live candlestick chart with indicator overlay. Takes
                           ?symbol=, which a crypto holding's sparkline links to.
                           Off BTCUSDT the risk line is drawn but its ladder is

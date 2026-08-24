@@ -1,6 +1,6 @@
 import type { Net } from "../ports/net";
 import { fetch24hTicker } from "../sources/binance";
-import { fetchScreener, fetchTopByMarketCap } from "../sources/markets";
+import { fetchIndexSeries, fetchScreener, fetchTopByMarketCap, type IndexSeries, type IndexSpec } from "../sources/markets";
 
 /**
  * The Markets board: what moved today and what is largest, for one category.
@@ -20,12 +20,60 @@ export type MarketRow = {
 };
 
 export type MarketBoard = {
+  /**
+   * The market itself, before the outliers: the first two are drawn, the rest
+   * sit behind "More". Ordered, and the screen does not reorder them.
+   */
+  indices: IndexSeries[];
   up: MarketRow[];
   down: MarketRow[];
   largest: MarketRow[];
   source: string;
   at: number;
 };
+
+/**
+ * What the strip shows, in the order it shows it. The first two are the visible
+ * pair; everything after is one tap down.
+ *
+ * Stocks are the two blocs first — the S&P and the eurozone aggregate — then
+ * the venues, home market leading. Crypto has no exchange to name (Binance is
+ * a venue, not a market), so it is the largest coins and is not called an
+ * index anywhere in the UI.
+ */
+const INDICES: Record<MarketCategory, IndexSpec[]> = {
+  stocks: [
+    { symbol: "^GSPC", label: "S&P 500", kind: "equity" },
+    { symbol: "^STOXX50E", label: "Euro Stoxx 50", kind: "equity" },
+    { symbol: "^AEX", label: "AEX", kind: "equity" },
+    { symbol: "^NDX", label: "Nasdaq 100", kind: "equity" },
+    { symbol: "^GDAXI", label: "DAX", kind: "equity" },
+    { symbol: "^FTSE", label: "FTSE 100", kind: "equity" },
+    { symbol: "^N225", label: "Nikkei 225", kind: "equity" },
+    { symbol: "^HSI", label: "Hang Seng", kind: "equity" },
+  ],
+  crypto: [
+    { symbol: "BTCUSDT", label: "Bitcoin", kind: "crypto" },
+    { symbol: "ETHUSDT", label: "Ethereum", kind: "crypto" },
+    { symbol: "SOLUSDT", label: "Solana", kind: "crypto" },
+    { symbol: "XRPUSDT", label: "XRP", kind: "crypto" },
+    { symbol: "BNBUSDT", label: "BNB", kind: "crypto" },
+    { symbol: "DOGEUSDT", label: "Dogecoin", kind: "crypto" },
+  ],
+};
+
+/**
+ * Every card is fetched with the board, not on expansion.
+ *
+ * Expanding then costs nothing and never shows a spinner, and the whole set is
+ * one cached hour of requests on a server with a single user. The alternative
+ * — fetch two now, six on the tap — buys a little idle traffic back and pays
+ * for it with a loading state in the one interaction the strip has.
+ */
+function indicesFor(net: Net, category: MarketCategory): Promise<IndexSeries[]> {
+  return Promise.all(INDICES[category].map((spec) => fetchIndexSeries(net, spec)))
+    .then((rows) => rows.filter((r): r is IndexSeries => r !== null));
+}
 
 export type MarketCategory = "crypto" | "stocks";
 
@@ -60,9 +108,10 @@ export async function getMarkets(net: Net, category: MarketCategory): Promise<Ma
 }
 
 async function cryptoBoard(net: Net): Promise<MarketBoard> {
-  const [tickers, ranked] = await Promise.all([
+  const [tickers, ranked, indices] = await Promise.all([
     fetch24hTicker(net),
     fetchTopByMarketCap(net, RANKED),
+    indicesFor(net, "crypto"),
   ]);
 
   const liquid = tickers.filter((t) => {
@@ -115,14 +164,15 @@ async function cryptoBoard(net: Net): Promise<MarketBoard> {
     };
   });
 
-  return { up, down, largest, source: "Binance and CoinGecko", at: Date.now() };
+  return { indices, up, down, largest, source: "Binance and CoinGecko", at: Date.now() };
 }
 
 async function stockBoard(net: Net): Promise<MarketBoard> {
-  const [gainers, losers, actives] = await Promise.all([
+  const [gainers, losers, actives, indices] = await Promise.all([
     fetchScreener(net, "day_gainers", COLUMN),
     fetchScreener(net, "day_losers", COLUMN),
     fetchScreener(net, "most_actives", 25),
+    indicesFor(net, "stocks"),
   ]);
 
   const row = (e: { symbol: string; name: string; price: number; changePct: number; marketCap: number | null }): MarketRow => ({
@@ -145,6 +195,7 @@ async function stockBoard(net: Net): Promise<MarketBoard> {
     .map(row);
 
   return {
+    indices,
     up: gainers.filter((e) => e.changePct > 0).slice(0, COLUMN).map(row),
     down: losers.filter((e) => e.changePct < 0).slice(0, COLUMN).map(row),
     largest,
