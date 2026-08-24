@@ -9,6 +9,13 @@ export const TxInput = z.object({
   fee: z.number().nonnegative().default(0),
   time: z.number().int().positive(), // ms timestamp
   note: z.string().max(500).optional(),
+  // Optional, with no default: absent must stay absent. `TxPatch` derives from
+  // this schema, and a default here would arrive on a PATCH that never
+  // mentioned the currency and overwrite a stored one — the same way a
+  // defaulted `fee` once erased part of a cost basis.
+  nativeCurrency: z.string().min(1).max(12).optional(),
+  nativePrice: z.number().nonnegative().optional(),
+  nativeFee: z.number().nonnegative().optional(),
 });
 
 /**
@@ -39,5 +46,7 @@ export function serializeTx(tx: Transaction) {
     fee: tx.fee,
     time: Number(tx.time),
     note: tx.note,
+    nativeCurrency: tx.nativeCurrency,
+    nativePrice: tx.nativePrice,
   };
 }

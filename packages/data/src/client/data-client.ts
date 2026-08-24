@@ -165,6 +165,12 @@ export interface DataClient {
 
   /** @throws NotFoundError when no portfolio has that id. */
   addTransaction(portfolioId: string, tx: NewTransactionInput): Promise<TransactionDto>;
+  /**
+   * Which currencies this asset's price can be quoted in. Empty for an equity,
+   * whose currency is its venue's and is not a choice, and for a coin with no
+   * listed pair.
+   */
+  listQuotes(asset: string): Promise<string[]>;
   /** @throws RequestFailedError — see the note above on delete and 500s. */
   deleteTransaction(id: string): Promise<void>;
 
@@ -288,12 +294,15 @@ export type TransactionDto = {
   /** ms since epoch. */
   time: number;
   note: string | null;
+  /** What the price was actually paid in; null when it was already USD. */
+  nativeCurrency: string | null;
+  nativePrice: number | null;
 };
 
 /**
  * What the transaction form collects. Narrower than the port's
- * `NewTransaction`: this route has never accepted an asset type or a native
- * currency, and a manual entry takes the "crypto"/null defaults.
+ * `NewTransaction`: this route still takes the "crypto" asset-type default,
+ * because cash and income arrive with a later plan.
  */
 export type NewTransactionInput = {
   symbol: string;
@@ -304,6 +313,14 @@ export type NewTransactionInput = {
   /** ms since epoch. */
   time: number;
   note?: string;
+  /**
+   * What the price and fee were actually paid in. Absent means the figures are
+   * already USD — which is what every manual entry meant before this existed,
+   * so absent must keep behaving exactly as it did.
+   */
+  nativeCurrency?: string | null;
+  nativePrice?: number | null;
+  nativeFee?: number | null;
 };
 
 export type BenchmarkQuery = {

@@ -4,6 +4,7 @@ import { auditLedger, type Finding } from "@/core/ledger-audit";
 import {
   BACKUP_VERSION, ghostfolioCsv, parseBackup, transactionsCsv, type ExportTx,
 } from "@/core/export";
+import { FIAT } from "@/core/currencies";
 import { pricingPair } from "@/core/symbols";
 import type { Net } from "../ports/net";
 import type { NewTransaction, Portfolio, Store } from "../ports/store";
@@ -24,7 +25,7 @@ import { displayContext } from "./pricing";
 
 const DAY_MS = 86_400_000;
 const utcDay = (t: number) => Math.floor(t / DAY_MS) * DAY_MS;
-const FIAT = new Set(["EUR", "GBP", "CHF", "JPY", "AUD", "CAD", "SEK", "NOK", "PLN"]);
+
 
 /** What the import screen shows: what was written, and what was not, with why. */
 export type ImportReport = {

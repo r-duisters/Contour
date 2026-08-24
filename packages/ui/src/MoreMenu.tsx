@@ -3,10 +3,10 @@
 import { useEffect, useId, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { X } from "lucide-react";
 import { MORE_GROUPS } from "./more-menu";
 import PrivacyToggle from "./PrivacyToggle";
 import SubHeading from "./SubHeading";
+import Sheet from "./Sheet";
 
 /**
  * What sits behind "More", as a sheet on a phone and a dropdown on a desktop.
@@ -53,20 +53,12 @@ export default function MoreMenu({
     return () => document.removeEventListener("pointerdown", onDown);
   }, [open, onClose, variant]);
 
-  // The sheet covers the page; letting the page scroll behind it is the
-  // classic phone bug where the list moves under your finger.
-  useEffect(() => {
-    if (!open || variant !== "sheet") return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
-  }, [open, variant]);
-
   // Move focus into the panel when it opens, so the first Tab lands inside it
-  // rather than back at the top of the page.
+  // rather than back at the top of the page. Only for the dropdown — `Sheet`
+  // does its own, and running both would fight over where focus lands.
   useEffect(() => {
-    if (open) panel.current?.querySelector<HTMLElement>("a, button")?.focus();
-  }, [open]);
+    if (open && variant === "dropdown") panel.current?.querySelector<HTMLElement>("a, button")?.focus();
+  }, [open, variant]);
 
   if (!open) return null;
 
@@ -121,41 +113,8 @@ export default function MoreMenu({
   }
 
   return (
-    <div className="md:hidden fixed inset-0 z-40" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-      {/* The scrim is a button so a tap anywhere off the sheet closes it, and
-          so the gesture is reachable from a keyboard rather than mouse-only. */}
-      <button
-        type="button"
-        aria-label="Close menu"
-        onClick={onClose}
-        className="absolute inset-0 bg-black/60 backdrop-blur-[1px]"
-      />
-      <div
-        ref={panel}
-        // The tab bar stays visible and lit beneath this, which is what tells
-        // you the sheet belongs to it — so the sheet has to end above the bar
-        // rather than behind it. 4rem clears the bar; the inset clears the
-        // home indicator under that.
-        className="absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-neutral-800
-                   bg-neutral-950 pb-[calc(env(safe-area-inset-bottom)+4rem)]
-                   max-h-[80vh] overflow-y-auto
-                   motion-safe:animate-[more-up_.16s_ease-out]"
-      >
-        <div className="flex items-center justify-between px-4 pt-3">
-          <h2 id={titleId} className="text-sm font-semibold uppercase tracking-widest text-neutral-500">
-            More
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close menu"
-            className="p-1 -mr-1 text-neutral-500"
-          >
-            <X size={18} aria-hidden />
-          </button>
-        </div>
-        {list}
-      </div>
+    <div className="md:hidden">
+      <Sheet open={open} onClose={onClose} title="More">{list}</Sheet>
     </div>
   );
 }

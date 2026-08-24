@@ -11,21 +11,20 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const body = TxInput.safeParse(await req.json());
   if (!body.success) return NextResponse.json({ error: body.error.flatten() }, { status: 400 });
 
-  const { store } = deps();
+  const { store, net } = deps();
   try {
-    const created = await addTransaction(store, id, {
+    const created = await addTransaction(store, net, id, {
       symbol: body.data.symbol.toUpperCase(),
-      // Not in `TxInput`: the route never accepted these, so a manual create
-      // relied on the column defaults ("crypto", null) that these reproduce.
+      // Still the column default: cash and income arrive with a later plan.
       assetType: "crypto",
       side: body.data.side,
       quantity: body.data.quantity,
       price: body.data.price,
       fee: body.data.fee,
       time: body.data.time,
-      nativeCurrency: null,
-      nativePrice: null,
-      nativeFee: null,
+      nativeCurrency: body.data.nativeCurrency?.toUpperCase() ?? null,
+      nativePrice: body.data.nativePrice ?? null,
+      nativeFee: body.data.nativeFee ?? null,
       note: body.data.note ?? null,
     });
     return NextResponse.json({ transaction: serializeTx(created) });

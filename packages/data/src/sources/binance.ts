@@ -1,4 +1,5 @@
 import { cached } from "@/core/cache";
+import { QUOTE_ASSETS } from "@/core/symbols";
 import type { Bar, Timeframe } from "@/core/types";
 import type { Net } from "../ports/net";
 
@@ -117,6 +118,33 @@ async function fetchUsdtSymbolsUncached(net: Net): Promise<string[]> {
     .filter((s) => s.status === "TRADING" && s.quoteAsset === "USDT" && s.isSpotTradingAllowed)
     .map((s) => s.symbol)
     .sort();
+}
+
+/**
+ * Quote assets Binance lists this base against — ETH -> ["USDT", "EUR", "BTC"].
+ *
+ * Filtered to `QUOTE_ASSETS` so the form never offers a pair the rest of the
+ * app cannot read back: `assetOf` strips a known quote to recover the asset,
+ * and one it does not know would make ETHNGN parse as the asset ETHN.
+ *
+ * USDT leads because it is what a price usually means; the rest keep
+ * `exchangeInfo`'s order, which is stable.
+ */
+export function fetchQuotesFor(net: Net, base: string): Promise<string[]> {
+  const b = base.toUpperCase();
+  return cached(`quotes:${b}`, 3_600_000, async () => {
+    const raw = await net.json<{
+      symbols: {
+        baseAsset: string; quoteAsset: string; status: string; isSpotTradingAllowed: boolean;
+      }[];
+    }>(`${REST}/api/v3/exchangeInfo`);
+    const known = new Set<string>(QUOTE_ASSETS);
+    const found = raw.symbols
+      .filter((s) => s.baseAsset === b && s.status === "TRADING" && s.isSpotTradingAllowed)
+      .map((s) => s.quoteAsset)
+      .filter((q) => known.has(q));
+    return [...new Set(found)].sort((x, y) => (x === "USDT" ? -1 : y === "USDT" ? 1 : 0));
+  });
 }
 
 /** Current spot prices for the given symbols, as symbol -> price. Unknown symbols are omitted. */

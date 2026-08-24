@@ -1,4 +1,5 @@
 import type { TxSide } from "./portfolio";
+import { STABLES, isFiat } from "./currencies";
 
 export type ParsedTx = {
   symbol: string;
@@ -33,9 +34,9 @@ export type DeltaImport = {
   warnings: SkippedRow[];
 };
 
-const STABLES = new Set(["USD", "USDT", "USDC", "BUSD", "DAI", "FDUSD", "TUSD"]);
+
 /** Real money the portfolio can hold as a balance, as opposed to a traded asset. */
-const FIAT_CURRENCIES = new Set(["EUR", "USD", "GBP", "CHF", "SEK", "NOK", "DKK", "PLN", "CAD", "AUD"]);
+
 
 const SIDE_MAP: Record<string, TxSide | "income" | "transfer"> = {
   TRANSFER: "transfer", // direction comes from the sign of the base amount
@@ -195,7 +196,7 @@ export function parseDeltaCsv(text: string): DeltaImport {
     const baseCurrency = normalizeAsset(cell(cols.baseCurrency));
     if (!baseCurrency) { skipped.push({ line, reason: "missing base currency" }); continue; }
     // Fiat rows are the cash side of the portfolio, not an asset position.
-    const isCash = FIAT_CURRENCIES.has(baseCurrency) || baseCurrency === "USD";
+    const isCash = isFiat(baseCurrency);
     const assetType: "crypto" | "equity" | "cash" = isCash
       ? "cash"
       : isSecurityTicker(baseCurrency) ? "equity" : "crypto";

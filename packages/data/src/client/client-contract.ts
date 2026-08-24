@@ -218,6 +218,24 @@ export function runDataClientContract(
       expect(tx.id).toBeTruthy();
     });
 
+    it("keeps the currency a price was quoted in", async () => {
+      // The importer has always recorded this; a manual entry could not, and
+      // its price silently meant USD. Both implementations must agree, which
+      // is the whole reason this lives in the contract and not in one client's
+      // own suite.
+      const tx = await makeClient().addTransaction(PORTFOLIO_ID, {
+        ...FIXTURE.newTransaction,
+        nativeCurrency: "EUR", nativePrice: 2000, nativeFee: 10,
+      });
+      expect(tx.nativeCurrency).toBe("EUR");
+      expect(tx.nativePrice).toBe(2000);
+    });
+
+    it("lists the currencies an asset can be priced in", async () => {
+      const quotes = await makeClient().listQuotes("ETH");
+      expect(quotes).toContain("USDT");
+    });
+
     it("deletes a transaction", async () => {
       await expect(makeClient().deleteTransaction(TRANSACTION_ID)).resolves.toBeUndefined();
     });

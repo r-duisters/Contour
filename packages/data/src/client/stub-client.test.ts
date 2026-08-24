@@ -7,6 +7,7 @@ import type { Net } from "../ports/net";
 import type { SettingsPatch, Store, Transaction } from "../ports/store";
 import { FakeNet } from "../testing/fake-net";
 import { MemoryStore } from "../testing/memory-store";
+import { fetchQuotesFor } from "../sources/binance";
 import * as portfolios from "../services/portfolios";
 import * as settingsService from "../services/settings";
 import * as transactions from "../services/transactions";
@@ -128,6 +129,8 @@ function toDto(t: Transaction): TransactionDto {
     fee: t.fee,
     time: t.time,
     note: t.note,
+    nativeCurrency: t.nativeCurrency,
+    nativePrice: t.nativePrice,
   };
 }
 
@@ -216,18 +219,22 @@ function StubClient(store: Store, net: Net): DataClient {
 
     async addTransaction(portfolioId: string, tx: NewTransactionInput): Promise<TransactionDto> {
       return attempt(async () => {
-        const row = await transactions.addTransaction(store, portfolioId, {
+        const row = await transactions.addTransaction(store, net, portfolioId, {
           ...tx,
-          // The defaults the manual-entry route has always applied; the input
-          // DTO deliberately cannot express anything else.
+          // `assetType` is still the route's default: cash and income arrive
+          // with a later plan. The native figures now come from the input.
           assetType: "crypto",
-          nativeCurrency: null,
-          nativePrice: null,
-          nativeFee: null,
+          nativeCurrency: tx.nativeCurrency ?? null,
+          nativePrice: tx.nativePrice ?? null,
+          nativeFee: tx.nativeFee ?? null,
           note: tx.note ?? null,
         });
         return toDto(row);
       });
+    },
+
+    listQuotes(asset: string): Promise<string[]> {
+      return attempt(() => fetchQuotesFor(net, asset));
     },
 
     async deleteTransaction(id: string): Promise<void> {
@@ -433,6 +440,12 @@ function seededNet(): Net {
     // No previous closes: day change is unknown, which the fixture does not
     // assert and the valuation reports as uncovered rather than as zero.
     "api.binance.com/api/v3/klines": [],
+    "api.binance.com/api/v3/exchangeInfo": {
+      symbols: [
+        { symbol: "ETHUSDT", baseAsset: "ETH", quoteAsset: "USDT", status: "TRADING", isSpotTradingAllowed: true },
+        { symbol: "ETHEUR", baseAsset: "ETH", quoteAsset: "EUR", status: "TRADING", isSpotTradingAllowed: true },
+      ],
+    },
     // The markets board. Volumes clear the service's floor so the rows are not
     // filtered away; the point of the contract case is the shape, not the
     // ranking.
