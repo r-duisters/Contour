@@ -182,6 +182,12 @@ apps/web/src/             The Next server app.
                           then the ranked table — ten rows, sortable, ten more per
                           tap out of the fifty the board carries — then the day's
                           winners and losers
+    markets/[index]/        One exchange: its figures from the index's own chart
+                          metadata, where it sits in its 52-week range, and its
+                          major members. Membership is a fixed list — Yahoo's
+                          components module needs the crumb (spec §4.2) — and the
+                          page says so. A crypto card links to the asset page
+                          instead; a coin is not an exchange
     chart/page.tsx          Live candlestick chart with indicator overlay. Takes
                           ?symbol=, which a crypto holding's sparkline links to.
                           Off BTCUSDT the risk line is drawn but its ladder is
@@ -203,7 +209,7 @@ apps/web/src/             The Next server app.
                           place in apps/web that names an implementation.
     globals.css             Tailwind entry point; its `@source` directive names
                           packages/ui/src so Tailwind scans the shared components too.
-    api/                  Twenty-two route groups. The converted ones are wrappers over
+    api/                  Twenty-three route groups. The converted ones are wrappers over
                           packages/data/src/services — see "The data seam" below; the
                           rest are listed there as deliberately server-only.
       portfolios/             CRUD, plus [id]/{valuation,series,changes,insights,
@@ -212,7 +218,8 @@ apps/web/src/             The Next server app.
       symbols/ asset/ history/ benchmark/
                           Symbol search, per-asset background, price history, benchmarks
       settings/               GET/PUT settings; POST sends a test signal to HA + Web Push
-      markets/                The movers board — a wrapper over services/markets
+      markets/                The movers board, and [index] for one exchange —
+                          wrappers over services/markets
       login/ logout/ setup/ webauthn/ push/
                           Auth, first-run and notification subscriptions — server-only
       candles/ backtest/ risk/ analyze/ scripts/ scripts/[name]/ cron/evaluate/

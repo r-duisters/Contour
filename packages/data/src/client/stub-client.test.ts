@@ -14,8 +14,8 @@ import { restore } from "../services/transfer";
 import type { ImportReport } from "../services/transfer";
 import type { Benchmark, Changes, History, Series } from "../services/series";
 import { insights, valuation } from "../services/valuation";
-import { getMarkets } from "../services/markets";
-import type { MarketBoard, MarketCategory } from "../services/markets";
+import { getIndexDetail, getMarkets } from "../services/markets";
+import type { IndexDetail, MarketBoard, MarketCategory } from "../services/markets";
 import type { Insights, Snapshot, Valuation } from "../services/valuation";
 import type {
   BenchmarkQuery,
@@ -305,6 +305,15 @@ function StubClient(store: Store, net: Net): DataClient {
       return attempt(() => getMarkets(net, category));
     },
 
+    /** Real, and the NotFoundError is real: an unknown slug has no index. */
+    async getIndex(slug: string): Promise<IndexDetail> {
+      return attempt(async () => {
+        const found = await getIndexDetail(net, slug);
+        if (!found) throw new NotFoundError(`index ${slug}`);
+        return found;
+      });
+    },
+
     /* -------------------------------------------------------------- settings */
 
     async getSettings(): Promise<SettingsDto | null> {
@@ -434,6 +443,19 @@ function seededNet(): Net {
     "api.coingecko.com": [
       { symbol: "btc", name: "Bitcoin", current_price: 40_000, price_change_percentage_24h: 1.5, market_cap: 1.2e12 },
     ],
+    // Every equity chart, indices and constituents alike, answers the same
+    // shape — the index page prices ten members off this one route.
+    "query1.finance.yahoo.com/v8/finance/chart": {
+      chart: { result: [{
+        meta: {
+          longName: "AEX-Index", fullExchangeName: "Amsterdam", currency: "EUR",
+          exchangeTimezoneName: "Europe/Amsterdam", regularMarketPrice: 1100,
+          chartPreviousClose: 1090, fiftyTwoWeekHigh: 1200, fiftyTwoWeekLow: 900,
+          firstTradeDate: 718876800,
+        },
+        timestamp: [1, 2], indicators: { quote: [{ close: [1090, 1100] }] },
+      }] },
+    },
     "query1.finance.yahoo.com/v1/finance/screener": {
       finance: { result: [{ quotes: [
         { symbol: "NVDA", shortName: "Nvidia", regularMarketPrice: 178, regularMarketChangePercent: 1.1, marketCap: 4.3e12 },

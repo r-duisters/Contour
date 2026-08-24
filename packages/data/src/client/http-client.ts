@@ -6,7 +6,7 @@ import type { SettingsPatch } from "../ports/store";
 import type { Benchmark, Changes, History, Series } from "../services/series";
 import type { ImportReport } from "../services/transfer";
 import type { Insights, Snapshot, Valuation } from "../services/valuation";
-import type { MarketBoard, MarketCategory } from "../services/markets";
+import type { IndexDetail, MarketBoard, MarketCategory } from "../services/markets";
 import type {
   BenchmarkQuery,
   DataClient,
@@ -234,6 +234,13 @@ export function HttpClient(net: Net, baseUrl = ""): DataClient {
     async getMarkets(category: MarketCategory): Promise<MarketBoard> {
       const d = await send<{ board: MarketBoard }>("GET", `/api/markets?category=${category}`);
       return d.board;
+    },
+
+    async getIndex(slug: string): Promise<IndexDetail> {
+      const d = await send<{ index: IndexDetail }>(
+        "GET", `/api/markets/${encodeURIComponent(slug)}`, { subject: `index ${slug}` },
+      );
+      return d.index;
     },
 
     /* -------------------------------------------------------------- settings */

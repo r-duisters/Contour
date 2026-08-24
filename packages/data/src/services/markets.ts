@@ -1,6 +1,9 @@
 import type { Net } from "../ports/net";
 import { fetch24hTicker } from "../sources/binance";
-import { fetchIndexSeries, fetchScreener, fetchTopByMarketCap, type IndexSeries, type IndexSpec } from "../sources/markets";
+import {
+  fetchConstituents, fetchIndexMeta, fetchIndexSeries, fetchScreener, fetchTopByMarketCap,
+  type Constituent, type IndexMeta, type IndexSeries, type IndexSpec,
+} from "../sources/markets";
 
 /**
  * The Markets board: what moved today and what is largest, for one category.
@@ -80,8 +83,15 @@ const INDICES: Record<MarketCategory, IndexSpec[]> = {
  * for it with a loading state in the one interaction the strip has.
  */
 function indicesFor(net: Net, category: MarketCategory): Promise<IndexSeries[]> {
-  return Promise.all(INDICES[category].map((spec) => fetchIndexSeries(net, spec)))
-    .then((rows) => rows.filter((r): r is IndexSeries => r !== null));
+  return Promise.all(INDICES[category].map(async (spec): Promise<IndexSeries | null> => {
+    const row = await fetchIndexSeries(net, spec);
+    // Only an equity index has a page behind it: a crypto card is a coin, and
+    // its page is the asset page every other coin already has.
+    if (!row) return row;
+    return spec.kind === "equity"
+      ? { ...row, slug: slugFor(spec.label) }
+      : { ...row, pair: spec.symbol };
+  })).then((rows) => rows.filter((r): r is IndexSeries => r !== null));
 }
 
 export type MarketCategory = "crypto" | "stocks";
@@ -221,5 +231,75 @@ async function stockBoard(net: Net): Promise<MarketBoard> {
     largest,
     source: "Yahoo Finance",
     at: Date.now(),
+  };
+}
+
+/* ------------------------------------------------------------------ indices */
+
+/**
+ * A single index: its own figures, its month, and the companies in it.
+ *
+ * The constituents are a **fixed list**, and the UI says so. Yahoo's
+ * components module and its batch-quote endpoint both answer `Invalid Crumb`
+ * without the handshake this app cannot perform (spec §4.2), so there is no
+ * feed to rank membership from. What is written below was checked against
+ * Yahoo — every one of the eighty tickers resolves and returns a price — but
+ * "these ten are the largest members today" is a claim nothing here can
+ * verify, so the page claims only that they are major members.
+ *
+ * When one is wrong it goes quiet rather than lying: `fetchConstituents` drops
+ * a ticker that fails to price.
+ */
+const CONSTITUENTS: Record<string, string[]> = {
+  "^GSPC": ["NVDA", "MSFT", "AAPL", "AMZN", "GOOGL", "META", "AVGO", "TSLA", "BRK-B", "JPM"],
+  "^NDX": ["NVDA", "MSFT", "AAPL", "AMZN", "AVGO", "META", "GOOGL", "TSLA", "NFLX", "COST"],
+  "^STOXX50E": ["ASML.AS", "SAP.DE", "MC.PA", "SIE.DE", "TTE.PA", "SU.PA", "AIR.PA", "ALV.DE", "OR.PA", "SAN.PA"],
+  "^AEX": ["ASML.AS", "SHELL.AS", "UNA.AS", "INGA.AS", "ADYEN.AS", "PRX.AS", "AD.AS", "PHIA.AS", "WKL.AS", "HEIA.AS"],
+  "^GDAXI": ["SAP.DE", "SIE.DE", "ALV.DE", "DTE.DE", "AIR.DE", "MUV2.DE", "MBG.DE", "BAS.DE", "BMW.DE", "IFX.DE"],
+  "^FTSE": ["AZN.L", "SHEL.L", "HSBA.L", "ULVR.L", "BP.L", "RIO.L", "GSK.L", "REL.L", "LSEG.L", "BATS.L"],
+  "^N225": ["7203.T", "6758.T", "8306.T", "9984.T", "6861.T", "8035.T", "9432.T", "6098.T", "4063.T", "7974.T"],
+  "^HSI": ["0700.HK", "9988.HK", "0939.HK", "1299.HK", "3690.HK", "0005.HK", "1810.HK", "0388.HK", "2318.HK", "0941.HK"],
+};
+
+/** URL-safe name for an index, so `^STOXX50E` is not in a path. */
+export const INDEX_SLUGS: Record<string, IndexSpec> = Object.fromEntries(
+  INDICES.stocks.map((spec) => [slugFor(spec.label), spec]),
+);
+
+/**
+ * "S&P 500" -> "sp-500", "Euro Stoxx 50" -> "euro-stoxx-50".
+ *
+ * The ampersand is dropped rather than spelled out: expanding it gave
+ * "sandp-500", which reads as a word nobody meant.
+ */
+function slugFor(label: string): string {
+  return label.toLowerCase().replace(/&/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
+export type IndexDetail = {
+  slug: string;
+  meta: IndexMeta;
+  /** A month of closes, as the strip draws them. */
+  points: number[];
+  changePct: number;
+  /** Major members, priced live. A fixed list — see CONSTITUENTS. */
+  constituents: Constituent[];
+};
+
+export async function getIndexDetail(net: Net, slug: string): Promise<IndexDetail | null> {
+  const spec = INDEX_SLUGS[slug];
+  if (!spec) return null;
+  const [meta, series, constituents] = await Promise.all([
+    fetchIndexMeta(net, spec.symbol),
+    fetchIndexSeries(net, spec),
+    fetchConstituents(net, CONSTITUENTS[spec.symbol] ?? []),
+  ]);
+  if (!meta) return null;
+  return {
+    slug,
+    meta,
+    points: series?.points ?? [],
+    changePct: series?.changePct ?? 0,
+    constituents,
   };
 }

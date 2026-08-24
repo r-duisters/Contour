@@ -46,7 +46,15 @@ function seededNet(): FakeNetInstance {
   let settingsWritten = false;
 
   return FakeNet({
-    "/api/markets": { board: { up: [], down: [], largest: [], source: "test", at: 0 } },
+    "/api/markets": { board: { indices: [], up: [], down: [], largest: [], source: "test", at: 0 } },
+    "/api/markets/aex": { index: {
+      slug: "aex",
+      meta: { name: "AEX-Index", exchange: "Amsterdam", currency: "EUR",
+        timezone: "Europe/Amsterdam", level: 1100, previousClose: 1090,
+        dayHigh: 1105, dayLow: 1095, yearHigh: 1200, yearLow: 900, since: 718876800000 },
+      points: [1090, 1100], changePct: 0.92, constituents: [],
+    } },
+    "/api/markets/no-such-index": notFound,
     "/api/portfolios": (_url: string, init?: RequestInit) => {
       // Only the collection itself; every id-bearing path has a longer key.
       if (method(init) === "POST") {

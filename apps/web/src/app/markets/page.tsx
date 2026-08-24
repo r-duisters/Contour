@@ -259,8 +259,18 @@ function IndexStrip({
 
 function IndexCard({ index }: { index: IndexSeries }) {
   const up = index.changePct >= 0;
-  return (
-    <div className="rounded-lg border border-neutral-800/60 bg-neutral-900/40 px-2.5 pt-2 pb-1.5 min-w-0">
+  /**
+   * An equity index has a page of its own; a crypto card is a coin, and its
+   * page is the asset page every other coin already has. Two destinations
+   * because they are two kinds of thing, not because the cards differ.
+   */
+  const href = index.slug
+    ? `/markets/${index.slug}`
+    : index.pair
+      ? `/portfolio/${encodeURIComponent(index.pair)}?type=crypto`
+      : null;
+  const inner = (
+    <div className="rounded-lg border border-neutral-800/60 bg-neutral-900/40 px-2.5 pt-2 pb-1.5 min-w-0 h-full">
       <div className="flex items-baseline justify-between gap-1.5">
         <span className="text-[11px] text-neutral-500 truncate">{index.label}</span>
         {/* A price only where somebody reads one. "S&P 500 7,674" is a level
@@ -279,6 +289,16 @@ function IndexCard({ index }: { index: IndexSeries }) {
         <span className="text-[11px] text-neutral-500">30d</span>
       </div>
     </div>
+  );
+  if (!href) return inner;
+  return (
+    <Link
+      href={href}
+      aria-label={`Open ${index.label}`}
+      className="block rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+    >
+      {inner}
+    </Link>
   );
 }
 

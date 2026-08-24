@@ -329,6 +329,15 @@ export function runDataClientContract(
       }
     });
 
+    it("answers an index by slug, and NotFoundError for one it does not know", async () => {
+      const client = makeClient();
+      const detail = await client.getIndex("aex");
+      expect(detail.meta.name.length).toBeGreaterThan(0);
+      expect(Array.isArray(detail.constituents)).toBe(true);
+      // The one Markets method that names a record, so the one that can miss.
+      await expect(client.getIndex("no-such-index")).rejects.toBeInstanceOf(NotFoundError);
+    });
+
     it("offers a test notification exactly when it claims the capability", async () => {
       // Both directions, because the point of the rule in `data-client.ts` is
       // that a capability a platform lacks is *absent*, not present-and-

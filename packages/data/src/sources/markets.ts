@@ -146,6 +146,10 @@ export type IndexSpec = { symbol: string; label: string; kind: "equity" | "crypt
 /** A drawn index: its closes over the window, and what they add up to. */
 export type IndexSeries = {
   label: string;
+  /** URL-safe name for an equity index; the screen links to its page with it. */
+  slug?: string;
+  /** The tradable pair for a coin card, which links to the asset page instead. */
+  pair?: string;
   /** Daily closes, oldest first. Sent raw — the caller thins to its own width. */
   points: number[];
   changePct: number;
@@ -205,4 +209,119 @@ async function cryptoCloses(net: Net, symbol: string): Promise<number[]> {
     `https://api.binance.com/api/v3/klines?symbol=${encodeURIComponent(symbol)}&interval=1d&limit=31`,
   );
   return raw.map((k) => Number(k[4])).filter((c) => Number.isFinite(c));
+}
+
+/** What an index's own chart says about itself. Every field is Yahoo's, none invented. */
+export type IndexMeta = {
+  name: string;
+  /** "Amsterdam", "NASDAQ" — the venue, as the venue names itself. */
+  exchange: string;
+  currency: string;
+  timezone: string;
+  level: number;
+  previousClose: number | null;
+  dayHigh: number | null;
+  dayLow: number | null;
+  yearHigh: number | null;
+  yearLow: number | null;
+  /** First bar Yahoo holds, in ms. A rough founding date, and labelled as one. */
+  since: number | null;
+};
+
+/**
+ * The index's own figures, from the `meta` block of its chart.
+ *
+ * Deliberately separate from `fetchIndexSeries`: the strip needs closes and
+ * nothing else, and this needs everything but the closes. Sharing one call
+ * would make the strip pay for eight copies of a block it never reads.
+ */
+export function fetchIndexMeta(net: Net, symbol: string): Promise<IndexMeta | null> {
+  const bucket = Math.floor(Date.now() / 3_600_000);
+  return cached(`indexmeta:${symbol}:${bucket}`, 3_600_000, async () => {
+    try {
+      const raw = await net.json<{ chart?: { result?: { meta?: RawIndexMeta }[] | null } }>(
+        `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}` +
+          "?range=1d&interval=1d",
+        { headers: { "User-Agent": "Mozilla/5.0", Accept: "application/json" } },
+      );
+      const m = raw.chart?.result?.[0]?.meta;
+      if (!m || typeof m.regularMarketPrice !== "number") return null;
+      return {
+        name: m.longName ?? m.shortName ?? symbol,
+        exchange: m.fullExchangeName ?? m.exchangeName ?? "",
+        currency: m.currency ?? "",
+        timezone: m.exchangeTimezoneName ?? "",
+        level: m.regularMarketPrice,
+        previousClose: num(m.chartPreviousClose ?? m.previousClose),
+        dayHigh: num(m.regularMarketDayHigh),
+        dayLow: num(m.regularMarketDayLow),
+        yearHigh: num(m.fiftyTwoWeekHigh),
+        yearLow: num(m.fiftyTwoWeekLow),
+        since: typeof m.firstTradeDate === "number" ? m.firstTradeDate * 1000 : null,
+      };
+    } catch {
+      return null;
+    }
+  });
+}
+
+type RawIndexMeta = {
+  longName?: string; shortName?: string; fullExchangeName?: string; exchangeName?: string;
+  currency?: string; exchangeTimezoneName?: string; regularMarketPrice?: number;
+  chartPreviousClose?: number; previousClose?: number; regularMarketDayHigh?: number;
+  regularMarketDayLow?: number; fiftyTwoWeekHigh?: number; fiftyTwoWeekLow?: number;
+  firstTradeDate?: number;
+};
+
+const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+
+/** One listed company, priced off its own chart because batch quotes need a crumb. */
+export type Constituent = {
+  symbol: string;
+  name: string;
+  price: number;
+  changePct: number;
+  currency: string;
+};
+
+/**
+ * Price a list of tickers, one chart request each, in parallel.
+ *
+ * The batch endpoint (`v7/finance/quote`) answers `Unauthorized` without the
+ * crumb this app cannot obtain — see spec §4.2 — so this is the same
+ * one-request-per-symbol path `YahooSource.quotes` already uses for holdings.
+ * Ten symbols is ten requests, cached for an hour.
+ *
+ * A ticker that fails is dropped rather than throwing: a delisting should cost
+ * one row, not the page.
+ */
+export async function fetchConstituents(net: Net, symbols: string[]): Promise<Constituent[]> {
+  const rows = await Promise.all(symbols.map((symbol) => fetchOneQuote(net, symbol)));
+  return rows.filter((r): r is Constituent => r !== null);
+}
+
+function fetchOneQuote(net: Net, symbol: string): Promise<Constituent | null> {
+  const bucket = Math.floor(Date.now() / 3_600_000);
+  return cached(`quote1:${symbol}:${bucket}`, 3_600_000, async () => {
+    try {
+      const raw = await net.json<{ chart?: { result?: { meta?: RawIndexMeta }[] | null } }>(
+        `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}` +
+          "?range=1d&interval=1d",
+        { headers: { "User-Agent": "Mozilla/5.0", Accept: "application/json" } },
+      );
+      const m = raw.chart?.result?.[0]?.meta;
+      const price = m?.regularMarketPrice;
+      const prev = m?.chartPreviousClose ?? m?.previousClose;
+      if (typeof price !== "number") return null;
+      return {
+        symbol,
+        name: m?.longName ?? m?.shortName ?? symbol,
+        price,
+        changePct: typeof prev === "number" && prev > 0 ? ((price - prev) / prev) * 100 : 0,
+        currency: m?.currency ?? "",
+      };
+    } catch {
+      return null;
+    }
+  });
 }

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
 import { MORE_GROUPS } from "./more-menu";
 import PrivacyToggle from "./PrivacyToggle";
+import SubHeading from "./SubHeading";
 
 /**
  * What sits behind "More", as a sheet on a phone and a dropdown on a desktop.
@@ -77,9 +78,7 @@ export default function MoreMenu({
       {MORE_GROUPS.map((group, gi) => (
         <div key={gi}>
           {group.title && (
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-1.5 px-1">
-              {group.title}
-            </h3>
+            <SubHeading className="mb-1.5 px-1">{group.title}</SubHeading>
           )}
           <ul className="space-y-0.5">
             {group.items.map(({ href, label, Icon, hint }) => (

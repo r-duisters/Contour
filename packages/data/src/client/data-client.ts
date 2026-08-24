@@ -4,9 +4,9 @@ import type { Settings, SettingsPatch, Side } from "../ports/store";
 import type { Benchmark, BenchmarkKey, Changes, History, Series } from "../services/series";
 import type { ImportReport } from "../services/transfer";
 import type { Insights, Snapshot, Valuation } from "../services/valuation";
-import type { MarketBoard, MarketCategory } from "../services/markets";
+import type { IndexDetail, MarketBoard, MarketCategory } from "../services/markets";
 
-export type { MarketBoard, MarketCategory, MarketRow } from "../services/markets";
+export type { IndexDetail, MarketBoard, MarketCategory, MarketRow } from "../services/markets";
 
 /**
  * Everything a screen is allowed to ask for.
@@ -202,6 +202,14 @@ export interface DataClient {
    * `RequestFailedError` like any other transport failure.
    */
   getMarkets(category: MarketCategory): Promise<MarketBoard>;
+
+  /**
+   * One index: its own figures, its month, and its major members.
+   *
+   * Throws `NotFoundError` for a slug this app does not know — the one place
+   * in Markets that names a record, so the one place that can be missing.
+   */
+  getIndex(slug: string): Promise<IndexDetail>;
 
   /* -------------------------------------------------------------- settings */
 
