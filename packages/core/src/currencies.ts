@@ -28,3 +28,16 @@ export const FIAT: ReadonlySet<string> = new Set([
 export function needsRate(currency: string): boolean {
   return !STABLES.has(currency.toUpperCase());
 }
+
+/**
+ * Fiat, including the one the ECB quotes *against*.
+ *
+ * `FIAT` is "currencies with an ECB reference rate", which by construction
+ * excludes USD — useful for deciding where a rate comes from, wrong for
+ * deciding whether something is real-world money. Four call sites wanted the
+ * second question and three of them wrote `FIAT.has(c) || c === "USD"` by hand.
+ */
+export function isFiat(currency: string): boolean {
+  const c = currency.toUpperCase();
+  return c === "USD" || FIAT.has(c);
+}

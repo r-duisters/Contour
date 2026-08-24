@@ -205,6 +205,24 @@ describe("packages/core, packages/ui and packages/data stay portable", () => {
     expect(offenders).toEqual([]);
   });
 
+  it("keeps one home for the currency classification", () => {
+    // Three overlapping copies of these sets used to live in delta-csv.ts and
+    // transfer.ts, and they disagreed: one had JPY and no DKK, another the
+    // reverse. A fourth would drift the same way, and the drift is invisible
+    // until a price is wrong on one screen only.
+    const offenders: string[] = [];
+    for (const pkg of NET_ONLY_PACKAGES) {
+      for (const file of sourceFiles(join(process.cwd(), pkg))) {
+        if (file.endsWith("currencies.ts")) continue;
+        const src = stripComments(readFileSync(file, "utf8"));
+        if (/new Set\(\[[^\]]*"(EUR|USDT)"[^\]]*"(GBP|USDC|CHF|BUSD)"/.test(src)) {
+          offenders.push(file.replace(process.cwd() + "/", ""));
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
   it("never glues a quote asset onto a stored symbol", () => {
     // The importer did this for years, writing `${baseCurrency}USDT` into a
     // column that names what a person owns. `pricingPair` is the only place

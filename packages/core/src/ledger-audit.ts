@@ -18,6 +18,8 @@
  * fiction.
  */
 
+import { isFiat } from "./currencies";
+
 /** The columns an audit reads. A superset of what both the parser and the store hold. */
 export type AuditTx = {
   symbol: string;
@@ -71,8 +73,6 @@ const LEG_WINDOW_MS = 2_000;
  */
 const REORDER_WINDOW_MS = 24 * 60 * 60 * 1_000;
 
-const FIAT = new Set(["EUR", "USD", "GBP", "CHF", "SEK", "NOK", "DKK", "PLN", "CAD", "AUD"]);
-
 export function auditLedger(txs: AuditTx[]): Finding[] {
   const ordered = [...txs].sort((a, b) => a.time - b.time);
   return [
@@ -104,7 +104,7 @@ function underfundedCurrencies(txs: AuditTx[]): Finding[] {
 
   for (const t of txs) {
     const currency = t.nativeCurrency;
-    if (!currency || !FIAT.has(currency)) continue;
+    if (!currency || !isFiat(currency)) continue;
 
     let delta: number;
     if (t.assetType === "cash") {
@@ -156,7 +156,7 @@ function inconsistentCashLegs(txs: AuditTx[]): Finding[] {
     if (t.assetType === "cash") continue;
     if (t.side !== "buy" && t.side !== "sell") continue;
     const currency = t.nativeCurrency;
-    if (!currency || !FIAT.has(currency)) continue;
+    if (!currency || !isFiat(currency)) continue;
     const row = tally.get(currency) ?? { withLeg: 0, total: 0 };
     row.total += 1;
     if (legTimes.has(t.time)) row.withLeg += 1;
@@ -236,7 +236,7 @@ function cashLegTimes(txs: AuditTx[]): Set<number> {
   const out = new Set<number>();
   for (const t of txs) {
     if (t.assetType !== "cash") continue;
-    if (!t.nativeCurrency || !FIAT.has(t.nativeCurrency)) continue;
+    if (!t.nativeCurrency || !isFiat(t.nativeCurrency)) continue;
     // Only a fiat row that shares a moment with a trade is a leg; a standalone
     // one is a real deposit or withdrawal.
     if (txs.some((o) => o.assetType !== "cash" && Math.abs(o.time - t.time) <= LEG_WINDOW_MS)) {

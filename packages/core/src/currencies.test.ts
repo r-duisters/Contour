@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FIAT, STABLES, needsRate } from "./currencies";
+import { FIAT, STABLES, isFiat, needsRate } from "./currencies";
 
 describe("needsRate", () => {
   it("is false for USD and for the stables that track it", () => {
@@ -35,5 +35,22 @@ describe("the sets themselves", () => {
     for (const c of ["EUR", "USD", "USDT", "ETH", "BTC"]) {
       expect(needsRate(c) || STABLES.has(c) || c === "USD").toBe(true);
     }
+  });
+});
+
+describe("isFiat", () => {
+  it("includes USD, which FIAT itself cannot", () => {
+    // FIAT is the ECB's quote list, and the ECB does not quote USD against
+    // USD. Every caller asking "is this real money" needs USD in the answer.
+    expect(FIAT.has("USD")).toBe(false);
+    expect(isFiat("USD")).toBe(true);
+  });
+
+  it("covers the currencies the ledger audits", () => {
+    for (const c of ["EUR", "USD", "GBP", "CHF"]) expect(isFiat(c)).toBe(true);
+  });
+
+  it("excludes coins and stables that are not currencies", () => {
+    for (const c of ["BTC", "ETH", "USDT", "USDC"]) expect(isFiat(c)).toBe(false);
   });
 });

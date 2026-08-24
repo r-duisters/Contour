@@ -1,5 +1,5 @@
 import type { TxSide } from "./portfolio";
-import { FIAT, STABLES } from "./currencies";
+import { STABLES, isFiat } from "./currencies";
 
 export type ParsedTx = {
   symbol: string;
@@ -196,9 +196,7 @@ export function parseDeltaCsv(text: string): DeltaImport {
     const baseCurrency = normalizeAsset(cell(cols.baseCurrency));
     if (!baseCurrency) { skipped.push({ line, reason: "missing base currency" }); continue; }
     // Fiat rows are the cash side of the portfolio, not an asset position.
-    // `|| === "USD"` is load-bearing: the shared FIAT set is "currencies the
-    // ECB quotes", which does not include the currency the ECB quotes against.
-    const isCash = FIAT.has(baseCurrency) || baseCurrency === "USD";
+    const isCash = isFiat(baseCurrency);
     const assetType: "crypto" | "equity" | "cash" = isCash
       ? "cash"
       : isSecurityTicker(baseCurrency) ? "equity" : "crypto";

@@ -455,5 +455,11 @@ MQTT is a viable alternative (publish to `trader/signals/<symbol>`), but isn't i
   documented exception — an alert addresses a Binance market, so it keeps the
   pair. `boundary.test.ts` fails the build if a quote asset is glued onto a
   symbol anywhere else.
+- **A manual transaction records what it was paid in.** `nativeCurrency` /
+  `nativePrice` carry the typed figure; `addTransaction` converts to the USD
+  `price` at the rate on the *trade's* date, which is why that service takes a
+  `Net`. A form never converts — two screens would then disagree about a rate.
+  Currency classification lives in `packages/core/src/currencies.ts` and
+  nowhere else; `boundary.test.ts` fails the build on a second copy.
 - API route bodies are validated with **Zod** at every entry point.
 - `export const dynamic = "force-dynamic"` on routes that read live data or DB, to opt out of build-time evaluation.
