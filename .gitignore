@@ -45,6 +45,10 @@ next-env.d.ts
 # SQLite (Prisma local dev DB)
 **/prisma/dev.db
 **/prisma/dev.db-journal
+# Dated copies taken before a migration. The bare name above does not match
+# them, and one reached a merge commit before it was caught — this is a real
+# ledger, not a fixture.
+**/prisma/dev.db.*
 
 # Capacitor / Android build output
 android/.gradle/

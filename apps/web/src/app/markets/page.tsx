@@ -13,6 +13,7 @@ import { useDataClient } from "@/data/client/context";
 import type { MarketBoard, MarketCategory, MarketRow } from "@/data/client/data-client";
 import type { IndexSeries } from "@/data/sources/markets";
 import { marketCap, marketMoney, percent } from "@/lib/display";
+import { assetOf } from "@/core/symbols";
 
 /**
  * What the market did today, for people who are not looking at their own
@@ -267,7 +268,10 @@ function IndexCard({ index }: { index: IndexSeries }) {
   const href = index.slug
     ? `/markets/${index.slug}`
     : index.pair
-      ? `/portfolio/${encodeURIComponent(index.pair)}?type=crypto`
+      // The asset, not the pair: the asset page builds the pricing pair it
+      // needs, and a link that says BTCUSDT names a Binance product rather
+      // than the coin the card is about.
+      ? `/portfolio/${encodeURIComponent(assetOf(index.pair))}?type=crypto`
       : null;
   const inner = (
     <div className="rounded-lg border border-neutral-800/60 bg-neutral-900/40 px-2.5 pt-2 pb-1.5 min-w-0 h-full">

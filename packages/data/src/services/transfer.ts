@@ -4,6 +4,7 @@ import { auditLedger, type Finding } from "@/core/ledger-audit";
 import {
   BACKUP_VERSION, ghostfolioCsv, parseBackup, transactionsCsv, type ExportTx,
 } from "@/core/export";
+import { pricingPair } from "@/core/symbols";
 import type { Net } from "../ports/net";
 import type { NewTransaction, Portfolio, Store } from "../ports/store";
 import { fetchKlinesRange, fetchUsdtSymbols } from "../sources/binance";
@@ -80,7 +81,9 @@ async function resolvePendingQuotes(net: Net, rows: ParsedTx[]): Promise<Skipped
     const to = Math.max(...relevant.map((r) => r.time)) + DAY_MS;
     const byDay = new Map<number, number>();
     try {
-      const bars = await fetchKlinesRange(net, { symbol: `${c}USDT`, interval: "1d", from, to });
+      const bars = await fetchKlinesRange(net, {
+        symbol: pricingPair(c), interval: "1d", from, to,
+      });
       for (const b of bars) byDay.set(b.t, b.c);
     } catch {
       // no Binance market for this currency
@@ -158,7 +161,7 @@ async function reclassifyNonCoins(net: Net, rows: ParsedTx[]): Promise<void> {
   for (const r of candidates) {
     const venue = venueAssetType(r.venue);
     if (venue === "crypto") continue;                   // wallet/exchange row: always a coin
-    if (coins.has(`${r.base}USDT`)) continue;           // tradable coin
+    if (coins.has(pricingPair(r.base))) continue;       // tradable coin
     if (venue !== "equity") continue;                   // unknown venue: keep crypto, stay unpriced
     r.assetType = "equity";
     r.symbol = r.base;
