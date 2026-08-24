@@ -11,9 +11,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const body = TxInput.safeParse(await req.json());
   if (!body.success) return NextResponse.json({ error: body.error.flatten() }, { status: 400 });
 
-  const { store } = deps();
+  const { store, net } = deps();
   try {
-    const created = await addTransaction(store, id, {
+    const created = await addTransaction(store, net, id, {
       symbol: body.data.symbol.toUpperCase(),
       // Not in `TxInput`: the route never accepted these, so a manual create
       // relied on the column defaults ("crypto", null) that these reproduce.

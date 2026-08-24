@@ -1,9 +1,11 @@
 import { cached } from "@/core/cache";
 import type { EquityQuote } from "@/core/equity";
+import { FIAT, needsRate } from "@/core/currencies";
 import { rateOn } from "@/core/fx";
+import { pricingPair } from "@/core/symbols";
 import type { Net } from "../ports/net";
 import type { Store } from "../ports/store";
-import { fetchKlines } from "../sources/binance";
+import { fetchKlines, fetchKlinesRange } from "../sources/binance";
 import { makeEquitySource } from "../sources/equity";
 import { fetchEcbRates, fetchLatestEurUsd } from "../sources/fx";
 
@@ -175,4 +177,51 @@ export async function fetchCryptoPrevCloses(
     if (last) out[symbols[i]!] = last.c;
   });
   return out;
+}
+
+/**
+ * USD per one unit of `currency` on a given date, or null when no rate can be
+ * had. A stable answers 1 without asking anyone.
+ *
+ * One date, one currency — deliberately not the importer's shape. `transfer.ts`
+ * fetches a range per currency across many rows, which is the right access
+ * pattern there and the wrong one for a single manual entry. What the two share
+ * is the classification in `@/core/currencies`, not the fetching: the rule for
+ * *which* source answers must have one home, while *how much* is asked for at a
+ * time is each caller's business.
+ */
+export async function usdRateOn(
+  net: Net,
+  currency: string,
+  time: number,
+): Promise<number | null> {
+  const c = currency.toUpperCase();
+  if (!needsRate(c)) return 1;
+
+  const from = time - 5 * DAY_MS;
+  const to = time + DAY_MS;
+
+  // Binance first: it covers coin quotes, and for fiat it is the same series
+  // the importer uses, so a hand entry and an import agree.
+  try {
+    const bars = await fetchKlinesRange(net, {
+      symbol: pricingPair(c), interval: "1d", from, to,
+    });
+    const byDay = new Map(bars.map((b) => [b.t, b.c]));
+    const hit = rateOn(byDay, time);
+    if (hit !== null) return hit;
+  } catch {
+    // No Binance market for this currency; fall through to the ECB.
+  }
+
+  // EURUSDT only lists from late 2020, so an older fiat trade needs the ECB.
+  if (FIAT.has(c)) {
+    try {
+      const ecb = await fetchEcbRates(net, c, "USD", from, to);
+      return rateOn(ecb, time);
+    } catch {
+      // Unavailable; the caller stores the native figures and a zero price.
+    }
+  }
+  return null;
 }

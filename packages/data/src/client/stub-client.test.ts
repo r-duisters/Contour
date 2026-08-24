@@ -216,7 +216,7 @@ function StubClient(store: Store, net: Net): DataClient {
 
     async addTransaction(portfolioId: string, tx: NewTransactionInput): Promise<TransactionDto> {
       return attempt(async () => {
-        const row = await transactions.addTransaction(store, portfolioId, {
+        const row = await transactions.addTransaction(store, net, portfolioId, {
           ...tx,
           // The defaults the manual-entry route has always applied; the input
           // DTO deliberately cannot express anything else.
