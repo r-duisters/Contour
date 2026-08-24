@@ -7,6 +7,7 @@ import {
   AreaSeries, createChart, createSeriesMarkers, LineType,
   type IChartApi, type ISeriesApi, type ISeriesMarkersPluginApi, type Time,
 } from "lightweight-charts";
+import Sheet from "@/components/Sheet";
 import { assetOf, pricingPair } from "@/core/symbols";
 import { chartTheme, directionColors, roseOverPeriod } from "@/components/chart-theme";
 import {
@@ -386,16 +387,18 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
                 <Plus size={12} aria-hidden />{addOpen ? "Close" : "Add"}
               </button>
             </div>
-            {addOpen && (
-              <TxForm onSubmit={addTransaction} error={formError} lockedSymbol={symbol}
-                      livePrice={shownHolding?.price ?? lastClose} />
-            )}
+            <Sheet open={addOpen} onClose={() => setAddOpen(false)} title="Add a transaction">
+              <div className="p-3">
+                <TxForm onSubmit={addTransaction} error={formError} lockedSymbol={symbol}
+                        livePrice={shownHolding?.price ?? lastClose} />
+              </div>
+            </Sheet>
+            {/* The empty state no longer hides while the form is open: an
+                inline form pushed it down the page, and a sheet covers it. */}
             {notHeld
-              ? !addOpen && (
-                  <EmptyState>
-                    You hold none of this. Add a transaction to start tracking it here.
-                  </EmptyState>
-                )
+              ? <EmptyState>
+                  You hold none of this. Add a transaction to start tracking it here.
+                </EmptyState>
               : <TransactionTable txs={txs} onDelete={deleteTx} />}
           </section>
         </>

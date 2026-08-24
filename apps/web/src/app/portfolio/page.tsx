@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import TxForm from "@/components/TxForm";
+import Sheet from "@/components/Sheet";
 import Link from "next/link";
 import {
   ArrowUpDown, BarChart3, Plus, TrendingDown, TrendingUp, Wallet, X,
@@ -347,14 +348,11 @@ export default function PortfolioPage() {
                 </label>
               </div>
 
-              {addOpen && (
-                <div className="mb-6">
-                  <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2">
-                    Add transaction
-                  </h2>
+              <Sheet open={addOpen} onClose={() => setAddOpen(false)} title="Add a transaction">
+                <div className="p-3">
                   <TxForm onSubmit={addTransaction} error={formError} />
                 </div>
-              )}
+              </Sheet>
               {/* Rows carry no border or card: the draft separates them with
                   space alone, and the icon column does the aligning. */}
               <ul className="space-y-7 mb-8">
