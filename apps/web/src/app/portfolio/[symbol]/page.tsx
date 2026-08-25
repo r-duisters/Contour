@@ -31,7 +31,7 @@ import { usePrivacy } from "@/components/usePrivacy";
 import TxForm, { type NewTx } from "@/components/TxForm";
 import AssetInfoPanel from "@/components/AssetInfoPanel";
 import RangePicker from "@/components/RangePicker";
-import { RANGE_KEYS, rangeLabel, type RangeKey } from "@/lib/ranges";
+import { RANGE_KEYS, changeWindowLabel, type RangeKey } from "@/lib/ranges";
 import StatTile from "@/components/StatTile";
 import EmptyState from "@/components/EmptyState";
 
@@ -306,7 +306,7 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
             <div className="text-xl font-medium tabular-nums">{marketMoney(lastClose)}</div>
             {changePct !== null && (
               <div className={`text-xs ${changePct >= 0 ? "text-green-500" : "text-red-500"}`}>
-                {percent(changePct)} <span className="text-neutral-500">{rangeLabel(range)}</span>
+                {percent(changePct)} <span className="text-neutral-500">{changeWindowLabel(range)}</span>
               </div>
             )}
           </div>
@@ -357,7 +357,7 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
                 {rangeMoney >= 0 ? "+" : ""}{money(rangeMoney)}
               </span></>
             )}
-            <span className="text-neutral-500 text-xs"> price, {rangeLabel(range)}</span>
+            <span className="text-neutral-500 text-xs"> price, {changeWindowLabel(range)}</span>
           </span>
         )}
       </div>
