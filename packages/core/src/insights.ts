@@ -15,12 +15,20 @@ export type TradeStats = {
   avgBuySize: number | null;
   busiestYear: { year: number; trades: number } | null;
   assetsTraded: number;
+  /** Cash credited by a holding — dividends, interest, rewards. */
+  income: number;
 };
 
 export function tradeStats(txs: Tx[]): TradeStats {
   const buys = txs.filter((t) => t.side === "buy");
   const sells = txs.filter((t) => t.side === "sell");
-  const transfers = txs.filter((t) => t.side !== "buy" && t.side !== "sell");
+  // Income is cash, not a movement of the asset. It is neither a trade nor a
+  // transfer, so it is counted separately rather than swept into `transfers`
+  // by a `!== "buy" && !== "sell"` test that predates it.
+  const income = txs.filter((t) => t.side === "income");
+  const transfers = txs.filter(
+    (t) => t.side !== "buy" && t.side !== "sell" && t.side !== "income",
+  );
   const totalBought = buys.reduce((a, t) => a + t.quantity * t.price, 0);
   const totalSold = sells.reduce((a, t) => a + t.quantity * t.price, 0);
   const fees = txs.reduce((a, t) => a + t.fee, 0);
@@ -46,6 +54,7 @@ export function tradeStats(txs: Tx[]): TradeStats {
     avgBuySize: buys.length > 0 ? totalBought / buys.length : null,
     busiestYear: busiest ? { year: busiest[0], trades: busiest[1] } : null,
     assetsTraded: new Set(txs.map((t) => t.symbol)).size,
+    income: income.length,
   };
 }
 
@@ -59,6 +68,7 @@ export function flowsByYear(txs: Tx[]): { year: number; net: number }[] {
     if (t.side === "buy") flow = gross + t.fee;
     else if (t.side === "sell") flow = -(gross - t.fee);
     else if (t.side === "transfer_in") flow = gross;
+    else if (t.side === "income") flow = 0; // a return, not money put in
     else flow = -gross;
     perYear.set(y, (perYear.get(y) ?? 0) + flow);
   }

@@ -20,6 +20,7 @@ export function flowsByBar(txs: Tx[], barMs: number = DAY_MS): Map<number, numbe
     else if (tx.side === "sell") flow = -(gross - tx.fee);
     else if (tx.side === "transfer_in") flow = gross; // 0 when the asset was free
     else if (tx.side === "transfer_out") flow = -gross;
+    else if (tx.side === "income") flow = 0; // arrived as a return; belongs in it
     if (flow !== 0) out.set(slot, (out.get(slot) ?? 0) + flow);
   }
   return out;

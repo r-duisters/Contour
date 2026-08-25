@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { TxSide } from "@/lib/portfolio";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
@@ -38,7 +39,7 @@ import EmptyState from "@/components/EmptyState";
 type Tx = {
   id: string;
   symbol: string;
-  side: "buy" | "sell" | "transfer_in" | "transfer_out";
+  side: TxSide;
   quantity: number;
   price: number;
   fee: number;

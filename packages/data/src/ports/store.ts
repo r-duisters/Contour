@@ -9,7 +9,13 @@
 
 import type { DisplayCurrency } from "@/core/currencies";
 export type AssetType = "crypto" | "equity" | "cash";
-export type Side = "buy" | "sell" | "transfer_in" | "transfer_out";
+/**
+ * Mirrors `TxSide` in `packages/core/src/portfolio.ts`. The two are separate
+ * declarations because the port does not depend on the maths, and they must
+ * not drift: a side the store can hold but the maths cannot read is a row
+ * nothing can value.
+ */
+export type Side = "buy" | "sell" | "transfer_in" | "transfer_out" | "income";
 
 export type Transaction = {
   id: string;

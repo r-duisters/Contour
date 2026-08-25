@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import type { TxSide } from "@/lib/portfolio";
 import TxForm from "@/components/TxForm";
 import Sheet from "@/components/Sheet";
 import Link from "next/link";
@@ -35,7 +36,7 @@ type PortfolioRow = { id: string; name: string; transactionCount: number };
 type Tx = {
   id: string;
   symbol: string;
-  side: "buy" | "sell" | "transfer_in" | "transfer_out";
+  side: TxSide;
   quantity: number;
   price: number;
   fee: number;

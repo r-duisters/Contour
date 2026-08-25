@@ -1,6 +1,12 @@
 import type { Bar } from "./types";
 
-export type TxSide = "buy" | "sell" | "transfer_in" | "transfer_out";
+/**
+ * `income` is cash credited against a security — a dividend, bank interest.
+ * It is deliberately not a position change: every function in this file skips
+ * it, because falling into the disposal branch would sell shares that a
+ * dividend did not sell.
+ */
+export type TxSide = "buy" | "sell" | "transfer_in" | "transfer_out" | "income";
 
 export type Tx = {
   symbol: string;
@@ -67,6 +73,10 @@ export function computeHoldings(txs: Tx[]): Holding[] {
       bySymbol.set(tx.symbol, h);
     }
     h.fees += tx.fee;
+
+    // Cash attributed to this security. It moves no shares and buys none, so
+    // it must not reach either branch below — the `else` is a disposal.
+    if (tx.side === "income") continue;
 
     if (tx.side === "buy" || tx.side === "transfer_in") {
       const cost = tx.quantity * tx.price + (tx.side === "buy" ? tx.fee : 0);
@@ -142,6 +152,7 @@ export function portfolioValueSeries(
     const barClose = t + barMs;
     while (txIdx < sorted.length && sorted[txIdx]!.time < barClose) {
       const tx = sorted[txIdx]!;
+      if (tx.side === "income") { txIdx++; continue; }
       const held = qty.get(tx.symbol) ?? 0;
       const delta =
         tx.side === "buy" || tx.side === "transfer_in"
@@ -187,6 +198,15 @@ export function annotateTransactions<T extends Tx>(txs: T[]): AnnotatedTx<T>[] {
   const out: AnnotatedTx<T>[] = [];
 
   for (const tx of [...txs].sort((a, b) => a.time - b.time)) {
+    if (tx.side === "income") {
+      out.push({
+        ...tx,
+        positionAfter: quantity,
+        avgCostAfter: quantity > 0 ? costBasis / quantity : 0,
+        realized: null,
+      });
+      continue;
+    }
     let realized: number | null = null;
     if (tx.side === "buy" || tx.side === "transfer_in") {
       costBasis += tx.quantity * tx.price + (tx.side === "buy" ? tx.fee : 0);
