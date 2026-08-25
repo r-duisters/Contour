@@ -18,7 +18,8 @@ is the only file in either app that names an implementation.
 `@capacitor-community/sqlite`, `@aparajita/capacitor-biometric-auth`,
 TypeScript, Vitest.
 
-**Spec:** `docs/superpowers/specs/2026-08-22-standalone-android-design.md`
+**Specs:** `docs/superpowers/specs/2026-08-22-standalone-android-design.md`, and
+`docs/superpowers/specs/2026-08-25-alerts-design.md` for Tasks 10–12
 (§3 layout, §4.4 `DataClient`, §5 device storage, §6 blockers, §7 lock and
 icons, §8 testing, §9 sequencing). Read the **"As built (Phase 3)"** note inside
 §4.4 before Task 4 — it lists nine places the shipped interface departs from the
@@ -948,7 +949,237 @@ This is the test that makes it true rather than intended.
 
 ---
 
-### Task 10: An APK, on a real phone
+### Task 10: One source for the twenty-four-hour figure
+
+**Ships independently of everything above.** It is a correctness fix to code
+already in production, it benefits `apps/web` today, and nothing in Tasks 1–9
+depends on it. Do it first, or out of band; it is folded in here only so the
+alert work that needs it is not separated from it.
+
+**Files:**
+- Modify: `packages/data/src/services/pricing.ts` (`fetchCrypto24hAgo`)
+- Modify: `packages/data/src/sources/binance.ts` (new batched fetch)
+- Modify: `packages/data/src/services/series.ts` (`history`, the 1d `changePct`)
+- Modify: `apps/web/src/app/api/cron/evaluate/route.ts`
+- Modify: `apps/web/public/runner/alerts.js`
+- Test: `packages/data/src/services/pricing.test.ts`
+
+**Interfaces:**
+- Produces: `fetchDailyStats(net, pairs): Promise<Record<string, { last: number; open24h: number }>>`
+  in `sources/binance.ts`. Tasks 12 and 13 consume it.
+
+**Why.** Three places compute "the last 24 hours" and two of them are wrong in
+the same way. `fetchCrypto24hAgo` reads 25 hourly klines and takes the oldest
+bar's close — but that close is the price at the *top of the hour* 24 hours
+ago, so the window is anywhere from 24 to 25 hours long depending on when you
+ask. Binance publishes an exact rolling figure and it does not agree with ours.
+Measured 2026-08-25 at 12:35 UTC on ETHUSDT:
+
+| basis | window | reads |
+|---|---|---|
+| `ticker/24hr` `openPrice` | exactly 24h, to the second | **−1.088%** |
+| 25 hourly klines, oldest close | 24–25h, hour-aligned | **−1.672%** |
+
+**0.58 percentage points**, which is twice the Binance-versus-CoinGecko gap the
+spec worried about. It is also far cheaper: `ticker/24hr?type=MINI` batches
+every symbol into one request at ~293 bytes each, against 4,439 bytes per
+symbol for klines — **15× less data** for the twenty-three crypto symbols in
+the live ledger, and one request instead of twenty-three.
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+it("reads Binance's own rolling 24h window, not an hour-aligned approximation", async () => {
+  invalidate();
+  const net = FakeNet({
+    "https://api.binance.com/api/v3/ticker/24hr":
+      [{ symbol: "ETHUSDT", openPrice: "2497.70", lastPrice: "2470.53" }],
+  });
+
+  const stats = await fetchDailyStats(net, ["ETHUSDT"]);
+
+  expect(stats["ETHUSDT"]).toEqual({ open24h: 2497.7, last: 2470.53 });
+});
+
+it("asks for the MINI form, which is what makes one request affordable", async () => {
+  invalidate();
+  const net = FakeNet({ "https://api.binance.com/api/v3/ticker/24hr": [] });
+  await fetchDailyStats(net, ["BTCUSDT", "ETHUSDT"]);
+  const url = net.calls[0]!.url;
+  expect(url).toContain("type=MINI");
+  // One request for both symbols, not one each.
+  expect(net.calls).toHaveLength(1);
+});
+```
+
+- [ ] **Step 2: Run and watch it fail** — `npx vitest run packages/data`, module missing.
+
+- [ ] **Step 3: Implement `fetchDailyStats`**
+
+```ts
+/**
+ * Last price and the price exactly twenty-four hours ago, per pair, in one
+ * request.
+ *
+ * `openPrice` is Binance's own rolling-window open, accurate to the second.
+ * The klines approach this replaced took the close of the bar 24 hours ago,
+ * which is hour-aligned — so its window was 24 to 25 hours long depending on
+ * when it was asked, and read 0.58 points differently on ETHUSDT at 12:35 UTC
+ * on 2026-08-25.
+ *
+ * `type=MINI` drops the fields nobody here reads: ~293 bytes per symbol
+ * against 4,439 for a 25-bar klines call, and one request rather than one per
+ * symbol.
+ */
+export async function fetchDailyStats(
+  net: Net,
+  pairs: string[],
+): Promise<Record<string, { last: number; open24h: number }>>
+```
+
+- [ ] **Step 4: Point all four callers at it**
+
+`fetchCrypto24hAgo` becomes a thin wrapper (or is deleted and its callers
+updated). `history`'s 1d `changePct` takes the same figure, so the number under
+the chart matches the number in the header — they agree today only because both
+were wrong identically, and this keeps them agreeing while making them right.
+The klines call stays for *drawing* the line; only the percentage moves.
+
+- [ ] **Step 5: Verify against a copy, then commit**
+
+Check ETH's header and chart figures against Binance's own published 24h change
+on the exchange. They should now match to the second decimal, which they do not
+today.
+
+---
+
+### Task 11: Alerts that fire when the app opens
+
+**Files:**
+- Create: `packages/core/src/alert-rules.ts` (expansion and dedupe, pure)
+- Create: `packages/core/src/alert-rules.test.ts`
+- Modify: `apps/web/src/components/BackgroundAlerts.tsx` → foreground evaluation
+- Modify: `apps/web/public/runner/alerts.js`
+
+**Interfaces:**
+- Consumes: `fetchDailyStats` (Task 10), `evaluatePriceTarget` and
+  `evaluatePctMove` from `packages/core/src/alerts.ts`, unchanged.
+- Produces: `expandRules(alerts, heldSymbols)` and `shouldNotify(sent, key, day)`.
+
+**The reliable path is opening the app**, and it carries the feature. The
+background attempt stays, unpromised.
+
+- [ ] **Step 1: Write the failing tests**
+
+```ts
+describe("expandRules", () => {
+  it("expands a portfolio-scoped rule into one check per held symbol", () => {
+    // Today this rule is silently dropped: BackgroundAlerts filters on
+    // `a.symbol &&`, and a portfolio-scoped alert has symbol null. It has
+    // never fired for anyone.
+    const rules = expandRules(
+      [{ id: "a", kind: "pct_move", symbol: null, portfolioId: "p", params: { threshold: 5 } }],
+      ["BTC", "ETH"],
+    );
+    expect(rules.map((r) => r.symbol)).toEqual(["BTCUSDT", "ETHUSDT"]);
+    expect(rules.every((r) => r.id.startsWith("a:"))).toBe(true);
+  });
+
+  it("leaves indicator rules out — they need 1,460 bars of warm-up", () => {
+    expect(expandRules([{ id: "i", kind: "indicator", symbol: "BTCUSDT", params: {} }], [])).toEqual([]);
+  });
+
+  it("prices a coin by its pair, never by the bare asset", () => {
+    // The rename made a stored symbol an asset; Binance still wants the pair.
+    expect(expandRules([{ id: "t", kind: "price_target", symbol: "ETH",
+      params: { direction: "above", price: 1 } }], []).map((r) => r.symbol)).toEqual(["ETHUSDT"]);
+  });
+});
+
+describe("shouldNotify", () => {
+  it("notifies once per rule per UTC day, so a standing condition stays quiet", () => {
+    const sent = {};
+    expect(shouldNotify(sent, "m:a:up", 20_000)).toBe(true);
+    sent["m:a:up"] = 20_000;
+    expect(shouldNotify(sent, "m:a:up", 20_000)).toBe(false);
+    expect(shouldNotify(sent, "m:a:up", 20_001)).toBe(true);
+  });
+
+  it("separates the directions, so a fall after a rise still notifies", () => {
+    const sent = { "m:a:up": 20_000 };
+    expect(shouldNotify(sent, "m:a:down", 20_000)).toBe(true);
+  });
+});
+```
+
+- [ ] **Step 2: Run and watch them fail.**
+
+- [ ] **Step 3: Implement the pure half** in `packages/core/src/alert-rules.ts`.
+  Both functions are pure so they can be tested without a device — there is no
+  component test stack in this repository and the native path cannot be
+  exercised anywhere but a handset.
+
+- [ ] **Step 4: Evaluate on foreground.** `BackgroundAlerts` stops being a
+  courier for the runner and becomes the evaluator: on mount and on every
+  return to foreground, expand the rules, one `fetchDailyStats` call, evaluate,
+  post a local notification per hit, record the dedupe marks. It keeps handing
+  rules to the runner as well, but no longer depends on it.
+
+- [ ] **Step 5: The runner uses the same batched call.** Replace its per-symbol
+  klines loop with one `ticker/24hr?type=MINI` request. The duplication with
+  `packages/core` is unavoidable — that runtime has no imports — and the
+  comment on both sides must say so.
+
+- [ ] **Step 6: Verify by hand.** Set a target that must fire, force-quit,
+  reopen. The notification should arrive within a second of the app opening.
+
+---
+
+### Task 12: Say what it cannot do
+
+**Files:**
+- Modify: `apps/web/src/app/alerts/page.tsx`
+- Create: `packages/ui/src/LastChecked.tsx`
+- Modify: `packages/core/src/storage-keys.ts`
+
+**This task is the reason the spec exists.** The failure being designed against
+is not a missed notification — it is a month of silence that looked like "no
+alerts triggered". Silence must become visible.
+
+- [ ] **Step 1: Record and show when a check last ran**
+
+The evaluator writes a timestamp on every check, foreground or background,
+under a new key in `storage-keys.ts`. The alerts screen renders it: *"Last
+checked 3 hours ago"*, or *"Not checked since yesterday"* in the app's warning
+colour, per `BRAND.md`'s rule that amber means degraded data.
+
+- [ ] **Step 2: Copy that does not overclaim**
+
+No interval appears anywhere in the UI, because none can be kept. The alerts
+screen states: checked every time you open the app, and sometimes in the
+background when Android allows. And the honest limit, in the app rather than
+only in a spec — **a target hit and reverted overnight can be missed.**
+
+Per `BRAND.md`: sentence case, no exclamation marks, and the control says what
+happens rather than what the system calls it.
+
+- [ ] **Step 3: A help screen, not a permission**
+
+Explain how to exempt the app from battery optimisation in Android's own
+Settings, framed as improving the odds rather than guaranteeing anything.
+**Declare no permission and fire no intent** — Play prohibits apps from
+requesting exemption unless their core function requires it, and a portfolio
+tracker does not qualify. Documentation is not a permission and is not
+restricted.
+
+- [ ] **Step 4: Verify overnight on a handset.** Leave a rule that must fire,
+  face-down and off-charge, for eight hours. Record what arrived, when, and
+  what the last-checked line said in the morning. This is the only test that
+  measures the thing in question.
+
+---
+
+### Task 13: An APK, on a real phone
 
 **Files:**
 - Modify: `README.md`, `CLAUDE.md`, `docs/carried-forward.md`
@@ -1033,7 +1264,12 @@ produces.
 | §7 — bundled icons, initials fallback | 7 |
 | §8 — contract against both implementations | 4, 9 |
 | §8 — migration tests | 2 |
-| §9 Phase 4 row — first real APK | 10 |
+| §9 Phase 4 row — first real APK | 13 |
+| Alerts §3.2 — opening the app is the reliable path | 11 |
+| Alerts §3.4 — one source for the 24-hour figure | 10 |
+| Alerts §3.6 — portfolio-scoped rules expand on the device | 11 |
+| Alerts §5 — a visible last-checked time, copy that does not overclaim | 12 |
+| Alerts §2 — a help screen, and no exemption permission | 12 |
 | §4.4 note — `exportFile` and a header-reading `Net` | 6 |
 | §4.4 note — the five derived-fixture reads, the offline case | 9 |
 
@@ -1049,6 +1285,6 @@ either renders or does not. Tasks 6 and 7 each retire allowlist entries that
 have been carrying "Phase 4 must decide this" since Phase 3.
 
 **What none of this catches.** Whether the app is *pleasant* on a phone. Every
-verification here is a figure or a passing test; the one in Task 10 Step 2 is a
+verification here is a figure or a passing test; the one in Task 13 Step 2 is a
 person using it in aeroplane mode, and that is the only step that can find out
 the answer is no.
