@@ -174,7 +174,7 @@ describe("exportCsv", () => {
     const { store, id } = await seeded();
     const { body } = await exportCsv(store, FakeNet({}), id, "csv");
     expect(body.split("\r\n")[0]).toBe(
-      "date,symbol,assetType,side,quantity,price,fee,currency,nativeCurrency,nativePrice,note",
+      "date,symbol,assetType,side,quantity,price,fee,currency,nativeCurrency,nativePrice,sourceSymbol,note",
     );
   });
 

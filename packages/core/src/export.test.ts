@@ -99,3 +99,46 @@ describe("parseBackup", () => {
     expect("error" in out && out.error).toContain("side");
   });
 });
+
+describe("income in the exports", () => {
+  const rows = [
+    { symbol: "SHELL.AS", assetType: "equity", side: "buy", quantity: 100, price: 25,
+      fee: 1, time: 1_700_000_000_000, nativeCurrency: "EUR", nativePrice: 23,
+      sourceSymbol: null, note: null },
+    { symbol: "EUR", assetType: "cash", side: "income", quantity: 120, price: 0,
+      fee: 0, time: 1_700_100_000_000, nativeCurrency: "EUR", nativePrice: 1,
+      sourceSymbol: "SHELL.AS", note: null },
+  ];
+
+  it("emits a dividend as DIVIDEND against the security that paid it", () => {
+    const lines = ghostfolioCsv(rows, "EUR").trim().split("\r\n");
+    expect(lines[2]).toContain("SHELL.AS");
+    expect(lines[2]).toContain("DIVIDEND");
+  });
+
+  it("emits the amount received, not the nominal quantity", () => {
+    // The part that can be quietly wrong. A dividend row's `quantity` is an
+    // amount of cash, and Ghostfolio's Quantity/UnitPrice pair means shares ×
+    // price — so the honest encoding is 1 unit at the amount. Reading
+    // `nativePrice` here would emit 1, because for an income row nativePrice
+    // *is* 1 and the amount lives in `quantity`.
+    const cells = ghostfolioCsv(rows, "EUR").trim().split("\r\n")[2]!.split(",");
+    expect(cells[3]).toBe("1");    // Quantity
+    expect(cells[4]).toBe("120");  // UnitPrice — the amount received
+  });
+
+  it("still keeps ordinary cash movements out of a holdings import", () => {
+    const deposit = { ...rows[1]!, side: "transfer_in", sourceSymbol: null };
+    const lines = ghostfolioCsv([rows[0]!, deposit], "EUR").trim().split("\r\n");
+    expect(lines).toHaveLength(2); // header + the share purchase only
+  });
+
+  it("round-trips through a backup", () => {
+    const backup = {
+      version: 1, exportedAt: new Date().toISOString(),
+      portfolio: { name: "p", transactions: rows.map(({ note, ...r }) => ({ ...r, note })) },
+    };
+    const parsed = parseBackup(JSON.stringify(backup));
+    expect("error" in parsed ? parsed.error : null).toBeNull();
+  });
+});
