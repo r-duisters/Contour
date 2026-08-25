@@ -13,6 +13,7 @@ import {
 import { computeHoldings, type Tx, type TxSide } from "@/lib/portfolio";
 import { HomeAssistantNotifier } from "@/lib/notifier/home-assistant";
 import { makeWebPushNotifier } from "@/lib/notifier/web-push";
+import { makeFcmNotifier } from "@/lib/notifier/fcm";
 import type { Notifier } from "@/lib/notifier";
 import type { Timeframe } from "@/lib/types";
 
@@ -231,11 +232,24 @@ async function heldSymbols(portfolioId: string | null): Promise<string[]> {
   return computeHoldings(txs).filter((h) => h.quantity > 0).map((h) => h.symbol);
 }
 
+/**
+ * Every configured way to reach a person, in one list. An absent one is
+ * skipped rather than failing the tick, and `dispatch` marks an event
+ * delivered if *any* of them succeeded.
+ *
+ * All three can be on at once, and on different devices they have to be:
+ * Home Assistant fans out to whatever it already knows about, Web Push
+ * reaches a browser or an installed PWA, and FCM reaches the Android build —
+ * which cannot use Web Push at all, because its WebView implements no Push
+ * API.
+ */
 function makeNotifiers(s: { haUrl: string | null; haWebhookId: string | null } | null): Notifier[] {
   const out: Notifier[] = [];
   if (s?.haUrl && s?.haWebhookId) out.push(new HomeAssistantNotifier(s.haUrl, s.haWebhookId));
   const wp = makeWebPushNotifier();
   if (wp) out.push(wp);
+  const fcm = makeFcmNotifier();
+  if (fcm) out.push(fcm);
   return out;
 }
 

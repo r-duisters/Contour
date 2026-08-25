@@ -12,6 +12,7 @@ dependencies {
     implementation project(':aparajita-capacitor-biometric-auth')
     implementation project(':capacitor-background-runner')
     implementation project(':capacitor-local-notifications')
+    implementation project(':capacitor-push-notifications')
 
 }
 

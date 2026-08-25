@@ -2,8 +2,13 @@
   "name": "contour",
   "version": "0.1.0",
   "private": true,
-  "workspaces": ["packages/*", "apps/*"],
-  "prisma": { "schema": "apps/web/prisma/schema.prisma" },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "prisma": {
+    "schema": "apps/web/prisma/schema.prisma"
+  },
   "scripts": {
     "dev": "npm run dev --workspace @contour/web",
     "build": "npm run build --workspace @contour/web",
@@ -20,6 +25,7 @@
     "@capacitor/background-runner": "^3.0.0",
     "@capacitor/core": "^8.5.0",
     "@capacitor/local-notifications": "^8.3.1",
+    "@capacitor/push-notifications": "^8.1.2",
     "@prisma/client": "^6.19.3",
     "@simplewebauthn/browser": "^13.3.0",
     "@simplewebauthn/server": "^13.3.2",
