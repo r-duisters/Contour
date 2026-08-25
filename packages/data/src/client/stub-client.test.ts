@@ -131,6 +131,7 @@ function toDto(t: Transaction): TransactionDto {
     note: t.note,
     nativeCurrency: t.nativeCurrency,
     nativePrice: t.nativePrice,
+    sourceSymbol: t.sourceSymbol,
   };
 }
 

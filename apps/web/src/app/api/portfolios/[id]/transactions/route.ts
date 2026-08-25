@@ -15,8 +15,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   try {
     const created = await addTransaction(store, net, id, {
       symbol: body.data.symbol.toUpperCase(),
-      // Still the column default: cash and income arrive with a later plan.
-      assetType: "crypto",
+      // Was pinned to "crypto" with a note saying cash and income arrive with
+      // a later plan. This is that plan.
+      assetType: body.data.assetType ?? "crypto",
       side: body.data.side,
       quantity: body.data.quantity,
       price: body.data.price,
@@ -25,6 +26,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       nativeCurrency: body.data.nativeCurrency?.toUpperCase() ?? null,
       nativePrice: body.data.nativePrice ?? null,
       nativeFee: body.data.nativeFee ?? null,
+      sourceSymbol: body.data.sourceSymbol?.toUpperCase() ?? null,
       note: body.data.note ?? null,
     });
     return NextResponse.json({ transaction: serializeTx(created) });

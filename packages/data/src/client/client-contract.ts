@@ -231,6 +231,22 @@ export function runDataClientContract(
       expect(tx.nativePrice).toBe(2000);
     });
 
+    it("records income as cash against its source, converting nothing", async () => {
+      // A cash row is worth one unit of itself. `usdRateOn` must not have been
+      // asked to convert it — FakeNet throws on an unmatched URL, so a rate
+      // lookup that happened anyway fails this outright rather than quietly
+      // storing a euro balance as a dollar one.
+      const tx = await makeClient().addTransaction(PORTFOLIO_ID, {
+        ...FIXTURE.newTransaction,
+        symbol: "EUR", assetType: "cash", side: "income", quantity: 120,
+        price: 0, fee: 0, nativeCurrency: "EUR", nativePrice: 1,
+        sourceSymbol: "SHELL.AS",
+      });
+      expect(tx.side).toBe("income");
+      expect(tx.sourceSymbol).toBe("SHELL.AS");
+      expect(tx.quantity).toBe(120);
+    });
+
     it("lists the currencies an asset can be priced in", async () => {
       const quotes = await makeClient().listQuotes("ETH");
       expect(quotes).toContain("USDT");

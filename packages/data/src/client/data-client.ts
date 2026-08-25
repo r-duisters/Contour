@@ -297,12 +297,14 @@ export type TransactionDto = {
   /** What the price was actually paid in; null when it was already USD. */
   nativeCurrency: string | null;
   nativePrice: number | null;
+  /** The security an `income` row is attributed to; null for every other side. */
+  sourceSymbol: string | null;
 };
 
 /**
  * What the transaction form collects. Narrower than the port's
- * `NewTransaction`: this route still takes the "crypto" asset-type default,
- * because cash and income arrive with a later plan.
+ * `NewTransaction`, but no longer crypto-only: cash and income are both
+ * expressible here.
  */
 export type NewTransactionInput = {
   symbol: string;
@@ -321,6 +323,22 @@ export type NewTransactionInput = {
   nativeCurrency?: string | null;
   nativePrice?: number | null;
   nativeFee?: number | null;
+  /**
+   * What kind of thing this row is about. Defaults to `"crypto"`, which is what
+   * every manual entry meant before cash existed, so an omitted field keeps its
+   * old behaviour exactly.
+   *
+   * `"cash"` is money itself: `symbol` is the currency, `quantity` the amount,
+   * `price` 0. Every cash consumer — balances, the audit, the value series —
+   * already reads that shape, because the importer has written it for fiat
+   * deposits all along.
+   */
+  assetType?: "crypto" | "equity" | "cash";
+  /**
+   * The security an `income` row is attributed to. Null or absent for
+   * everything else, and for income with no source.
+   */
+  sourceSymbol?: string | null;
 };
 
 export type BenchmarkQuery = {

@@ -3,7 +3,7 @@ import type { Transaction } from "@/data/ports/store";
 
 export const TxInput = z.object({
   symbol: z.string().min(1).max(20),
-  side: z.enum(["buy", "sell", "transfer_in", "transfer_out"]),
+  side: z.enum(["buy", "sell", "transfer_in", "transfer_out", "income"]),
   quantity: z.number().positive(),
   price: z.number().nonnegative(),
   fee: z.number().nonnegative().default(0),
@@ -16,6 +16,12 @@ export const TxInput = z.object({
   nativeCurrency: z.string().min(1).max(12).optional(),
   nativePrice: z.number().nonnegative().optional(),
   nativeFee: z.number().nonnegative().optional(),
+  // Both optional and both without a default, for the reason above: the POST
+  // route supplies "crypto" itself, so a default here would only serve to
+  // arrive on a PATCH that never mentioned the asset type and rewrite a cash
+  // row as a coin.
+  assetType: z.enum(["crypto", "equity", "cash"]).optional(),
+  sourceSymbol: z.string().min(1).max(32).nullable().optional(),
 });
 
 /**
@@ -48,5 +54,6 @@ export function serializeTx(tx: Transaction) {
     note: tx.note,
     nativeCurrency: tx.nativeCurrency,
     nativePrice: tx.nativePrice,
+    sourceSymbol: tx.sourceSymbol,
   };
 }

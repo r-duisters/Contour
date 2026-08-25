@@ -41,6 +41,11 @@ export async function addTransaction(
  * recoverable, because what was actually paid is still on the row.
  */
 async function inUsd(net: Net, tx: NewTransaction): Promise<NewTransaction> {
+  // A cash row is worth one unit of itself: EUR 120 is EUR 120, and its
+  // `nativePrice` of 1 is a statement of that, not a price to convert. Running
+  // it through `usdRateOn` would multiply the amount by the exchange rate and
+  // store a euro balance as a dollar one.
+  if (tx.assetType === "cash") return tx;
   if (!tx.nativeCurrency || tx.nativePrice === null || tx.nativePrice === undefined) return tx;
   const rate = await usdRateOn(net, tx.nativeCurrency, Number(tx.time));
   if (rate === null) return { ...tx, price: 0, fee: 0 };
