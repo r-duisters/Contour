@@ -103,6 +103,21 @@ model Settings {
   mqttTopicPrefix String?
 }
 
+/// A device registered for Firebase Cloud Messaging.
+///
+/// Separate from `PushSubscription` because the two are different mechanisms,
+/// not two spellings of one. Web Push addresses a browser endpoint with a
+/// keypair; FCM addresses a device through Google with an opaque token. The
+/// APK can only use the second — Android's WebView implements no Push API —
+/// and a browser installed as a PWA can only use the first.
+model FcmToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  /// What registered it, for a person reading the table. Never used to route.
+  label     String?
+  createdAt DateTime @default(now())
+}
+
 model PushSubscription {
   id        String   @id @default(cuid())
   endpoint  String   @unique

@@ -79,3 +79,44 @@ The container restarts with the Docker daemon; **the app does not**. It runs as
 a bare `npm run start`, so a reboot leaves the scheduler knocking on a door
 nobody answers — visibly, in the logs, but knocking. Putting the app under the
 same supervision is worth doing and is not done here.
+
+## Reaching the Android app directly (FCM)
+
+Home Assistant is not required. Neither is Web Push — and in the APK it cannot
+work at all: Android's WebView implements no Push API and does not define
+`navigator.serviceWorker`, so the toggle in Settings has nothing to talk to.
+Firebase Cloud Messaging is the mechanism that reaches the installed app, and
+it is the only one that reaches a device the system has put to sleep. A
+high-priority message wakes it, grants a brief wakelock and some network, then
+lets it fall back to idle.
+
+Everything is wired. Two files are not, because only you can produce them.
+
+**1. `google-services.json`** — Firebase console → add an Android app with
+package `app.contour.local` → download → put it at `android/app/google-services.json`.
+Nothing else in Gradle needs touching: Capacitor's template already applies the
+Google plugin when that file exists, and skips it with a log line when it does
+not.
+
+**2. A service account** — Firebase console → Project settings → Service
+accounts → *Generate new private key*. Put the whole JSON on one line in
+`apps/web/.env`:
+
+```
+FCM_SERVICE_ACCOUNT='{"project_id":"…","client_email":"…","private_key":"-----BEGIN PRIVATE KEY-----\n…"}'
+```
+
+Absent, `makeFcmNotifier()` returns null and the notifier is skipped — the same
+way absent VAPID keys skip Web Push. Nothing breaks; nothing arrives either.
+
+Then rebuild the APK (`npx cap sync android && ./gradlew assembleDebug`) and
+open it once. The app registers on every launch and upserts the token, because
+FCM tokens rotate — on restore to a new device, on cleared data, and sometimes
+on their own. `GET /api/push/fcm` answers how many devices are registered,
+which is the quickest way to check the handshake worked before waiting on a
+real alert.
+
+**Both channels can run at once**, and on different devices they have to: HA
+fans out to whatever it knows about, Web Push reaches a browser or installed
+PWA, FCM reaches the APK. `dispatch` marks an event delivered if any of them
+succeeded.

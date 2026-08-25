@@ -104,6 +104,16 @@ const ALLOWLIST: Exemption[] = [
       "rather than data. The file header explains the split.",
   },
   {
+    file: "components/FcmSetup.tsx",
+    allowed: ["/api/push/fcm"],
+    why:
+      "Hands this device's FCM registration token to the server so alerts can " +
+      "reach it. Native-only and permanently server-bound: a device build has " +
+      "no counterpart to Google's messaging service, and the token is issued " +
+      "by the platform rather than read from storage — there is no portable " +
+      "question here for a DataClient to answer.",
+  },
+  {
     file: "components/BackgroundAlerts.tsx",
     allowed: ["/api/alerts"],
     why: "Polls the same server-only alerts route the alerts screen owns.",
