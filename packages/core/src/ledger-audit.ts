@@ -112,7 +112,8 @@ function underfundedCurrencies(txs: AuditTx[]): Finding[] {
       // the trade below already accounts for the movement. Counting both would
       // debit every purchase twice.
       if (legTimes.has(t.time)) continue;
-      delta = t.side === "transfer_in" || t.side === "buy" ? t.quantity : -t.quantity;
+      delta = t.side === "transfer_in" || t.side === "buy" || t.side === "income"
+        ? t.quantity : -t.quantity;
     } else {
       const price = t.nativePrice ?? t.price;
       const fee = t.nativeFee ?? t.fee ?? 0;
@@ -236,6 +237,10 @@ function cashLegTimes(txs: AuditTx[]): Set<number> {
   const out = new Set<number>();
   for (const t of txs) {
     if (t.assetType !== "cash") continue;
+    // Income is never a trade's cash leg. A dividend that happens to land in
+    // the same second as a purchase is a real credit; counting it as the
+    // purchase's leg would erase it from the balance entirely.
+    if (t.side === "income") continue;
     if (!t.nativeCurrency || !isFiat(t.nativeCurrency)) continue;
     // Only a fiat row that shares a moment with a trade is a leg; a standalone
     // one is a real deposit or withdrawal.

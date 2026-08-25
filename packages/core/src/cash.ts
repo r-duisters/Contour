@@ -14,6 +14,10 @@ export type CashRelevantTx = {
  * of a trade as its own fiat row, so subtracting the trade as well would count
  * every purchase twice. Cash and invested value are separate figures, and the
  * ledger already contains both sides.
+ *
+ * `income` — a dividend, interest, a staking payout in fiat — is a credit like
+ * any other. It is listed explicitly rather than left to fall through, because
+ * the fall-through is the withdrawal branch.
  */
 export function cashBalances(txs: CashRelevantTx[]): Record<string, number> {
   const out: Record<string, number> = {};
@@ -21,7 +25,10 @@ export function cashBalances(txs: CashRelevantTx[]): Record<string, number> {
     if (t.assetType !== "cash") continue;
     const currency = t.nativeCurrency;
     if (!currency) continue;
-    const signed = t.side === "transfer_in" || t.side === "buy" ? t.quantity : -t.quantity;
+    const signed =
+      t.side === "transfer_in" || t.side === "buy" || t.side === "income"
+        ? t.quantity
+        : -t.quantity;
     out[currency] = (out[currency] ?? 0) + signed;
   }
   for (const [currency, amount] of Object.entries(out)) {
@@ -59,7 +66,10 @@ export function cashBalancesOver(
   for (const at of times) {
     while (i < moves.length && moves[i]!.time <= at) {
       const m = moves[i]!;
-      const signed = m.side === "transfer_in" || m.side === "buy" ? m.quantity : -m.quantity;
+      const signed =
+        m.side === "transfer_in" || m.side === "buy" || m.side === "income"
+          ? m.quantity
+          : -m.quantity;
       running[m.nativeCurrency!] = (running[m.nativeCurrency!] ?? 0) + signed;
       i++;
     }

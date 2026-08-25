@@ -95,3 +95,19 @@ describe("cashBalancesOver", () => {
     expect(last).toEqual(cashBalances(txs));
   });
 });
+
+describe("income", () => {
+  const dividend = {
+    assetType: "cash", side: "income", quantity: 120, nativeCurrency: "EUR",
+  };
+
+  it("credits cash, it does not debit it", () => {
+    expect(cashBalances([dividend])).toEqual({ EUR: 120 });
+  });
+
+  it("credits the running balance too", () => {
+    const at = 1_700_000_000_000;
+    expect(cashBalancesOver([{ ...dividend, time: at }], [at - 1, at + 1]))
+      .toEqual([{}, { EUR: 120 }]);
+  });
+});

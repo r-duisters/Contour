@@ -191,3 +191,29 @@ describe("auditLedger: the shape this repository actually met", () => {
     expect(kinds).toEqual(["inconsistent-cash-legs", "underfunded-currency", "underfunded-currency"]);
   });
 });
+
+describe("income", () => {
+  it("funds spending rather than reporting a shortfall", () => {
+    // EUR 500 of dividends, then a EUR 400 purchase. Nothing is missing.
+    const txs = [
+      { symbol: "EUR", assetType: "cash" as const, side: "income", quantity: 500,
+        price: 0, fee: 0, time: 1_000, nativeCurrency: "EUR", nativePrice: 1 },
+      { symbol: "ASML.AS", assetType: "equity" as const, side: "buy", quantity: 1,
+        price: 400, fee: 0, time: 2_000, nativeCurrency: "EUR", nativePrice: 400 },
+    ];
+    expect(auditLedger(txs).filter((f) => f.kind === "underfunded-currency")).toEqual([]);
+  });
+
+  it("is not mistaken for a trade's cash leg", () => {
+    // A dividend landing in the same second as an unrelated trade is still a
+    // real credit; treating it as that trade's leg would erase it.
+    const at = 5_000;
+    const txs = [
+      { symbol: "EUR", assetType: "cash" as const, side: "income", quantity: 90,
+        price: 0, fee: 0, time: at, nativeCurrency: "EUR", nativePrice: 1 },
+      { symbol: "ASML.AS", assetType: "equity" as const, side: "buy", quantity: 1,
+        price: 50, fee: 0, time: at, nativeCurrency: "EUR", nativePrice: 50 },
+    ];
+    expect(auditLedger(txs).filter((f) => f.kind === "underfunded-currency")).toEqual([]);
+  });
+});
