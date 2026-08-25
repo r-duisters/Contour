@@ -131,7 +131,18 @@ export type Contribution = {
   realized: number;
   unrealized: number;
   total: number;
-  /** Return on the money still in the position. */
+  /**
+   * What the position returned on every euro ever put into it — realised and
+   * unrealised together, over `invested`.
+   *
+   * This used to be `unrealized / costBasis`, the return on the stake still
+   * held, which had two failures. A closed position has neither term and
+   * reported nothing at all: eleven of them in the live ledger, carrying real
+   * profit and ranking with a blank. And a position sold down in part showed
+   * the *remainder's* return while its `total` included the sale — so the
+   * column meant to rank the best decisions was quietest about the ones acted
+   * on.
+   */
   pct: number | null;
 };
 
@@ -151,9 +162,21 @@ export function contributions(
       realized: h.realizedPnl,
       unrealized: h.unrealizedPnl ?? 0,
       total: h.realizedPnl + (h.unrealizedPnl ?? 0),
-      pct: h.costBasis > 0 && h.unrealizedPnl !== null ? (h.unrealizedPnl / h.costBasis) * 100 : null,
+      pct: returnPct(h),
     }))
     .sort((a, b) => b.total - a.total);
+}
+
+/**
+ * Null rather than a guess in two cases. Nothing was ever invested, so there
+ * is no denominator; or the position is still open and its price lookup
+ * failed, where treating the unknown gain as zero would report a loss the
+ * position has not made.
+ */
+function returnPct(h: ValuedHolding): number | null {
+  if (!(h.invested > 0)) return null;
+  if (h.quantity > 1e-12 && h.unrealizedPnl === null) return null;
+  return ((h.realizedPnl + (h.unrealizedPnl ?? 0)) / h.invested) * 100;
 }
 
 export type AssetClass = "Crypto" | "Stocks" | "ETFs" | "Cash";

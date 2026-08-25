@@ -208,3 +208,39 @@ describe("annotateTransactions", () => {
     expect(rows[1]!.realized).toBe(50);
   });
 });
+
+describe("invested — every euro the position ever consumed", () => {
+  const buy = (time: number, quantity: number, price: number, fee = 0) =>
+    ({ symbol: "BTC", side: "buy" as const, quantity, price, fee, time });
+  const sell = (time: number, quantity: number, price: number) =>
+    ({ symbol: "BTC", side: "sell" as const, quantity, price, fee: 0, time });
+
+  it("accumulates what was paid, fees included", () => {
+    const [h] = computeHoldings([buy(1, 1, 100, 5), buy(2, 1, 200, 5)]);
+    expect(h!.invested).toBe(310);
+  });
+
+  it("is not reduced by a sale, which is the whole point", () => {
+    // `costBasis` falls when units leave. `invested` is the money that went
+    // in, and selling does not un-spend it — without that, a closed position
+    // divides by zero and reports no return at all.
+    const [h] = computeHoldings([buy(1, 2, 100), sell(2, 2, 300)]);
+    expect(h!.costBasis).toBe(0);
+    expect(h!.invested).toBe(200);
+  });
+
+  it("counts an inbound transfer at the cost basis it carries", () => {
+    const [h] = computeHoldings([
+      { symbol: "BTC", side: "transfer_in", quantity: 1, price: 400, fee: 0, time: 1 },
+    ]);
+    expect(h!.invested).toBe(400);
+  });
+
+  it("is not reduced by an outbound transfer either", () => {
+    const [h] = computeHoldings([
+      buy(1, 2, 100),
+      { symbol: "BTC", side: "transfer_out", quantity: 1, price: 0, fee: 0, time: 2 },
+    ]);
+    expect(h!.invested).toBe(200);
+  });
+});

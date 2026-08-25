@@ -25,6 +25,16 @@ export type Holding = {
   realizedPnl: number;
   /** Sum of all fees paid on this symbol. */
   fees: number;
+  /**
+   * Every unit of currency the position ever consumed — buys with their fees,
+   * and inbound transfers at the cost basis they carry.
+   *
+   * Unlike `costBasis` it never falls. Cost basis answers "what are the units
+   * I still hold worth to me"; this answers "what did I ever put in", which is
+   * the only denominator under which a *closed* position has a return at all.
+   * Without it a sold-out winner divides by zero and reports nothing.
+   */
+  invested: number;
 };
 
 export type ValuedHolding = Holding & {
@@ -50,7 +60,10 @@ export function computeHoldings(txs: Tx[]): Holding[] {
   for (const tx of sorted) {
     let h = bySymbol.get(tx.symbol);
     if (!h) {
-      h = { symbol: tx.symbol, quantity: 0, avgCost: 0, costBasis: 0, realizedPnl: 0, fees: 0 };
+      h = {
+        symbol: tx.symbol, quantity: 0, avgCost: 0, costBasis: 0,
+        realizedPnl: 0, fees: 0, invested: 0,
+      };
       bySymbol.set(tx.symbol, h);
     }
     h.fees += tx.fee;
@@ -58,6 +71,7 @@ export function computeHoldings(txs: Tx[]): Holding[] {
     if (tx.side === "buy" || tx.side === "transfer_in") {
       const cost = tx.quantity * tx.price + (tx.side === "buy" ? tx.fee : 0);
       h.costBasis += cost;
+      h.invested += cost;
       h.quantity += tx.quantity;
       h.avgCost = h.quantity > 0 ? h.costBasis / h.quantity : 0;
     } else {

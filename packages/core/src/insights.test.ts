@@ -10,7 +10,7 @@ function tx(partial: Partial<Tx> & Pick<Tx, "side" | "quantity" | "price">): Tx 
 
 function holding(partial: Partial<ValuedHolding> & { symbol: string }): ValuedHolding {
   return {
-    quantity: 1, avgCost: 0, costBasis: 0, realizedPnl: 0, fees: 0,
+    quantity: 1, avgCost: 0, costBasis: 0, realizedPnl: 0, fees: 0, invested: 0,
     price: null, value: null, unrealizedPnl: null, ...partial,
   };
 }
@@ -96,12 +96,15 @@ describe("concentration", () => {
 describe("contributions", () => {
   it("ranks holdings by realized plus unrealized profit", () => {
     const rows = contributions([
-      holding({ symbol: "WIN", realizedPnl: 100, unrealizedPnl: 400, costBasis: 1000 }),
-      holding({ symbol: "LOSS", realizedPnl: 0, unrealizedPnl: -200, costBasis: 500 }),
+      holding({ symbol: "WIN", realizedPnl: 100, unrealizedPnl: 400, costBasis: 1000, invested: 1000 }),
+      holding({ symbol: "LOSS", realizedPnl: 0, unrealizedPnl: -200, costBasis: 500, invested: 500 }),
     ]);
     expect(rows.map((r) => r.symbol)).toEqual(["WIN", "LOSS"]);
     expect(rows[0]!.total).toBe(500);
-    expect(rows[0]!.pct).toBeCloseTo(40);
+    // 500 made on 1,000 put in. This asserted 40 while `pct` was
+    // `unrealized / costBasis` — the same holding, with its £100 of realised
+    // profit left out of its own return.
+    expect(rows[0]!.pct).toBeCloseTo(50);
     expect(rows[1]!.total).toBe(-200);
   });
 });
@@ -225,5 +228,50 @@ describe("realisedByYear", () => {
 
   it("is empty for an empty ledger", () => {
     expect(realisedByYear([])).toEqual([]);
+  });
+});
+
+describe("contributions — the percentage survives a sale", () => {
+  it("reports a return on a position that is entirely closed", () => {
+    // Bought for 100, sold for 150. The old formula divided the unrealised
+    // gain by a cost basis of zero and answered null — so eleven closed
+    // positions carrying real profit ranked with no percentage at all.
+    const [c] = contributions([holding({
+      symbol: "BTC", quantity: 0, costBasis: 0, invested: 100,
+      realizedPnl: 50, unrealizedPnl: 0,
+    })]);
+    expect(c!.pct).toBeCloseTo(50, 6);
+  });
+
+  it("counts both halves for a position that was partly sold", () => {
+    // 100 in; half sold for a 50 gain; the rest is worth 70 over its basis.
+    const [c] = contributions([holding({
+      symbol: "ETH", quantity: 0.5, costBasis: 50, invested: 100,
+      realizedPnl: 50, unrealizedPnl: 70,
+    })]);
+    // 120 made on 100 put in. The old formula said 140% — the remaining
+    // stake's return — and ignored the sale that made half the money.
+    expect(c!.pct).toBeCloseTo(120, 6);
+  });
+
+  it("still answers for an ordinary untouched position", () => {
+    const [c] = contributions([holding({
+      symbol: "ADA", quantity: 10, costBasis: 100, invested: 100, unrealizedPnl: 25,
+    })]);
+    expect(c!.pct).toBeCloseTo(25, 6);
+  });
+
+  it("declines rather than guessing when an open position has no price", () => {
+    // unrealizedPnl null means the feed failed. Treating it as zero would
+    // report a loss the position has not made.
+    const [c] = contributions([holding({
+      symbol: "XMR", quantity: 5, costBasis: 100, invested: 100, unrealizedPnl: null,
+    })]);
+    expect(c!.pct).toBeNull();
+  });
+
+  it("declines when nothing was ever put in", () => {
+    const [c] = contributions([holding({ symbol: "FREE", quantity: 1, invested: 0, unrealizedPnl: 5 })]);
+    expect(c!.pct).toBeNull();
   });
 });
