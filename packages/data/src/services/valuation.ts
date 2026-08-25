@@ -2,7 +2,11 @@ import { assetName } from "@/core/asset-names";
 import type { DisplayCurrency } from "@/core/currencies";
 import { cached } from "@/core/cache";
 import { cashBalances } from "@/core/cash";
-import { toDisplayTxs } from "@/core/display-tx";
+import { toDisplayTxs, toUsdTxs } from "@/core/display-tx";
+import {
+  currencyEffect, portfolioCurrencyEffect,
+  type CurrencyEffect, type PortfolioEffect,
+} from "@/core/attribution";
 import { currencyForTicker } from "@/core/equity";
 import { rateOn } from "@/core/fx";
 import { flowsByYear, realisedByYear, tradeStats, type TradeStats } from "@/core/insights";
@@ -27,6 +31,14 @@ export type AssetRow = ValuedHolding & {
   assetType: "crypto" | "equity";
   name: string | null;
   dayChange: DayChange | null;
+  /**
+   * How much of this position's unrealised gain was the asset and how much was
+   * the exchange rate. Null when the display currency is the dollar the rows
+   * are stored in (nothing to attribute), when the rate history could not be
+   * fetched, or when the position itself cannot carry the split — see
+   * `packages/core/src/attribution.ts`.
+   */
+  fx: CurrencyEffect | null;
 };
 
 export type CashRow = {
@@ -64,6 +76,8 @@ export type Totals = {
   unrealizedPnl: number;
   realizedPnl: number;
   fees: number;
+  /** The same split as `AssetRow.fx`, summed over the positions that carry one. */
+  fx: PortfolioEffect | null;
 };
 
 export type Valuation = {
@@ -95,6 +109,19 @@ export async function valuation(store: Store, net: Net, id: string): Promise<Val
   const assetRows = portfolio.transactions.filter((t) => t.assetType !== "cash");
   const rates = await ledgerRates(net, currency, assetRows);
   const txs = toDisplayTxs(assetRows, currency, toDisplay, rates);
+
+  // The same positions costed in the currency they are stored in. Dividing one
+  // cost basis by the other gives the rate each position was acquired at,
+  // which is the only thing standing between "it went up 40%" and "it went up
+  // 30% and the dollar did the rest".
+  //
+  // Only when `rates` is non-null: without dated rates the display cost was
+  // struck at *today's* rate, which would make the acquisition rate today's
+  // rate and the currency effect exactly zero — a confident wrong answer where
+  // null is the true one.
+  const usdCost = rates
+    ? new Map(computeHoldings(toUsdTxs(assetRows)).map((h) => [h.symbol, h.costBasis]))
+    : null;
 
   const equitySymbols = new Set(
     portfolio.transactions.filter((t) => t.assetType === "equity").map((t) => t.symbol),
@@ -142,6 +169,12 @@ export async function valuation(store: Store, net: Net, id: string): Promise<Val
       // any equity provider that does not report it — those group as shares.
       instrumentType: equityPrices[h.symbol]?.instrumentType,
       dayChange,
+      fx: usdCost
+        ? currencyEffect(
+            { value: h.value, costDisplay: h.costBasis, costUsd: usdCost.get(h.symbol) ?? 0 },
+            toDisplay,
+          )
+        : null,
     };
   });
 
@@ -171,6 +204,16 @@ export async function valuation(store: Store, net: Net, id: string): Promise<Val
     unrealizedPnl: sum(valued.map((h) => h.unrealizedPnl ?? 0)),
     realizedPnl: sum(valued.map((h) => h.realizedPnl)),
     fees: sum(valued.map((h) => h.fees)),
+    fx: usdCost
+      ? portfolioCurrencyEffect(
+          valued.map((h) => ({
+            value: h.value,
+            costDisplay: h.costBasis,
+            costUsd: usdCost.get(h.symbol) ?? 0,
+          })),
+          toDisplay,
+        )
+      : null,
   };
 
   return {

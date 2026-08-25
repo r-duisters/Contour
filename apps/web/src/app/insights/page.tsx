@@ -18,6 +18,8 @@ import { usePrivacy } from "@/components/usePrivacy";
 import { allocation, concentration, contributions, type AllocationClass, type TradeStats } from "@/lib/insights";
 import type { TripStats } from "@/lib/round-trips";
 import type { ValuedHolding } from "@/lib/portfolio";
+import { currencyShare, type CurrencyEffect, type PortfolioEffect } from "@/lib/attribution";
+import { CURRENCY_NAMES, type DisplayCurrency } from "@/lib/currencies";
 import RangePicker from "@/components/RangePicker";
 import { PERFORMANCE_RANGES, rangeLabel, type RangeKey } from "@/lib/ranges";
 import StatTile from "@/components/StatTile";
@@ -27,6 +29,7 @@ import SubHeading from "@/components/SubHeading";
 type Holding = ValuedHolding & {
   assetType?: "crypto" | "equity" | "cash";
   name?: string | null;
+  fx?: CurrencyEffect | null;
 };
 
 type RangeStat = {
@@ -62,6 +65,8 @@ export default function InsightsPage() {
   const client = useDataClient();
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
   const [holdings, setHoldings] = useState<Holding[] | null>(null);
+  const [fx, setFx] = useState<PortfolioEffect | null>(null);
+  const [cur, setCur] = useState<DisplayCurrency>("USD");
   const [stats, setStats] = useState<TradeStats | null>(null);
   const [realised, setRealised] = useState<{ year: number; realised: number }[]>([]);
   const [trips, setTrips] = useState<TripStats | null>(null);
@@ -87,7 +92,12 @@ export default function InsightsPage() {
     // Two chains, not a Promise.all: the trade statistics come from the
     // transaction log alone and land long before the priced valuation does.
     client.getValuation(portfolioId)
-      .then((d) => { setDisplayCurrency(d.currency); setHoldings(d.holdings); })
+      .then((d) => {
+        setDisplayCurrency(d.currency);
+        setCur(d.currency);
+        setHoldings(d.holdings);
+        setFx(d.totals.fx ?? null);
+      })
       .catch(() => setHoldings([]));
     client.getInsights(portfolioId)
       .then((d) => { setStats(d.stats); setRealised(d.realisedByYear ?? []); setTrips(d.trips ?? null); })
@@ -168,6 +178,24 @@ export default function InsightsPage() {
     })();
     return () => { cancelled = true; };
   }, [client, portfolioId, chartRange, benchKey, chartMode]);
+
+  // The positions where the exchange rate mattered most, either way.
+  const byCurrency = (holdings ?? [])
+    .filter((h): h is Holding & { fx: CurrencyEffect } => !!h.fx)
+    .sort((a, b) => Math.abs(b.fx.currency) - Math.abs(a.fx.currency))
+    .slice(0, 5);
+
+  // Null when the asset and the currency very nearly cancel: a share of a
+  // result that is essentially zero is a number, not a fact.
+  const share = fx ? currencyShare(fx, fx.costDisplay) : null;
+  // A priced open position with no dollar cost behind it — a gift, an inbound
+  // transfer at no basis — has no acquisition rate, so it sits outside the
+  // split and outside the total beside it.
+  const uncovered = fx
+    ? (holdings ?? []).filter(
+        (h) => h.assetType !== "cash" && h.quantity > 1e-12 && h.value !== null,
+      ).length - fx.covered
+    : 0;
 
   const alloc = holdings ? allocation(holdings) : [];
   const conc = holdings ? concentration(holdings) : null;
@@ -303,6 +331,53 @@ export default function InsightsPage() {
               <ContribList title="Worst" rows={losers} up={false} />
             </div>
           </Section>
+
+          {fx && (
+            <Section title="The asset, and the currency">
+              <div className="grid grid-cols-3 gap-3 text-sm">
+                <StatTile label="The asset" value={fmtMoney(fx.asset)} signed={fx.asset} />
+                <StatTile label="The currency" value={fmtMoney(fx.currency)} signed={fx.currency} />
+                <StatTile label="Together" value={fmtMoney(fx.total)} signed={fx.total} />
+              </div>
+              {/* The rate is not an amount, so it is not masked: it says
+                  nothing about how much is held. */}
+              <p className="text-xs text-neutral-500 mt-3">
+                Prices are quoted in dollars. You bought your dollars at{" "}
+                {fx.acquiredRate.toFixed(4)} {CURRENCY_NAMES[cur].toLowerCase()} on average and they
+                are worth {fx.currentRate.toFixed(4)} today, so the exchange rate{" "}
+                {fx.currency < 0 ? "has taken" : "has added"} {fmtMoney(Math.abs(fx.currency))}{" "}
+                {fx.currency < 0 ? "off" : "to"} what the assets themselves earned
+                {share !== null && ` — ${Math.abs(share).toFixed(0)}% of the result`}.
+              </p>
+              {/* Two exclusions a reader would otherwise have to infer from a
+                  total that does not quite match the one on the portfolio
+                  screen. */}
+              <p className="text-xs text-neutral-500 mt-2">
+                Across {fx.covered} open positions. A closed trade banked its exchange rate along
+                with its profit, so it is not counted here
+                {uncovered > 0 &&
+                  `, and ${uncovered} open ${uncovered === 1 ? "position has" : "positions have"} no dollar cost to compare against`}.
+              </p>
+              {byCurrency.length > 0 && (
+                <div className="mt-5">
+                  <SubHeading>Where the rate mattered most</SubHeading>
+                  <dl className="text-sm">
+                    {byCurrency.map((h) => (
+                      <Row
+                        key={h.symbol}
+                        label={h.symbol}
+                        value={
+                          <span className={h.fx.currency >= 0 ? "text-green-500" : "text-red-500"}>
+                            {fmtMoney(h.fx.currency)}
+                          </span>
+                        }
+                      />
+                    ))}
+                  </dl>
+                </div>
+              )}
+            </Section>
+          )}
 
           {realised.length > 0 && (
             <Section title="Profit taken, by year">

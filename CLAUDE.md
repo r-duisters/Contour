@@ -122,9 +122,15 @@ packages/core/src/       Pure logic — no I/O, no framework. Runs in the browse
                           — see Workspaces below.
   portfolio.ts, delta-csv.ts, insights.ts, performance.ts, display.ts, display-tx.ts,
   export.ts, fx.ts, cash.ts, ranges.ts, chart-data.ts, asset-info.ts, asset-names.ts,
-  alerts.ts, equity.ts, cache.ts, session.ts, storage-keys.ts
+  alerts.ts, equity.ts, cache.ts, session.ts, storage-keys.ts, round-trips.ts,
+  attribution.ts, currencies.ts, change.ts
                           Portfolio maths, the Delta-by-eToro CSV importer, benchmark and
                           contributor insights, and the other pure logic shared by every screen.
+                          `currencies.ts` is the single authority on what a currency is —
+                          the thirty the app can display in, which are the ECB's list plus
+                          the dollar it quotes against. `attribution.ts` splits a gain into
+                          what the asset did and what the exchange rate did; it needs
+                          `display-tx.ts`'s dated conversion to mean anything.
 
 packages/data/src/        The data seam (Phase 2) and the UI's data client (Phase 3) —
                           portable, and depends on packages/core. See "The data seam"

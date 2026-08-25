@@ -179,6 +179,8 @@ describe("valuation", () => {
       unrealizedPnl: 29_985,
       realizedPnl: 0,
       fees: 15,
+      // A dollar portfolio read in dollars has no currency effect to state.
+      fx: null,
     });
   });
 
@@ -321,7 +323,7 @@ describe("valuation", () => {
     expect(out.holdings).toEqual([]);
     expect(out.totals).toEqual({
       dayChange: null, value: 0, cash: 0, invested: 0,
-      costBasis: 0, unrealizedPnl: 0, realizedPnl: 0, fees: 0,
+      costBasis: 0, unrealizedPnl: 0, realizedPnl: 0, fees: 0, fx: null,
     });
     expect(net.calls).toEqual([]);
   });
