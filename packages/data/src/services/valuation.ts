@@ -1,4 +1,5 @@
 import { assetName } from "@/core/asset-names";
+import type { DisplayCurrency } from "@/core/currencies";
 import { cached } from "@/core/cache";
 import { cashBalances } from "@/core/cash";
 import { toDisplayTxs } from "@/core/display-tx";
@@ -66,7 +67,7 @@ export type Totals = {
 export type Valuation = {
   holdings: (AssetRow | CashRow)[];
   totals: Totals;
-  currency: "USD" | "EUR";
+  currency: DisplayCurrency;
   /** Always 1: the figures above are already in `currency`. Kept for compatibility. */
   rate: number;
 };
@@ -172,7 +173,7 @@ export async function valuation(store: Store, net: Net, id: string): Promise<Val
   return {
     holdings: all,
     totals,
-    // A failed EUR lookup leaves the figures in USD, so the label has to follow.
+    // A failed rate lookup leaves the figures in USD, so the label has to follow.
     // `displayContext` keeps `currency` as the raw setting because it also
     // decides which stored trades count as natively priced; only the label the
     // caller sees is relabelled here.
@@ -197,7 +198,7 @@ export async function valuation(store: Store, net: Net, id: string): Promise<Val
 export async function currentCashRates(
   net: Net,
   currencies: string[],
-  currency: "USD" | "EUR",
+  currency: DisplayCurrency,
 ): Promise<Map<string, number>> {
   const rates = new Map<string, number>();
   for (const cur of currencies) {
@@ -217,7 +218,7 @@ export async function currentCashRates(
 async function valueCash(
   net: Net,
   transactions: Transaction[],
-  currency: "USD" | "EUR",
+  currency: DisplayCurrency,
 ): Promise<CashRow[]> {
   const balances = cashBalances(transactions);
   const cashRates = await currentCashRates(net, Object.keys(balances), currency);
@@ -257,7 +258,7 @@ export type SnapshotRow = {
 
 export type Snapshot = {
   date: string;
-  currency: "USD" | "EUR";
+  currency: DisplayCurrency;
   rows: SnapshotRow[];
   total: number;
   /** Absent — not zero — when the portfolio held nothing on the date. */
@@ -374,7 +375,7 @@ function sum(xs: number[]): number {
 }
 
 export type Insights = {
-  currency: "USD" | "EUR";
+  currency: DisplayCurrency;
   stats: TradeStats;
   /** Money in and out per year. Not profit — see `realisedByYear`. */
   byYear: { year: number; net: number }[];

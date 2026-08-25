@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient, Transaction as PrismaTransaction } from "@prisma/client";
+import { asDisplayCurrency } from "@/core/currencies";
 import {
   DEFAULT_SETTINGS,
   type AssetType,
@@ -92,7 +93,7 @@ function toSettings(row: {
 } | null): Settings {
   if (!row) return { ...DEFAULT_SETTINGS };
   return {
-    displayCurrency: row.displayCurrency === "EUR" ? "EUR" : "USD",
+    displayCurrency: asDisplayCurrency(row.displayCurrency),
     equityProvider: row.equityProvider,
     equityApiKey: row.equityApiKey,
     haUrl: row.haUrl,

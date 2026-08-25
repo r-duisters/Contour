@@ -281,6 +281,17 @@ Numbers:
   `Intl` puts it last for a euro in a German locale, which reads as an
   afterthought down a column, so `money()` places it by hand while grouping
   and the decimal mark still follow the locale.
+- **A symbol of more than one character takes a space after it** — `kr 142 580,42`,
+  `CHF 1.00`, against `$142.58` and `€1,00` closed up. The app displays in any of
+  the thirty currencies the ECB publishes a rate for, and several of them write
+  their symbol as a word. `$142.58` is how a dollar is written; `kr142 580,42` is
+  how nothing is written, and the space is what makes a leading word read as a
+  symbol rather than a prefix. The symbol still leads in every currency — that is
+  the rule the column depends on, and the space does not break it.
+- **A currency's decimals are the currency's to decide.** A yen has none, so
+  `money()` writes `￥142,580` and never `￥142,580.00`. `money(n, 8)` still
+  gets eight for a coin priced in millionths; what changed is that the default
+  is no longer two everywhere.
 - **Figures are set in the sans face with `tabular-nums`**, not in mono.
   Monospace was doing one useful job — keeping digits in a column from
   shuffling — and `font-variant-numeric` does that job without the typewriter

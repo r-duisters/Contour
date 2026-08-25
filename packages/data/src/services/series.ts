@@ -19,6 +19,7 @@ import { fetchEcbRates } from "../sources/fx";
 import { getPortfolio } from "./portfolios";
 import { displayContext } from "./pricing";
 import { currentCashRates } from "./valuation";
+import type { DisplayCurrency } from "@/core/currencies";
 
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
@@ -68,10 +69,10 @@ export type SeriesPoint = { t: number; value: number };
  * figures on a chart that has no points.
  */
 export type Series =
-  | { series: SeriesPoint[]; currency: "USD" | "EUR"; range: RangeKey }
+  | { series: SeriesPoint[]; currency: DisplayCurrency; range: RangeKey }
   | {
       series: SeriesPoint[];
-      currency: "USD" | "EUR";
+      currency: DisplayCurrency;
       range: RangeKey;
       change: { abs: number; pct: number | null } | null;
       twr: { points: ReturnPoint[]; totalPct: number | null };
@@ -597,7 +598,7 @@ async function cashOver(
   net: Net,
   transactions: Transaction[],
   times: number[],
-  currency: "USD" | "EUR",
+  currency: DisplayCurrency,
 ): Promise<number[]> {
   if (times.length === 0) return [];
   const balances = cashBalancesOver(transactions, times);

@@ -94,7 +94,7 @@ model WebAuthnCredential {
 model Settings {
   id              Int     @id @default(1)
   passwordHash    String?
-  displayCurrency String  @default("USD") // "USD" | "EUR"
+  displayCurrency String  @default("USD") // any of core/currencies.ts DISPLAY_CURRENCIES
   equityProvider  String  @default("yahoo") // "yahoo" | "twelvedata" | "alphavantage"
   equityApiKey    String?
   haUrl           String?

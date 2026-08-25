@@ -1,6 +1,7 @@
 "use client";
 
 import { KEYS, readKey } from "./storage-keys";
+import type { DisplayCurrency } from "./currencies";
 
 /**
  * How figures are shown: which currency, and whether amounts are hidden.
@@ -16,14 +17,14 @@ import { KEYS, readKey } from "./storage-keys";
 const KEY = KEYS.hideAmounts;
 const EVENT = KEYS.privacyEvent;
 
-let currency: "USD" | "EUR" = "USD";
+let currency: DisplayCurrency = "USD";
 let hidden = false;
 
-export function setDisplayCurrency(next: "USD" | "EUR"): void {
+export function setDisplayCurrency(next: DisplayCurrency): void {
   currency = next;
 }
 
-export function displayCurrency(): "USD" | "EUR" {
+export function displayCurrency(): DisplayCurrency {
   return currency;
 }
 
@@ -55,6 +56,71 @@ export function onPrivacyChange(listener: () => void): () => void {
 const MASK = "•••••";
 
 /**
+ * A number locale per currency, so grouping and the decimal mark follow the
+ * convention of the place that uses the money rather than the machine the app
+ * happens to be running on. `toLocaleString(undefined, …)` would be shorter
+ * and would make the same figure render differently on two devices.
+ */
+const LOCALES: Record<string, string> = {
+  AUD: "en-AU", BRL: "pt-BR", CAD: "en-CA", CHF: "de-CH", CNY: "zh-CN",
+  CZK: "cs-CZ", DKK: "da-DK", EUR: "de-DE", GBP: "en-GB", HKD: "en-HK",
+  HUF: "hu-HU", IDR: "id-ID", ILS: "he-IL", INR: "en-IN", ISK: "is-IS",
+  JPY: "ja-JP", KRW: "ko-KR", MXN: "es-MX", MYR: "ms-MY", NOK: "nb-NO",
+  NZD: "en-NZ", PHP: "en-PH", PLN: "pl-PL", RON: "ro-RO", SEK: "sv-SE",
+  SGD: "en-SG", THB: "th-TH", TRY: "tr-TR", USD: "en-US", ZAR: "en-ZA",
+};
+
+const localeFor = (c: string): string => LOCALES[c] ?? "en-US";
+
+const symbols = new Map<string, string>();
+const minorUnits = new Map<string, number>();
+
+/**
+ * The currency's symbol, from Intl rather than a second hand-kept table — it
+ * already knows that a krona is "kr" and a forint "Ft", and a list of thirty
+ * of those maintained here would only ever disagree with it.
+ *
+ * A symbol of more than one character gets a space after it. "$142.58" is how
+ * a dollar is written and "kr142 580,42" is not how anything is written; the
+ * space is what makes a leading word-symbol read as a symbol. The symbol still
+ * leads in every currency, which is the rule that keeps a column of figures
+ * aligned — see BRAND.md.
+ */
+function symbolFor(c: string): string {
+  const hit = symbols.get(c);
+  if (hit !== undefined) return hit;
+  let sym = c;
+  try {
+    const parts = new Intl.NumberFormat(localeFor(c), { style: "currency", currency: c })
+      .formatToParts(0);
+    sym = parts.find((p) => p.type === "currency")?.value ?? c;
+  } catch {
+    // An unknown code throws; showing the code itself is the honest fallback.
+  }
+  const out = sym.length > 1 ? `${sym}\u00a0` : sym;
+  symbols.set(c, out);
+  return out;
+}
+
+/**
+ * How many decimals the currency actually has. A yen has none, and printing
+ * "¥1,240.00" states a precision the currency does not possess.
+ */
+function minorUnitsFor(c: string): number {
+  const hit = minorUnits.get(c);
+  if (hit !== undefined) return hit;
+  let units = 2;
+  try {
+    units = new Intl.NumberFormat("en-US", { style: "currency", currency: c })
+      .resolvedOptions().maximumFractionDigits ?? 2;
+  } catch {
+    // Unknown code: two decimals is the commonest answer and a safe one.
+  }
+  minorUnits.set(c, units);
+  return units;
+}
+
+/**
  * Money in the display currency, or a mask when amounts are hidden.
  *
  * The symbol leads, always. Intl puts it after the number for a euro in a
@@ -62,15 +128,18 @@ const MASK = "•••••";
  * of figures and disagrees with the design. Grouping and the decimal mark
  * still follow the locale, so a euro keeps its full stops and comma.
  */
-export function money(n: number, maximumFractionDigits = 2): string {
+export function money(n: number, maximumFractionDigits?: number): string {
   if (hidden) return MASK;
-  const locale = currency === "EUR" ? "de-DE" : "en-US";
-  const digits = Math.min(2, maximumFractionDigits);
-  const abs = Math.abs(n).toLocaleString(locale, {
-    minimumFractionDigits: digits,
-    maximumFractionDigits,
+  // Absent an explicit request, the currency decides: two decimals for a
+  // dollar, none for a yen. A caller that asks for more — a coin priced in
+  // millionths — still gets them, and still gets the currency's own minimum.
+  const minor = minorUnitsFor(currency);
+  const max = maximumFractionDigits ?? minor;
+  const abs = Math.abs(n).toLocaleString(localeFor(currency), {
+    minimumFractionDigits: Math.min(minor, max),
+    maximumFractionDigits: max,
   });
-  return `${n < 0 ? "-" : ""}${currency === "EUR" ? "\u20ac" : "$"}${abs}`;
+  return `${n < 0 ? "-" : ""}${symbolFor(currency)}${abs}`;
 }
 
 /** A holding's size, which reveals as much as its value does. */
@@ -92,7 +161,7 @@ export function percent(n: number, digits = 2): string {
  */
 export function axisMoney(n: number): string {
   if (hidden) return MASK;
-  const sym = currency === "EUR" ? "\u20ac" : "$";
+  const sym = symbolFor(currency);
   const abs = Math.abs(n);
   const sign = n < 0 ? "-" : "";
   if (abs >= 1_000_000) return `${sign}${sym}${(abs / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1)}M`;

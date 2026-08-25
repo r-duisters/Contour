@@ -5,6 +5,7 @@ import type { NewTransaction } from "../ports/store";
 import { MemoryStore } from "../testing/memory-store";
 import { FakeNet, rejectWith } from "../testing/fake-net";
 import { insights, snapshot, valuation } from "./valuation";
+import type { DisplayCurrency } from "@/core/currencies";
 
 const DAY_MS = 86_400_000;
 const ISO = (t: number) => new Date(t).toISOString().slice(0, 10);
@@ -395,7 +396,7 @@ describe("insights", () => {
   const JAN_2024 = Date.parse("2024-03-01T00:00:00Z");
   const JAN_2025 = Date.parse("2025-03-01T00:00:00Z");
 
-  function insightsStore(displayCurrency: "USD" | "EUR" = "USD") {
+  function insightsStore(displayCurrency: DisplayCurrency = "USD") {
     return MemoryStore({
       settings: { displayCurrency },
       portfolios: [{

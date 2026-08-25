@@ -28,12 +28,13 @@ import { browserSupportsWebAuthn, startRegistration } from "@simplewebauthn/brow
 import { useDataClient } from "@/data/client/context";
 import Button from "@/components/Button";
 import EmptyState from "@/components/EmptyState";
+import { DISPLAY_CURRENCIES, CURRENCY_NAMES, asDisplayCurrency, type DisplayCurrency } from "@/lib/currencies";
 
 export default function SettingsPage() {
   const client = useDataClient();
   const [haUrl, setHaUrl] = useState("");
   const [haWebhookId, setHaWebhookId] = useState("");
-  const [displayCurrency, setDisplayCurrency] = useState<"USD" | "EUR">("USD");
+  const [displayCurrency, setDisplayCurrency] = useState<DisplayCurrency>("USD");
   const [equityProvider, setEquityProvider] = useState("yahoo");
   const [equityApiKey, setEquityApiKey] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
@@ -88,7 +89,7 @@ export default function SettingsPage() {
         if (!s) return;
         setHaUrl(s.haUrl ?? "");
         setHaWebhookId(s.haWebhookId ?? "");
-        setDisplayCurrency(s.displayCurrency === "EUR" ? "EUR" : "USD");
+        setDisplayCurrency(asDisplayCurrency(s.displayCurrency));
         setEquityProvider(s.equityProvider ?? "yahoo");
         setEquityApiKey(s.equityApiKey ?? "");
       })
@@ -215,12 +216,14 @@ export default function SettingsPage() {
           <span className="text-neutral-400">Portfolio currency</span>
           <select className="mt-1 w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1"
                   value={displayCurrency}
-                  onChange={(e) => setDisplayCurrency(e.target.value as "USD" | "EUR")}>
-            <option value="USD">USD ($)</option>
-            <option value="EUR">EUR (€)</option>
+                  onChange={(e) => setDisplayCurrency(e.target.value as DisplayCurrency)}>
+            {DISPLAY_CURRENCIES.map((c) => (
+              <option key={c} value={c}>{c} — {CURRENCY_NAMES[c]}</option>
+            ))}
           </select>
           <span className="text-xs text-neutral-500">
-            Prices come from Binance in USDT; EUR converts at the live ECB reference rate. Save to apply.
+            Prices come from Binance in USDT. Every other currency converts at the live
+            ECB reference rate, published each weekday afternoon. Save to apply.
           </span>
         </label>
         <label className="block text-sm">

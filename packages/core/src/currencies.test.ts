@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { FIAT, STABLES, isFiat, needsRate } from "./currencies";
+import {
+  CURRENCY_NAMES, DISPLAY_CURRENCIES, FIAT, STABLES, asDisplayCurrency, isFiat, needsRate,
+} from "./currencies";
 
 describe("needsRate", () => {
   it("is false for USD and for the stables that track it", () => {
@@ -52,5 +54,44 @@ describe("isFiat", () => {
 
   it("excludes coins and stables that are not currencies", () => {
     for (const c of ["BTC", "ETH", "USDT", "USDC"]) expect(isFiat(c)).toBe(false);
+  });
+});
+
+describe("display currencies", () => {
+  it("offers every currency the ECB rate feed can price", () => {
+    // The list is hard-coded rather than fetched (see the note on
+    // DISPLAY_CURRENCIES). This pins its size so a hand-edit that drops one
+    // is a failing test rather than a currency that quietly stops appearing.
+    expect(DISPLAY_CURRENCIES).toHaveLength(30);
+    expect(DISPLAY_CURRENCIES).toContain("USD");
+    expect(DISPLAY_CURRENCIES).toContain("EUR");
+    expect(DISPLAY_CURRENCIES).toContain("JPY");
+  });
+
+  it("names every one of them, because a code is not an answer", () => {
+    for (const c of DISPLAY_CURRENCIES) {
+      expect(CURRENCY_NAMES[c]).toBeTruthy();
+    }
+  });
+
+  it("keeps FIAT as the display list minus the dollar it is quoted against", () => {
+    expect(FIAT.size).toBe(DISPLAY_CURRENCIES.length - 1);
+    expect(FIAT.has("USD")).toBe(false);
+    for (const c of DISPLAY_CURRENCIES) {
+      if (c !== "USD") expect(FIAT.has(c)).toBe(true);
+    }
+  });
+
+  it("accepts a stored code in any case", () => {
+    expect(asDisplayCurrency("eur")).toBe("EUR");
+    expect(asDisplayCurrency("SEK")).toBe("SEK");
+  });
+
+  it("falls back to the dollar rather than trusting an unknown code", () => {
+    // The column is a plain string, so a hand-edited row can hold anything.
+    expect(asDisplayCurrency("XYZ")).toBe("USD");
+    expect(asDisplayCurrency("")).toBe("USD");
+    expect(asDisplayCurrency(null)).toBe("USD");
+    expect(asDisplayCurrency(undefined)).toBe("USD");
   });
 });

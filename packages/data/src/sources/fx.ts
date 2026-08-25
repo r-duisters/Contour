@@ -43,30 +43,38 @@ async function fetchEcbRatesUncached(
 }
 
 /**
- * Latest EUR->USD rate, or null if the lookup failed for any reason. The
- * original `fx.ts#fetchLatestEurUsdUncached` wrapped its whole body in
- * try/catch, so a non-2xx, a JSON-parse error and a transport exception
- * (host unreachable, DNS failure) were all `null` to the caller — none of the
- * six routes it fed ever distinguished them, and `insights` still doesn't.
- * `net.request()` only turns the first of those into a value; the other two
- * still throw (that split is the whole reason `request()` exists — see
- * `packages/data/src/ports/net.ts`), so the try/catch here is what restores
- * the old all-failures-are-null behaviour on top of it.
+ * Latest rate for one unit of `currency` in USD, or null if the lookup failed
+ * for any reason. The original `fetchLatestEurUsdUncached` wrapped its whole
+ * body in try/catch, so a non-2xx, a JSON-parse error and a transport
+ * exception (host unreachable, DNS failure) were all `null` to the caller —
+ * none of the six routes it fed ever distinguished them, and `insights` still
+ * doesn't. `net.request()` only turns the first of those into a value; the
+ * other two still throw (that split is the whole reason `request()` exists —
+ * see `packages/data/src/ports/net.ts`), so the try/catch here is what
+ * restores the old all-failures-are-null behaviour on top of it.
  *
- * The `eurusd-latest` cache is not only about round trips. `cached()` also
- * collapses *concurrent* callers of one key onto a single in-flight promise,
- * and the portfolio page fires `valuation` and `series` together, each of
- * which resolves its own display context. Without the shared entry the value
- * panel and the history chart could be converted at two different EUR rates
- * within one render.
+ * It took a `currency` argument when the display currency stopped being a
+ * choice between two. For EUR it issues exactly the URL its EUR-only
+ * predecessor did.
+ *
+ * The cache is not only about round trips. `cached()` also collapses
+ * *concurrent* callers of one key onto a single in-flight promise, and the
+ * portfolio page fires `valuation` and `series` together, each of which
+ * resolves its own display context. Without the shared entry the value panel
+ * and the history chart could be converted at two different rates within one
+ * render.
  */
-export function fetchLatestEurUsd(net: Net): Promise<number | null> {
-  return cached("eurusd-latest", 3_600_000, () => fetchLatestEurUsdUncached(net));
+export function fetchLatestUsdPer(net: Net, currency: string): Promise<number | null> {
+  const c = currency.toUpperCase();
+  if (c === "USD") return Promise.resolve(1);
+  return cached(`usd-per:${c}`, 3_600_000, () => fetchLatestUsdPerUncached(net, c));
 }
 
-async function fetchLatestEurUsdUncached(net: Net): Promise<number | null> {
+async function fetchLatestUsdPerUncached(net: Net, currency: string): Promise<number | null> {
   try {
-    const res = await net.request("https://api.frankfurter.dev/v1/latest?base=EUR&symbols=USD");
+    const res = await net.request(
+      `https://api.frankfurter.dev/v1/latest?base=${currency}&symbols=USD`,
+    );
     if (!res.ok) return null;
     const data = await res.json<{ rates?: { USD?: number } }>();
     return data.rates?.USD ?? null;

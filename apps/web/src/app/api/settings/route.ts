@@ -6,13 +6,14 @@ import type { Notifier } from "@/lib/notifier";
 import { makeWebPushNotifier } from "@/lib/notifier/web-push";
 import { deps } from "@/lib/deps";
 import { getSettings, saveSettings, settingsExist } from "@/data/services/settings";
+import { DISPLAY_CURRENCIES } from "@/lib/currencies";
 
 export const dynamic = "force-dynamic";
 
 const Body = z.object({
   haUrl: z.string().url().nullable().optional(),
   haWebhookId: z.string().nullable().optional(),
-  displayCurrency: z.enum(["USD", "EUR"]).optional(),
+  displayCurrency: z.enum(DISPLAY_CURRENCIES).optional(),
   equityProvider: z.enum(["yahoo", "twelvedata", "alphavantage"]).optional(),
   equityApiKey: z.string().max(200).nullable().optional(),
 });

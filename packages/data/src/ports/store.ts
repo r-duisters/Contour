@@ -6,6 +6,8 @@
  *
  * Timestamps are numbers at this boundary, never Prisma's BigInt.
  */
+
+import type { DisplayCurrency } from "@/core/currencies";
 export type AssetType = "crypto" | "equity" | "cash";
 export type Side = "buy" | "sell" | "transfer_in" | "transfer_out";
 
@@ -47,7 +49,7 @@ export type PortfolioWithTransactions = Portfolio & { transactions: Transaction[
  * accessor pair here would be the same widening under another name.
  */
 export type Settings = {
-  displayCurrency: "USD" | "EUR";
+  displayCurrency: DisplayCurrency;
   equityProvider: string;
   equityApiKey: string | null;
   haUrl: string | null;

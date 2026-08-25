@@ -21,6 +21,7 @@ import { useCachedValuation } from "@/components/useCachedValuation";
 import StaleNote from "@/components/StaleNote";
 import { RANGE_KEYS, type RangeKey } from "@/lib/ranges";
 import EmptyState from "@/components/EmptyState";
+import type { DisplayCurrency } from "@/lib/currencies";
 
 // ~300 KB of charting: loaded after the figures are on screen, never on the
 // server, so opening the app paints numbers immediately.
@@ -72,7 +73,7 @@ type Valuation = {
     cash?: number; invested?: number;
     dayChange: (DayChange & { covered: number }) | null;
   };
-  currency?: "USD" | "EUR";
+  currency?: DisplayCurrency;
   rate?: number;
 };
 

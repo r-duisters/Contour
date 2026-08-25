@@ -1,13 +1,13 @@
 import { cached } from "@/core/cache";
 import type { EquityQuote } from "@/core/equity";
-import { FIAT, needsRate } from "@/core/currencies";
+import { type DisplayCurrency, FIAT, needsRate } from "@/core/currencies";
 import { rateOn } from "@/core/fx";
 import { pricingPair } from "@/core/symbols";
 import type { Net } from "../ports/net";
 import type { Store } from "../ports/store";
 import { fetchKlines, fetchKlinesRange, fetchDailyStats } from "../sources/binance";
 import { makeEquitySource } from "../sources/equity";
-import { fetchEcbRates, fetchLatestEurUsd } from "../sources/fx";
+import { fetchEcbRates, fetchLatestUsdPer } from "../sources/fx";
 
 const DAY_MS = 86_400_000;
 
@@ -19,7 +19,7 @@ const DAY_MS = 86_400_000;
  * not a single-function wrapper around it.
  */
 export type DisplayContext = {
-  currency: "USD" | "EUR";
+  currency: DisplayCurrency;
   /** Multiply a USD figure by this to get the display currency. */
   toDisplay: number;
   /** USD per 1 unit of the display currency; 1 when displaying USD. */
@@ -35,7 +35,7 @@ export type DisplayContext = {
  * on the same settings read without re-copying it.
  */
 async function settingsPart(store: Store): Promise<{
-  currency: "USD" | "EUR";
+  currency: DisplayCurrency;
   equityProvider: string;
   equityApiKey: string | null;
 }> {
@@ -59,7 +59,7 @@ async function settingsPart(store: Store): Promise<{
  */
 export async function displayContext(store: Store, net: Net): Promise<DisplayContext> {
   const { currency, equityProvider, equityApiKey } = await settingsPart(store);
-  const displayUsd = currency === "EUR" ? ((await fetchLatestEurUsd(net)) ?? 0) : 1;
+  const displayUsd = (await fetchLatestUsdPer(net, currency)) ?? 0;
   const toDisplay = displayUsd > 0 ? 1 / displayUsd : 1;
 
   return { currency, toDisplay, displayUsd, equityProvider, equityApiKey };
@@ -78,7 +78,7 @@ export async function displayContext(store: Store, net: Net): Promise<DisplayCon
  * today; changing it is a behaviour change, not a conversion.
  */
 export type DatedDisplayContext = {
-  currency: "USD" | "EUR";
+  currency: DisplayCurrency;
   /** Multiply a USD figure by this to get the display currency, as of `at`. */
   toDisplay: number;
   equityProvider: string;
