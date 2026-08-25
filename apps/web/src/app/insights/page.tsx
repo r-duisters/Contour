@@ -62,6 +62,7 @@ export default function InsightsPage() {
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
   const [holdings, setHoldings] = useState<Holding[] | null>(null);
   const [stats, setStats] = useState<TradeStats | null>(null);
+  const [realised, setRealised] = useState<{ year: number; realised: number }[]>([]);
   const [benchKey, setBenchKey] = useState<BenchKey>("sp500");
   const [rows, setRows] = useState<RangeStat[]>([]);
   const [loadingRows, setLoadingRows] = useState(false);
@@ -87,7 +88,7 @@ export default function InsightsPage() {
       .then((d) => { setDisplayCurrency(d.currency); setHoldings(d.holdings); })
       .catch(() => setHoldings([]));
     client.getInsights(portfolioId)
-      .then((d) => { setStats(d.stats); })
+      .then((d) => { setStats(d.stats); setRealised(d.realisedByYear ?? []); })
       .catch(() => {});
   }, [client, portfolioId]);
 
@@ -300,6 +301,27 @@ export default function InsightsPage() {
               <ContribList title="Worst" rows={losers} up={false} />
             </div>
           </Section>
+
+          {realised.length > 0 && (
+            <Section title="Profit taken, by year">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 text-sm">
+                {realised.map((r) => (
+                  <StatTile
+                    key={r.year}
+                    label={String(r.year)}
+                    value={money(r.realised)}
+                    signed={r.realised}
+                  />
+                ))}
+              </div>
+              {/* Two things a reader would otherwise have to guess. A year of
+                  pure accumulation is absent rather than zero, and the figure
+                  depends on the accounting method — see #47. */}
+              <p className="text-xs text-neutral-500 mt-3">
+                What sales actually made, on an average-cost basis. Years with no sale are not listed.
+              </p>
+            </Section>
+          )}
 
           <Section title="Trading activity">
             {stats && (

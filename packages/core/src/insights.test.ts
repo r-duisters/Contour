@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allocation, concentration, contributions, flowsByYear, tradeStats } from "./insights";
+import { allocation, concentration, contributions, flowsByYear, tradeStats, realisedByYear } from "./insights";
 import type { Tx, ValuedHolding } from "./portfolio";
 
 const DAY = 86_400_000;
@@ -157,5 +157,73 @@ describe("allocation", () => {
   it("is empty rather than dividing by zero when nothing is priced", () => {
     expect(allocation([{ ...holding({ symbol: "SUBUSDT", value: null }), assetType: "crypto" as const }]))
       .toEqual([]);
+  });
+});
+
+describe("realisedByYear", () => {
+  const buy = (symbol: string, time: number, quantity: number, price: number) =>
+    ({ symbol, side: "buy" as const, quantity, price, fee: 0, time });
+  const sell = (symbol: string, time: number, quantity: number, price: number, fee = 0) =>
+    ({ symbol, side: "sell" as const, quantity, price, fee, time });
+  const Y = (y: number) => Date.UTC(y, 5, 1);
+
+  it("reports the profit a sale actually made, in the year it was made", () => {
+    const out = realisedByYear([buy("BTC", Y(2020), 1, 10_000), sell("BTC", Y(2021), 1, 30_000)]);
+    expect(out).toEqual([{ year: 2021, realised: 20_000 }]);
+  });
+
+  it("says nothing about years that only bought", () => {
+    // A year of accumulation realised nothing. Reporting it as zero would put
+    // a row on screen that reads like a flat year rather than a quiet one.
+    const out = realisedByYear([buy("BTC", Y(2020), 1, 10_000)]);
+    expect(out).toEqual([]);
+  });
+
+  it("separates the years, oldest first", () => {
+    const out = realisedByYear([
+      buy("BTC", Y(2019), 2, 1_000),
+      sell("BTC", Y(2020), 1, 3_000),
+      sell("BTC", Y(2021), 1, 500),
+    ]);
+    expect(out).toEqual([
+      { year: 2020, realised: 2_000 },
+      { year: 2021, realised: -500 },
+    ]);
+  });
+
+  it("adds every asset's sales into the same year", () => {
+    const out = realisedByYear([
+      buy("BTC", Y(2020), 1, 1_000), sell("BTC", Y(2021), 1, 1_500),
+      buy("ETH", Y(2020), 1, 100), sell("ETH", Y(2021), 1, 400),
+    ]);
+    expect(out).toEqual([{ year: 2021, realised: 800 }]);
+  });
+
+  it("nets the sale's fee out of the profit", () => {
+    const out = realisedByYear([buy("BTC", Y(2020), 1, 1_000), sell("BTC", Y(2021), 1, 2_000, 50)]);
+    expect(out).toEqual([{ year: 2021, realised: 950 }]);
+  });
+
+  it("replays each asset separately, so one asset's average cost never touches another's", () => {
+    // Two assets at wildly different prices. Pooling them would value the ETH
+    // sale against a basis that includes bitcoin.
+    const out = realisedByYear([
+      buy("BTC", Y(2020), 1, 50_000),
+      buy("ETH", Y(2020), 1, 1_000),
+      sell("ETH", Y(2021), 1, 2_000),
+    ]);
+    expect(out).toEqual([{ year: 2021, realised: 1_000 }]);
+  });
+
+  it("realises nothing for a transfer out — moving coins is not a disposal", () => {
+    const out = realisedByYear([
+      buy("BTC", Y(2020), 1, 1_000),
+      { symbol: "BTC", side: "transfer_out" as const, quantity: 1, price: 9_000, fee: 0, time: Y(2021) },
+    ]);
+    expect(out).toEqual([]);
+  });
+
+  it("is empty for an empty ledger", () => {
+    expect(realisedByYear([])).toEqual([]);
   });
 });
