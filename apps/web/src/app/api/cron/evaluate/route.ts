@@ -4,6 +4,7 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { pricingPair } from "@/core/symbols";
 import { fetchKlines, fetchPricesSafe } from "@/data/sources/binance";
+import { fetchCrypto24hAgo } from "@/data/services/pricing";
 import { deps } from "@/lib/deps";
 import { run } from "@/lib/indicator";
 import {
@@ -152,8 +153,14 @@ async function evalPriceTarget(a: Alert, notifiers: Notifier[]): Promise<Summary
 }
 
 /**
- * Live price vs. previous daily close, for one symbol or every held symbol of a portfolio.
- * Fires at most once per direction per symbol per UTC day (event dedupe).
+ * Live price vs. the price a rolling twenty-four hours ago, for one symbol or
+ * every held symbol of a portfolio. Fires at most once per direction per
+ * symbol per UTC day (event dedupe).
+ *
+ * The window matches what the screens show. It used to be the previous daily
+ * close — "since 00:00 UTC" — while the asset page drew a rolling day, so an
+ * alert and the figure it was about could disagree by a percentage point.
+ * Both now come from `fetchCrypto24hAgo`.
  */
 async function evalPctMove(a: Alert, notifiers: Notifier[]): Promise<Summary> {
   const params = PctMoveParams.parse(JSON.parse(a.params));
@@ -169,22 +176,24 @@ async function evalPctMove(a: Alert, notifiers: Notifier[]): Promise<Summary> {
   // which Binance lists. `fetchPricesSafe` omits what it cannot price, so
   // every portfolio-scoped alert quietly stopped firing rather than erroring.
   const pairOf = new Map(symbols.map((s) => [s, pricingPair(s)]));
-  const prices = await fetchPricesSafe(deps().net, [...pairOf.values()]);
+  const [prices, dayAgo] = await Promise.all([
+    fetchPricesSafe(deps().net, [...pairOf.values()]),
+    fetchCrypto24hAgo(deps().net, [...pairOf.values()]),
+  ]);
   let fired = 0, skipped = 0;
   for (const symbol of symbols) {
     const pair = pairOf.get(symbol)!;
     const price = prices[pair];
-    if (price === undefined) continue;
-    const daily = await fetchKlines(deps().net, { symbol: pair, interval: "1d", limit: 2 });
-    const prevClose = daily.length >= 2 ? daily[daily.length - 2]!.c : NaN;
-    const hit = evaluatePctMove(params, prevClose, price);
+    const base = dayAgo[pair];
+    if (price === undefined || base === undefined) continue;
+    const hit = evaluatePctMove(params, base, price);
     if (!hit) continue;
     const ok = await dispatch(a, notifiers, {
       barTime: utcDayOpen(Date.now()),
       signal: `move_${hit.direction}:${symbol}`,
       symbol,
       price,
-      meta: { pct: Number(hit.pct.toFixed(2)), prevClose, threshold: params.threshold },
+      meta: { pct: Number(hit.pct.toFixed(2)), dayAgo: base, threshold: params.threshold },
     });
     if (ok) fired++; else skipped++;
   }

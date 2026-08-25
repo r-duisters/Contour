@@ -64,15 +64,25 @@ addEventListener("alertCheck", async (resolve, reject) => {
     const prices = {};
     for (const row of priced) prices[row.symbol] = Number(row.price);
 
-    // Yesterday's close, for the percentage rules.
-    const prevCloses = {};
+    // The price a rolling 24 hours ago, for the percentage rules.
+    //
+    // Twenty-five hourly bars, oldest first — twenty-five and not twenty-four
+    // because the newest is the hour in progress. This is the same window the
+    // app's own figures use (`fetchCrypto24hAgo` in the services), so an alert
+    // and the percentage on screen cannot disagree. It used to read the last
+    // finished *daily* bar, which measured "since 00:00 UTC" — a window nine
+    // hours long at breakfast and twenty-three at bedtime.
+    //
+    // The duplication is unavoidable: this runtime has no DOM, no imports and
+    // no access to the app's code. Change one, change the other.
+    const dayAgo = {};
     for (const rule of rules) {
-      if (rule.kind !== "pct_move" || prevCloses[rule.symbol] !== undefined) continue;
+      if (rule.kind !== "pct_move" || dayAgo[rule.symbol] !== undefined) continue;
       const bars = await fetch(
-        `${BINANCE}/klines?symbol=${rule.symbol}&interval=1d&limit=2`,
+        `${BINANCE}/klines?symbol=${rule.symbol}&interval=1h&limit=25`,
       ).then((r) => (r.ok ? r.json() : []));
-      const closed = bars.length >= 2 ? bars[bars.length - 2] : null;
-      if (closed) prevCloses[rule.symbol] = Number(closed[4]);
+      const oldest = bars.length ? bars[0] : null;
+      if (oldest && Number(oldest[4]) > 0) dayAgo[rule.symbol] = Number(oldest[4]);
     }
 
     const sent = readJson("alertsSent", {});
@@ -92,14 +102,14 @@ addEventListener("alertCheck", async (resolve, reject) => {
           sent[key] = day;
         }
       } else if (rule.kind === "pct_move") {
-        const prev = prevCloses[rule.symbol];
-        if (!prev) continue;
-        const pct = ((price - prev) / prev) * 100;
+        const base = dayAgo[rule.symbol];
+        if (!base) continue;
+        const pct = ((price - base) / base) * 100;
         const key = `m:${rule.id}:${pct >= 0 ? "up" : "down"}`;
         if (Math.abs(pct) >= rule.threshold && !alreadySentToday(sent, key, day)) {
           notify(
             id++,
-            `${name} ${pct >= 0 ? "up" : "down"} ${Math.abs(pct).toFixed(1)}% today`,
+            `${name} ${pct >= 0 ? "up" : "down"} ${Math.abs(pct).toFixed(1)}% in 24h`,
             `Now ${price}`,
           );
           sent[key] = day;
