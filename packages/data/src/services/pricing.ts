@@ -157,24 +157,45 @@ export async function fetchEquityPricesUsd(
 }
 
 /** Last fully closed daily candle per symbol — two bars each, fetched in parallel. */
-export async function fetchCryptoPrevCloses(
+/**
+ * What each pair traded at a rolling twenty-four hours ago.
+ *
+ * This used to be the close of the last *finished daily bar*, which made the
+ * day change mean "since 00:00 UTC" — a window that is nine hours long at
+ * breakfast and twenty-three at bedtime. The chart's own 1D figure has always
+ * measured a rolling day, so the two disagreed on the same screen: ETH read
+ * +0.26% by the old basis and +1.04% by the chart's, at 09:17 UTC on
+ * 2026-08-25.
+ *
+ * Both now read the same 25 hourly bars, so they agree by construction rather
+ * than by coincidence.
+ *
+ * Crypto only, and that is not an oversight. Equities keep the previous
+ * session close (`fetchEquityPricesUsd` carries the provider's own figure),
+ * because a market that shuts has no price twenty-four hours ago: measured on
+ * 2026-08-25 at 09:17 UTC, the nearest real AMD trade to "a day ago" was 62
+ * hours old — the previous Friday — because the US session had not opened on
+ * either day. A rolling window there would report three days and call it one.
+ */
+export async function fetchCrypto24hAgo(
   net: Net,
   symbols: string[],
 ): Promise<Record<string, number>> {
   if (symbols.length === 0) return {};
   const results = await Promise.allSettled(
     symbols.map((s) =>
-      cached(`prevclose:${s}:${Math.floor(Date.now() / 300_000)}`, 300_000, () =>
-        fetchKlines(net, { symbol: s, interval: "1d", limit: 2 }),
+      cached(`ago24:${s}:${Math.floor(Date.now() / 300_000)}`, 300_000, () =>
+        fetchKlines(net, { symbol: s, interval: "1h", limit: 25 }),
       ),
     ),
   );
   const out: Record<string, number> = {};
   results.forEach((r, i) => {
     if (r.status !== "fulfilled") return;
-    const closed = r.value.filter((b) => b.t + DAY_MS <= Date.now());
-    const last = closed[closed.length - 1];
-    if (last) out[symbols[i]!] = last.c;
+    // The oldest of 25 hourly bars, which is the price a day ago. Twenty-five
+    // and not twenty-four because the newest bar is the hour in progress.
+    const first = r.value.find((b) => b.c > 0);
+    if (first) out[symbols[i]!] = first.c;
   });
   return out;
 }

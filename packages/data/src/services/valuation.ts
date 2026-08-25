@@ -13,7 +13,7 @@ import { fetchKlinesRange, fetchPricesSafe } from "../sources/binance";
 import { makeEquitySource } from "../sources/equity";
 import { fetchEcbRates } from "../sources/fx";
 import { getPortfolio } from "./portfolios";
-import { displayContext, displayContextAt, fetchCryptoPrevCloses, fetchEquityPricesUsd } from "./pricing";
+import { displayContext, displayContextAt, fetchCrypto24hAgo, fetchEquityPricesUsd } from "./pricing";
 
 const DAY_MS = 86_400_000;
 
@@ -97,17 +97,17 @@ export async function valuation(store: Store, net: Net, id: string): Promise<Val
   // the rename is pending, and Binance only knows the pair.
   const pairOf = new Map(cryptoSymbols.map((s) => [s, pricingPair(s)]));
 
-  const [cryptoPrices, equityPrices, cryptoPrev] = await Promise.all([
+  const [cryptoPrices, equityPrices, cryptoDayAgo] = await Promise.all([
     fetchPricesSafe(net, [...pairOf.values()]),
     fetchEquityPricesUsd(net, heldEquities, equityProvider, equityApiKey),
-    fetchCryptoPrevCloses(net, [...pairOf.values()]),
+    fetchCrypto24hAgo(net, [...pairOf.values()]),
   ]);
   const prices: Record<string, number> = {};
   const prevCloses: Record<string, number> = {};
   for (const [symbol, pair] of pairOf) {
     const usd = cryptoPrices[pair];
     if (usd !== undefined) prices[symbol] = usd * toDisplay;
-    const prev = cryptoPrev[pair];
+    const prev = cryptoDayAgo[pair];
     if (prev !== undefined) prevCloses[symbol] = prev * toDisplay;
   }
   for (const [sym, q] of Object.entries(equityPrices)) {
@@ -134,8 +134,14 @@ export async function valuation(store: Store, net: Net, id: string): Promise<Val
     };
   });
 
-  // Day change covers only holdings with a previous close; its base is their
+  // Day change covers only holdings with a comparison price; its base is their
   // value alone, so the percentage is not diluted by unpriced assets.
+  //
+  // The aggregate deliberately blends two bases: a rolling 24 hours for coins,
+  // the previous session close for shares. They cannot be reconciled — a
+  // market that shuts has no price a day ago — and no screen renders this
+  // total today, so nothing currently labels it. Anything that starts to must
+  // say which window it means, or say that it means both.
   const all = [...valued, ...cashHoldings];
   const withDay = valued.filter((h) => h.dayChange !== null && h.quantity > 0);
   const dayAbs = sum(withDay.map((h) => h.dayChange!.abs));
