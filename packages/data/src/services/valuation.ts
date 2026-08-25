@@ -5,6 +5,7 @@ import { toDisplayTxs } from "@/core/display-tx";
 import { currencyForTicker } from "@/core/equity";
 import { rateOn } from "@/core/fx";
 import { flowsByYear, realisedByYear, tradeStats, type TradeStats } from "@/core/insights";
+import { roundTrips, tripStats, type TripStats } from "@/core/round-trips";
 import { computeHoldings, valueHoldings, type ValuedHolding } from "@/core/portfolio";
 import { pricingPair } from "@/core/symbols";
 import type { Net } from "../ports/net";
@@ -379,6 +380,12 @@ export type Insights = {
   byYear: { year: number; net: number }[];
   /** Profit actually taken per year, average-cost basis. */
   realisedByYear: { year: number; realised: number }[];
+  /**
+   * Closed trades, matched FIFO so each one has a holding period. Never
+   * totalled — the app states one realised figure and it is the average-cost
+   * one. See `packages/core/src/round-trips.ts`.
+   */
+  trips: TripStats;
 };
 
 /**
@@ -411,5 +418,6 @@ export async function insights(store: Store, net: Net, id: string): Promise<Insi
     stats: tradeStats(txs),
     byYear: flowsByYear(txs),
     realisedByYear: realisedByYear(txs),
+    trips: tripStats(roundTrips(txs)),
   };
 }
