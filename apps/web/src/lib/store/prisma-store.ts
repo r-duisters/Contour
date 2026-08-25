@@ -44,6 +44,7 @@ function toTransaction(row: PrismaTransaction): Transaction {
     nativeCurrency: row.nativeCurrency,
     nativePrice: row.nativePrice,
     nativeFee: row.nativeFee,
+    sourceSymbol: row.sourceSymbol,
     note: row.note,
   };
 }
@@ -60,6 +61,7 @@ function toCreateData(tx: NewTransaction): Omit<Prisma.TransactionCreateManyInpu
     nativeCurrency: tx.nativeCurrency,
     nativePrice: tx.nativePrice,
     nativeFee: tx.nativeFee,
+    sourceSymbol: tx.sourceSymbol ?? null,
     note: tx.note,
   };
 }
@@ -78,6 +80,7 @@ function toUpdateData(patch: TransactionPatch): Prisma.TransactionUpdateInput {
     nativeCurrency: patch.nativeCurrency,
     nativePrice: patch.nativePrice,
     nativeFee: patch.nativeFee,
+    sourceSymbol: patch.sourceSymbol,
     note: patch.note,
   };
 }

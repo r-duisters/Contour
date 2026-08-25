@@ -66,7 +66,18 @@ export function MemoryStore(seed?: StoreSeed): Store {
 
   function insert(portfolioId: string, tx: NewTransaction & { id?: string }): Transaction {
     const { id, ...rest } = tx;
-    const row: Transaction = { ...rest, id: id ?? nextId("tx"), portfolioId };
+    // `sourceSymbol` is optional on the way in and required on the way out —
+    // see the note on NewTransaction. Defaulting it here is what makes the two
+    // stores agree, and the contract case is what proves they do.
+    const row: Transaction = {
+      ...rest,
+      // Explicit rather than a default in the spread: a caller passing
+      // `sourceSymbol: undefined` would otherwise overwrite the default with
+      // undefined, and the row would read back as neither a string nor null.
+      sourceSymbol: rest.sourceSymbol ?? null,
+      id: id ?? nextId("tx"),
+      portfolioId,
+    };
     transactions.set(row.id, row);
     return row;
   }

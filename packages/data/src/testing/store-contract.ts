@@ -30,6 +30,7 @@ export function runStoreContract(name: string, makeStore: () => Promise<Store>):
         nativeCurrency: null,
         nativePrice: null,
         nativeFee: null,
+        sourceSymbol: null,
         note: null,
         ...partial,
       };
@@ -231,6 +232,30 @@ export function runStoreContract(name: string, makeStore: () => Promise<Store>):
       expect(added).toMatchObject({ nativeCurrency: "EUR", nativePrice: 27_500.5, nativeFee: 4.25 });
       const loaded = (await store.portfolios.get(p.id))!.transactions[0]!;
       expect(loaded).toMatchObject({ nativeCurrency: "EUR", nativePrice: 27_500.5, nativeFee: 4.25 });
+    });
+
+    it("round-trips an income row with its source security", async () => {
+      const p = await store.portfolios.create("Main");
+      const added = await store.transactions.add(p.id, tx({
+        symbol: "EUR", assetType: "cash", side: "income", quantity: 120,
+        price: 0, fee: 0, nativeCurrency: "EUR", nativePrice: 1,
+        sourceSymbol: "SHELL.AS",
+      }));
+      expect(added.side).toBe("income");
+      expect(added.sourceSymbol).toBe("SHELL.AS");
+      const back = await store.portfolios.get(p.id);
+      expect(back!.transactions[0]!.sourceSymbol).toBe("SHELL.AS");
+    });
+
+    it("keeps sourceSymbol null where there is none", async () => {
+      // Bank interest is not paid by anything.
+      const p = await store.portfolios.create("Main");
+      const added = await store.transactions.add(p.id, tx({
+        symbol: "EUR", assetType: "cash", side: "income", quantity: 4.5,
+        price: 0, fee: 0, nativeCurrency: "EUR", nativePrice: 1,
+        sourceSymbol: null, note: "bank interest",
+      }));
+      expect(added.sourceSymbol).toBeNull();
     });
 
     it("treats an explicit undefined in a patch as leave-alone, not set-null", async () => {

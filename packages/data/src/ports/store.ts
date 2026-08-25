@@ -14,6 +14,9 @@ export type AssetType = "crypto" | "equity" | "cash";
  * declarations because the port does not depend on the maths, and they must
  * not drift: a side the store can hold but the maths cannot read is a row
  * nothing can value.
+ *
+ * `income` is cash credited against a security — a dividend, bank interest, a
+ * fiat staking payout. It never moves a position; see `sourceSymbol` below.
  */
 export type Side = "buy" | "sell" | "transfer_in" | "transfer_out" | "income";
 
@@ -35,6 +38,14 @@ export type Transaction = {
   nativeCurrency: string | null;
   nativePrice: number | null;
   nativeFee: number | null;
+  /**
+   * The security an income row is attributed to. A dividend is cash credited
+   * against `SHELL.AS`; the position does not move, which is why this is a
+   * separate field rather than the row's `symbol` — the row's symbol is the
+   * currency the money arrived in. Null for every other side, and for income
+   * with no source: bank interest is not paid by anything.
+   */
+  sourceSymbol: string | null;
   note: string | null;
 };
 
@@ -64,7 +75,14 @@ export type Settings = {
   mqttTopicPrefix: string | null;
 };
 
-export type NewTransaction = Omit<Transaction, "id" | "portfolioId">;
+/**
+ * `sourceSymbol` is optional here but required on `Transaction`: a reader
+ * always gets the field (null or not), while a writer only mentions it when
+ * there is one, which is a handful of income rows out of hundreds. Every other
+ * nullable field predates it and is spelled out by every caller already.
+ */
+export type NewTransaction =
+  Omit<Transaction, "id" | "portfolioId" | "sourceSymbol"> & { sourceSymbol?: string | null };
 export type TransactionPatch = Partial<NewTransaction>;
 export type SettingsPatch = Partial<Settings>;
 

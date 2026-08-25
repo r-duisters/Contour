@@ -65,8 +65,8 @@ model Transaction {
   portfolioId String
   portfolio   Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
   symbol      String    // Binance pair (BTCUSDT) for crypto, exchange ticker (ASML.AS) for equities
-  assetType   String    @default("crypto") // "crypto" | "equity"
-  side        String    // "buy" | "sell" | "transfer_in" | "transfer_out"
+  assetType   String    @default("crypto") // "crypto" | "equity" | "cash"
+  side        String    // "buy" | "sell" | "transfer_in" | "transfer_out" | "income"
   quantity    Float
   price       Float     // quote units per base unit; for transfers this is the cost-basis price
   fee         Float     @default(0) // in quote units
@@ -75,6 +75,10 @@ model Transaction {
   nativeCurrency String?
   nativePrice    Float?
   nativeFee      Float?
+  /// The security an income row is attributed to — a Shell dividend is EUR
+  /// credited against SHELL.AS, and the share count does not move. Null for
+  /// income with no source (bank interest) and for every other side.
+  sourceSymbol String?
   time        BigInt    // ms timestamp
   note        String?
   createdAt   DateTime  @default(now())
