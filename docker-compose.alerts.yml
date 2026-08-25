@@ -1,0 +1,32 @@
+# The alert scheduler.
+#
+# Contour's evaluator is a route, not a daemon: `GET /api/cron/evaluate` is
+# stateless and idempotent, and something has to call it. Nothing did, which
+# is one of the two reasons this app had never delivered an alert.
+#
+#   docker compose -f docker-compose.alerts.yml up -d
+#   docker compose -f docker-compose.alerts.yml logs -f
+#
+# It schedules only. The app keeps running however it already runs, and its
+# database is untouched by this container — which is the point of it being
+# separate: the thing holding a year of transactions should not be restarted
+# to change a timer.
+services:
+  alerts:
+    build: ./docker/alerts
+    container_name: contour-alerts
+    restart: unless-stopped
+    environment:
+      # From inside the container, `localhost` is the container. This name
+      # resolves to the host, via the extra_hosts entry below.
+      CONTOUR_URL: "${CONTOUR_URL:-http://host.docker.internal:3001}"
+      # Read from apps/web/.env — never written into this file, which is
+      # tracked in git.
+      CRON_SECRET: "${CRON_SECRET:?set CRON_SECRET in .env beside this file}"
+      INTERVAL_SECONDS: "${INTERVAL_SECONDS:-900}"
+    extra_hosts:
+      # Docker Desktop provides this name; on Linux it has to be asked for.
+      - "host.docker.internal:host-gateway"
+    logging:
+      driver: json-file
+      options: { max-size: "1m", max-file: "3" }

@@ -202,9 +202,24 @@ async function evalPctMove(a: Alert, notifiers: Notifier[]): Promise<Summary> {
   return { alertId: a.id, fired, skipped };
 }
 
+/**
+ * The crypto a portfolio holds, for a rule that names no symbol of its own.
+ *
+ * Cash is excluded, and that is not tidiness. A EUR balance is a positive
+ * quantity under the symbol `EUR`, which `pricingPair` turns into `EURUSDT` —
+ * a real Binance market. A portfolio-wide swing rule would then page its owner
+ * about the euro as though it were a holding.
+ *
+ * Equities are excluded too, though they need no filter to be: `pricingPair`
+ * makes `ASML.AS` into `ASML.ASUSDT`, which Binance rejects, so they are
+ * dropped by the price lookup instead. Silently — which is #19, and why an
+ * equity alert cannot fire today.
+ */
 async function heldSymbols(portfolioId: string | null): Promise<string[]> {
   if (!portfolioId) return [];
-  const rows = await prisma.transaction.findMany({ where: { portfolioId } });
+  const rows = await prisma.transaction.findMany({
+    where: { portfolioId, assetType: { not: "cash" } },
+  });
   const txs: Tx[] = rows.map((t) => ({
     symbol: t.symbol,
     side: t.side as TxSide,
