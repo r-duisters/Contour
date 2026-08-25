@@ -18,6 +18,7 @@ import { useDataClient } from "@/data/client/context";
 import {
   marketMoney, money as fmtMoney, percent, quantity, setDisplayCurrency,
 } from "@/lib/display";
+import { changeFromPct } from "@/lib/change";
 import { assetName } from "@/lib/asset-names";
 import { annotateTransactions } from "@/lib/portfolio";
 import { useFitChart } from "@/components/useFitChart";
@@ -253,6 +254,11 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
     ? (shownHolding.unrealizedPnl / shownHolding.costBasis) * 100
     : null;
 
+  // The period's price move expressed in money, using what is held here. Null
+  // when nothing is held or nothing is priced, which is the state this page is
+  // in whenever it is reached from Markets rather than from the portfolio.
+  const rangeMoney = changeFromPct(shownHolding?.value ?? null, changePct);
+
   return (
     <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-3 py-4 md:p-8 max-w-4xl mx-auto">
       <Link href="/portfolio" className="text-xs text-neutral-400 inline-flex items-center gap-1 mb-4">
@@ -286,7 +292,12 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
             <div className="text-xl font-medium">{money(shownHolding.value)}</div>
             {shownHolding.dayChange && (
               <div className={`text-xs ${shownHolding.dayChange.pct >= 0 ? "text-green-500" : "text-red-500"}`}>
-                {shownHolding.dayChange.pct >= 0 ? "+" : ""}{shownHolding.dayChange.pct.toFixed(2)}% today
+                {shownHolding.dayChange.pct >= 0 ? "+" : ""}{shownHolding.dayChange.pct.toFixed(2)}%
+                {" "}
+                <span className="tabular-nums">
+                  {shownHolding.dayChange.abs >= 0 ? "+" : ""}{money(shownHolding.dayChange.abs)}
+                </span>
+                {" today"}
               </div>
             )}
           </div>
@@ -338,6 +349,14 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
         {changePct !== null && (
           <span className={`text-sm ${changePct >= 0 ? "text-green-500" : "text-red-500"}`}>
             {changePct >= 0 ? "+" : ""}{changePct.toFixed(2)}%
+            {/* What that price move is worth on the position. Absent when
+                nothing is held here — this page renders for assets reached
+                from Markets, where there is no quantity to apply it to. */}
+            {rangeMoney !== null && (
+              <> <span className="tabular-nums">
+                {rangeMoney >= 0 ? "+" : ""}{money(rangeMoney)}
+              </span></>
+            )}
             <span className="text-neutral-500 text-xs"> price, {rangeLabel(range)}</span>
           </span>
         )}

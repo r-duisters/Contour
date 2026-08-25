@@ -11,6 +11,7 @@ import CoinIcon from "@/components/CoinIcon";
 import PageLabel from "@/components/PageLabel";
 import { useDataClient } from "@/data/client/context";
 import { money, quantity, setDisplayCurrency } from "@/lib/display";
+import { changeFromPct } from "@/lib/change";
 import { useStoredRange } from "@/components/useStoredRange";
 import { KEYS } from "@/lib/storage-keys";
 import dynamic from "next/dynamic";
@@ -359,6 +360,7 @@ export default function PortfolioPage() {
                 {visibleHoldings.map((h) => {
                   const share = totalValue > 0 && h.value !== null ? (h.value / totalValue) * 100 : null;
                   const periodChange = assetChanges[h.symbol];
+                  const periodMoney = changeFromPct(h.value, periodChange ?? null);
                   const isCash = h.assetType === "cash";
                   const inner = (
                     <>
@@ -391,6 +393,14 @@ export default function PortfolioPage() {
                             {periodChange !== undefined ? (
                               <span className={periodChange >= 0 ? "text-green-500" : "text-red-500"}>
                                 {periodChange >= 0 ? "+" : ""}{periodChange.toFixed(1)}%
+                                {/* What that move is worth on this holding. Absent
+                                    where there is no value to apply it to, rather
+                                    than shown as a misleading zero. */}
+                                {periodMoney !== null && (
+                                  <> <span className="tabular-nums">
+                                    {periodMoney >= 0 ? "+" : ""}{fmtUsd(periodMoney)}
+                                  </span></>
+                                )}
                               </span>
                             ) : h.price === null ? (
                               <span className={h.quantity > 0 ? "text-amber-500" : "text-neutral-500"}>
