@@ -297,7 +297,11 @@ export default function SymbolPage({ params }: { params: Promise<{ symbol: strin
                 <span className="tabular-nums">
                   {shownHolding.dayChange.abs >= 0 ? "+" : ""}{money(shownHolding.dayChange.abs)}
                 </span>
-                {" today"}
+                {/* A coin's day is a rolling 24 hours and matches the chart's
+                    own 1D figure. A share's day is the session before this
+                    one, because its market was shut for most of the last
+                    twenty-four hours. The label follows the measurement. */}
+                {shownHolding.assetType === "equity" ? " today" : " 24h"}
               </div>
             )}
           </div>
