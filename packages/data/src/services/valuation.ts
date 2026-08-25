@@ -39,6 +39,12 @@ export type CashRow = {
   costBasis: number;
   realizedPnl: number;
   fees: number;
+  /**
+   * Always zero. Cash is money waiting, not money invested — and the ranking
+   * that reads this field excludes cash anyway. Present so the row still
+   * satisfies `Holding`.
+   */
+  invested: number;
   price: number;
   value: number;
   unrealizedPnl: number;
@@ -230,6 +236,7 @@ async function valueCash(
         avgCost: 1,
         costBasis: value,
         realizedPnl: 0,
+        invested: 0,
         fees: 0,
         price: cashRates.get(cur)!,
         value,
