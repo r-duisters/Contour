@@ -14,32 +14,42 @@ healthcare company and a crypto-forex platform.
 
 Write it **Contour**. Never "Contour App", never a tagline.
 
-The mark is a summit drawn as its own level curves: two nested contour lines
-around a peak, the outer in white at 35% opacity and the inner in the accent
-blue (`#3b82f6`). The curves are level curves — what the name means — and the
-blue sits on the summit so the brand colour lands on the subject rather than
-the container.
+The mark is a rising line over a contour: a green trend line (`#22c55e`)
+climbing left to right and turning up at an arrowhead, drawn over the quiet
+white outline of a summit. The line is the subject and carries the colour; the
+outline behind it is the name — a level curve, which is what the word means.
 
 Four details are load-bearing, each of them a failure found by drawing it:
 
-- **The outer curve stays quiet.** The app frames the mark in a circle twice —
+- **The outline stays quiet.** The app frames the mark in a circle twice —
   the unlock disc in `BiometricLock`, and Android's adaptive mask, which most
-  launchers render round and which cannot be overridden. A curve at that
+  launchers render round and which cannot be overridden. An outline at that
   frame's weight and brightness competes with it and reads as a misalignment;
-  a dim hairline is clearly subordinate, so the nesting reads as deliberate.
+  clearly subordinate, and the nesting reads as deliberate instead.
   **Weight and contrast decide this, not whether the shape is closed** — an
   earlier version of this rule banned closed containers outright and was
   wrong.
-- **White at 35%, not a flat grey.** The outer curve blends with whatever sits
-  behind it; the login card is translucent over an animated backdrop.
-- **The blue is on the summit.** Putting it on the outer frame makes the frame
-  the loudest thing in the mark.
-- **It rises.** The summit points up; a descending or inverted mark reads as a
-  loss whatever the colour.
+- **White at 32%, not a flat grey.** The outline blends with whatever sits
+  behind it; the login card is translucent over an animated backdrop. It sits
+  just under the trend line's weight (22 against 24) and well under its
+  brightness: one drawing in two voices, not two drawings sharing a frame.
+- **The line is heavy, and therefore rounded.** The mark before this one drew
+  at 14 units of a 512 viewBox — two thirds of a pixel on a 24px tab-bar icon,
+  where it survived on colour rather than shape. At 24 units it survives on
+  shape. A thick polyline with sharp vertices forms wedges where its segments
+  meet, so the two interior corners are curved; the weight then reads as
+  confidence rather than clumsiness.
+- **It rises.** The line climbs and the arrow points up. A descending or
+  inverted mark reads as a loss whatever the colour.
 
-**Green, amber and red are unavailable to the mark.** They mean gain, degraded
-data and loss everywhere else in the app; a permanently green logo asserts
-"up" as a brand claim, and an amber one collides with the warning state.
+**Green is the mark's, and green is the only one it may have.** The rule here
+used to reserve green, amber and red from the mark entirely, on the grounds
+that a permanently green logo asserts "up" as a brand claim while the screen
+under it may be reporting a loss. That cost is real, it was looked at
+directly — the mark beside a red figure — and it was accepted on 2026-08-25:
+this is a trading app, and the rising green arrow is what makes it legible as
+one at a glance. Amber and red stay unavailable. Amber collides with the
+warning state, and red would read as exactly the loss it sat next to.
 
 The mark lives in two places that must stay in step: `ContourMark.tsx` for the
 screen, and `scripts/generate-icons.mjs` for every icon file. Change one and run
@@ -159,8 +169,8 @@ as issue #12 and is a palette, not a ground.
 | Secondary text | `text-neutral-400` |
 | Label, caption — the workhorse | `text-neutral-500` |
 | Footnote | `text-neutral-600` |
-| Action, accent, the mark, "you" on a chart | `#3b82f6` — `bg-blue-600` for buttons, `text-blue-500` for active |
-| Gain | `text-green-500` (`#22c55e`) |
+| Action, accent, "you" on a chart | `#3b82f6` — `bg-blue-600` for buttons, `text-blue-500` for active |
+| Gain, and the mark | `text-green-500` (`#22c55e`) |
 | Loss | `text-red-500` (`#ef4444`) |
 | Warning, degraded data | `text-amber-500` |
 | Benchmark, "them" on a chart | `#eab308` |
