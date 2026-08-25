@@ -4,7 +4,7 @@ import { cashBalances } from "@/core/cash";
 import { toDisplayTxs } from "@/core/display-tx";
 import { currencyForTicker } from "@/core/equity";
 import { rateOn } from "@/core/fx";
-import { flowsByYear, tradeStats, type TradeStats } from "@/core/insights";
+import { flowsByYear, realisedByYear, tradeStats, type TradeStats } from "@/core/insights";
 import { computeHoldings, valueHoldings, type ValuedHolding } from "@/core/portfolio";
 import { pricingPair } from "@/core/symbols";
 import type { Net } from "../ports/net";
@@ -368,7 +368,10 @@ function sum(xs: number[]): number {
 export type Insights = {
   currency: "USD" | "EUR";
   stats: TradeStats;
+  /** Money in and out per year. Not profit — see `realisedByYear`. */
   byYear: { year: number; net: number }[];
+  /** Profit actually taken per year, average-cost basis. */
+  realisedByYear: { year: number; realised: number }[];
 };
 
 /**
@@ -400,5 +403,6 @@ export async function insights(store: Store, net: Net, id: string): Promise<Insi
     currency: displayUsd > 0 ? currency : "USD",
     stats: tradeStats(txs),
     byYear: flowsByYear(txs),
+    realisedByYear: realisedByYear(txs),
   };
 }

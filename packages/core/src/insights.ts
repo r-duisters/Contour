@@ -1,4 +1,4 @@
-import type { Tx, ValuedHolding } from "./portfolio";
+import { annotateTransactions, type Tx, type ValuedHolding } from "./portfolio";
 
 export type TradeStats = {
   trades: number;
@@ -63,6 +63,43 @@ export function flowsByYear(txs: Tx[]): { year: number; net: number }[] {
     perYear.set(y, (perYear.get(y) ?? 0) + flow);
   }
   return [...perYear.entries()].sort((a, b) => a[0] - b[0]).map(([y, net]) => ({ year: y, net }));
+}
+
+/**
+ * Profit actually taken, per calendar year.
+ *
+ * Distinct from `flowsByYear` above, and the distinction is the point: that
+ * one is money moving *in and out*, this one is money *made*. A year of heavy
+ * buying and a year of heavy selling both show large flows, and neither tells
+ * you whether the year went well.
+ *
+ * Each asset is replayed on its own through `annotateTransactions`, because
+ * average cost is per-asset — pooling the ledger would value an ETH sale
+ * against a basis that included bitcoin. The per-sale figure is that
+ * function's `realized`, which nets the sale's own fee and is null for
+ * anything that is not a disposal.
+ *
+ * Years with no sale are absent rather than zero. A year of accumulation
+ * realised nothing, and a row of €0 reads like a flat year rather than a quiet
+ * one. A caller drawing a chart across a span can fill the gaps; a caller
+ * listing them should not have to explain the noughts.
+ *
+ * Under average cost, and it matters: the same ledger read FIFO allocates
+ * profit to different years. Whatever renders this has to say which convention
+ * produced it — see #47.
+ */
+export function realisedByYear(txs: Tx[]): { year: number; realised: number }[] {
+  const perYear = new Map<number, number>();
+  for (const symbol of new Set(txs.map((t) => t.symbol))) {
+    for (const row of annotateTransactions(txs.filter((t) => t.symbol === symbol))) {
+      if (row.realized === null) continue;
+      const y = new Date(row.time).getUTCFullYear();
+      perYear.set(y, (perYear.get(y) ?? 0) + row.realized);
+    }
+  }
+  return [...perYear.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([year, realised]) => ({ year, realised }));
 }
 
 export type Concentration = {
