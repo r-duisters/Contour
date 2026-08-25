@@ -66,23 +66,30 @@ addEventListener("alertCheck", async (resolve, reject) => {
 
     // The price a rolling 24 hours ago, for the percentage rules.
     //
-    // Twenty-five hourly bars, oldest first — twenty-five and not twenty-four
-    // because the newest is the hour in progress. This is the same window the
-    // app's own figures use (`fetchCrypto24hAgo` in the services), so an alert
-    // and the percentage on screen cannot disagree. It used to read the last
-    // finished *daily* bar, which measured "since 00:00 UTC" — a window nine
-    // hours long at breakfast and twenty-three at bedtime.
+    // One request for every symbol, from Binance's own rolling window:
+    // `openPrice` is the price exactly 24 hours ago, to the second. This used
+    // to read 25 hourly bars per symbol and take the oldest close, which is
+    // hour-aligned — so the window ran 24 to 25 hours and read 0.58 points
+    // differently on ETHUSDT at 12:35 UTC on 2026-08-25. It is also one
+    // request instead of one per symbol, at ~293 bytes each against 4,439,
+    // which is the difference between a phone check costing kilobytes and
+    // costing a hundred of them.
     //
-    // The duplication is unavoidable: this runtime has no DOM, no imports and
-    // no access to the app's code. Change one, change the other.
+    // `fetchDailyStats` in packages/data/src/sources/binance.ts is the same
+    // call. The duplication is unavoidable — this runtime has no DOM, no
+    // imports and no access to the app's code. Change one, change the other.
     const dayAgo = {};
-    for (const rule of rules) {
-      if (rule.kind !== "pct_move" || dayAgo[rule.symbol] !== undefined) continue;
-      const bars = await fetch(
-        `${BINANCE}/klines?symbol=${rule.symbol}&interval=1h&limit=25`,
+    const pctSymbols = [...new Set(
+      rules.filter((r) => r.kind === "pct_move").map((r) => r.symbol).filter(Boolean),
+    )];
+    if (pctSymbols.length) {
+      const stats = await fetch(
+        `${BINANCE}/ticker/24hr?symbols=${encodeURIComponent(JSON.stringify(pctSymbols))}&type=MINI`,
       ).then((r) => (r.ok ? r.json() : []));
-      const oldest = bars.length ? bars[0] : null;
-      if (oldest && Number(oldest[4]) > 0) dayAgo[rule.symbol] = Number(oldest[4]);
+      for (const row of stats) {
+        const open = Number(row.openPrice);
+        if (open > 0) dayAgo[row.symbol] = open;
+      }
     }
 
     const sent = readJson("alertsSent", {});

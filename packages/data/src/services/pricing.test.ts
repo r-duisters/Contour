@@ -143,60 +143,62 @@ describe("displayContextAt", () => {
 });
 
 describe("fetchCrypto24hAgo", () => {
-  // Twenty-five hourly klines: the oldest is a day ago, the newest is the hour
-  // in progress. Only index 0 (open time) and 4 (close) are read.
-  const hourly = (closes: number[]) =>
-    closes.map((c, i) => [1_700_000_000_000 + i * 3_600_000, "0", "0", "0", String(c), "0"]);
+  const TICKER = "https://api.binance.com/api/v3/ticker/24hr";
 
-  it("reads the price a day ago, not the last daily close", async () => {
+  it("reads Binance's own rolling 24h open", async () => {
     invalidate();
-    const closes = Array.from({ length: 25 }, (_, i) => 100 + i);
-    const net = FakeNet({ "https://api.binance.com/api/v3/klines": hourly(closes) });
+    const net = FakeNet({
+      [TICKER]: [{ symbol: "ETHUSDT", openPrice: "2497.70", lastPrice: "2470.53" }],
+    });
 
-    const out = await fetchCrypto24hAgo(net, ["ETHUSDT"]);
-
-    // The oldest of the 25 bars. A daily-close basis would have answered
-    // something else entirely, which is the bug this replaced.
-    expect(out["ETHUSDT"]).toBe(100);
+    // Was 25 hourly klines and the oldest bar's close — hour-aligned, so the
+    // window ran 24 to 25 hours. 0.58 points adrift on this pair at 12:35 UTC
+    // on 2026-08-25.
+    expect((await fetchCrypto24hAgo(net, ["ETHUSDT"]))["ETHUSDT"]).toBe(2497.7);
   });
 
-  it("asks for hourly bars, which is what makes the window roll", async () => {
+  it("prices every symbol in one request", async () => {
     invalidate();
-    const net = FakeNet({ "https://api.binance.com/api/v3/klines": hourly([1, 2, 3]) });
+    const net = FakeNet({ [TICKER]: [] });
 
-    await fetchCrypto24hAgo(net, ["BTCUSDT"]);
+    await fetchCrypto24hAgo(net, ["BTCUSDT", "ETHUSDT", "ADAUSDT"]);
 
-    const url = net.calls[0]!.url;
-    expect(url).toContain("interval=1h");
-    expect(url).toContain("limit=25");
+    // One request for three symbols, where the klines basis made three.
+    expect(net.calls).toHaveLength(1);
+    expect(net.calls[0]!.url).toContain("type=MINI");
   });
 
-  it("skips a bar with no price rather than reporting zero", async () => {
+  it("omits a symbol whose open is zero rather than reporting it", async () => {
     invalidate();
-    const net = FakeNet({ "https://api.binance.com/api/v3/klines": hourly([0, 0, 42, 43]) });
+    const net = FakeNet({
+      [TICKER]: [
+        { symbol: "DEADUSDT", openPrice: "0", lastPrice: "0" },
+        { symbol: "ADAUSDT", openPrice: "42", lastPrice: "43" },
+      ],
+    });
 
-    expect((await fetchCrypto24hAgo(net, ["ADAUSDT"]))["ADAUSDT"]).toBe(42);
+    const out = await fetchCrypto24hAgo(net, ["DEADUSDT", "ADAUSDT"]);
+    expect(out["DEADUSDT"]).toBeUndefined();
+    expect(out["ADAUSDT"]).toBe(42);
   });
 
   it("omits a symbol it could not price, leaving the caller to show no change", async () => {
     invalidate();
-    const net = FakeNet({ "https://api.binance.com/api/v3/klines": rejectWith("down") });
-
+    const net = FakeNet({ [TICKER]: rejectWith("down") });
+    // Tolerant, like `fetchPricesSafe`: an unreachable feed costs the figure,
+    // never the screen. A throw here would take the whole valuation down.
     expect(await fetchCrypto24hAgo(net, ["XRPUSDT"])).toEqual({});
   });
 
-  it("agrees with what the chart's own 1D figure is computed from", async () => {
-    // The point of the change: both now read the same 25 hourly bars, so the
-    // header and the chart cannot disagree the way they did before.
+  it("agrees with the window the chart's own 1D figure uses", async () => {
+    // The point of the change: header and chart read the same rolling window
+    // from the same request, so they cannot drift apart.
     invalidate();
-    const closes = Array.from({ length: 25 }, (_, i) => 2_400 + i * 4);
-    const net = FakeNet({ "https://api.binance.com/api/v3/klines": hourly(closes) });
+    const net = FakeNet({
+      [TICKER]: [{ symbol: "ETHUSDT", openPrice: "2400", lastPrice: "2496" }],
+    });
 
-    const dayAgo = (await fetchCrypto24hAgo(net, ["ETHUSDT"]))["ETHUSDT"]!;
-    const live = closes[closes.length - 1]!;
-    const headerPct = ((live - dayAgo) / dayAgo) * 100;
-    const chartPct = ((closes[closes.length - 1]! - closes[0]!) / closes[0]!) * 100;
-
-    expect(headerPct).toBeCloseTo(chartPct, 10);
+    const open = (await fetchCrypto24hAgo(net, ["ETHUSDT"]))["ETHUSDT"]!;
+    expect(((2496 - open) / open) * 100).toBeCloseTo(4, 10);
   });
 });

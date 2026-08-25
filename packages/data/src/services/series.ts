@@ -13,7 +13,7 @@ import type { Bar } from "@/core/types";
 import type { Net } from "../ports/net";
 import type { Store, Transaction } from "../ports/store";
 import { pricingPair } from "@/core/symbols";
-import { fetchKlines, fetchKlinesRange } from "../sources/binance";
+import { fetchKlines, fetchKlinesRange, fetchDailyStats } from "../sources/binance";
 import { makeEquitySource } from "../sources/equity";
 import { fetchEcbRates } from "../sources/fx";
 import { getPortfolio } from "./portfolios";
@@ -286,8 +286,21 @@ export async function changes(
   const source = makeEquitySource(net, settings.equityProvider, settings.equityApiKey);
   const years = Math.max(1, Math.min(10, Math.ceil((Date.now() - from) / (365 * DAY_MS))));
 
+  // A day's change for coins comes from one batched request against Binance's
+  // own rolling window, for the same reason the header and the chart use it:
+  // an hour-aligned basis measures 24 to 25 hours, and these percentages sit
+  // beside the ones that do not. It is also one request for every holding
+  // instead of one each.
+  const dayStats = range === "1d"
+    ? await fetchDailyStats(net, symbols.filter((sy) => !equity.has(sy)).map(pricingPair))
+    : {};
+
   const results = await Promise.allSettled(
     symbols.map(async (symbol): Promise<[string, number] | null> => {
+      if (range === "1d" && !equity.has(symbol)) {
+        const stat = dayStats[pricingPair(symbol)];
+        return stat ? [symbol, ((stat.last - stat.open24h) / stat.open24h) * 100] : null;
+      }
       const closes = await cached(
         `chg:${symbol}:${range}:${Math.floor(Date.now() / 900_000)}`,
         900_000,
@@ -301,11 +314,9 @@ export async function changes(
             );
             return rows.filter((r) => r.t >= from).map((r) => r.c);
           }
+          // Crypto at "1d" never reaches here — it is answered above from the
+          // batched rolling window.
           const pair = pricingPair(symbol);
-          if (range === "1d") {
-            const bars = await fetchKlines(net, { symbol: pair, interval: "1h", limit: 25 });
-            return bars.map((b) => b.c);
-          }
           const bars = await fetchKlinesRange(net, {
             symbol: pair, interval: "1d", from, to: Date.now(),
           });
@@ -541,6 +552,23 @@ export async function history(
         return raw.filter((b) => b.t >= from).map((b) => ({ t: b.t, c: b.c }));
       },
     );
+
+    // A day's percentage comes from Binance's own rolling window, not from the
+    // bars. The oldest of 25 hourly bars closes at the top of the hour, so a
+    // figure derived from it covers 24 to 25 hours depending on when it is
+    // asked — 0.58 points adrift on ETHUSDT at 12:35 UTC on 2026-08-25. The
+    // bars still draw the line; only the number moved.
+    //
+    // It matters that this is the same call the header reads: the two figures
+    // sit inches apart on the asset page, and agreeing by coincidence is how
+    // they came to disagree in the first place.
+    if (range === "1d" && assetType === "crypto" && bars.length > 0) {
+      const pair = pricingPair(symbol);
+      const stat = (await fetchDailyStats(net, [pair]))[pair];
+      if (stat) {
+        return { bars, range, changePct: ((stat.last - stat.open24h) / stat.open24h) * 100 };
+      }
+    }
 
     const first = bars.find((b) => b.c > 0)?.c;
     const last = bars[bars.length - 1]?.c;

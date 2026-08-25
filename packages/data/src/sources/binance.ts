@@ -180,6 +180,86 @@ async function fetchPricesSafeUncached(net: Net, symbols: string[]): Promise<Rec
   }
 }
 
+/** What a pair costs now, and what it cost exactly twenty-four hours ago. */
+export type DailyStat = { last: number; open24h: number };
+
+/**
+ * Rolling 24-hour open and last price for named pairs, in one request.
+ *
+ * `openPrice` is Binance's own rolling-window open, accurate to the second.
+ * What this replaced read 25 hourly klines and took the oldest bar's close —
+ * but a bar close is hour-aligned, so that window ran anywhere from 24 to 25
+ * hours depending on when it was asked. Measured on ETHUSDT at 12:35 UTC on
+ * 2026-08-25, the two disagreed by 0.58 percentage points: −1.088% against
+ * −1.672%.
+ *
+ * `type=MINI` drops the fields nobody here reads. Roughly 293 bytes a symbol
+ * against 4,439 for a klines call, and one request instead of one per symbol —
+ * for the twenty-three crypto symbols in the live ledger, 6.7 KB and one
+ * request against 102 KB and twenty-three.
+ *
+ * Distinct from `fetch24hTicker` below, which pulls every spot pair (~1MB) for
+ * the movers board. Asking that for three symbols would be a megabyte to
+ * answer a question worth a kilobyte.
+ *
+ * Cached for five minutes, matching the basis it replaces: the figure moves
+ * slowly and every screen that shows a day change asks for it.
+ */
+export function fetchDailyStats(net: Net, pairs: string[]): Promise<Record<string, DailyStat>> {
+  if (pairs.length === 0) return Promise.resolve({});
+  const symbols = pairs.map((s) => s.toUpperCase());
+  return cached(
+    `daily:${[...symbols].sort().join(",")}:${Math.floor(Date.now() / 300_000)}`,
+    300_000,
+    () => fetchDailyStatsTolerant(net, symbols),
+  );
+}
+
+/**
+ * Tolerant, for the same reason `fetchPricesSafe` is: Binance rejects the
+ * whole request with `{"code":-1121,"msg":"Invalid symbol."}` if one symbol is
+ * unknown to it, and a real ledger carries coins that have since been
+ * delisted. One of those must not cost the others their prices.
+ *
+ * Found by running against the live ledger — every unit test passed with a
+ * fake that answered whatever it was asked.
+ */
+async function fetchDailyStatsTolerant(
+  net: Net,
+  symbols: string[],
+): Promise<Record<string, DailyStat>> {
+  try {
+    return await fetchDailyStatsBatch(net, symbols);
+  } catch {
+    const out: Record<string, DailyStat> = {};
+    const results = await Promise.allSettled(
+      symbols.map((s) => fetchDailyStatsBatch(net, [s])),
+    );
+    for (const r of results) if (r.status === "fulfilled") Object.assign(out, r.value);
+    return out;
+  }
+}
+
+async function fetchDailyStatsBatch(
+  net: Net,
+  symbols: string[],
+): Promise<Record<string, DailyStat>> {
+  const params = new URLSearchParams({ symbols: JSON.stringify(symbols), type: "MINI" });
+  const raw = await net.json<{ symbol: string; openPrice: string; lastPrice: string }[]>(
+    `${REST}/api/v3/ticker/24hr?${params}`,
+  );
+  const out: Record<string, DailyStat> = {};
+  for (const r of raw) {
+    const open24h = Number(r.openPrice);
+    const last = Number(r.lastPrice);
+    // A zero or unparseable open divides by zero downstream. Absent lets the
+    // caller show no change, which is what every price path here does.
+    if (!(open24h > 0) || !Number.isFinite(last)) continue;
+    out[r.symbol] = { last, open24h };
+  }
+  return out;
+}
+
 /** One pair's rolling 24-hour statistics, with Binance's strings coerced to numbers. */
 export type Ticker = {
   symbol: string;

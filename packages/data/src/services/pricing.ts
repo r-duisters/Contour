@@ -5,7 +5,7 @@ import { rateOn } from "@/core/fx";
 import { pricingPair } from "@/core/symbols";
 import type { Net } from "../ports/net";
 import type { Store } from "../ports/store";
-import { fetchKlines, fetchKlinesRange } from "../sources/binance";
+import { fetchKlines, fetchKlinesRange, fetchDailyStats } from "../sources/binance";
 import { makeEquitySource } from "../sources/equity";
 import { fetchEcbRates, fetchLatestEurUsd } from "../sources/fx";
 
@@ -160,15 +160,11 @@ export async function fetchEquityPricesUsd(
 /**
  * What each pair traded at a rolling twenty-four hours ago.
  *
- * This used to be the close of the last *finished daily bar*, which made the
- * day change mean "since 00:00 UTC" — a window that is nine hours long at
- * breakfast and twenty-three at bedtime. The chart's own 1D figure has always
- * measured a rolling day, so the two disagreed on the same screen: ETH read
- * +0.26% by the old basis and +1.04% by the chart's, at 09:17 UTC on
- * 2026-08-25.
- *
- * Both now read the same 25 hourly bars, so they agree by construction rather
- * than by coincidence.
+ * A thin read of `fetchDailyStats`, which asks Binance for its own
+ * rolling-window open rather than reconstructing one. The previous version
+ * read 25 hourly klines per pair and took the oldest bar's close — hour-aligned,
+ * so the window ran 24 to 25 hours, and 0.58 points adrift on ETHUSDT at 12:35
+ * UTC on 2026-08-25.
  *
  * Crypto only, and that is not an oversight. Equities keep the previous
  * session close (`fetchEquityPricesUsd` carries the provider's own figure),
@@ -181,23 +177,8 @@ export async function fetchCrypto24hAgo(
   net: Net,
   symbols: string[],
 ): Promise<Record<string, number>> {
-  if (symbols.length === 0) return {};
-  const results = await Promise.allSettled(
-    symbols.map((s) =>
-      cached(`ago24:${s}:${Math.floor(Date.now() / 300_000)}`, 300_000, () =>
-        fetchKlines(net, { symbol: s, interval: "1h", limit: 25 }),
-      ),
-    ),
-  );
-  const out: Record<string, number> = {};
-  results.forEach((r, i) => {
-    if (r.status !== "fulfilled") return;
-    // The oldest of 25 hourly bars, which is the price a day ago. Twenty-five
-    // and not twenty-four because the newest bar is the hour in progress.
-    const first = r.value.find((b) => b.c > 0);
-    if (first) out[symbols[i]!] = first.c;
-  });
-  return out;
+  const stats = await fetchDailyStats(net, symbols);
+  return Object.fromEntries(Object.entries(stats).map(([pair, s]) => [pair, s.open24h]));
 }
 
 /**
