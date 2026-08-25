@@ -23,16 +23,23 @@ export function evaluatePriceTarget(params: PriceTargetParams, livePrice: number
 }
 
 /**
- * Compare the live price to the previous daily close. Returns the move when its magnitude
- * reaches the threshold, else null. Fires at most once per direction per day via event dedupe.
+ * Compare the live price to what it was a rolling twenty-four hours ago.
+ * Returns the move when its magnitude reaches the threshold, else null. Fires
+ * at most once per direction per day via event dedupe.
+ *
+ * `dayAgo` used to be the previous *daily close*, which measured "since 00:00
+ * UTC" — a window nine hours long at breakfast. The screens moved to a rolling
+ * day on 2026-08-25 and the alerts followed, so an alert reasons about the same
+ * window the app displays. Both now read the same 25 hourly bars; see
+ * `fetchCrypto24hAgo`.
  */
 export function evaluatePctMove(
   params: PctMoveParams,
-  prevClose: number,
+  dayAgo: number,
   livePrice: number,
 ): PctMoveHit | null {
-  if (!(prevClose > 0)) return null;
-  const pct = ((livePrice - prevClose) / prevClose) * 100;
+  if (!(dayAgo > 0)) return null;
+  const pct = ((livePrice - dayAgo) / dayAgo) * 100;
   if (Math.abs(pct) < params.threshold) return null;
   return { direction: pct > 0 ? "up" : "down", pct };
 }
