@@ -68,12 +68,23 @@ function kline(t: number, close: number) {
 }
 
 /** Two daily bars per symbol: yesterday's closed one, and today's in progress. */
-function binanceDailyPair(prevCloses: Record<string, number>, now: number) {
+/**
+ * Binance's batched rolling-24h stats, in the `type=MINI` shape the day change
+ * now reads. One request names every pair, so the fake answers only for the
+ * ones it was asked about.
+ */
+function binanceDailyStats(open24h: Record<string, number>) {
   return (url: string) => {
-    const symbol = new URL(url).searchParams.get("symbol")!;
-    const prev = prevCloses[symbol];
-    if (prev === undefined) return [];
-    return [kline(now - 2 * DAY_MS, prev), kline(now, prev * 2)];
+    const asked: string[] = JSON.parse(new URL(url).searchParams.get("symbols")!);
+    return asked
+      .filter((sym) => open24h[sym] !== undefined)
+      .map((sym) => ({
+        symbol: sym,
+        openPrice: String(open24h[sym]),
+        // Unread by the day-change path, which takes the live price from
+        // `ticker/price`; present because Binance sends it.
+        lastPrice: String(open24h[sym]! * 2),
+      }));
   };
 }
 
@@ -96,7 +107,7 @@ describe("valuation", () => {
     });
     const net = FakeNet({
       "api.binance.com/api/v3/ticker/price": binanceTicker({ ETHUSDT: 3_000 }),
-      "api.binance.com/api/v3/klines": binanceDailyPair({ ETHUSDT: 2_900 }, now),
+      "api.binance.com/api/v3/ticker/24hr": binanceDailyStats({ ETHUSDT: 2_900 }),
     });
 
     const out = await valuation(store, net, "p1");
@@ -117,7 +128,7 @@ describe("valuation", () => {
     });
     const net = FakeNet({
       "api.binance.com/api/v3/ticker/price": binanceTicker({ ETHUSDT: 3_000 }),
-      "api.binance.com/api/v3/klines": [],
+      "api.binance.com/api/v3/ticker/24hr": [],
     });
 
     const out = await valuation(store, net, "p1");
@@ -139,7 +150,7 @@ describe("valuation", () => {
     });
     const net = FakeNet({
       "api.binance.com/api/v3/ticker/price": binanceTicker({ BTCUSDT: 20_000, ETHUSDT: 2_000 }),
-      "api.binance.com/api/v3/klines": binanceDailyPair({ BTCUSDT: 19_000, ETHUSDT: 1_900 }, now),
+      "api.binance.com/api/v3/ticker/24hr": binanceDailyStats({ BTCUSDT: 19_000, ETHUSDT: 1_900 }),
     });
 
     const out = await valuation(store, net, "p1");
@@ -188,7 +199,7 @@ describe("valuation", () => {
       [EURUSD_LATEST]: { rates: { USD: 1.25 } },
       "api.frankfurter.dev/v1/": ecbRange({ EURUSD: 1.25 }, () => now),
       "api.binance.com/api/v3/ticker/price": binanceTicker({ BTCUSDT: 20_000 }),
-      "api.binance.com/api/v3/klines": binanceDailyPair({ BTCUSDT: 19_000 }, now),
+      "api.binance.com/api/v3/ticker/24hr": binanceDailyStats({ BTCUSDT: 19_000 }),
       "chart/AMD": yahooQuote({ regularMarketPrice: 200, currency: "USD", longName: "AMD Inc" }),
       "chart/ASML.AS": yahooQuote({ regularMarketPrice: 1_000, currency: "EUR", longName: "ASML" }),
     });
@@ -226,7 +237,7 @@ describe("valuation", () => {
     const net = FakeNet({
       // SUBUSDT is absent from the response, as a delisted pair is in reality.
       "api.binance.com/api/v3/ticker/price": binanceTicker({ BTCUSDT: 20_000 }),
-      "api.binance.com/api/v3/klines": binanceDailyPair({ BTCUSDT: 19_000 }, now),
+      "api.binance.com/api/v3/ticker/24hr": binanceDailyStats({ BTCUSDT: 19_000 }),
     });
 
     const out = await valuation(store, net, "p1");
@@ -270,7 +281,7 @@ describe("valuation", () => {
     const net = FakeNet({
       "api.frankfurter.dev/v1/": ecbRange({ EURUSD: 1.25 }, () => now),
       "api.binance.com/api/v3/ticker/price": binanceTicker({ BTCUSDT: 20_000 }),
-      "api.binance.com/api/v3/klines": binanceDailyPair({ BTCUSDT: 19_000 }, now),
+      "api.binance.com/api/v3/ticker/24hr": binanceDailyStats({ BTCUSDT: 19_000 }),
     });
 
     const out = await valuation(store, net, "p1");
