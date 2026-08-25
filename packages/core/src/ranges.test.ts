@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
-  RANGES, RANGE_KEYS, EVERYDAY_RANGES, PERFORMANCE_RANGES, hiddenOnPhone, rangeLabel, type RangeKey,
+  RANGES, RANGE_KEYS, EVERYDAY_RANGES, PERFORMANCE_RANGES, changeWindowLabel, hiddenOnPhone,
+  rangeLabel, type RangeKey,
 } from "./ranges";
 
 describe("ranges", () => {
@@ -66,6 +67,21 @@ describe("hiddenOnPhone", () => {
       const visible = PERFORMANCE_RANGES.filter((k) => !hiddenOnPhone(k, selected));
       expect(visible.length).toBeGreaterThan(0);
       expect(visible).toContain(selected);
+    }
+  });
+});
+
+describe("changeWindowLabel", () => {
+  it("calls a day's change window 24h, not 1D", () => {
+    // The button stays "1D"; the figure beside the chart covers a rolling 24
+    // hours and must not read as the header's "today", which is since 00:00 UTC.
+    expect(changeWindowLabel("1d")).toBe("24h");
+    expect(rangeLabel("1d")).toBe("1D");
+  });
+
+  it("leaves every other period alone", () => {
+    for (const k of ["1w", "1m", "1y", "ytd", "all"] as RangeKey[]) {
+      expect(changeWindowLabel(k)).toBe(rangeLabel(k));
     }
   });
 });

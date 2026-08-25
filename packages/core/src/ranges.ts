@@ -39,6 +39,28 @@ export function rangeLabel(key: RangeKey, long = false): string {
 }
 
 /**
+ * What to call the window a *change figure* covers, which is not always what
+ * the button that selected it is called.
+ *
+ * `1d` is the one that differs, and it differs because two figures on the
+ * asset page measure different things and both used to read as "a day":
+ *
+ * - the header's "today" is the live price against the last **closed daily
+ *   bar**, so its window is however long it has been since 00:00 UTC;
+ * - a chart figure is the first against the last of the bars drawn, so at
+ *   `1d` its window is a **rolling 24 hours**.
+ *
+ * Measured on 2026-08-25 at 09:17 UTC, ETH read +0.26% by the first and
+ * +1.04% by the second. Neither is wrong and neither can be dropped — each
+ * matches what sits beside it — so the fix is that they stop sharing a name.
+ * They agree only at midnight UTC, which is exactly when the two windows
+ * coincide.
+ */
+export function changeWindowLabel(key: RangeKey): string {
+  return key === "1d" ? "24h" : rangeLabel(key);
+}
+
+/**
  * Whether a period collapses behind "More" on a phone.
  *
  * The selected period never hides, whichever group it belongs to — collapsing
