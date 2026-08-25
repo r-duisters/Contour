@@ -16,6 +16,7 @@ import { useDataClient } from "@/data/client/context";
 import { money as fmtMoney, percent, setDisplayCurrency } from "@/lib/display";
 import { usePrivacy } from "@/components/usePrivacy";
 import { allocation, concentration, contributions, type AllocationClass, type TradeStats } from "@/lib/insights";
+import type { TripStats } from "@/lib/round-trips";
 import type { ValuedHolding } from "@/lib/portfolio";
 import RangePicker from "@/components/RangePicker";
 import { PERFORMANCE_RANGES, rangeLabel, type RangeKey } from "@/lib/ranges";
@@ -63,6 +64,7 @@ export default function InsightsPage() {
   const [holdings, setHoldings] = useState<Holding[] | null>(null);
   const [stats, setStats] = useState<TradeStats | null>(null);
   const [realised, setRealised] = useState<{ year: number; realised: number }[]>([]);
+  const [trips, setTrips] = useState<TripStats | null>(null);
   const [benchKey, setBenchKey] = useState<BenchKey>("sp500");
   const [rows, setRows] = useState<RangeStat[]>([]);
   const [loadingRows, setLoadingRows] = useState(false);
@@ -88,7 +90,7 @@ export default function InsightsPage() {
       .then((d) => { setDisplayCurrency(d.currency); setHoldings(d.holdings); })
       .catch(() => setHoldings([]));
     client.getInsights(portfolioId)
-      .then((d) => { setStats(d.stats); setRealised(d.realisedByYear ?? []); })
+      .then((d) => { setStats(d.stats); setRealised(d.realisedByYear ?? []); setTrips(d.trips ?? null); })
       .catch(() => {});
   }, [client, portfolioId]);
 
@@ -319,6 +321,54 @@ export default function InsightsPage() {
                   depends on the accounting method — see #47. */}
               <p className="text-xs text-neutral-500 mt-3">
                 What sales actually made, on an average-cost basis. Years with no sale are not listed.
+              </p>
+            </Section>
+          )}
+
+          {trips && trips.trips > 0 && (
+            <Section title="Closed trades">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                <StatTile label="Round trips" value={String(trips.trips)} />
+                <StatTile
+                  label="Worked out"
+                  value={trips.winRatePct !== null ? `${trips.winRatePct.toFixed(0)}%` : "—"}
+                />
+                <StatTile
+                  label="Winners held"
+                  value={trips.medianWinnerDays !== null ? `${trips.medianWinnerDays.toFixed(0)} days` : "—"}
+                />
+                <StatTile
+                  label="Losers held"
+                  value={trips.medianLoserDays !== null ? `${trips.medianLoserDays.toFixed(0)} days` : "—"}
+                />
+              </div>
+              {(trips.best || trips.worst) && (
+                <div className="grid sm:grid-cols-2 gap-3 mt-3 text-sm">
+                  {trips.best && (
+                    <StatTile
+                      label={`Best — ${trips.best.symbol}`}
+                      value={money(trips.best.pnl)}
+                      signed={trips.best.pnl}
+                      sub={`held ${trips.best.days.toFixed(0)} days`}
+                    />
+                  )}
+                  {trips.worst && (
+                    <StatTile
+                      label={`Worst — ${trips.worst.symbol}`}
+                      value={money(trips.worst.pnl)}
+                      signed={trips.worst.pnl}
+                      sub={`held ${trips.worst.days.toFixed(0)} days`}
+                    />
+                  )}
+                </div>
+              )}
+              {/* Two things a reader would otherwise have to infer. The unit is
+                  a matched buy-and-sell, not a sale — one sale can close
+                  several — and these are matched oldest-first, which is a
+                  different convention from the cost basis shown everywhere
+                  else. No total appears here on purpose. */}
+              <p className="text-xs text-neutral-500 mt-3">
+                Each sale matched to the units it sold, oldest first. Median holding periods.
               </p>
             </Section>
           )}
