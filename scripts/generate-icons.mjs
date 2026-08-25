@@ -2,28 +2,37 @@ import { mkdir } from "node:fs/promises";
 import sharp from "sharp";
 
 /**
- * A summit drawn as its own level curves: two nested contour lines around a
- * peak, the outer a quiet hairline and the inner the brand blue. The blue sits
- * on the summit (the subject) rather than the frame.
+ * A rising line over a contour: a green trend line climbing left to right to
+ * an arrowhead, drawn over the quiet outline of a summit. Kept in step with
+ * `packages/ui/src/ContourMark.tsx`, which carries the full reasoning — change
+ * one and run this to redraw the rest.
  *
- * The outer curve stays dim on purpose: the app frames the mark in a circle
- * twice (the unlock disc, and Android's adaptive mask), and a curve at that
- * frame's weight competes with it. Weight and contrast decide this, not whether
- * the shape is closed.
+ * The outline stays dim on purpose: the app frames the mark in a circle twice
+ * (the unlock disc, and Android's adaptive mask), and an outline at that
+ * frame's weight competes with it. Weight and contrast decide this, not
+ * whether the shape is closed.
  */
-const OUTER = [[256, 118], [394, 356], [118, 356]];
-const INNER = [[256, 196], [344, 356], [168, 356]];
+const BACKDROP = "M256,118 L394,356 L118,356 Z";
+const TREND = "M96,366 L173,299 Q190,284 210,294 L248,314 Q268,324 281,306 L408,140";
+const HEAD = "M356,140 L408,140 L408,192";
 
-/** The mark, optionally scaled about the centre to sit inside a safe area. */
-const mark = (k = 1) => {
-  const t = (v) => 256 + (v - 256) * k;
-  const poly = (pts) => "M" + pts.map(([x, y]) => `${t(x)},${t(y)}`).join(" L") + " Z";
-  return `
-  <path d="${poly(OUTER)}" fill="none" stroke="#fafafa"
-        stroke-width="${14 * k}" opacity="0.35" stroke-linejoin="round"/>
-  <path d="${poly(INNER)}" fill="none" stroke="#3b82f6"
-        stroke-width="${14 * k}" stroke-linejoin="round"/>`;
-};
+/**
+ * The mark, optionally scaled about the centre to sit inside a safe area, and
+ * optionally thickened for sizes where a faithful stroke would vanish.
+ *
+ * The scale is a transform rather than arithmetic on each coordinate: the
+ * trend line is a curve, so there are no longer polygon points to walk, and a
+ * transform scales the stroke with the geometry for free.
+ */
+const mark = (k = 1, w = 1) => `
+  <g transform="translate(${256 * (1 - k)},${256 * (1 - k)}) scale(${k})">
+    <path d="${BACKDROP}" fill="none" stroke="#fafafa"
+          stroke-width="${22 * w}" opacity="${0.32 * (w > 1 ? 1.3 : 1)}" stroke-linejoin="round"/>
+    <path d="${TREND}" fill="none" stroke="#22c55e"
+          stroke-width="${24 * w}" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="${HEAD}" fill="none" stroke="#22c55e"
+          stroke-width="${24 * w}" stroke-linejoin="round" stroke-linecap="round"/>
+  </g>`;
 
 const icon = (pad) => `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
@@ -40,17 +49,11 @@ const icon = (pad) => `
  * This exists because `apps/web/src/app/favicon.ico` was hand-made once and then sat
  * unchanged through two redesigns of the mark, which nothing caught.
  */
-const favicon = () => {
-  const poly = (pts) => "M" + pts.map(([x, y]) => `${x},${y}`).join(" L") + " Z";
-  return `
+const favicon = () => `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <rect width="512" height="512" rx="96" fill="#0a0a0a"/>
-  <path d="${poly(OUTER)}" fill="none" stroke="#fafafa"
-        stroke-width="34" opacity="0.45" stroke-linejoin="round"/>
-  <path d="${poly(INNER)}" fill="none" stroke="#3b82f6"
-        stroke-width="34" stroke-linejoin="round"/>
+  ${mark(1, 1.5)}
 </svg>`;
-};
 
 /**
  * Android launcher icons are separate from the web manifest's: the adaptive
