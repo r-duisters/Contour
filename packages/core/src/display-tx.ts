@@ -1,3 +1,4 @@
+import { rateOn } from "./fx";
 import type { Tx, TxSide } from "./portfolio";
 
 type StoredTx = {
@@ -18,21 +19,63 @@ type StoredTx = {
 };
 
 /**
- * Stored transactions expressed in the display currency. Trades settled in that
- * currency keep the amount actually paid; the rest convert from USD at the
- * current rate. Re-converting an old EUR purchase through today's USD rate
- * would misstate what it cost.
+ * Stored transactions expressed in the display currency.
+ *
+ * A trade settled in the display currency keeps the amount actually paid.
+ * Everything else converts from USD — **at the rate on the day of the trade**,
+ * which `rates` carries as a USD->display map by UTC day.
+ *
+ * That map is the whole point of this function's fourth argument. It used to
+ * convert every non-native row at *today's* rate, which meant the reported
+ * cost of a 2021 dollar purchase changed every morning: on the live ledger,
+ * thirty such rows worth $68,019 moved their euro cost basis by €13,060 across
+ * the range the rate has taken, with no transaction behind the movement. Cost
+ * basis, unrealised P&L and every insight built on them inherited it, and any
+ * attempt to separate an asset's gain from the currency's was hopeless while
+ * the cost itself floated with the currency.
+ *
+ * `rates` is null when the display currency is USD (nothing to convert) or
+ * when the rate feed could not be reached; `toDisplay` is then the fallback,
+ * which is what this function did unconditionally before.
  */
-export function toDisplayTxs(rows: StoredTx[], currency: string, toDisplay: number): Tx[] {
+export function toDisplayTxs(
+  rows: StoredTx[],
+  currency: string,
+  toDisplay: number,
+  rates: Map<number, number> | null,
+): Tx[] {
   return rows.map((t) => {
     const native = t.nativeCurrency === currency && t.nativePrice !== null;
+    const time = Number(t.time);
+    const rate = rates ? (rateOn(rates, time) ?? toDisplay) : toDisplay;
     return {
       symbol: t.symbol,
       side: t.side as TxSide,
       quantity: t.quantity,
-      price: native ? t.nativePrice! : t.price * toDisplay,
-      fee: native && t.nativeFee !== null ? t.nativeFee! : t.fee * toDisplay,
-      time: Number(t.time),
+      price: native ? t.nativePrice! : t.price * rate,
+      fee: native && t.nativeFee !== null ? t.nativeFee! : t.fee * rate,
+      time,
     };
   });
+}
+
+/**
+ * The same rows in USD, which is the currency they are stored in.
+ *
+ * Pairing this with `toDisplayTxs` is what makes currency attribution
+ * possible: run both through `computeHoldings` and a position has a cost
+ * basis in dollars and a cost basis in the display currency struck at the
+ * rates of the days it was actually bought. The ratio between them is the
+ * average rate the position was acquired at, and everything the currency has
+ * done since is the difference between that and today's.
+ */
+export function toUsdTxs(rows: StoredTx[]): Tx[] {
+  return rows.map((t) => ({
+    symbol: t.symbol,
+    side: t.side as TxSide,
+    quantity: t.quantity,
+    price: t.price,
+    fee: t.fee,
+    time: Number(t.time),
+  }));
 }

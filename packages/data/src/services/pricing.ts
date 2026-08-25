@@ -104,6 +104,40 @@ export async function displayContextAt(
 }
 
 /**
+ * Every USD->display rate the ledger's own history needs, in one request.
+ *
+ * `toDisplayTxs` converts a trade at the rate on the day it happened, and the
+ * days it needs run from the first transaction to now — so fetching them one
+ * at a time would be one request per row. Frankfurter answers a range: nine
+ * years of daily rates is about 70 KB and a third of a second, cached for an
+ * hour like every other rate lookup here.
+ *
+ * Null means "convert at the current rate instead", and covers both the case
+ * where there is nothing to convert (the display currency is the dollar the
+ * figures are stored in) and the case where the feed could not be reached.
+ * The ten-day margin before the first trade is `rateOn`'s weekend lookback:
+ * a Saturday purchase reads back to the Friday fixing.
+ */
+export async function ledgerRates(
+  net: Net,
+  currency: DisplayCurrency,
+  rows: { time: bigint | number }[],
+): Promise<Map<number, number> | null> {
+  if (currency === "USD" || rows.length === 0) return null;
+  let from = Number.POSITIVE_INFINITY;
+  for (const r of rows) {
+    const t = Number(r.time);
+    if (Number.isFinite(t) && t < from) from = t;
+  }
+  if (!Number.isFinite(from)) return null;
+  try {
+    return await fetchEcbRates(net, "USD", currency, from - 10 * DAY_MS, Date.now());
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Live equity quotes converted to USD via current ECB rates.
  *
  * Lifted from `valuation/route.ts`, but placed here rather than in the

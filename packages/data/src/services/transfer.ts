@@ -11,7 +11,7 @@ import type { NewTransaction, Portfolio, Store } from "../ports/store";
 import { fetchKlinesRange, fetchUsdtSymbols } from "../sources/binance";
 import { fetchEcbRates } from "../sources/fx";
 import { getPortfolio } from "./portfolios";
-import { displayContext } from "./pricing";
+import { displayContext, ledgerRates } from "./pricing";
 
 /**
  * Getting a portfolio in and out of the app: a Delta CSV import, the backup
@@ -294,7 +294,10 @@ export async function exportCsv(
   const portfolio = await getPortfolio(store, id);
   const { currency, toDisplay, displayUsd } = await displayContext(store, net);
 
-  const display = toDisplayTxs(portfolio.transactions, currency, toDisplay);
+  const display = toDisplayTxs(
+    portfolio.transactions, currency, toDisplay,
+    await ledgerRates(net, currency, portfolio.transactions),
+  );
   const rows: ExportTx[] = portfolio.transactions.map((t, i) => ({
     symbol: t.symbol,
     assetType: t.assetType,

@@ -17,7 +17,7 @@ import { fetchKlines, fetchKlinesRange, fetchDailyStats } from "../sources/binan
 import { makeEquitySource } from "../sources/equity";
 import { fetchEcbRates } from "../sources/fx";
 import { getPortfolio } from "./portfolios";
-import { displayContext } from "./pricing";
+import { displayContext, ledgerRates } from "./pricing";
 import { currentCashRates } from "./valuation";
 import type { DisplayCurrency } from "@/core/currencies";
 
@@ -104,11 +104,8 @@ export async function series(
   // Cash is reported beside the portfolio, not inside it: it has no price
   // series, so counting deposits as money entering the invested pool would
   // charge the return for capital the chart never shows.
-  const txs = toDisplayTxs(
-    portfolio.transactions.filter((t) => t.assetType !== "cash"),
-    currency,
-    toDisplay,
-  );
+  const assetRows = portfolio.transactions.filter((t) => t.assetType !== "cash");
+  const txs = toDisplayTxs(assetRows, currency, toDisplay, await ledgerRates(net, currency, assetRows));
   if (txs.length === 0) return { series: [], currency: label, range };
 
   const equitySymbols = new Set(
@@ -451,11 +448,8 @@ async function simulateSameFlows(
   // Cash movements are not trades: buying euros is not investing them, and
   // counting a deposit as a benchmark purchase bought index units with money
   // that never left the bank.
-  const txs = toDisplayTxs(
-    portfolio.transactions.filter((t) => t.assetType !== "cash" && t.time >= from),
-    currency,
-    toDisplay,
-  );
+  const benchRows = portfolio.transactions.filter((t) => t.assetType !== "cash" && t.time >= from);
+  const txs = toDisplayTxs(benchRows, currency, toDisplay, await ledgerRates(net, currency, benchRows));
 
   const prices = new Map(bars.map((b) => [b.t, b.c]));
   const timeline = [...prices.keys()].sort((a, b) => a - b);

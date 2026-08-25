@@ -15,7 +15,9 @@ import { fetchKlinesRange, fetchPricesSafe } from "../sources/binance";
 import { makeEquitySource } from "../sources/equity";
 import { fetchEcbRates } from "../sources/fx";
 import { getPortfolio } from "./portfolios";
-import { displayContext, displayContextAt, fetchCrypto24hAgo, fetchEquityPricesUsd } from "./pricing";
+import {
+  displayContext, displayContextAt, fetchCrypto24hAgo, fetchEquityPricesUsd, ledgerRates,
+} from "./pricing";
 
 const DAY_MS = 86_400_000;
 
@@ -91,7 +93,8 @@ export async function valuation(store: Store, net: Net, id: string): Promise<Val
     await displayContext(store, net);
 
   const assetRows = portfolio.transactions.filter((t) => t.assetType !== "cash");
-  const txs = toDisplayTxs(assetRows, currency, toDisplay);
+  const rates = await ledgerRates(net, currency, assetRows);
+  const txs = toDisplayTxs(assetRows, currency, toDisplay, rates);
 
   const equitySymbols = new Set(
     portfolio.transactions.filter((t) => t.assetType === "equity").map((t) => t.symbol),
@@ -293,7 +296,7 @@ export async function snapshot(
   if (upTo.length === 0) return { date, currency, rows: [], total: 0 };
 
   const assetRows = upTo.filter((t) => t.assetType !== "cash");
-  const txs = toDisplayTxs(assetRows, currency, toDisplay);
+  const txs = toDisplayTxs(assetRows, currency, toDisplay, await ledgerRates(net, currency, assetRows));
   const holdings = computeHoldings(txs).filter((h) => h.quantity > 1e-12);
   const equity = new Set(upTo.filter((t) => t.assetType === "equity").map((t) => t.symbol));
 
@@ -404,11 +407,8 @@ export async function insights(store: Store, net: Net, id: string): Promise<Insi
 
   // Moving euros between a bank and an exchange is not a trade, and counting
   // it as one inflated every figure here.
-  const txs = toDisplayTxs(
-    portfolio.transactions.filter((t) => t.assetType !== "cash"),
-    currency,
-    toDisplay,
-  );
+  const assetRows = portfolio.transactions.filter((t) => t.assetType !== "cash");
+  const txs = toDisplayTxs(assetRows, currency, toDisplay, await ledgerRates(net, currency, assetRows));
 
   return {
     // Same relabelling as `valuation`: a failed EUR lookup leaves the figures
