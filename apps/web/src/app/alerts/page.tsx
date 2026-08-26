@@ -8,6 +8,7 @@ import { Bell, Pause, Play, Plus, Trash2 } from "lucide-react";
 import Button from "@/components/Button";
 import { field } from "@/components/field";
 import EmptyState from "@/components/EmptyState";
+import PageLabel from "@/components/PageLabel";
 
 type Alert = {
   id: string;
@@ -162,7 +163,9 @@ function Alerts() {
 
   return (
     <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-4 py-5 md:p-8 max-w-4xl mx-auto">
-      <h1 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6 flex items-center gap-2"><Bell size={20} aria-hidden className="text-neutral-400" />Alerts</h1>
+      <div className="flex items-center gap-2 mb-4 md:mb-6">
+        <PageLabel icon={Bell}>Alerts</PageLabel>
+      </div>
 
       {/*
         Offered, not seeded.

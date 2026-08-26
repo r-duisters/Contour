@@ -29,6 +29,7 @@ import { useDataClient } from "@/data/client/context";
 import Button from "@/components/Button";
 import { field } from "@/components/field";
 import EmptyState from "@/components/EmptyState";
+import PageLabel from "@/components/PageLabel";
 import { DISPLAY_CURRENCIES, CURRENCY_NAMES, asDisplayCurrency, type DisplayCurrency } from "@/lib/currencies";
 
 export default function SettingsPage() {
@@ -210,7 +211,9 @@ export default function SettingsPage() {
 
   return (
     <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-4 py-5 md:p-8 max-w-xl mx-auto">
-      <h1 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6 flex items-center gap-2"><SettingsIcon size={20} aria-hidden className="text-neutral-400" />Settings</h1>
+      <div className="flex items-center gap-2 mb-4 md:mb-6">
+        <PageLabel icon={SettingsIcon}>Settings</PageLabel>
+      </div>
       <section className="space-y-4 mb-10">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Display</h2>
         <label className="block text-sm">

@@ -4,6 +4,7 @@ import { FlaskConical } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import Button from "@/components/Button";
 import { field } from "@/components/field";
+import PageLabel from "@/components/PageLabel";
 
 type Severity = "warning" | "info" | "suggestion";
 type Finding = {
@@ -153,7 +154,9 @@ export default function AnalyzePage() {
 
   return (
     <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-4 py-5 md:p-8 max-w-5xl mx-auto">
-      <h1 className="text-xl md:text-2xl font-semibold mb-2 flex items-center gap-2"><FlaskConical size={20} aria-hidden className="text-neutral-400" />PineScript review</h1>
+      <div className="flex items-center gap-2 mb-2">
+        <PageLabel icon={FlaskConical}>PineScript review</PageLabel>
+      </div>
       <p className="text-sm text-neutral-500 mb-6">
         Pick a script from the library or paste your own. Run the analyzer, choose which fixes to
         apply, preview the result, and save as a new version.

@@ -1,5 +1,6 @@
 import PortfolioManager from "@/components/PortfolioManager";
-import { Download } from "lucide-react";
+import { Database, Download } from "lucide-react";
+import PageLabel from "@/components/PageLabel";
 
 /**
  * What the More menu could not hold.
@@ -13,7 +14,9 @@ import { Download } from "lucide-react";
 export default function MorePage() {
   return (
     <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-4 py-5 md:p-8 max-w-3xl mx-auto">
-      <h1 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6">Portfolio data</h1>
+      <div className="flex items-center gap-2 mb-4 md:mb-6">
+        <PageLabel icon={Database}>Portfolio data</PageLabel>
+      </div>
 
       <div className="mb-8">
         <PortfolioManager />

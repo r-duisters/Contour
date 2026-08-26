@@ -42,6 +42,7 @@ export default function TabBar() {
             <li key={href}>
               <Link
                 href={href}
+                aria-current={active(href) ? "page" : undefined}
                 className={`flex flex-col items-center gap-0.5 text-center text-xs py-2 ${active(href) ? "text-blue-500" : "text-neutral-400"}`}
               >
                 <Icon size={20} aria-hidden />

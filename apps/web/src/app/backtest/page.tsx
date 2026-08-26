@@ -3,6 +3,7 @@
 import { History } from "lucide-react";
 import { useState } from "react";
 import StatTile from "@/components/StatTile";
+import PageLabel from "@/components/PageLabel";
 import { percent, quantity } from "@/lib/display";
 import Button from "@/components/Button";
 import { field } from "@/components/field";
@@ -54,7 +55,9 @@ export default function BacktestPage() {
 
   return (
     <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-4 py-5 md:p-8 max-w-4xl mx-auto">
-      <h1 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6 flex items-center gap-2"><History size={20} aria-hidden className="text-neutral-400" />Backtest</h1>
+      <div className="flex items-center gap-2 mb-4 md:mb-6">
+        <PageLabel icon={History}>Backtest</PageLabel>
+      </div>
 
       <div className="flex flex-wrap gap-2 mb-6">
         <input className={field("uppercase")}
