@@ -19,7 +19,7 @@ export default async function SetupPage() {
             className="w-[92px] h-[92px] rounded-[22%] bg-blue-600 flex items-center justify-center"
             style={{ boxShadow: "0 10px 40px rgba(37,99,235,0.35)" }}
           >
-            <ContourMark size={92} />
+            <ContourMark size={92} breathing />
           </div>
           <h1 className="text-[26px] font-semibold tracking-[-0.01em] text-neutral-100">Welcome to Contour</h1>
         </div>

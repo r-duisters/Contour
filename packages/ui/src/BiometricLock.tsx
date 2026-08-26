@@ -162,7 +162,7 @@ function Overlay({
             className="rounded-full bg-blue-600 p-6"
             style={{ boxShadow: "0 0 60px rgba(37,99,235,0.45)" }}
           >
-            <ContourMark size={64} />
+            <ContourMark size={64} breathing />
           </span>
         </div>
 
