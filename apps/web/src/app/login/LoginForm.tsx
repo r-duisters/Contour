@@ -83,16 +83,16 @@ export default function LoginForm({ mode }: { mode: "login" | "setup" }) {
   }
 
   return (
-    <form onSubmit={submit} className="space-y-4 w-full max-w-xs">
-      <label className="block text-sm">
-        <span className="text-neutral-400">{mode === "setup" ? "Choose a password (min 8 chars)" : "Password"}</span>
-        <input type="password" autoFocus className="mt-1 w-full bg-neutral-900 border border-neutral-700 rounded-[9px] px-3 py-2.5 text-sm"
+    <form onSubmit={submit} className="space-y-3 w-full max-w-xs">
+      <label className="block">
+        <span className="block text-[13px] text-neutral-400 mb-[5px]">{mode === "setup" ? "Choose a password (min 8 chars)" : "Password"}</span>
+        <input type="password" autoFocus placeholder="Password" className="w-full bg-neutral-900 border border-neutral-700 rounded-[9px] px-3 py-2.5 text-sm"
                value={password} onChange={(e) => setPassword(e.target.value)} />
       </label>
       {mode === "setup" && (
-        <label className="block text-sm">
-          <span className="text-neutral-400">Confirm password</span>
-          <input type="password" className="mt-1 w-full bg-neutral-900 border border-neutral-700 rounded-[9px] px-3 py-2.5 text-sm"
+        <label className="block">
+          <span className="block text-[13px] text-neutral-400 mb-[5px]">Confirm password</span>
+          <input type="password" className="w-full bg-neutral-900 border border-neutral-700 rounded-[9px] px-3 py-2.5 text-sm"
                  value={confirm} onChange={(e) => setConfirm(e.target.value)} />
         </label>
       )}

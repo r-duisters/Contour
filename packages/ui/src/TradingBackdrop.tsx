@@ -26,7 +26,7 @@ export default function TradingBackdrop() {
 
       {/* a faint rising price line across the upper area */}
       <svg
-        className="absolute inset-x-0 top-[12%] h-[40%] w-full"
+        className="absolute inset-x-0 top-[12%] h-[40%] w-full opacity-40"
         viewBox="0 0 1440 400"
         preserveAspectRatio="none"
       >
