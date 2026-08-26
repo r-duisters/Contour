@@ -61,9 +61,10 @@ body {
 /* The mark's breathing ring. In-app only — the launcher icon is a static PNG
    and does not animate. The animation lives on a wrapper div rather than the
    SVG circle: an HTML transform composites on the GPU, where scaling the SVG
-   circle directly is drawn on the CPU each frame and reads as jank. */
+   circle directly is drawn on the CPU each frame and reads as jank.
+   No `will-change` here: Firefox pre-rasterises a hinted element at its base
+   size and then scales that bitmap, which blurs an SVG it wraps. */
 .breath {
-  will-change: transform, opacity;
   animation: breathe 2.6s ease-in-out infinite;
 }
 @keyframes breathe {
