@@ -61,13 +61,14 @@ body {
 /* The mark's breathing ring. In-app only — the launcher icon is a static PNG
    and does not animate. Opacity only: scaling the SVG circle is drawn on the
    CPU (and scales its stroke), which reads as jank, where a fade composites on
-   the GPU and stays smooth. */
+   the GPU and stays smooth. The fade is deep enough to read clearly. */
 .breath {
+  will-change: opacity;
   animation: breathe 2.6s ease-in-out infinite;
 }
 @keyframes breathe {
   0%, 100% { opacity: 1; }
-  50%      { opacity: 0.72; }
+  50%      { opacity: 0.5; }
 }
 @media (prefers-reduced-motion: reduce) {
   .breath { animation: none; }
