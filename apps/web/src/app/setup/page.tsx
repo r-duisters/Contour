@@ -13,14 +13,16 @@ export default async function SetupPage() {
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-4 md:p-8">
       <TradingBackdrop />
-      <div className="relative z-10 flex flex-col items-center gap-5 w-full max-w-sm bg-neutral-950/70 border border-neutral-800 rounded-xl p-6 md:p-8 backdrop-blur-sm">
-        <div
-          className="w-[92px] h-[92px] rounded-[22%] bg-blue-600 flex items-center justify-center"
-          style={{ boxShadow: "0 10px 40px rgba(37,99,235,0.35)" }}
-        >
-          <ContourMark size={92} />
+      <div className="relative z-10 flex flex-col items-center gap-5 w-full max-w-xs">
+        <div className="flex flex-col items-center gap-[18px]">
+          <div
+            className="w-[92px] h-[92px] rounded-[22%] bg-blue-600 flex items-center justify-center"
+            style={{ boxShadow: "0 10px 40px rgba(37,99,235,0.35)" }}
+          >
+            <ContourMark size={92} />
+          </div>
+          <h1 className="text-[26px] font-semibold tracking-[-0.01em] text-neutral-100">Welcome to Contour</h1>
         </div>
-        <h1 className="text-2xl font-semibold">Welcome to Contour</h1>
         <p className="text-sm text-neutral-500 text-center">First run — set the password that protects this app.</p>
         <Suspense><LoginForm mode="setup" /></Suspense>
       </div>
