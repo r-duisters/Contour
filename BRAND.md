@@ -14,42 +14,37 @@ healthcare company and a crypto-forex platform.
 
 Write it **Contour**. Never "Contour App", never a tagline.
 
-The mark is a rising line over a contour: a green trend line (`#22c55e`)
-climbing left to right and turning up at an arrowhead, drawn over the quiet
-white outline of a summit. The line is the subject and carries the colour; the
-outline behind it is the name — a level curve, which is what the word means.
+The mark is a white level curve with a white rise inside it, drawn on the
+brand-blue tile (`#2563eb`). The ring is a closed level curve — what the name
+means — and the line is the price rising inside it. Both are white because the
+blue has moved from the line to the tile: the colour now carries the identity,
+and the mark itself is one clean white shape.
 
 Four details are load-bearing, each of them a failure found by drawing it:
 
-- **The outline stays quiet.** The app frames the mark in a circle twice —
-  the unlock disc in `BiometricLock`, and Android's adaptive mask, which most
-  launchers render round and which cannot be overridden. An outline at that
+- **The ring stays quiet.** The app frames the mark in a circle twice — the
+  unlock disc in `BiometricLock`, and Android's adaptive mask, which most
+  launchers render round and which cannot be overridden. A ring at that
   frame's weight and brightness competes with it and reads as a misalignment;
-  clearly subordinate, and the nesting reads as deliberate instead.
-  **Weight and contrast decide this, not whether the shape is closed** — an
-  earlier version of this rule banned closed containers outright and was
-  wrong.
-- **White at 32%, not a flat grey.** The outline blends with whatever sits
-  behind it; the login card is translucent over an animated backdrop. It sits
-  just under the trend line's weight (22 against 24) and well under its
-  brightness: one drawing in two voices, not two drawings sharing a frame.
-- **The line is heavy, and therefore rounded.** The mark before this one drew
-  at 14 units of a 512 viewBox — two thirds of a pixel on a 24px tab-bar icon,
-  where it survived on colour rather than shape. At 24 units it survives on
-  shape. A thick polyline with sharp vertices forms wedges where its segments
-  meet, so the two interior corners are curved; the weight then reads as
-  confidence rather than clumsiness.
-- **It rises.** The line climbs and the arrow points up. A descending or
-  inverted mark reads as a loss whatever the colour.
+  a thin white stroke is clearly subordinate, and the nesting reads as
+  deliberate instead. **Weight and contrast decide this, not whether the shape
+  is closed** — an earlier version of this rule banned closed containers
+  outright and was wrong.
+- **One white, not a grey.** Ring and line are the same white so the mark
+  reads as a single shape on the tile, and it has to survive at 24px on the
+  top bar and 48dp in the launcher. The breathing (`.breath` in `globals.css`)
+  is its only motion, and it is in-app only — the launcher icon is a static
+  PNG.
+- **The blue is on the tile, not the line.** Putting the colour on the
+  container gives the app a single, findable footprint on any wallpaper. This
+  reverses the older "blue on the line" rule, and was accepted on the launcher
+  icon where a black tile vanished into a dark wallpaper (Direction A, #49).
+- **It rises.** The line climbs; a descending or inverted mark reads as a loss
+  whatever the colour.
 
-**Green is the mark's, and green is the only one it may have.** The rule here
-used to reserve green, amber and red from the mark entirely, on the grounds
-that a permanently green logo asserts "up" as a brand claim while the screen
-under it may be reporting a loss. That cost is real, it was looked at
-directly — the mark beside a red figure — and it was accepted on 2026-08-25:
-this is a trading app, and the rising green arrow is what makes it legible as
-one at a glance. Amber and red stay unavailable. Amber collides with the
-warning state, and red would read as exactly the loss it sat next to.
+**The mark is white on blue, so green, amber and red have no place in it.**
+Gain, degraded data and loss keep their meanings on the screen beside it; the
+mark never changes colour.
 
 The mark lives in two places that must stay in step: `ContourMark.tsx` for the
 screen, and `scripts/generate-icons.mjs` for every icon file. Change one and run
@@ -170,7 +165,7 @@ as issue #12 and is a palette, not a ground.
 | Label, caption — the workhorse | `text-neutral-500` |
 | Footnote | `text-neutral-600` |
 | Action, accent, "you" on a chart | `#3b82f6` — `bg-blue-600` for buttons, `text-blue-500` for active |
-| Gain, and the mark | `text-green-500` (`#22c55e`) |
+| Gain | `text-green-500` (`#22c55e`) |
 | Loss | `text-red-500` (`#ef4444`) |
 | Warning, degraded data | `text-amber-500` |
 | Benchmark, "them" on a chart | `#eab308` |

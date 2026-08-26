@@ -22,6 +22,12 @@ const ALLOWED = {
     // The circular unlock button: `BRAND.md` documents circular icon buttons
     // as their own shape, with a hover state the flat button does not have.
     "packages/ui/src/BiometricLock.tsx",
+    // The mark's tile (Direction A, #49): the blue surface the white ring and
+    // rise sit on. It is the brand colour as a container, not as a button, and
+    // it lives in the three places the mark is framed.
+    "packages/ui/src/TopNav.tsx",
+    "apps/web/src/app/login/page.tsx",
+    "apps/web/src/app/setup/page.tsx",
   ],
   "bg-neutral-700": ["packages/ui/src/Button.tsx"],
   "bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm": [

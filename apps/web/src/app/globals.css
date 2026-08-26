@@ -57,3 +57,19 @@ body {
   from { transform: translateY(100%); }
   to   { transform: translateY(0); }
 }
+
+/* The mark's breathing ring. In-app only — the launcher icon is a static PNG
+   and does not animate. scale+opacity, tuned so a slow fingerprint sensor
+   still reads as "working". */
+.breath {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: breathe 2.6s ease-in-out infinite;
+}
+@keyframes breathe {
+  0%, 100% { transform: scale(1);    opacity: 1; }
+  50%      { transform: scale(1.09); opacity: 0.72; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .breath { animation: none; }
+}

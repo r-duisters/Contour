@@ -251,14 +251,14 @@ export default function PortfolioPage() {
           onClick={() => setAddOpen((v) => !v)}
           aria-label={addOpen ? "Close add transaction" : "Add transaction"}
           aria-expanded={addOpen}
-          className="w-9 h-9 flex items-center justify-center rounded-full border border-neutral-800 text-neutral-400 active:bg-neutral-900"
+          className="w-11 h-11 flex items-center justify-center rounded-full border border-neutral-800 text-neutral-400 active:bg-neutral-900"
         >
           {addOpen ? <X size={16} aria-hidden /> : <Plus size={16} aria-hidden />}
         </button>
         <Link
           href="/insights"
           aria-label="Insights"
-          className="md:hidden w-9 h-9 flex items-center justify-center rounded-full border border-neutral-800 text-neutral-400 active:bg-neutral-900"
+          className="md:hidden w-11 h-11 flex items-center justify-center rounded-full border border-neutral-800 text-neutral-400 active:bg-neutral-900"
         >
           <BarChart3 size={16} aria-hidden />
         </Link>

@@ -14,7 +14,9 @@ export default async function LoginPage() {
     <main className="min-h-screen flex flex-col items-center justify-center p-4 md:p-8">
       <TradingBackdrop />
       <div className="relative z-10 flex flex-col items-center gap-5 w-full max-w-sm bg-neutral-950/70 border border-neutral-800 rounded-xl p-6 md:p-8 backdrop-blur-sm">
-        <ContourMark size={56} />
+        <div className="w-[92px] h-[92px] rounded-[20px] bg-blue-600 flex items-center justify-center">
+          <ContourMark size={92} />
+        </div>
         <h1 className="text-2xl font-semibold">Contour</h1>
         <Suspense><LoginForm mode="login" /></Suspense>
       </div>

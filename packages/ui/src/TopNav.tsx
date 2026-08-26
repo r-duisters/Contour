@@ -52,8 +52,11 @@ export default function TopNav() {
           the page label rather than two rems to its left. The bar itself still
           spans the window; only what is in it is constrained. */}
       <div className="max-w-5xl mx-auto px-8 h-14 flex items-center gap-6">
-        <Link href="/portfolio" aria-label="Contour" className="shrink-0">
-          <ContourMark size={22} />
+        <Link href="/portfolio" aria-label="Contour" className="shrink-0 flex items-center gap-2.5">
+          <span className="w-6 h-6 rounded-[5px] bg-blue-600 flex items-center justify-center">
+            <ContourMark size={24} />
+          </span>
+          <span className="text-[15px] font-semibold tracking-[-0.01em] text-neutral-100">Contour</span>
         </Link>
         <ul className="flex items-center gap-1 flex-1">
           {PRIMARY.map(({ href, label, Icon }) => (

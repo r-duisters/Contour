@@ -159,8 +159,8 @@ function Overlay({
             />
           )}
           <span
-            className="rounded-full bg-neutral-950/70 border border-neutral-800 backdrop-blur-sm p-6"
-            style={{ boxShadow: "0 0 60px rgba(59,130,246,0.18)" }}
+            className="rounded-full bg-blue-600 p-6"
+            style={{ boxShadow: "0 0 60px rgba(37,99,235,0.45)" }}
           >
             <ContourMark size={64} />
           </span>
