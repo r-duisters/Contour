@@ -42,6 +42,14 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
+/* One consistent keyboard-focus indicator for the whole app. Two spots drew
+   their own blue outline; this makes it global, so every input, button, select
+   and link shows the same accent ring instead of the browser's default. */
+:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
 /* The sheet rises from the edge it is anchored to. One keyframe, used by
    MoreMenu alone; Tailwind has no built-in for it and a utility class would
    be a second place to look. */

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { browserSupportsWebAuthn, startAuthentication } from "@simplewebauthn/browser";
 import { Fingerprint } from "lucide-react";
 import Button from "@/components/Button";
+import { field } from "@/components/field";
 
 // Only follow same-origin, relative paths for post-login redirects. Anything
 // else (absolute URLs, protocol-relative "//host" paths, backslash variants
@@ -86,13 +87,13 @@ export default function LoginForm({ mode }: { mode: "login" | "setup" }) {
     <form onSubmit={submit} className="space-y-4 w-full max-w-xs">
       <label className="block text-sm">
         <span className="text-neutral-400">{mode === "setup" ? "Choose a password (min 8 chars)" : "Password"}</span>
-        <input type="password" autoFocus className="mt-1 w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1"
+        <input type="password" autoFocus className={`mt-1 w-full ${field()}`}
                value={password} onChange={(e) => setPassword(e.target.value)} />
       </label>
       {mode === "setup" && (
         <label className="block text-sm">
           <span className="text-neutral-400">Confirm password</span>
-          <input type="password" className="mt-1 w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1"
+          <input type="password" className={`mt-1 w-full ${field()}`}
                  value={confirm} onChange={(e) => setConfirm(e.target.value)} />
         </label>
       )}

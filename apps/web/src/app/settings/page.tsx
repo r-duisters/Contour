@@ -27,6 +27,7 @@ import {
 import { browserSupportsWebAuthn, startRegistration } from "@simplewebauthn/browser";
 import { useDataClient } from "@/data/client/context";
 import Button from "@/components/Button";
+import { field } from "@/components/field";
 import EmptyState from "@/components/EmptyState";
 import { DISPLAY_CURRENCIES, CURRENCY_NAMES, asDisplayCurrency, type DisplayCurrency } from "@/lib/currencies";
 
@@ -214,7 +215,7 @@ export default function SettingsPage() {
         <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Display</h2>
         <label className="block text-sm">
           <span className="text-neutral-400">Portfolio currency</span>
-          <select className="mt-1 w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1"
+          <select className={`mt-1 w-full ${field()}`}
                   value={displayCurrency}
                   onChange={(e) => setDisplayCurrency(e.target.value as DisplayCurrency)}>
             {DISPLAY_CURRENCIES.map((c) => (
@@ -228,7 +229,7 @@ export default function SettingsPage() {
         </label>
         <label className="block text-sm">
           <span className="text-neutral-400">Stock / ETF price source</span>
-          <select className="mt-1 w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1"
+          <select className={`mt-1 w-full ${field()}`}
                   value={equityProvider} onChange={(e) => setEquityProvider(e.target.value)}>
             <option value="yahoo">Yahoo Finance (no key needed)</option>
             <option value="twelvedata">Twelve Data (free key, 800/day)</option>
@@ -238,7 +239,7 @@ export default function SettingsPage() {
         {equityProvider !== "yahoo" && (
           <label className="block text-sm">
             <span className="text-neutral-400">API key</span>
-            <input type="password" className="mt-1 w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1"
+            <input type="password" className={`mt-1 w-full ${field()}`}
                    value={equityApiKey} onChange={(e) => setEquityApiKey(e.target.value)}
                    placeholder={equityProvider === "twelvedata" ? "twelvedata.com key" : "alphavantage.co key"} />
           </label>
@@ -249,13 +250,13 @@ export default function SettingsPage() {
         <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Home Assistant</h2>
         <label className="block text-sm">
           <span className="text-neutral-400">HA URL</span>
-          <input className="mt-1 w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1"
+          <input className={`mt-1 w-full ${field()}`}
                  placeholder="http://homeassistant.local:8123"
                  value={haUrl} onChange={(e) => setHaUrl(e.target.value)} />
         </label>
         <label className="block text-sm">
           <span className="text-neutral-400">Webhook ID</span>
-          <input className="mt-1 w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1"
+          <input className={`mt-1 w-full ${field()}`}
                  placeholder="trader_signal"
                  value={haWebhookId} onChange={(e) => setHaWebhookId(e.target.value)} />
           <span className="text-xs text-neutral-500">
@@ -324,12 +325,12 @@ export default function SettingsPage() {
         <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Account</h2>
         <label className="block text-sm">
           <span className="text-neutral-400">Current password</span>
-          <input type="password" className="mt-1 w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1"
+          <input type="password" className={`mt-1 w-full ${field()}`}
                  value={curPw} onChange={(e) => setCurPw(e.target.value)} />
         </label>
         <label className="block text-sm">
           <span className="text-neutral-400">New password (min 8 chars)</span>
-          <input type="password" className="mt-1 w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1"
+          <input type="password" className={`mt-1 w-full ${field()}`}
                  value={newPw} onChange={(e) => setNewPw(e.target.value)} />
         </label>
         <div className="flex gap-2">
