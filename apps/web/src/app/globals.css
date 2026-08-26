@@ -64,11 +64,11 @@ body {
 .breath {
   transform-box: fill-box;
   transform-origin: center;
-  animation: breathe 2.6s ease-in-out infinite;
+  animation: breathe 2.4s ease-in-out infinite;
 }
 @keyframes breathe {
   0%, 100% { transform: scale(1);    opacity: 1; }
-  50%      { transform: scale(1.09); opacity: 0.72; }
+  50%      { transform: scale(1.12); opacity: 0.45; }
 }
 @media (prefers-reduced-motion: reduce) {
   .breath { animation: none; }

@@ -52,11 +52,10 @@ function CandleStrip({ xOffset }: { xOffset: number }) {
   return (
     <g transform={`translate(${xOffset} 0)`}>
       {candles.map((c, i) => {
-        const up = c.close >= c.open;
         const top = Math.min(c.open, c.close);
         const height = Math.max(2, Math.abs(c.close - c.open));
         return (
-          <g key={i} stroke={up ? "#22c55e" : "#ef4444"} fill={up ? "#22c55e" : "#ef4444"}>
+          <g key={i} stroke="#3b82f6" fill="#3b82f6">
             <line x1={c.x} y1={400 - c.high} x2={c.x} y2={400 - c.low} strokeWidth="1.5" />
             <rect x={c.x - 7} y={400 - top - height} width="14" height={height} rx="1.5" />
           </g>
@@ -131,7 +130,7 @@ export default function TradingBackdrop() {
       <div
         className="backdrop-anim absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[36rem] h-[36rem] rounded-full"
         style={{
-          background: "radial-gradient(closest-side, rgba(34, 197, 94, 0.09), transparent)",
+          background: "radial-gradient(closest-side, rgba(59, 130, 246, 0.10), transparent)",
           animation: "backdrop-pulse 9s ease-in-out infinite",
         }}
       />
