@@ -11,7 +11,7 @@ import { portfolioValueSeries } from "@/core/portfolio";
 import type { RangeKey } from "@/core/ranges";
 import type { Bar } from "@/core/types";
 import type { Net } from "../ports/net";
-import type { Store, Transaction } from "../ports/store";
+import type { Store, Transaction, PortfolioWithTransactions } from "../ports/store";
 import { pricingPair } from "@/core/symbols";
 import { fetchKlines, fetchKlinesRange, fetchDailyStats } from "../sources/binance";
 import { makeEquitySource } from "../sources/equity";
@@ -68,6 +68,19 @@ export type SeriesPoint = { t: number; value: number };
  * no window to report, and inventing a zeroed `change`/`twr`/`mwr` would put
  * figures on a chart that has no points.
  */
+/**
+ * How long a computed series is reused.
+ *
+ * The bars underneath were already cached; what was not was the work of
+ * turning them into a chart — rebuilding a close-lookup map per symbol and
+ * walking every bar — which is per-symbol and was repaid on every request. On
+ * the live ledger that is 0.02s for one symbol against 0.29s for thirty-six.
+ *
+ * Five minutes matches the price caches, so the last point stays as fresh as
+ * the figure printed above the chart.
+ */
+const SERIES_TTL_MS = 300_000;
+
 export type Series =
   | { series: SeriesPoint[]; currency: DisplayCurrency; range: RangeKey }
   | {
@@ -93,8 +106,50 @@ export async function series(
   range: RangeKey,
 ): Promise<Series> {
   const portfolio = await getPortfolio(store, id);
-  const { currency, toDisplay, displayUsd, equityProvider, equityApiKey } =
-    await displayContext(store, net);
+  const ctx = await displayContext(store, net);
+  // Both reads above are cheap and both feed the key, so they happen before
+  // the cache rather than inside it: the answer depends on the display
+  // currency, and on the ledger as it stands right now.
+  return cached(
+    `series:${id}:${range}:${ctx.currency}:${ledgerFingerprint(portfolio.transactions)}`,
+    SERIES_TTL_MS,
+    () => computeSeries(portfolio, ctx, net, range),
+  );
+}
+
+/**
+ * A cheap stand-in for "the ledger has not changed".
+ *
+ * `Portfolio.updatedAt` cannot do this job: it is Prisma's `@updatedAt` on the
+ * portfolio row, and adding a transaction does not touch that row. Nor can a
+ * count and a latest timestamp, because editing a price changes neither —
+ * `Transaction` has no `updatedAt` of its own. So the fields that actually
+ * move a line on the chart are folded in directly.
+ *
+ * A rolling 32-bit hash over a few hundred rows is tens of microseconds
+ * against the ~300ms it guards, and a collision costs one stale chart for at
+ * most the cache's lifetime.
+ */
+export function ledgerFingerprint(txs: readonly {
+  id: string; quantity: number; price: number; fee: number; time: number;
+  side: string; symbol: string; sourceSymbol?: string | null;
+}[]): string {
+  let h = txs.length;
+  for (const t of txs) {
+    // `id` alone would miss an edit; the rest are what the maths reads.
+    const row = `${t.id}${t.symbol}${t.side}${t.quantity}${t.price}${t.fee}${t.time}${t.sourceSymbol ?? ""}`;
+    for (let i = 0; i < row.length; i++) h = (Math.imul(h, 31) + row.charCodeAt(i)) | 0;
+  }
+  return (h >>> 0).toString(36);
+}
+
+async function computeSeries(
+  portfolio: PortfolioWithTransactions,
+  ctx: Awaited<ReturnType<typeof displayContext>>,
+  net: Net,
+  range: RangeKey,
+): Promise<Series> {
+  const { currency, toDisplay, displayUsd, equityProvider, equityApiKey } = ctx;
   // A failed EUR lookup leaves `toDisplay` at 1, so every figure below stays in
   // USD. The label has to follow, or the response reports dollars as euros.
   // `currency` itself stays the raw setting: it also decides which stored

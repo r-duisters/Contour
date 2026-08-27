@@ -4,7 +4,7 @@ import { RANGE_KEYS, type RangeKey } from "@/core/ranges";
 import type { NewTransaction } from "../ports/store";
 import { MemoryStore } from "../testing/memory-store";
 import { FakeNet, respondWith } from "../testing/fake-net";
-import { benchmark, changes, history, series } from "./series";
+import { benchmark, changes, history, ledgerFingerprint, series } from "./series";
 
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
@@ -411,5 +411,66 @@ describe("history", () => {
     net.calls.length = 0;
     await history(MemoryStore(), net, "BTCUSDT", "crypto", "1m");
     expect(net.calls[0]!.url).toContain("interval=1d");
+  });
+});
+
+describe("the computed series is cached, and the cache follows the ledger", () => {
+  it("answers a second identical call without touching the network again", async () => {
+    // The bars were already cached; what was not was the work of turning them
+    // into a chart, which is per-symbol and was repaid on every request.
+    const store = oneCryptoPortfolio();
+    const net = flatNet();
+    const first = await series(store, net, "p1", "1y");
+    const calls = net.calls.length;
+    const second = await series(store, net, "p1", "1y");
+    expect(net.calls.length).toBe(calls);
+    expect(second).toEqual(first);
+  });
+
+  it("recomputes when a transaction is added", async () => {
+    const store = oneCryptoPortfolio();
+    const net = flatNet();
+    const before = await series(store, net, "p1", "all");
+    await store.transactions.add("p1", tx({ time: Date.parse("2021-06-01T00:00:00Z"), quantity: 5 }));
+    const after = await series(store, net, "p1", "all");
+    expect(after).not.toEqual(before);
+  });
+
+  it("recomputes when a transaction is edited without being added or removed", async () => {
+    // The case a count and a latest timestamp would both miss, which is why
+    // the key folds in the fields the maths actually reads.
+    const store = oneCryptoPortfolio();
+    const net = flatNet();
+    const rows = (await store.portfolios.get("p1"))!.transactions;
+    const before = await series(store, net, "p1", "all");
+    await store.transactions.update(rows[0]!.id, { quantity: 99 });
+    const after = await series(store, net, "p1", "all");
+    expect(after).not.toEqual(before);
+  });
+});
+
+describe("ledgerFingerprint", () => {
+  const row = {
+    id: "t1", symbol: "BTC", side: "buy", quantity: 1, price: 100, fee: 0,
+    time: 1_700_000_000_000, sourceSymbol: null,
+  };
+
+  it("is stable for the same ledger", () => {
+    expect(ledgerFingerprint([row])).toBe(ledgerFingerprint([{ ...row }]));
+  });
+
+  it("moves when any field the maths reads moves", () => {
+    const base = ledgerFingerprint([row]);
+    for (const patch of [
+      { quantity: 2 }, { price: 101 }, { fee: 1 }, { time: 1 },
+      { side: "sell" }, { symbol: "ETH" }, { sourceSymbol: "SHELL.AS" },
+    ]) {
+      expect(ledgerFingerprint([{ ...row, ...patch }])).not.toBe(base);
+    }
+  });
+
+  it("moves when a row is added or removed", () => {
+    expect(ledgerFingerprint([row, { ...row, id: "t2" }])).not.toBe(ledgerFingerprint([row]));
+    expect(ledgerFingerprint([])).not.toBe(ledgerFingerprint([row]));
   });
 });
