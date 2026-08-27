@@ -29,6 +29,7 @@ import { KEYS } from "@/lib/storage-keys";
 import { useCachedValuation, useLastPortfolio } from "@/components/useCachedValuation";
 import StaleNote from "@/components/StaleNote";
 import { usePrivacy } from "@/components/usePrivacy";
+import { useChartReadout } from "@/components/useChartReadout";
 import TxForm, { type NewTx } from "@/components/TxForm";
 import AssetInfoPanel from "@/components/AssetInfoPanel";
 import RangePicker from "@/components/RangePicker";
@@ -538,6 +539,16 @@ function PriceChart({
 
   useFitChart(chart, container, bars);
 
+  /**
+   * The same press-and-hold reading the portfolio chart has. This chart is a
+   * near-copy of `ValueChart` rather than an instance of it — it carries trade
+   * markers the shared component has no notion of — so the readout has to be
+   * repeated here. Without it this was the one chart in the app where holding
+   * a finger down produced a date and no figure.
+   */
+  const at = useChartReadout(chart, [line]);
+  const reading = at && at.values[0] !== null ? { t: at.t, value: at.values[0]! } : null;
+
   if (bars !== null && bars.length === 0) {
     return <EmptyState>No price history for this asset.</EmptyState>;
   }
@@ -549,6 +560,17 @@ function PriceChart({
           same curve. `z-10` because lightweight-charts fills the container
           with its own absolutely-positioned canvases and these would otherwise
           be painted behind them: present, sized, and never on screen. */}
+      {/* Left, so it clears the high and low pinned to the right edge. */}
+      {reading && !hideValues && (
+        <div className="pointer-events-none absolute z-10 left-2 top-2 text-xs">
+          <div className="tabular-nums text-neutral-200">{fmtMoney(reading.value)}</div>
+          <div className="text-neutral-500">
+            {new Date(reading.t).toLocaleDateString(undefined, {
+              day: "numeric", month: "short", year: "numeric",
+            })}
+          </div>
+        </div>
+      )}
       {extent && !hideValues && (
         <>
           <span
