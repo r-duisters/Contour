@@ -15,7 +15,9 @@
  * directly is drawn on the CPU each frame and reads as jank.
  *
  * This component is the bare mark. The blue tile or disc that carries it is
- * added by each consumer (top bar, login, lock), never here.
+ * added by each consumer (top bar, login, lock), never here — so the margin
+ * baked into the viewBox is margin every consumer inherits and none can undo.
+ * It is set to fill 70%; see the note on the viewBox below.
  */
 export default function ContourMark({ size = 48, breathing = false }: { size?: number; breathing?: boolean }) {
   return (
@@ -23,7 +25,15 @@ export default function ContourMark({ size = 48, breathing = false }: { size?: n
       <svg
         width={size}
         height={size}
-        viewBox="0 0 512 512"
+        /* The window, not the drawing, is what sets how much room the mark is
+           given. The ring is 332 units across including its stroke, so a
+           474-wide box fills 70% — against 65% when the box was the full 512,
+           where 35% of every consumer's tile was empty margin the consumer
+           could not see or override. Strokes scale with the box for free.
+
+           `generate-icons.mjs` carries its own copy of this geometry and
+           applies the same 512/474 growth. Change one, change the other. */
+        viewBox="19 19 474 474"
         role="img"
         aria-label="Contour"
         className="block"

@@ -18,8 +18,15 @@ import sharp from "sharp";
  * The scale is a transform rather than arithmetic on each coordinate, so the
  * stroke scales with the geometry for free.
  */
+/**
+ * Matches `ContourMark`'s viewBox, which windows 474 units of the 512 the
+ * geometry is drawn in. Expressed here as a scale because this file grows the
+ * mark with a transform rather than a viewBox; the two are the same thing.
+ */
+const GROW = 512 / 474;
+
 const mark = (k = 1, w = 1) => `
-  <g transform="translate(${256 * (1 - k)},${256 * (1 - k)}) scale(${k})">
+  <g transform="translate(${256 * (1 - k * GROW)},${256 * (1 - k * GROW)}) scale(${k * GROW})">
     <circle cx="256" cy="256" r="160" fill="none" stroke="#ffffff"
             stroke-width="${12 * w}"/>
     <path d="M172,302 L228,244 L280,276 L348,190" fill="none" stroke="#ffffff"

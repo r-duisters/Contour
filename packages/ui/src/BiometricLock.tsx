@@ -158,11 +158,16 @@ function Overlay({
               style={{ width: 132, height: 132, animation: "lock-breathe 2.4s ease-in-out infinite" }}
             />
           )}
+          {/* A fixed size with the mark centred, not padding around it.
+              `p-6` was a flat 24px on every side, which at this scale dominated
+              — a 112px disc carrying a 41px drawing, barely half the fill the
+              login tile had. The disc keeps its 112px so the breathing ring
+              above still clears it by 10px. */}
           <span
-            className="rounded-full bg-blue-600 p-6"
-            style={{ boxShadow: "0 0 60px rgba(37,99,235,0.45)" }}
+            className="rounded-full bg-blue-600 flex items-center justify-center"
+            style={{ width: 112, height: 112, boxShadow: "0 0 60px rgba(37,99,235,0.45)" }}
           >
-            <ContourMark size={64} breathing />
+            <ContourMark size={96} breathing />
           </span>
         </div>
 
