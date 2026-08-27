@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { TxSide } from "@/lib/portfolio";
-import TxForm from "@/components/TxForm";
+import TxForm, { type NewTx } from "@/components/TxForm";
 import Sheet from "@/components/Sheet";
 import Link from "next/link";
 import {
@@ -166,7 +166,11 @@ export default function PortfolioPage() {
   }, [client, selectedId, range, rangeReady]);
   useEffect(() => { loadSelected(); }, [loadSelected]);
 
-  async function addTransaction(tx: Omit<Tx, "id" | "note">) {
+  // Takes the form's own type, not this page's display row. They differ by
+  // exactly the two fields cash and income need — `assetType` and
+  // `sourceSymbol` — and the narrower signature carried them at runtime while
+  // claiming not to, which is how a field gets parsed and silently dropped.
+  async function addTransaction(tx: NewTx) {
     setFormError(null);
     // With nothing selected this used to post to a route that answered 404 and
     // land in the message below; the client needs a real id, so the check is

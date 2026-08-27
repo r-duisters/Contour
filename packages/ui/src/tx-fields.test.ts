@@ -20,6 +20,7 @@ describe("priceCurrency", () => {
 
 describe("toNewTx", () => {
   const fields = {
+    mode: "trade" as const, sourceSymbol: "",
     symbol: "eth", side: "buy" as const, quantity: "2", price: "2000",
     fee: "1.5", when: "2024-03-01T12:00", currency: "EUR",
   };
@@ -50,5 +51,54 @@ describe("toNewTx", () => {
 
   it("treats an empty fee as zero, not as missing", () => {
     expect(toNewTx({ ...fields, fee: "" })!.fee).toBe(0);
+  });
+});
+
+describe("cash and income", () => {
+  it("builds a cash deposit from an amount and a currency", () => {
+    const tx = toNewTx({
+      mode: "cash", symbol: "EUR", side: "transfer_in", quantity: "500",
+      price: "", fee: "", when: "2025-06-02T10:00", currency: "EUR", sourceSymbol: "",
+    })!;
+    expect(tx).toMatchObject({
+      symbol: "EUR", assetType: "cash", side: "transfer_in", quantity: 500,
+      price: 0, fee: 0, nativeCurrency: "EUR", nativePrice: 1, sourceSymbol: null,
+    });
+  });
+
+  it("attributes income to its source security, uppercased", () => {
+    const tx = toNewTx({
+      mode: "cash", symbol: "EUR", side: "income", quantity: "120.50",
+      price: "", fee: "", when: "2025-06-02T10:00", currency: "EUR",
+      sourceSymbol: "shell.as",
+    })!;
+    expect(tx).toMatchObject({ side: "income", quantity: 120.5, sourceSymbol: "SHELL.AS" });
+  });
+
+  it("leaves the source null when none is given", () => {
+    const tx = toNewTx({
+      mode: "cash", symbol: "EUR", side: "income", quantity: "4.5",
+      price: "", fee: "", when: "2025-06-02T10:00", currency: "EUR", sourceSymbol: "  ",
+    })!;
+    expect(tx!.sourceSymbol).toBeNull();
+  });
+
+  it("refuses a cash row with no currency, rather than inventing one", () => {
+    expect(toNewTx({
+      mode: "cash", symbol: "", side: "transfer_in", quantity: "500",
+      price: "", fee: "", when: "2025-06-02T10:00", currency: null, sourceSymbol: "",
+    })).toBeNull();
+  });
+
+  it("still builds a trade exactly as before", () => {
+    // The regression guard: adding a mode must not change what the old one
+    // produces.
+    const before = toNewTx({
+      mode: "trade", symbol: "ETH", side: "buy", quantity: "2", price: "2000",
+      fee: "1", when: "2025-06-02T10:00", currency: "EUR", sourceSymbol: "",
+    })!;
+    expect(before).toMatchObject({
+      symbol: "ETH", assetType: "crypto", price: 2000, nativePrice: 2000, sourceSymbol: null,
+    });
   });
 });

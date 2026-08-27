@@ -17,9 +17,16 @@ export default function SymbolPicker({
   value,
   onChange,
   className,
+  placeholder,
 }: {
   value: string;
   onChange: (symbol: string) => void;
+  /**
+   * Overrides the default hint. The default names the field ("Symbol"); a
+   * caller whose field means something more specific — "Paid by", for the
+   * security a dividend came from — says so instead.
+   */
+  placeholder?: string;
   className?: string;
 }) {
   const client = useDataClient();
@@ -80,7 +87,7 @@ export default function SymbolPicker({
           if (e.key === "Enter" && query) { pick(shown[0] ?? query); }
           if (e.key === "Escape") { setQuery(null); setOpen(false); }
         }}
-        placeholder={value || "Symbol"}
+        placeholder={value || placeholder || "Symbol"}
         autoCapitalize="characters"
         autoCorrect="off"
         spellCheck={false}
