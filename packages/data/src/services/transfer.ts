@@ -278,6 +278,7 @@ export async function exportJson(store: Store, id: string): Promise<ExportFile> 
         nativeCurrency: t.nativeCurrency,
         nativePrice: t.nativePrice,
         nativeFee: t.nativeFee,
+        sourceSymbol: t.sourceSymbol,
         note: t.note,
       })),
     },
@@ -309,6 +310,7 @@ export async function exportCsv(
     time: t.time,
     nativeCurrency: t.nativeCurrency,
     nativePrice: t.nativePrice,
+    sourceSymbol: t.sourceSymbol,
     note: t.note,
   }));
 
@@ -348,6 +350,7 @@ export async function restore(
       nativeCurrency: t.nativeCurrency ?? null,
       nativePrice: t.nativePrice ?? null,
       nativeFee: t.nativeFee ?? null,
+      sourceSymbol: t.sourceSymbol ?? null,
       note: t.note ?? null,
     })));
   }

@@ -71,6 +71,54 @@ async function seeded(csv: string = CSV) {
   return { store, id: p.id, report };
 }
 
+describe("a backup round-trips income", () => {
+  it("writes sourceSymbol out and reads it back", async () => {
+    // Found by hand in Task 8, and it is the reason that step exists: the
+    // backup schema accepted `sourceSymbol` while the serialiser never wrote
+    // it, so a dividend restored with its attribution silently gone. A backup
+    // that loses a field is a one-way door.
+    const store = MemoryStore();
+    const p = await store.portfolios.create("Scratch");
+    await store.transactions.add(p.id, {
+      symbol: "EUR", assetType: "cash", side: "income", quantity: 120,
+      price: 0, fee: 0, time: 1_700_000_000_000,
+      nativeCurrency: "EUR", nativePrice: 1, nativeFee: null,
+      sourceSymbol: "SHELL.AS", note: null,
+    });
+
+    const { body } = await exportJson(store, p.id);
+    expect(JSON.parse(body).portfolio.transactions[0].sourceSymbol).toBe("SHELL.AS");
+
+    const restored = await restore(store, body);
+    const row = (await store.portfolios.get(restored.portfolio.id))!.transactions[0]!;
+    expect(row.sourceSymbol).toBe("SHELL.AS");
+    expect(row.side).toBe("income");
+  });
+});
+
+describe("the Ghostfolio export carries a dividend", () => {
+  it("emits the income row against its source, not the currency", async () => {
+    // The second half of the same defect the backup had: `ghostfolioCsv`
+    // filters cash out unless the row is income *with a source*, and the
+    // service was building its ExportTx without `sourceSymbol` — so the
+    // dividend failed the filter and vanished from the file. Both layers now
+    // carry it, and both are asserted.
+    const store = MemoryStore();
+    const p = await store.portfolios.create("Scratch");
+    await store.transactions.add(p.id, {
+      symbol: "EUR", assetType: "cash", side: "income", quantity: 120,
+      price: 0, fee: 0, time: 1_700_000_000_000,
+      nativeCurrency: "EUR", nativePrice: 1, nativeFee: null,
+      sourceSymbol: "SHELL.AS", note: null,
+    });
+    const { body } = await exportCsv(store, FakeNet({}), p.id, "ghostfolio");
+    const row = body.split("\r\n").find((l) => l.includes("DIVIDEND"));
+    expect(row).toBeDefined();
+    // 1 unit at the amount received — see the note on ghostfolioCsv.
+    expect(row).toContain("SHELL.AS,DIVIDEND,1,120");
+  });
+});
+
 describe("importDelta", () => {
   it("writes every parsed row, and the count matches", async () => {
     const { store, id, report } = await seeded();
