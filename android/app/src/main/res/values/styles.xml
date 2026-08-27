@@ -30,6 +30,5 @@
          the recents card, so the entrance and the card agree. -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/contour_splash</item>
-        <item name="android:windowBackground">@drawable/contour_splash</item>
     </style>
 </resources>
