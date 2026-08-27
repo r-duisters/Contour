@@ -9,7 +9,9 @@ import {
 } from "@/core/attribution";
 import { currencyForTicker } from "@/core/equity";
 import { rateOn } from "@/core/fx";
-import { flowsByYear, realisedByYear, tradeStats, type TradeStats } from "@/core/insights";
+import {
+  flowsByYear, incomeBySource, realisedByYear, tradeStats, type TradeStats,
+} from "@/core/insights";
 import { roundTrips, tripStats, type TripStats } from "@/core/round-trips";
 import { computeHoldings, valueHoldings, type ValuedHolding } from "@/core/portfolio";
 import { pricingPair } from "@/core/symbols";
@@ -433,6 +435,8 @@ export type Insights = {
    * one. See `packages/core/src/round-trips.ts`.
    */
   trips: TripStats;
+  /** What each holding has paid out; a null symbol is income with no source. */
+  income: { symbol: string | null; total: number }[];
 };
 
 /**
@@ -453,6 +457,15 @@ export async function insights(store: Store, net: Net, id: string): Promise<Insi
   const assetRows = portfolio.transactions.filter((t) => t.assetType !== "cash");
   const txs = toDisplayTxs(assetRows, currency, toDisplay, await ledgerRates(net, currency, assetRows));
 
+  // The cash filter above stays: moving euros between a bank and an exchange
+  // is not a trade, and counting it as one inflated every figure below. Income
+  // is a cash row, so it is excluded by that filter and has to be converted
+  // separately — the one question here that is *about* cash.
+  const incomeRows = portfolio.transactions.filter((t) => t.side === "income");
+  const incomeTxs = toDisplayTxs(
+    incomeRows, currency, toDisplay, await ledgerRates(net, currency, incomeRows),
+  );
+
   return {
     // Same relabelling as `valuation`: a failed EUR lookup leaves the figures
     // in USD, so the label has to follow. `displayContext` keeps `currency`
@@ -463,5 +476,6 @@ export async function insights(store: Store, net: Net, id: string): Promise<Insi
     byYear: flowsByYear(txs),
     realisedByYear: realisedByYear(txs),
     trips: tripStats(roundTrips(txs)),
+    income: incomeBySource(incomeTxs),
   };
 }

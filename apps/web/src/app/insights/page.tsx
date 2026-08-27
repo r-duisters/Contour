@@ -70,6 +70,7 @@ export default function InsightsPage() {
   const [stats, setStats] = useState<TradeStats | null>(null);
   const [realised, setRealised] = useState<{ year: number; realised: number }[]>([]);
   const [trips, setTrips] = useState<TripStats | null>(null);
+  const [income, setIncome] = useState<{ symbol: string | null; total: number }[]>([]);
   const [benchKey, setBenchKey] = useState<BenchKey>("sp500");
   const [rows, setRows] = useState<RangeStat[]>([]);
   const [loadingRows, setLoadingRows] = useState(false);
@@ -100,7 +101,12 @@ export default function InsightsPage() {
       })
       .catch(() => setHoldings([]));
     client.getInsights(portfolioId)
-      .then((d) => { setStats(d.stats); setRealised(d.realisedByYear ?? []); setTrips(d.trips ?? null); })
+      .then((d) => {
+        setStats(d.stats);
+        setRealised(d.realisedByYear ?? []);
+        setTrips(d.trips ?? null);
+        setIncome(d.income ?? []);
+      })
       .catch(() => {});
   }, [client, portfolioId]);
 
@@ -444,6 +450,37 @@ export default function InsightsPage() {
                   else. No total appears here on purpose. */}
               <p className="text-xs text-neutral-500 mt-3">
                 Each sale matched to the units it sold, oldest first. Median holding periods.
+              </p>
+            </Section>
+          )}
+
+          {/* Nothing is drawn when there is no income. EmptyState owns the
+              empty tier, and a panel saying "no income yet" on a ledger that
+              never will have any is noise. */}
+          {income.length > 0 && (
+            <Section title="What your holdings paid you">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                <StatTile
+                  label="Income"
+                  value={fmtMoney(income.reduce((a, r) => a + r.total, 0))}
+                  signed={1}
+                />
+              </div>
+              <SubHeading>By source</SubHeading>
+              <dl className="text-sm">
+                {income.map((r) => (
+                  <Row
+                    key={r.symbol ?? "unattributed"}
+                    label={r.symbol ?? "No source"}
+                    value={<span className="text-green-500">{fmtMoney(r.total)}</span>}
+                  />
+                ))}
+              </dl>
+              <p className="text-xs text-neutral-500 mt-3">
+                Dividends, interest and rewards paid in cash. It never changes what a
+                holding cost, so a dividend cannot flatter the shares that paid it.
+                {income.some((r) => r.symbol === null) &&
+                  " Income with no source is interest, which nothing pays."}
               </p>
             </Section>
           )}

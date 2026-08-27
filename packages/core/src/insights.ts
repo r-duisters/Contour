@@ -15,7 +15,15 @@ export type TradeStats = {
   avgBuySize: number | null;
   busiestYear: { year: number; trades: number } | null;
   assetsTraded: number;
-  /** Cash credited by a holding — dividends, interest, rewards. */
+  /**
+   * Income rows **among the transactions given**, which in practice is zero:
+   * every service filters cash out before calling this, and an income row is
+   * a cash row. It is counted rather than swept into `transfers`, and it is
+   * deliberately not the answer to "what has this portfolio earned" —
+   * `Insights.income` is, and it converts the amounts. Do not render this
+   * beside a figure that includes income; a structural zero next to a real
+   * total is worse than no number at all.
+   */
   income: number;
 };
 
@@ -267,4 +275,32 @@ export function allocation(
       return { label, value, share: (value / sum) * 100, positions };
     })
     .sort((a, b) => b.value - a.value);
+}
+
+/**
+ * What each holding has paid out, largest first, with unattributed income
+ * (bank interest) last under a null symbol.
+ *
+ * Amounts are already in the display currency: an income row's `quantity` is
+ * the amount and `toDisplayTxs` has converted it, so nothing is re-priced here.
+ *
+ * This is the only reader of `sourceSymbol` inside the app. Attribution was
+ * the whole argument for `income` being a side of its own rather than plain
+ * cash — without this the field is stored, exported, and never shown.
+ */
+export function incomeBySource(
+  txs: (Tx & { sourceSymbol?: string | null })[],
+): { symbol: string | null; total: number }[] {
+  const by = new Map<string | null, number>();
+  for (const t of txs) {
+    if (t.side !== "income") continue;
+    const key = t.sourceSymbol ?? null;
+    by.set(key, (by.get(key) ?? 0) + t.quantity);
+  }
+  return [...by.entries()]
+    .map(([symbol, total]) => ({ symbol, total }))
+    // Unattributed income sorts last regardless of size: the list is about
+    // which holdings pay, and interest is not one of them.
+    .sort((a, b) =>
+      a.symbol === null ? 1 : b.symbol === null ? -1 : b.total - a.total);
 }

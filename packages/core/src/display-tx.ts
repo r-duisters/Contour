@@ -10,6 +10,7 @@ type StoredTx = {
   nativeCurrency: string | null;
   nativePrice: number | null;
   nativeFee: number | null;
+  sourceSymbol?: string | null;
   /**
    * Prisma hands these back as BigInt; the `Store` port hands them back as
    * number (see `packages/data/src/ports/store.ts`). `Number()` below accepts
@@ -55,6 +56,11 @@ export function toDisplayTxs(
       price: native ? t.nativePrice! : t.price * rate,
       fee: native && t.nativeFee !== null ? t.nativeFee! : t.fee * rate,
       time,
+      // Carried through rather than zipped back on by index afterwards: the
+      // caller would have to rebuild the same filtered array in the same order
+      // to do that, and any divergence attributes a dividend to the wrong
+      // security silently.
+      sourceSymbol: t.sourceSymbol ?? null,
     };
   });
 }

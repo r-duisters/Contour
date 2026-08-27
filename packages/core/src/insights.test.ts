@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allocation, concentration, contributions, flowsByYear, tradeStats, realisedByYear } from "./insights";
+import { allocation, concentration, contributions, flowsByYear, tradeStats, realisedByYear, incomeBySource } from "./insights";
 import type { Tx, ValuedHolding } from "./portfolio";
 
 const DAY = 86_400_000;
@@ -273,5 +273,42 @@ describe("contributions — the percentage survives a sale", () => {
   it("declines when nothing was ever put in", () => {
     const [c] = contributions([holding({ symbol: "FREE", quantity: 1, invested: 0, unrealizedPnl: 5 })]);
     expect(c!.pct).toBeNull();
+  });
+});
+
+describe("incomeBySource", () => {
+  it("groups income by the security that paid it", () => {
+    const txs = [
+      { symbol: "EUR", side: "income" as const, quantity: 120, price: 0, fee: 0,
+        time: 1, sourceSymbol: "SHELL.AS" },
+      { symbol: "EUR", side: "income" as const, quantity: 80, price: 0, fee: 0,
+        time: 2, sourceSymbol: "SHELL.AS" },
+      { symbol: "EUR", side: "income" as const, quantity: 4.5, price: 0, fee: 0,
+        time: 3, sourceSymbol: null },
+    ];
+    expect(incomeBySource(txs)).toEqual([
+      { symbol: "SHELL.AS", total: 200 },
+      { symbol: null, total: 4.5 },
+    ]);
+  });
+
+  it("keeps unattributed income last however large it is", () => {
+    // Bank interest has no source. It belongs at the bottom of a list about
+    // which holdings pay, not at the top because it happens to be biggest.
+    const txs = [
+      { symbol: "EUR", side: "income" as const, quantity: 5, price: 0, fee: 0,
+        time: 1, sourceSymbol: "SHELL.AS" },
+      { symbol: "EUR", side: "income" as const, quantity: 900, price: 0, fee: 0,
+        time: 2, sourceSymbol: null },
+    ];
+    expect(incomeBySource(txs).map((r) => r.symbol)).toEqual(["SHELL.AS", null]);
+  });
+
+  it("ignores everything that is not income", () => {
+    const txs = [
+      { symbol: "ETH", side: "buy" as const, quantity: 2, price: 100, fee: 0, time: 1 },
+      { symbol: "EUR", side: "transfer_in" as const, quantity: 500, price: 0, fee: 0, time: 2 },
+    ];
+    expect(incomeBySource(txs)).toEqual([]);
   });
 });
