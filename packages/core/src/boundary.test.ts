@@ -34,6 +34,40 @@ const FORBIDDEN = [
   "buffer",
 ];
 
+/**
+ * Capacitor, which is forbidden *statically* and allowed dynamically.
+ *
+ * The adapters live in an app, not in a package — `SqliteStore` and
+ * `CapacitorNet` are to `apps/mobile` what `PrismaStore` and `WebNet` are to
+ * `apps/web`. A static import here would put Capacitor in every bundle,
+ * including the browser's and the server's, which is the property this file
+ * exists to keep.
+ *
+ * A dynamic `await import()` is a different thing and is already how this
+ * repository does platform-conditional code: `BiometricLock` reaches for
+ * `@capacitor/core` only after `isNativePlatform()` says there is one, and the
+ * module is never pulled into a bundle that will not use it. Banning that
+ * outright would have meant either deleting a working component or keeping a
+ * named exemption for it, and a rule that describes the property is better
+ * than a list of the files that break it.
+ *
+ * The scope alone is enough for `@capacitor`: the matcher appends an optional
+ * subpath, so it covers every plugin. `@capacitor-community` needs its own
+ * entry, because what follows the scope there is a hyphen rather than a slash.
+ */
+const FORBIDDEN_STATIC = ["@capacitor", "@capacitor-community", "@aparajita/capacitor-biometric-auth"];
+
+/**
+ * `from "x"` and a bare `import "x"`, but never `await import("x")` or
+ * `require("x")` — the two forms that are lazy by construction.
+ */
+function isStaticImport(src: string, mod: string): boolean {
+  const escaped = mod.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(
+    `(?:\\bfrom\\s*|\\bimport\\s+)(['"])${escaped}(?:/[^'"]*)?\\1`,
+  ).test(src);
+}
+
 const PORTABLE_PACKAGES = ["packages/core/src", "packages/ui/src", "packages/data/src"];
 
 /**
@@ -180,6 +214,11 @@ describe("packages/core, packages/ui and packages/data stay portable", () => {
         for (const mod of FORBIDDEN) {
           if (isForbiddenImport(src, mod)) {
             offenders.push(`[${pkg}] ${file.replace(process.cwd() + "/", "")} -> ${mod}`);
+          }
+        }
+        for (const mod of FORBIDDEN_STATIC) {
+          if (isStaticImport(src, mod)) {
+            offenders.push(`[${pkg}] ${file.replace(process.cwd() + "/", "")} -> ${mod} (static)`);
           }
         }
       }

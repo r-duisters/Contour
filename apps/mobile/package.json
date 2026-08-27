@@ -1,0 +1,11 @@
+{
+  "name": "@contour/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3100",
+    "build": "next build",
+    "lint": "eslint",
+    "sync": "npm run build && cap sync android"
+  }
+}

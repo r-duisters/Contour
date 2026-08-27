@@ -90,12 +90,18 @@ and `studio` also resolve the schema that way, but they additionally need `DATAB
 other secrets) from `apps/web/.env`, which only loads when the CLI's cwd is `apps/web` — run those
 two from there. A fresh clone needs `npx prisma generate` at least once before the app will start.
 
-`npm run lint` is a loop over `@contour/core`, `@contour/ui` and `@contour/web` with a sticky
-failure flag, not `--workspaces` — npm's `--workspaces` flag stops at the first failing workspace,
-which was silently skipping `apps/web`. **It currently exits non-zero**: 21 pre-existing lint errors
-(7 in `packages/ui`, 14 in `apps/web`) predate this restructuring and were deliberately left alone
-rather than fixed as a drive-by. Don't mistake that non-zero exit for something the restructuring
-broke.
+`npm run lint` is a loop with a sticky failure flag, not `--workspaces` — npm's `--workspaces` flag
+stops at the first failing workspace, which was silently skipping `apps/web`. The list of
+workspaces is **derived from `npm query .workspace`** rather than written out: the hardcoded list it
+replaced skipped `@contour/mobile` in silence the moment that workspace existed, which is the same
+bug in a new place. **It currently exits non-zero**: 21 pre-existing lint errors (7 in `packages/ui`,
+14 in `apps/web`) predate this restructuring and were deliberately left alone rather than fixed as a
+drive-by. Don't mistake that non-zero exit for something the restructuring broke.
+
+`eslint.config.mjs` ignores build output as `**/out/**` and `**/.next/**`, matched at any depth.
+The unprefixed forms eslint-config-next ships with resolve relative to the config file, so they only
+ever covered the repository root — `apps/mobile/out` was linted as source and added 96 errors of
+generated code.
 
 ## Architecture
 
