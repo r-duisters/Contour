@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      The app's own ground, matching the paper token in globals.css and the
+      `backgroundColor` in capacitor.config.ts. Named rather than inlined
+      because three files have to agree on it.
+    -->
+    <color name="contour_ground">#0A0A0A</color>
+</resources>

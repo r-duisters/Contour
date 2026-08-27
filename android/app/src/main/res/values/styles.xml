@@ -13,10 +13,23 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!--
+          This is the theme the activity runs under once launched, so this is
+          the background Android substitutes for the recents card now that the
+          card is no longer a photograph of the window. Without it the card is
+          a flat rectangle.
+
+          It sits behind an opaque WebView, so it costs nothing while the app
+          is actually on screen.
+        -->
+        <item name="android:windowBackground">@drawable/contour_splash</item>
     </style>
 
 
+    <!-- The launch window, shown until the WebView paints. Same drawable as
+         the recents card, so the entrance and the card agree. -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
-        <item name="android:background">@drawable/splash</item>
+        <item name="android:background">@drawable/contour_splash</item>
+        <item name="android:windowBackground">@drawable/contour_splash</item>
     </style>
 </resources>

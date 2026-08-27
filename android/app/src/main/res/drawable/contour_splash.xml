@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What Android draws when there is no app content to show: the launch window
+  before the WebView's first paint, and the recents card, which since
+  `setRecentsScreenshotEnabled(false)` is substituted from the window
+  background rather than photographed.
+
+  Blanking the card kept the balances off it and left a flat rectangle. This
+  puts the app's own mark there instead — the same disc the lock screen shows,
+  on the same ground — so the card says "Contour" rather than nothing.
+
+  A layer-list rather than the eleven density-specific PNGs Capacitor ships by
+  default: the mark is already a per-density mipmap, and the ground is a
+  colour, so there is nothing here that needs rasterising twice.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/contour_ground" />
+    <!--
+      112dp is the unlock disc's diameter, so the launch window, the recents
+      card and the lock screen all show the mark at the same size.
+    -->
+    <item
+        android:width="112dp"
+        android:height="112dp"
+        android:gravity="center">
+        <bitmap
+            android:src="@mipmap/ic_launcher_round"
+            android:gravity="center" />
+    </item>
+</layer-list>
