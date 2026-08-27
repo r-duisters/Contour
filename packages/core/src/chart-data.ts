@@ -88,3 +88,31 @@ export function thinKeepingExtremes(points: Pt[], target: number): Pt[] {
   }
   return out;
 }
+
+/**
+ * The value of a series at (or nearest to) a moment.
+ *
+ * Two lines on one chart are thinned independently — each keeps its own
+ * extremes, deliberately, because flattening one more than the other would
+ * misstate the gap the chart exists to show. The consequence is that they do
+ * not share timestamps, so a crosshair snapped to a point on one line lands
+ * between points on the other, and asking the plotted data what the second
+ * line was worth there answers "nothing".
+ *
+ * So a reading resolves against the *source* series rather than the thinned
+ * one: both figures then come from the same moment, and both are true values
+ * rather than whichever sample survived thinning.
+ *
+ * Points are assumed sorted by time, which every caller's are.
+ */
+export function valueAtNearest(points: Pt[], t: number): number | null {
+  if (points.length === 0) return null;
+  let lo = 0, hi = points.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (points[mid]!.t < t) lo = mid + 1; else hi = mid;
+  }
+  const after = points[lo]!;
+  const before = lo > 0 ? points[lo - 1]! : after;
+  return Math.abs(after.t - t) < Math.abs(t - before.t) ? after.v : before.v;
+}

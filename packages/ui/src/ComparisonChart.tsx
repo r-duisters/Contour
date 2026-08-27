@@ -6,8 +6,9 @@ import {
 } from "lightweight-charts";
 import { chartTheme } from "./chart-theme";
 import { useFitChart } from "@/components/useFitChart";
+import { useChartReadout } from "./useChartReadout";
 import { money } from "@/lib/display";
-import { shapePoints, thinKeepingExtremes } from "@/lib/chart-data";
+import { shapePoints, thinKeepingExtremes, valueAtNearest } from "@/lib/chart-data";
 
 export type Point = { t: number; v: number };
 
@@ -66,10 +67,23 @@ export default function ComparisonChart({
 
   useFitChart(chart, container, [you, bench, mode]);
 
+  /**
+   * The legend already names both lines and states where they end, so a
+   * reading retargets it rather than floating a second panel over the plot:
+   * one place to look, and the comparison — which is the whole point of this
+   * chart — stays a comparison at every point on it, not only the last.
+   */
+  const at = useChartReadout(chart, [mine, theirs]);
+
   const end = (points: Point[] | null) =>
     points && points.length ? points[points.length - 1]!.v : null;
-  const yours = end(you);
-  const other = end(bench);
+  // Resolved against the source series, not the plotted one. The two lines are
+  // thinned independently, so a crosshair snapped to a point on one lands
+  // between points on the other and `seriesData` reports nothing for it —
+  // which showed up as the benchmark's figure, and the ahead/behind line with
+  // it, blinking out at most positions on the chart.
+  const yours = at ? valueAtNearest(you ?? [], at.t) : end(you);
+  const other = at ? valueAtNearest(bench ?? [], at.t) : end(bench);
   const show = (v: number) => (mode === "money" ? money(v) : `${v - 100 >= 0 ? "+" : ""}${(v - 100).toFixed(1)}%`);
   const tone = (v: number) =>
     mode === "money" ? "text-neutral-300" : v >= 100 ? "text-green-500" : "text-red-500";
@@ -85,6 +99,15 @@ export default function ComparisonChart({
         )}
       </div>
       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs">
+        {/* Named rather than implied: without the date, a reader has no way to
+            tell a mid-chart reading from the closing figures it replaced. */}
+        {at && (
+          <span className="text-neutral-500 tabular-nums">
+            {new Date(at.t).toLocaleDateString(undefined, {
+              day: "numeric", month: "short", year: "numeric",
+            })}
+          </span>
+        )}
         <span className="inline-flex items-center gap-1.5">
           <span className="w-3 h-0.5 bg-blue-500 inline-block" />
           <span className="text-neutral-400">You</span>

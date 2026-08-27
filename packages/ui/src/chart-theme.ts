@@ -1,3 +1,5 @@
+import { TrackingModeExitMode } from "lightweight-charts";
+
 /**
  * The one place the charts agree on what they look like.
  *
@@ -43,6 +45,18 @@ export function chartTheme() {
       vertLines: { color: "#171717" },
       horzLines: { color: "#171717" },
     },
+    /**
+     * Press and hold to read a value; lift to dismiss.
+     *
+     * A phone has no hover, so the library gates the crosshair behind
+     * "tracking mode", entered with a long press. The default exit is
+     * `OnNextTap`, which leaves the chart tracking — and scrolling disabled —
+     * until the reader taps again; on a page that scrolls, that reads as the
+     * page having jammed. `OnTouchEnd` makes the reading last exactly as long
+     * as the finger is down, which is also the gesture people already know
+     * from every other chart on a phone.
+     */
+    trackingMode: { exitMode: TrackingModeExitMode.OnTouchEnd },
     // Vertical swipes must scroll the page on a touch device; horizontal drag
     // still pans and pinch still zooms.
     handleScroll: {

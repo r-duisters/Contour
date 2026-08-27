@@ -301,6 +301,12 @@ Numbers:
   grouped, carries no symbol at all rather than a wrong one, and the screen
   says what it is denominated in. Never reach for this to dodge the layer on
   an actual holding.
+- **A chart with no price axis owes the reader a way to read one.** Press and
+  hold: `ValueChart` prints the value and its date top-left, `ComparisonChart`
+  retargets its own legend so both lines and the gap between them speak about
+  the moment under the finger. Lift to dismiss. A phone has no hover, so this
+  is the only reading available — see `useChartReadout.ts`, and note that the
+  figure is masked by privacy mode like every other amount.
 - Percentages: two decimals for returns, one for shares and quick reads.
   Always signed.
 - Quantities: up to 8 decimals, never padded.

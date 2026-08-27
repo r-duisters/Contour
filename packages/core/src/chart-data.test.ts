@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { shapePoints, thin, thinKeepingExtremes, targetPoints, type Pt } from "./chart-data";
+import { shapePoints, thin, thinKeepingExtremes, targetPoints, type Pt, valueAtNearest } from "./chart-data";
 
 const ramp = (n: number): Pt[] =>
   Array.from({ length: n }, (_, i) => ({ t: i * 1000, v: i }));
@@ -108,5 +108,33 @@ describe("thinKeepingExtremes", () => {
     const flat: Pt[] = Array.from({ length: 100 }, (_, i) => ({ t: i, v: 7 }));
     const kept = thinKeepingExtremes(flat, 20);
     expect(new Set(kept.map((p) => p.t)).size).toBe(kept.length);
+  });
+});
+
+describe("valueAtNearest", () => {
+  const pts = [{ t: 100, v: 1 }, { t: 200, v: 2 }, { t: 300, v: 3 }];
+
+  it("finds an exact hit", () => {
+    expect(valueAtNearest(pts, 200)).toBe(2);
+  });
+
+  it("takes the closer of the two neighbours", () => {
+    expect(valueAtNearest(pts, 140)).toBe(1);
+    expect(valueAtNearest(pts, 160)).toBe(2);
+  });
+
+  it("clamps to the ends rather than returning nothing", () => {
+    expect(valueAtNearest(pts, 0)).toBe(1);
+    expect(valueAtNearest(pts, 9_999)).toBe(3);
+  });
+
+  it("has nothing to say about an empty series", () => {
+    expect(valueAtNearest([], 100)).toBeNull();
+  });
+
+  it("answers for a series whose own points are nowhere near the asked time", () => {
+    // The case this exists for: the crosshair snapped to the *other* line's
+    // point, so this one is being asked about a moment it has no sample at.
+    expect(valueAtNearest([{ t: 0, v: 7 }, { t: 1_000, v: 9 }], 480)).toBe(7);
   });
 });

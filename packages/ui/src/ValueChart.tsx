@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { shapePoints, thinKeepingExtremes } from "@/lib/chart-data";
 import { useFitChart } from "@/components/useFitChart";
+import { useChartReadout } from "./useChartReadout";
 import { usePrivacy } from "@/components/usePrivacy";
 import { money } from "@/lib/display";
 import {
@@ -124,6 +125,14 @@ export default function ValueChart({ series }: {
 
   useFitChart(chart, container, series);
 
+  /**
+   * What the finger is on. Press and hold — see `chart-theme.ts` — and this
+   * says what that point was worth and when, which is the only way to read a
+   * level off a chart with no price axis.
+   */
+  const at = useChartReadout(chart, [area]);
+  const reading = at && at.values[0] !== null ? { t: at.t, value: at.values[0]! } : null;
+
   return (
     <div className="relative">
       <div ref={container} className="h-56 md:h-64 border border-neutral-800 rounded" />
@@ -159,6 +168,23 @@ export default function ValueChart({ series }: {
             {money(extent.lo.value)}
           </span>
         </>
+      )}
+      {/* Top-left, so it never lands on the high and low labels pinned to the
+          right edge — which is also why those are left showing rather than
+          hidden while reading: nothing collides, and blanking them on every
+          touch would flicker the whole panel.
+
+          Masked with the same guard as the rest: a value read off the chart is
+          exactly the figure privacy mode exists to hide. */}
+      {reading && !hidden && (
+        <div className="pointer-events-none absolute z-10 left-2 top-2 text-xs">
+          <div className="tabular-nums text-neutral-200">{money(reading.value)}</div>
+          <div className="text-neutral-500">
+            {new Date(reading.t).toLocaleDateString(undefined, {
+              day: "numeric", month: "short", year: "numeric",
+            })}
+          </div>
+        </div>
       )}
       {series === null && (
         <span className="absolute inset-0 flex items-center justify-center text-xs text-neutral-500">
