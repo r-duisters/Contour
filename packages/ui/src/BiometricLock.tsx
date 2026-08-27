@@ -10,6 +10,15 @@ import { remainingSplash } from "./lock-timing";
 const RELOCK_AFTER_MS = 60_000;
 
 /**
+ * How long the lock takes to fade once it opens.
+ *
+ * The overlay used to unmount on the frame the prompt succeeded, so the
+ * entrance ended in a hard cut from the mark to the portfolio. Long enough to
+ * read as a dissolve, short enough that it is not a wait.
+ */
+const CLOSE_MS = 260;
+
+/**
  * `splash` is the app's own screen, held briefly before the system sheet
  * covers it. It exists as a state of its own rather than as a delay inside
  * `checking`, because the two look different on purpose: `checking` is the
@@ -32,6 +41,7 @@ type State = "checking" | "splash" | "unavailable" | "locked" | "prompting" | "o
 export default function BiometricLock({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<State>("checking");
   const [error, setError] = useState<string | null>(null);
+  const [closing, setClosing] = useState(false);
   const hiddenSince = useRef<number | null>(null);
 
   const unlock = useCallback(async () => {
@@ -46,7 +56,10 @@ export default function BiometricLock({ children }: { children: React.ReactNode 
         allowDeviceCredential: true, // the screen lock is an acceptable fallback
         cancelTitle: "Cancel",
       });
-      setState("open");
+      setClosing(true);
+      // Kept mounted while it fades; `closing` drives the opacity and the
+      // timeout is what finally takes it down.
+      window.setTimeout(() => { setClosing(false); setState("open"); }, CLOSE_MS);
     } catch (e) {
       setState("locked");
       const message = (e as { message?: string }).message ?? "";
@@ -113,31 +126,55 @@ export default function BiometricLock({ children }: { children: React.ReactNode 
   return (
     <>
       {children}
-      {locked && <Overlay state={state} error={error} onUnlock={unlock} />}
+      {locked && <Overlay state={state} error={error} onUnlock={unlock} closing={closing} />}
     </>
   );
 }
 
 function Overlay({
-  state, error, onUnlock,
+  state, error, onUnlock, closing,
 }: {
   state: State;
   error: string | null;
   onUnlock: () => void;
+  closing: boolean;
 }) {
   const working = state === "checking" || state === "splash" || state === "prompting";
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-start pt-[14vh] p-8">
+    <div
+      className="fixed inset-0 z-50 flex flex-col items-center justify-start pt-[14vh] p-8"
+      style={{
+        opacity: closing ? 0 : 1,
+        // Scaling up a touch as it goes makes the lock read as lifting away
+        // from the app rather than simply switching off.
+        transform: closing ? "scale(1.04)" : "none",
+        transition: `opacity ${CLOSE_MS}ms ease-out, transform ${CLOSE_MS}ms ease-out`,
+        pointerEvents: closing ? "none" : undefined,
+      }}
+    >
       {/* The same moving market as the login screen, so both entrances to the
           app look like the same app. Skipped during "checking", which is the
           one frame a browser sees before the lock bows out — and shown during
           "splash", which is the second a phone deliberately spends here. */}
-      {state === "checking" ? <div className="fixed inset-0 bg-neutral-950" /> : <TradingBackdrop />}
+      {/* The flat ground stays underneath for the whole life of the lock, so
+          the market fading in over it is a fade rather than a swap — the two
+          used to replace each other outright and the backdrop arrived as a
+          jolt on the frame `checking` became `splash`. */}
+      <div className="fixed inset-0 bg-neutral-950" />
+      {state !== "checking" && (
+        <div className="lock-anim fixed inset-0" style={{ animation: "lock-fade 520ms ease-out both" }}>
+          <TradingBackdrop />
+        </div>
+      )}
 
       <style>{`
         @keyframes lock-breathe {
           0%, 100% { transform: scale(1);    opacity: 0.55; }
           50%      { transform: scale(1.14); opacity: 0.15; }
+        }
+        @keyframes lock-fade {
+          from { opacity: 0; }
+          to   { opacity: 1; }
         }
         @keyframes lock-rise {
           from { opacity: 0; transform: translateY(8px); }
@@ -173,10 +210,19 @@ function Overlay({
 
         <div className="lock-anim" style={{ animation: "lock-rise 400ms ease-out both" }}>
           <p className="text-2xl font-semibold tracking-wide">Contour</p>
-          <p className="text-xs text-neutral-500 mt-1">
-            {state === "prompting" ? "Waiting for your fingerprint…"
-              : state === "checking" || state === "splash" ? "\u00a0"
-              : "Locked"}
+          {/* Keyed on the text so each caption is a fresh node and fades in
+              on its own; `min-h` holds the line's space, or the block below
+              would step up and down as the words change. */}
+          <p className="text-xs text-neutral-500 mt-1 min-h-4">
+            <span
+              key={state}
+              className="lock-anim inline-block"
+              style={{ animation: "lock-fade 260ms ease-out both" }}
+            >
+              {state === "prompting" ? "Waiting for your fingerprint…"
+                : state === "checking" || state === "splash" ? "\u00a0"
+                : "Locked"}
+            </span>
           </p>
         </div>
 

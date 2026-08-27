@@ -2,6 +2,7 @@ package app.contour.local;
 
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.WindowManager;
 import android.webkit.WebView;
@@ -30,6 +31,34 @@ public class MainActivity extends BridgeActivity {
         );
 
         handleBackButton();
+        keepPortfolioOutOfRecents();
+    }
+
+    /**
+     * Blank the app-switcher card without blanking the app.
+     *
+     * Android photographs the window as it goes to the background and uses
+     * that image for the recents card, so an app left open on the portfolio
+     * shows its balances to anyone who opens the task list — privacy mode
+     * included, because the snapshot predates any toggle.
+     *
+     * This was FLAG_SECURE set in onPause and cleared in onResume. That is the
+     * common recipe and it does not reliably work: the flag needs a window
+     * relayout to take effect, and the system may photograph the window before
+     * one happens. It was in the shipped APK and the balances were still on
+     * the card.
+     *
+     * API 33 added the API that actually means this — it suppresses the
+     * recents screenshot and nothing else, so screenshots and screen recording
+     * keep working while the app is in use. Below 33 there is no such
+     * separation, and the onPause toggle stays as the best available
+     * approximation rather than taking screenshots away from every older
+     * device to fix a card they may not even leak.
+     */
+    private void keepPortfolioOutOfRecents() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            setRecentsScreenshotEnabled(false);
+        }
     }
 
     /**
@@ -66,31 +95,24 @@ public class MainActivity extends BridgeActivity {
         });
     }
 
-    /**
-     * Keep the portfolio out of the app-switcher.
-     *
-     * Android photographs the window as it goes to the background and uses
-     * that image for the recents card, so an app left open on the portfolio
-     * shows its balances to anyone who opens the task list — privacy mode
-     * included, because the snapshot predates any toggle.
-     *
-     * FLAG_SECURE tells the system not to capture the window. Setting it on
-     * pause and clearing it on resume blanks the snapshot while leaving
-     * screenshots working while the app is actually in use.
-     */
+    /** The pre-33 fallback; see keepPortfolioOutOfRecents above. */
     @Override
     public void onPause() {
-        // Before super: the system may capture as soon as the pause completes.
-        getWindow().setFlags(
-            WindowManager.LayoutParams.FLAG_SECURE,
-            WindowManager.LayoutParams.FLAG_SECURE
-        );
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            // Before super: the system may capture as soon as the pause completes.
+            getWindow().setFlags(
+                WindowManager.LayoutParams.FLAG_SECURE,
+                WindowManager.LayoutParams.FLAG_SECURE
+            );
+        }
         super.onPause();
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        }
     }
 }
