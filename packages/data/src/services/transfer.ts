@@ -207,6 +207,7 @@ export async function importDelta(
       nativeCurrency: r.nativeCurrency ?? null,
       nativePrice: r.nativePrice ?? null,
       nativeFee: r.nativeFee ?? null,
+      sourceSymbol: r.sourceSymbol ?? null,
       time: r.time,
       note: "delta-import",
     })));

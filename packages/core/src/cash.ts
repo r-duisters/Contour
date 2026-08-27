@@ -2,8 +2,19 @@ export type CashRelevantTx = {
   assetType: string;
   side: string;
   quantity: number;
-  /** Currency of the movement, for cash rows this is the currency itself. */
-  nativeCurrency: string | null;
+  /**
+   * Withheld from the amount. Optional because every caller predating income
+   * passed rows whose fee was zero; a dividend's withholding is the only
+   * non-zero value this has ever seen.
+   */
+  fee?: number;
+  /**
+   * Currency of the movement; for cash rows this is the currency itself.
+   * Undefined as well as null, so a freshly parsed `ParsedTx` — where an
+   * absent field is undefined rather than null — can be balanced without
+   * being mapped to a stored row first.
+   */
+  nativeCurrency?: string | null;
 };
 
 /**
@@ -25,9 +36,13 @@ export function cashBalances(txs: CashRelevantTx[]): Record<string, number> {
     if (t.assetType !== "cash") continue;
     const currency = t.nativeCurrency;
     if (!currency) continue;
+    // Net of any fee. A dividend carries a withholding, recorded as `fee` so
+    // the gross stays visible; every other cash row has fee 0, so this is a
+    // no-op everywhere except the rows income introduced.
+    const credit = t.quantity - (t.fee ?? 0);
     const signed =
       t.side === "transfer_in" || t.side === "buy" || t.side === "income"
-        ? t.quantity
+        ? credit
         : -t.quantity;
     out[currency] = (out[currency] ?? 0) + signed;
   }
@@ -68,7 +83,7 @@ export function cashBalancesOver(
       const m = moves[i]!;
       const signed =
         m.side === "transfer_in" || m.side === "buy" || m.side === "income"
-          ? m.quantity
+          ? m.quantity - (m.fee ?? 0)
           : -m.quantity;
       running[m.nativeCurrency!] = (running[m.nativeCurrency!] ?? 0) + signed;
       i++;

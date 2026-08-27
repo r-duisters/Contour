@@ -67,7 +67,7 @@ describe("parseDeltaCsv", () => {
     expect(rows[0]!.price).toBe(100);
   });
 
-  it("maps deposits/withdrawals to transfers and income to zero-cost transfer_in", () => {
+  it("maps deposits and withdrawals to transfers, and a delivery to a priced transfer_in", () => {
     const { rows } = parseDeltaCsv(
       csv(
         "2024-01-01,DEPOSIT,Wallet,1,BTC,,,,,,,",
@@ -76,7 +76,12 @@ describe("parseDeltaCsv", () => {
       ),
     );
     expect(rows.map((r) => r.side)).toEqual(["transfer_in", "transfer_out", "transfer_in"]);
-    expect(rows[2]!.price).toBe(0); // income is always zero-cost
+    // Was 0: the parser used to zero a delivery's price. `transfer_in` has
+    // carried a cost-basis price all along, and 300 USDT for 0.1 ETH is the
+    // only figure that gives this reward a basis — throwing it away made a
+    // staking payout look like free money and understated the cost of the
+    // position it joined. 300 / 0.1.
+    expect(rows[2]!.price).toBe(3000);
   });
 
   it("emits a pendingQuote for non-USD quotes instead of warning", () => {
@@ -210,5 +215,72 @@ describe("parseDeltaCsv", () => {
       "Date,Way,Base amount,Base currency,Quote amount,Quote currency\n2024-01-15,BUY,1,BTC,40000,USDT",
     );
     expect(rows[0]!.side).toBe("buy");
+  });
+});
+
+describe("income rows", () => {
+  it("imports a dividend as cash attributed to the security", () => {
+    const csv = [
+      "Date,Type,Base amount,Base currency,Quote amount,Quote currency",
+      "2025-03-20 10:00:00,DIVIDEND,0,SHELL.AS,120.50,EUR",
+    ].join("\n");
+    const { rows, skipped } = parseDeltaCsv(csv);
+    expect(skipped).toEqual([]);
+    expect(rows[0]).toMatchObject({
+      symbol: "EUR", assetType: "cash", side: "income",
+      quantity: 120.5, price: 0, nativeCurrency: "EUR", nativePrice: 1,
+      sourceSymbol: "SHELL.AS",
+    });
+  });
+
+  it("imports a dividend whose base amount is empty, as Delta actually writes it", () => {
+    // The documented sample from dickwolff/Export-To-Ghostfolio leaves `Base
+    // amount` blank. The base-amount guard rejects the row before any side
+    // logic runs, so mapping DIVIDEND alone would only change the skip reason
+    // from `unsupported type` to `invalid base amount` and lose it just the same.
+    const csv = [
+      "Date,Type,Base amount,Base currency,Quote amount,Quote currency,Fee amount,Fee currency",
+      "2023-05-08 15:00:00,DIVIDEND,,AAPL,2.5,USD,0.5,USD",
+    ].join("\n");
+    const { rows, skipped } = parseDeltaCsv(csv);
+    expect(skipped).toEqual([]);
+    expect(rows[0]).toMatchObject({
+      symbol: "USD", assetType: "cash", side: "income",
+      quantity: 2.5, fee: 0.5, sourceSymbol: "AAPL",
+    });
+  });
+
+  it("imports bank interest as income with no source", () => {
+    const csv = [
+      "Date,Type,Base amount,Base currency",
+      "2025-03-20 10:00:00,INTEREST,4.50,EUR",
+    ].join("\n");
+    const { rows } = parseDeltaCsv(csv);
+    expect(rows[0]).toMatchObject({
+      symbol: "EUR", assetType: "cash", side: "income", quantity: 4.5,
+      sourceSymbol: undefined,
+    });
+  });
+
+  it("keeps a staking reward a delivery, and gives it the price the export names", () => {
+    const csv = [
+      "Date,Type,Base amount,Base currency,Quote amount,Quote currency",
+      "2025-03-20 10:00:00,STAKING,10,ETH,25000,USDT",
+    ].join("\n");
+    const { rows } = parseDeltaCsv(csv);
+    // A reward is shares arriving, not cash — inbound delivery, priced.
+    expect(rows[0]).toMatchObject({
+      symbol: "ETH", assetType: "crypto", side: "transfer_in", price: 2500,
+    });
+  });
+
+  it("refuses income denominated in something that is not money", () => {
+    const csv = [
+      "Date,Type,Base amount,Base currency,Quote amount,Quote currency",
+      "2025-03-20 10:00:00,DIVIDEND,,AAPL,2.5,DOGE",
+    ].join("\n");
+    const { rows, skipped } = parseDeltaCsv(csv);
+    expect(rows).toEqual([]);
+    expect(skipped[0]!.reason).toContain("not money");
   });
 });

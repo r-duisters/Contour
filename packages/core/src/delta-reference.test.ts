@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { parseDeltaCsv } from "./delta-csv";
+import { cashBalances } from "./cash";
 
 /**
  * The parser against a Delta export it did not grow up with.
@@ -56,14 +57,35 @@ describe("the reference Delta export", () => {
     expect(rows.find((r) => r.symbol === "BTC")!.side).toBe("transfer_in");
   });
 
-  it("drops the dividend, and that is the only row it drops", () => {
-    // Known gap, tracked as #16. This case is the reason the fixture is here:
-    // when the importer learns `income`, this expectation flips and the two
-    // below it come alive. Until then it records the loss honestly rather
-    // than leaving a silent 6-of-7.
-    expect(skipped).toHaveLength(1);
-    expect(skipped[0]!.reason).toContain("DIVIDEND");
-    expect(rows).toHaveLength(6);
+  it("imports every row, dropping none — the dividend included", () => {
+    // This case is the reason the fixture is here. It used to assert the loss:
+    // #16, the dividend skipped as `unsupported type "DIVIDEND"`, 6 of 7 rows.
+    // The importer has learned `income`, so it flips, and the two below it
+    // come alive.
+    expect(skipped).toEqual([]);
+    expect(rows).toHaveLength(7);
+  });
+
+  it("reads the dividend as cash against the security that paid it", () => {
+    // The real row: `,DIVIDEND,,AAPL,STOCK,2.5,USD,...,0.5,USD,...` — an empty
+    // base amount, the security in the base column, the money in the quote
+    // columns, and a withholding. Every one of those four is a thing the
+    // sample taught that the spec had not anticipated.
+    const dividend = rows.find((r) => r.side === "income")!;
+    expect(dividend).toMatchObject({
+      symbol: "USD", assetType: "cash", quantity: 2.5, sourceSymbol: "AAPL",
+    });
+  });
+
+  it("keeps the withholding visible instead of folding it into the amount", () => {
+    // Gross in `quantity`, withheld in `fee`; the balance credits the
+    // difference. Asserted on the dividend alone, because the fixture also
+    // deposits USD 5,000 and 5002 would say nothing about the withholding.
+    const dividend = rows.find((r) => r.side === "income")!;
+    expect(dividend.fee).toBe(0.5);
+    expect(cashBalances([dividend])).toEqual({ USD: 2 });
+    // And it does reach the account balance beside everything else.
+    expect(cashBalances(rows).USD).toBe(5002);
   });
 });
 

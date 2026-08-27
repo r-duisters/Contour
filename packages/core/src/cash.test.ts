@@ -111,3 +111,18 @@ describe("income", () => {
       .toEqual([{}, { EUR: 120 }]);
   });
 });
+
+describe("a dividend's fee", () => {
+  it("credits a dividend net of its fee", () => {
+    // Delta's real dividend row carries a withholding. Gross in `quantity`,
+    // the withholding in `fee`, so both figures stay truthful and the ledger
+    // shows what was taken.
+    expect(cashBalances([{ assetType: "cash", side: "income", quantity: 2.5,
+                           fee: 0.5, nativeCurrency: "USD" }])).toEqual({ USD: 2 });
+  });
+
+  it("leaves every other cash row alone, which all have fee 0", () => {
+    expect(cashBalances([{ assetType: "cash", side: "transfer_in", quantity: 100,
+                           fee: 0, nativeCurrency: "EUR" }])).toEqual({ EUR: 100 });
+  });
+});

@@ -19,6 +19,8 @@ export type ParsedTx = {
   pendingQuote?: { currency: string; total: number };
   /** Fee that could not be expressed in USD at parse time. */
   feeRaw?: { currency: string; amount: number };
+  /** The security an income row is attributed to; absent for interest. */
+  sourceSymbol?: string;
   /** What the trade cost in the currency it was actually settled in. */
   nativeCurrency?: string;
   nativePrice?: number;
@@ -38,7 +40,23 @@ export type DeltaImport = {
 /** Real money the portfolio can hold as a balance, as opposed to a traded asset. */
 
 
-const SIDE_MAP: Record<string, TxSide | "income" | "transfer"> = {
+/**
+ * Delta's vocabulary, mapped to ours. Two of the values are markers rather than
+ * sides, resolved below once the row's numbers have been read:
+ *
+ * - `"transfer"` — direction comes from the sign of the base amount.
+ * - `"delivery"` — an asset arriving without a purchase: a staking reward, an
+ *   airdrop, a share grant. `transfer_in` has carried a cost-basis price all
+ *   along, so these need no side of their own; they only need the price the
+ *   export already names, which this importer used to throw away.
+ * - `"income"` — cash credited against a security. A dividend does not move a
+ *   share count, so it cannot be a delivery of anything.
+ *
+ * `INCOME` maps to `"delivery"`, not to `"income"`. It is Delta's catch-all for
+ * an asset arriving and has always been imported as a transfer; re-pointing it
+ * at cash would silently reclassify rows on the owner's next import.
+ */
+const SIDE_MAP: Record<string, TxSide | "income" | "transfer" | "delivery"> = {
   TRANSFER: "transfer", // direction comes from the sign of the base amount
   BUY: "buy",
   SELL: "sell",
@@ -51,12 +69,14 @@ const SIDE_MAP: Record<string, TxSide | "income" | "transfer"> = {
   SEND: "transfer_out",
   "TRANSFER OUT": "transfer_out",
   TRANSFER_OUT: "transfer_out",
-  INCOME: "income",
-  STAKING: "income",
-  REWARD: "income",
-  AIRDROP: "income",
+  INCOME: "delivery",
+  STAKING: "delivery",
+  REWARD: "delivery",
+  AIRDROP: "delivery",
+  MINING: "delivery",
+  DIVIDEND: "income",
+  DIVIDENDS: "income",
   INTEREST: "income",
-  MINING: "income",
 };
 
 /** RFC-4180-ish CSV: quoted fields, escaped quotes, CRLF/CR/LF line ends. */
@@ -201,18 +221,71 @@ export function parseDeltaCsv(text: string): DeltaImport {
       ? "cash"
       : isSecurityTicker(baseCurrency) ? "equity" : "crypto";
 
+    // The date parse moved above the base-amount guard, because the income
+    // branch below needs `time` and has to run before that guard.
+    const time = parseDate(cell(cols.date));
+    if (!Number.isFinite(time)) { skipped.push({ line, reason: `unparseable date "${cell(cols.date)}"` }); continue; }
+
     const rawAmount = num(cell(cols.baseAmount));
     const quantity = Math.abs(rawAmount);
+
+    if (mapped === "income") {
+      // Cash credited against a security. The amount and its currency come from
+      // the quote side; the base column names what paid it — except for bank
+      // interest, where the base column IS the currency and there is no source.
+      //
+      // This sits above the base-amount guard, and that ordering is the whole
+      // reason dividends were lost rather than merely mislabelled: Delta leaves
+      // `Base amount` empty on a dividend row, so the guard rejects it as
+      // malformed. Adding the side alone would have changed the skip reason
+      // from `unsupported type "DIVIDEND"` to `invalid base amount ""` and
+      // dropped every real dividend just the same.
+      const incomeQuote = normalizeAsset(cell(cols.quoteCurrency));
+      const incomeQuoteAmount = Math.abs(num(cell(cols.quoteAmount)));
+      const hasQuote = !!incomeQuote && Number.isFinite(incomeQuoteAmount) && incomeQuoteAmount > 0;
+      const currency = hasQuote ? incomeQuote : baseCurrency;
+      const amount = hasQuote ? incomeQuoteAmount : quantity;
+      if (!isFiat(currency) && !STABLES.has(currency)) {
+        skipped.push({ line, reason: `income in ${currency}, which is not money` });
+        continue;
+      }
+      if (!Number.isFinite(amount) || amount <= 0) {
+        skipped.push({ line, reason: `invalid income amount "${cell(cols.quoteAmount)}"` });
+        continue;
+      }
+      // Delta's dividend rows carry a withholding. Gross in `quantity`, the
+      // withholding in `fee`; `cashBalances` credits the difference, so both
+      // figures stay truthful and the ledger shows what was taken.
+      const incomeFeeCurrency = normalizeAsset(cell(cols.feeCurrency));
+      const incomeFeeAmount = Math.abs(num(cell(cols.feeAmount)));
+      const incomeFee =
+        incomeFeeCurrency === currency && Number.isFinite(incomeFeeAmount) && incomeFeeAmount > 0
+          ? incomeFeeAmount
+          : 0;
+      rows.push({
+        symbol: currency,
+        assetType: "cash",
+        base: currency,
+        venue: cell(cols.venue),
+        side: "income",
+        quantity: amount,
+        price: 0,
+        fee: incomeFee,
+        time,
+        nativeCurrency: currency,
+        nativePrice: 1,
+        sourceSymbol: currency === baseCurrency ? undefined : baseCurrency,
+      });
+      continue;
+    }
+
     if (!Number.isFinite(quantity) || quantity <= 0) {
       skipped.push({ line, reason: `invalid base amount "${cell(cols.baseAmount)}"` });
       continue;
     }
 
-    const time = parseDate(cell(cols.date));
-    if (!Number.isFinite(time)) { skipped.push({ line, reason: `unparseable date "${cell(cols.date)}"` }); continue; }
-
     let side: TxSide;
-    if (mapped === "income") side = "transfer_in";
+    if (mapped === "delivery") side = "transfer_in";
     else if (mapped === "transfer") side = rawAmount < 0 ? "transfer_out" : "transfer_in";
     else side = mapped;
 
@@ -235,8 +308,10 @@ export function parseDeltaCsv(text: string): DeltaImport {
       pendingQuote = { currency: costsCurrency, total: costsAmount };
     }
 
-    if (mapped === "income") { price = 0; pendingQuote = undefined; }
-    else if (price === 0 && !pendingQuote && (side === "buy" || side === "sell")) {
+    // A delivery keeps whatever price the export names. `transfer_in` has
+    // carried a cost-basis price all along, and zeroing it here was throwing
+    // away the only figure that gives a staking reward or a share grant a basis.
+    if (price === 0 && !pendingQuote && (side === "buy" || side === "sell")) {
       warnings.push({ line, reason: `no USD price for ${baseCurrency} ${rawType.toLowerCase()} — imported with price 0` });
     }
 

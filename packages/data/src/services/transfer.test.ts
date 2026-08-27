@@ -64,10 +64,10 @@ function importNet() {
   });
 }
 
-async function seeded() {
+async function seeded(csv: string = CSV) {
   const store = MemoryStore();
   const p = await store.portfolios.create("Scratch");
-  const report = await importDelta(store, importNet(), p.id, CSV);
+  const report = await importDelta(store, importNet(), p.id, csv);
   return { store, id: p.id, report };
 }
 
@@ -79,6 +79,23 @@ describe("importDelta", () => {
     expect(report.duplicates).toBe(0);
     expect(portfolio!.transactions).toHaveLength(6);
     expect(portfolio!.transactions.every((t) => t.note === "delta-import")).toBe(true);
+  });
+
+  it("carries a dividend's source security all the way into the store", async () => {
+    // The parser resolving `sourceSymbol` and the import service dropping it
+    // one layer later would look finished and store nothing — the shape
+    // `livePrice` already took in this codebase. So this asserts the stored
+    // row, not the parsed one.
+    const { store, id } = await seeded(
+      "Date,Type,Base amount,Base currency,Quote amount,Quote currency\n" +
+      "2025-03-20 10:00:00,DIVIDEND,,SHELL.AS,120.50,EUR\n",
+    );
+    const row = (await store.portfolios.get(id))!.transactions
+      .find((t) => t.side === "income")!;
+    expect(row.symbol).toBe("EUR");
+    expect(row.assetType).toBe("cash");
+    expect(row.quantity).toBe(120.5);
+    expect(row.sourceSymbol).toBe("SHELL.AS");
   });
 
   it("reports the row it could not read, with the reason", async () => {
