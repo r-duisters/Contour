@@ -461,6 +461,16 @@ MQTT is a viable alternative (publish to `trader/signals/<symbol>`), but isn't i
   documented exception — an alert addresses a Binance market, so it keeps the
   pair. `boundary.test.ts` fails the build if a quote asset is glued onto a
   symbol anywhere else.
+- **An income row is a cash row attributed to a security.** `side: "income"`
+  is a dividend, bank interest or a fiat staking payout: `assetType: "cash"`,
+  `symbol` is the currency, `quantity` the amount, `nativePrice` 1, and
+  `sourceSymbol` names the security that paid it (null for interest, which is
+  paid by nothing). It **never touches a position** — not quantity, not cost
+  basis, not average cost — because the income row and the shares that paid it
+  name the same security, and a dividend that lowered their cost would be the
+  one mistake worth guarding against. An asset *arriving* is not this: a
+  staking reward or a share grant is `transfer_in`, which has carried a
+  cost-basis price all along.
 - **A manual transaction records what it was paid in.** `nativeCurrency` /
   `nativePrice` carry the typed figure; `addTransaction` converts to the USD
   `price` at the rate on the *trade's* date, which is why that service takes a
