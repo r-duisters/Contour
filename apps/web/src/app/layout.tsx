@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import BackgroundAlerts from "@/components/BackgroundAlerts";
-import FcmSetup from "@/components/FcmSetup";
 import BiometricLock from "@/components/BiometricLock";
 import PwaSetup from "@/components/PwaSetup";
 import TabBar from "@/components/TabBar";
@@ -48,7 +47,6 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <Providers>
           <PwaSetup />
-          <FcmSetup />
           <BackgroundAlerts />
           <BiometricLock>
             <TopNav />
