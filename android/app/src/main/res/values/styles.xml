@@ -23,6 +23,14 @@
           is actually on screen.
         -->
         <item name="android:windowBackground">@drawable/contour_splash</item>
+        <!--
+          What the recents card is actually filled with. Disabling the recents
+          screenshot makes Android paint a solid colour rather than render the
+          window background, and the colour it reaches for is this one — left
+          unset it was AppCompat's dark grey, which is why the card looked
+          like nobody's app.
+        -->
+        <item name="android:colorBackground">@color/contour_ground</item>
     </style>
 
 

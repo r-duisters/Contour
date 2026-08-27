@@ -1,5 +1,6 @@
 package app.contour.local;
 
+import android.app.ActivityManager;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
@@ -32,6 +33,40 @@ public class MainActivity extends BridgeActivity {
 
         handleBackButton();
         keepPortfolioOutOfRecents();
+        brandTheRecentsCard();
+    }
+
+    /**
+     * Make the blanked recents card look like this app rather than like a
+     * default.
+     *
+     * With the recents screenshot disabled, Android does not render the
+     * window background: it fills the card with a **solid colour**, so a
+     * layer-list naming the mark is ignored and the fallback is the theme's
+     * `colorBackground` — AppCompat's dark grey, which is what the card
+     * showed. There is no supported way to draw the mark into the card body;
+     * the only image Android takes is the task icon, which it puts in the
+     * card's header beside the label.
+     *
+     * So: the app's own ground for the fill, and the launcher icon and name
+     * for the header. `setPrimaryColor` rejects anything not fully opaque,
+     * which `contour_ground` is.
+     */
+    private void brandTheRecentsCard() {
+        final int ground = getColor(R.color.contour_ground);
+        final String label = getString(R.string.title_activity_main);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            setTaskDescription(new ActivityManager.TaskDescription.Builder()
+                .setLabel(label)
+                .setIcon(R.mipmap.ic_launcher)
+                .setPrimaryColor(ground)
+                .build());
+        } else {
+            // The icon-by-resource constructor only arrived in API 28, and
+            // below 33 the card is a photograph anyway — the colour is all
+            // that is worth setting here.
+            setTaskDescription(new ActivityManager.TaskDescription(label, null, ground));
+        }
     }
 
     /**
