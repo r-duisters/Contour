@@ -24,9 +24,9 @@ jobs:
       DATABASE_URL: "file:./ci-unused.db"
       SESSION_SECRET: "ci-does-not-authenticate-anything"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -65,14 +65,14 @@ jobs:
     name: APK
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
@@ -95,7 +95,7 @@ jobs:
 
       # Not a release: there is no LICENSE file yet, and nothing here is
       # signed. This is for downloading off a pull request to try on a phone.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: contour-standalone-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
