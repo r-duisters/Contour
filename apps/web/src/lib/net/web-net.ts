@@ -82,6 +82,7 @@ export function WebNet(): Net {
         status: res.status,
         text: () => res.text(),
         json: <T,>() => res.json() as Promise<T>,
+        header: (name: string) => res.headers.get(name),
       };
     },
   };

@@ -24,7 +24,7 @@ export type HttpRequest = (options: {
   headers?: Record<string, string>;
   data?: unknown;
   responseType?: "text";
-}) => Promise<{ status: number; data: unknown }>;
+}) => Promise<{ status: number; data: unknown; headers?: Record<string, string> }>;
 
 async function nativeHttp(options: Parameters<HttpRequest>[0]) {
   // Imported lazily so this module can be loaded — and tested — off a device.
@@ -63,8 +63,10 @@ export function CapacitorNet(http: HttpRequest = nativeHttp): Net {
    * `status` is refusal. Wire it the other way round and every 404 becomes
    * "unreachable" — exactly the distinction `kind` was added to carry.
    */
-  async function attempt(url: string, init?: RequestInit): Promise<{ status: number; body: string }> {
-    let res: { status: number; data: unknown };
+  async function attempt(
+    url: string, init?: RequestInit,
+  ): Promise<{ status: number; body: string; headers: Record<string, string> }> {
+    let res: { status: number; data: unknown; headers?: Record<string, string> };
     try {
       res = await http({
         url,
@@ -83,7 +85,7 @@ export function CapacitorNet(http: HttpRequest = nativeHttp): Net {
     // The native layer hands back a parsed object when the response looked like
     // JSON despite `responseType`, so this normalises rather than assuming.
     const body = typeof res.data === "string" ? res.data : res.data == null ? "" : JSON.stringify(res.data);
-    return { status: res.status, body };
+    return { status: res.status, body, headers: res.headers ?? {} };
   }
 
   async function checked(url: string, init?: RequestInit): Promise<string> {
@@ -106,12 +108,18 @@ export function CapacitorNet(http: HttpRequest = nativeHttp): Net {
       return checked(url, init);
     },
     async request(url: string, init?: RequestInit): Promise<NetResponse> {
-      const { status, body } = await attempt(url, init);
+      const { status, body, headers } = await attempt(url, init);
+      // Header names are case-insensitive and the native layer does not
+      // normalise them, so the lookup does.
+      const lower = Object.fromEntries(
+        Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]),
+      );
       return {
         ok: status >= 200 && status < 300,
         status,
         text: async () => body,
         json: async <T,>() => JSON.parse(body) as T,
+        header: (name: string) => lower[name.toLowerCase()] ?? null,
       };
     },
   };

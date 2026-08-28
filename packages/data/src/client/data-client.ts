@@ -130,18 +130,20 @@ export type { IndexDetail, MarketBoard, MarketCategory, MarketRow } from "../ser
  * `sendTestNotification` is the only optional member today, and the bar for the
  * second one is high: optionality is a branch in every screen that touches it.
  *
- * ## Export is deliberately absent
+ * ## Export, added in Phase 4
  *
- * The three export buttons are `<a href="/api/…/export?format=…">` anchors, not
- * `fetch` calls, so none of the thirty-six sites is an export — and a method
- * for it could not be honoured anyway. `ExportFile` is `{ body, filename }`,
- * and the filename travels in a `Content-Disposition` header that `Net`
- * (`../ports/net`) does not expose on either side. `HttpClient` would have to
- * re-derive the name that `transfer.ts` already composes, which is the kind of
- * duplicated rule that drifts and then puts the wrong date on a user's backup.
- * Downloading a file on a device is a different mechanism from an anchor in any
- * case; Phase 4 should add the method together with whatever saves the file,
- * and probably alongside a `Net` that can read a response header.
+ * It was absent because the three export buttons were `<a href="/api/…">`
+ * anchors rather than `fetch` calls, and because `ExportFile` is
+ * `{ body, filename }` while the filename travels in a `Content-Disposition`
+ * header `Net` exposed on neither side. `HttpClient` would have had to
+ * re-derive a name `transfer.ts` already composes — the kind of duplicated
+ * rule that drifts and then puts the wrong date on someone's backup.
+ *
+ * `NetResponse.header()` exists now, added for exactly this, so `HttpClient`
+ * reads the name the server sent and `LocalClient` gets it from `transfer.ts`
+ * directly. `exportFile` is required rather than optional: both platforms can
+ * produce bytes. What differs is what happens to them afterwards, and that is
+ * the screen's problem — an anchor on the web, the share sheet on a device.
  *
  * ## Strings, not `File`s
  *
@@ -251,7 +253,18 @@ export interface DataClient {
   clearImported(portfolioId: string): Promise<number>;
   /** Always into a NEW portfolio. @throws RequestFailedError on an unreadable backup. */
   restoreBackup(backup: string): Promise<RestoreResult>;
+
+  /**
+   * A portfolio as a file: the bytes and the name to save them under.
+   *
+   * The client does not save it. Both platforms can produce bytes; only the
+   * screen knows whether that becomes a download or a share sheet.
+   */
+  exportFile(portfolioId: string, format: ExportFormat): Promise<ExportedFile>;
 }
+
+export type ExportFormat = "json" | "csv" | "ghostfolio";
+export type ExportedFile = { body: string; filename: string };
 
 /* ------------------------------------------------------------------- DTOs */
 

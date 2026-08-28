@@ -14,6 +14,8 @@ import type {
   PortfolioDetail,
   PortfolioRef,
   PortfolioSummary,
+  ExportedFile,
+  ExportFormat,
   RestoreResult,
   SettingsDto,
   TransactionDto,
@@ -283,6 +285,35 @@ export function HttpClient(net: Net, baseUrl = ""): DataClient {
 
     restoreBackup(backup: string): Promise<RestoreResult> {
       return send("POST", "/api/portfolios/restore", { body: { backup } });
+    },
+
+    /**
+     * The export route, whose filename is in `Content-Disposition` — the
+     * header `Net` was given a reader for.
+     *
+     * The fallback matters more than it looks: a missing or malformed header
+     * must not produce a file called `undefined`, and this route is the only
+     * caller of `header()` in the app.
+     */
+    async exportFile(portfolioId: string, format: ExportFormat): Promise<ExportedFile> {
+      const url = `${baseUrl}/api/portfolios/${encodeURIComponent(portfolioId)}/export?format=${format}`;
+      let res;
+      try {
+        res = await net.request(url);
+      } catch (e) {
+        const reason = e instanceof Error ? e.message : String(e);
+        throw new RequestFailedError(`Could not reach the server (${reason}).`, reason, "unreachable");
+      }
+      if (!res.ok) {
+        throw new RequestFailedError(
+          "Could not export this portfolio.", `export -> ${res.status}`, "refused",
+        );
+      }
+      const name = /filename="([^"]+)"/.exec(res.header("content-disposition") ?? "")?.[1];
+      return {
+        body: await res.text(),
+        filename: name || `portfolio-${format === "ghostfolio" ? "ghostfolio" : format}.${format === "json" ? "json" : "csv"}`,
+      };
     },
   };
 }

@@ -459,6 +459,18 @@ export function runDataClientContract(
       }
     });
 
+    it("hands back a file with a name, in every format", async () => {
+      // Required of both, not optional: both platforms can produce bytes.
+      // What differs is what happens to them afterwards, and that is the
+      // screen's problem — a download on the web, the share sheet on a device.
+      const client = makeClient();
+      for (const format of ["json", "csv", "ghostfolio"] as const) {
+        const file = await client.exportFile(PORTFOLIO_ID, format);
+        expect(file.filename).toMatch(/\.(json|csv)$/);
+        expect(file.body.length).toBeGreaterThan(0);
+      }
+    });
+
     it("restores a backup into a new portfolio", async () => {
       const restored = await makeClient().restoreBackup(FIXTURE.backup);
       if (capabilities.computedReads) {

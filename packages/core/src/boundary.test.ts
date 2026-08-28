@@ -97,10 +97,15 @@ const NET_ONLY_PACKAGES = ["packages/data/src", "packages/core/src", "packages/u
  * goes to the WebView's own origin, where no server is listening, and the
  * element just renders nothing.
  *
- * The four below are real debt, deliberately not fixed in Phase 3 — each needs
- * a mechanism the phase did not build — and each is named individually so the
- * guard passes today without letting a fifth appear. An allowlist of *counts*
- * would let one be swapped for another; an allowlist of literals will not.
+ * There was one of these per export button plus the icon proxy — four, all
+ * real debt deliberately left by Phase 3, each needing a mechanism that phase
+ * did not build. The three export anchors are gone: `DataClient.exportFile`
+ * hands back the bytes and a name, and each app supplies what saves them.
+ *
+ * The icon proxy is the one that remains, and it is a design decision rather
+ * than a rename. Each is named individually so the guard passes today without
+ * letting another appear — an allowlist of *counts* would let one be swapped
+ * for another; an allowlist of literals will not.
  */
 const ALLOWED_API_LITERALS: Record<string, { literal: string; needs: string }[]> = {
   "packages/ui/src/CoinIcon.tsx": [
@@ -114,31 +119,6 @@ const ALLOWED_API_LITERALS: Record<string, { literal: string; needs: string }[]>
         "Phase 4 has to choose between bundling the icon set, caching through " +
         "the Store, or going direct over CapacitorHttp and giving up the " +
         "property — a design decision, not a rename.",
-    },
-  ],
-  "packages/ui/src/PortfolioManager.tsx": [
-    {
-      literal: "/api/portfolios/${selectedId}/export?format=json",
-      needs:
-        "The JSON backup download. Needs the same two things as the other two " +
-        "anchors: a `DataClient` method that hands back the file, and " +
-        "somewhere on a device to put it.",
-    },
-    {
-      literal: "/api/portfolios/${selectedId}/export?format=csv",
-      needs:
-        "The CSV download, and the same two missing pieces. Listed separately " +
-        "because a fourth format must not slip in behind one entry.",
-    },
-    {
-      literal: "/api/portfolios/${selectedId}/export?format=ghostfolio",
-      needs:
-        "A way to save a file on a device, and a `DataClient.export…` method " +
-        "to feed it. `data-client.ts` explains why the method is absent: the " +
-        "filename lives in a `Content-Disposition` header that `Net` does not " +
-        "expose, so `HttpClient` would have to re-derive a name `transfer.ts` " +
-        "already composes. All three buttons 404 on a phone until Phase 4 adds " +
-        "the method together with whatever writes the file.",
     },
   ],
 };

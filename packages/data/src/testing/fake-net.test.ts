@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { NetError } from "../ports/net";
 import { __resetSymbolsCacheForTests, symbols } from "../services/lookup";
-import { FakeNet, rejectWith, respondWith } from "./fake-net";
+import { FakeNet, rejectWith, respondWith, respondWithHeaders } from "./fake-net";
 
 /**
  * `Net`'s obligation, held against the fake every service test runs on.
@@ -67,5 +67,25 @@ describe("FakeNet reports failures the way the port requires", () => {
     });
 
     expect(((await symbols(refusing).catch((e: unknown) => e)) as NetError).kind).toBe("refused");
+  });
+});
+
+describe("headers", () => {
+  it("reads one back, case-insensitively, as WebNet's Headers.get does", async () => {
+    // `exportFile` takes a download's filename from `Content-Disposition`, and
+    // FakeNet has to match WebNet here or the parity is worthless.
+    const net = FakeNet({
+      "x.test/file": respondWithHeaders("bytes", {
+        "Content-Disposition": 'attachment; filename="main-backup.json"',
+      }),
+    });
+    const res = await net.request("https://x.test/file");
+    expect(res.header("content-disposition")).toContain("main-backup.json");
+    expect(res.header("Content-Disposition")).toContain("main-backup.json");
+  });
+
+  it("answers null for a header nobody sent, rather than undefined", async () => {
+    const net = FakeNet({ "x.test/file": "bytes" });
+    expect((await net.request("https://x.test/file")).header("content-disposition")).toBeNull();
   });
 });

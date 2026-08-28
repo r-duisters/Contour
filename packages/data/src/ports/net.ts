@@ -48,6 +48,19 @@ export interface NetResponse {
   status: number;
   text(): Promise<string>;
   json<T>(): Promise<T>;
+  /**
+   * One response header, by name, or null.
+   *
+   * Deliberately not the whole header map. `Set-Cookie` is unreadable in a
+   * browser's `fetch` (spec §4.2), so a general header contract is one only a
+   * Node implementation could keep — and an interface both platforms cannot
+   * honour is worse than a narrow one that both can.
+   *
+   * It exists for `Content-Disposition`, which is where a download's filename
+   * lives, and which is the reason `exportFile` could not be on `DataClient`
+   * before now.
+   */
+  header(name: string): string | null;
 }
 
 export interface Net {

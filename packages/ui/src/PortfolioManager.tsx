@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, Download, Plus, Trash2, Upload } from "lucide-react";
 import { useDataClient } from "@/data/client/context";
+import { useSaveFile } from "./save-file";
+import type { ExportFormat } from "@/data/client/data-client";
 import type { ImportReport } from "@/data/services/transfer";
 import type { Finding } from "@/core/ledger-audit";
 import { field } from "./field";
@@ -36,6 +38,7 @@ function findingText(f: Finding): string {
 
 export default function PortfolioManager() {
   const client = useDataClient();
+  const saveFile = useSaveFile();
   const [portfolios, setPortfolios] = useState<PortfolioRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
@@ -161,6 +164,15 @@ export default function PortfolioManager() {
 
   const btn = "text-xs text-neutral-300 inline-flex items-center gap-1 border border-neutral-700 rounded px-2 py-1";
 
+  async function exportAs(format: ExportFormat) {
+    if (!selectedId) return;
+    try {
+      await saveFile(await client.exportFile(selectedId, format));
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Could not export this portfolio.");
+    }
+  }
+
   return (
     <section className="space-y-3">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Portfolio data</h2>
@@ -219,16 +231,20 @@ export default function PortfolioManager() {
             </button>
           </div>
 
+          {/* Buttons, not `<a download>` anchors. An anchor cannot work on a
+              device — there is no download the viewer can start — so the
+              screen asks the client for bytes and hands them to whatever this
+              app does with a file. */}
           <div className="flex gap-2 flex-wrap items-center">
-            <a href={`/api/portfolios/${selectedId}/export?format=json`} className={btn}>
-              <Download size={12} aria-hidden />Backup (JSON)
-            </a>
-            <a href={`/api/portfolios/${selectedId}/export?format=csv`} className={btn}>
-              <Download size={12} aria-hidden />Transactions (CSV)
-            </a>
-            <a href={`/api/portfolios/${selectedId}/export?format=ghostfolio`} className={btn}>
-              <Download size={12} aria-hidden />Ghostfolio (CSV)
-            </a>
+            {([
+              ["json", "Backup (JSON)"],
+              ["csv", "Transactions (CSV)"],
+              ["ghostfolio", "Ghostfolio (CSV)"],
+            ] as [ExportFormat, string][]).map(([format, label]) => (
+              <button key={format} onClick={() => exportAs(format)} className={btn}>
+                <Download size={12} aria-hidden />{label}
+              </button>
+            ))}
           </div>
         </>
       )}

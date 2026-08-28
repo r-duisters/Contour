@@ -4,6 +4,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import ContourMark from "@/ui/ContourMark";
 import { DataClientProvider } from "@/data/client/context";
 import { DEVICE_ROUTING, RoutingProvider } from "@/components/routing";
+import { SaveFileProvider } from "@/components/save-file";
+import { DEVICE_SAVE_FILE } from "../lib/save-file";
 import type { DataClient } from "@/data/client/data-client";
 // Relative, not `@/lib/deps`: in this app `@/lib/*` points at packages/core,
 // the way packages/ui refers to itself. This app's own modules are reached
@@ -63,7 +65,11 @@ export default function Providers({ children }: { children: ReactNode }) {
   // cannot have a dynamic segment. See `routing.tsx`.
   return (
     <RoutingProvider routing={DEVICE_ROUTING}>
-      <DataClientProvider client={ready}>{children}</DataClientProvider>
+      {/* An `<a download>` cannot start a download here, so exports are
+          written to the cache and handed to the share sheet. */}
+      <SaveFileProvider save={DEVICE_SAVE_FILE}>
+        <DataClientProvider client={ready}>{children}</DataClientProvider>
+      </SaveFileProvider>
     </RoutingProvider>
   );
 }

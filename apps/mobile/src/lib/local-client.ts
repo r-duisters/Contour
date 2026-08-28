@@ -10,7 +10,7 @@ import * as transactions from "@/data/services/transactions";
 import { assetInfo, symbols } from "@/data/services/lookup";
 import { benchmark, changes, history, series } from "@/data/services/series";
 import type { Benchmark, Changes, History, Series } from "@/data/services/series";
-import { clearPortfolio, importDelta, restore } from "@/data/services/transfer";
+import { clearPortfolio, exportCsv, exportJson, importDelta, restore } from "@/data/services/transfer";
 import type { ImportReport } from "@/data/services/transfer";
 import { insights, snapshot, valuation } from "@/data/services/valuation";
 import type { Insights, Snapshot, Valuation } from "@/data/services/valuation";
@@ -19,6 +19,8 @@ import type { IndexDetail, MarketBoard, MarketCategory } from "@/data/services/m
 import type {
   BenchmarkQuery,
   DataClient,
+  ExportedFile,
+  ExportFormat,
   NewTransactionInput,
   PortfolioDetail,
   PortfolioRef,
@@ -268,6 +270,19 @@ export function LocalClient(store: Store, net: Net): DataClient {
         // being typechecked at all.
         return { id: portfolio.id, name: portfolio.name, restored };
       });
+    },
+
+    /**
+     * No header to read: `transfer.ts` composes the filename, and this client
+     * is on the same side of the seam as the thing that composes it. Which is
+     * why `HttpClient` had to be given a header reader and this did not.
+     */
+    exportFile(portfolioId: string, format: ExportFormat): Promise<ExportedFile> {
+      return attempt(() =>
+        format === "json"
+          ? exportJson(store, portfolioId)
+          : exportCsv(store, net, portfolioId, format === "ghostfolio" ? "ghostfolio" : "csv"),
+      );
     },
   };
 }

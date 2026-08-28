@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { RequestFailedError } from "../errors";
-import { FakeNet, rejectWith, respondWith } from "../testing/fake-net";
+import { FakeNet, rejectWith, respondWith, respondWithHeaders } from "../testing/fake-net";
 import type { FakeNetInstance } from "../testing/fake-net";
 import { HttpClient } from "./http-client";
 import {
@@ -115,6 +115,18 @@ function seededNet(): FakeNetInstance {
             id: "t-new", portfolioId: id, note: null,
           },
         };
+      }
+      if (sub.startsWith("/export")) {
+        if (missing) return notFound;
+        // With the header the route really sends, because reading it is the
+        // whole reason `NetResponse.header()` exists. Left unscripted, this
+        // request falls through to the client's fallback name and the header
+        // path is never exercised at all.
+        const format = new URL(url, "http://x").searchParams.get("format") ?? "json";
+        const ext = format === "json" ? "json" : "csv";
+        return respondWithHeaders(`exported-${format}`, {
+          "Content-Disposition": `attachment; filename="main-${format}-20260101.${ext}"`,
+        });
       }
       if (sub.startsWith("/import")) {
         if (method(init) === "DELETE") return { deleted: missing ? 0 : FIXTURE.clearedCount };
@@ -269,5 +281,23 @@ describe("HttpClient issues the requests the screens issue today", () => {
     await expect(HttpClient(net).saveSettings({ displayCurrency: "EUR" })).rejects.toThrow(
       "displayCurrency must be USD or EUR",
     );
+  });
+});
+
+describe("exportFile takes its name from the response", () => {
+  it("reads the filename out of Content-Disposition", async () => {
+    // The header the server actually sends carries a date; re-deriving the
+    // name client-side is what this avoids, and what would drift.
+    const file = await HttpClient(seededNet()).exportFile(PORTFOLIO_ID, "json");
+    expect(file.filename).toBe("main-json-20260101.json");
+    expect(file.body).toBe("exported-json");
+  });
+
+  it("falls back to a sane name when the header is missing", async () => {
+    // A missing or malformed header must not produce a file called
+    // `undefined`, which is what a bare `?.[1]` would have handed over.
+    const net = FakeNet({ "/export": "bytes" });
+    const file = await HttpClient(net).exportFile(PORTFOLIO_ID, "csv");
+    expect(file.filename).toBe("portfolio-csv.csv");
   });
 });

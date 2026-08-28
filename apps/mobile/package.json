@@ -9,6 +9,8 @@
     "sync": "npm run build && cap sync android"
   },
   "dependencies": {
-    "@capacitor-community/sqlite": "^8.1.1"
+    "@capacitor-community/sqlite": "^8.1.1",
+    "@capacitor/filesystem": "^8.1.3",
+    "@capacitor/share": "^8.0.1"
   }
 }
