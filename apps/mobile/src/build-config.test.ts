@@ -24,6 +24,26 @@ describe("the mobile app's build configuration", () => {
     expect(readFileSync(path, "utf8")).toContain("@tailwindcss/postcss");
   });
 
+  /**
+   * Capacitor discovers native plugins from the *root* package.json, because
+   * that is where the `android/` project sits. sqlite, filesystem and share
+   * were declared only here, so `cap sync` reported three plugins where there
+   * should be six — and the APK would have shipped without the SQLite plugin
+   * and died the moment it opened its database. The build was green, and the
+   * count in the sync output was the only sign.
+   */
+  it("declares every native plugin at the root, where Capacitor looks", () => {
+    const deps = (path: string) =>
+      Object.keys(JSON.parse(readFileSync(path, "utf8")).dependencies ?? {});
+    const native = (names: string[]) =>
+      names.filter((n) => n.startsWith("@capacitor/") || n.startsWith("@capacitor-community/"))
+        .filter((n) => n !== "@capacitor/core" && n !== "@capacitor/cli");
+
+    const rootDeps = deps(join(ROOT, "..", "..", "package.json"));
+    const missing = native(deps(join(ROOT, "package.json"))).filter((n) => !rootDeps.includes(n));
+    expect(missing).toEqual([]);
+  });
+
   it("declares the same PostCSS plugins as the web app", () => {
     // The two stylesheets are built from the same globals.css and the same
     // packages/ui sources; a difference here means one of them is wrong.

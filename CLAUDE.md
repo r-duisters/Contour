@@ -98,6 +98,17 @@ bug in a new place. **It currently exits non-zero**: 21 pre-existing lint errors
 14 in `apps/web`) predate this restructuring and were deliberately left alone rather than fixed as a
 drive-by. Don't mistake that non-zero exit for something the restructuring broke.
 
+**CI runs all of this** — `.github/workflows/ci.yml`, on every push and pull request.
+`npm run lint` cannot be a CI step as it stands, because it exits non-zero by design, so
+`scripts/lint-budget.mjs` runs it and compares the count to a budget of 21. It fails when the count
+*rises*, and also when it falls: good news that is not recorded stops the number meaning anything,
+and the next regression then hides inside the slack. Lower the budget in that file when you fix one.
+
+The second job builds the APK and uploads it as an artifact. It exists because two shipped bugs
+were invisible to every other check — a native plugin declared in the wrong `package.json`, which
+`cap sync` reveals only in the plugin count it prints, and a missing PostCSS config, which produced
+a stylesheet with no utilities in it. Neither failed a test, a typecheck or a build.
+
 `eslint.config.mjs` ignores build output as `**/out/**` and `**/.next/**`, matched at any depth.
 The unprefixed forms eslint-config-next ships with resolve relative to the config file, so they only
 ever covered the repository root — `apps/mobile/out` was linted as source and added 96 errors of
