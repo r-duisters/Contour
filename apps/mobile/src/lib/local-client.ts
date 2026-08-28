@@ -1,3 +1,4 @@
+import type { ColumnMapping as ImportColumnMapping, FormatId as ImportFormatId } from "@/lib/import-formats";
 import type { AssetInfo } from "@/core/asset-info";
 import type { RangeKey } from "@/core/ranges";
 import { NotFoundError, RequestFailedError } from "@/data/errors";
@@ -249,7 +250,15 @@ export function LocalClient(store: Store, net: Net): DataClient {
 
     /* --------------------------------------------------- import and restore */
 
-    importCsv(portfolioId: string, csv: string, opts?: { dryRun?: boolean }): Promise<ImportReport> {
+    importCsv(
+      portfolioId: string,
+      csv: string,
+      opts?: {
+      dryRun?: boolean;
+      format?: ImportFormatId;
+      mapping?: ImportColumnMapping;
+    },
+    ): Promise<ImportReport> {
       return attempt(() => importDelta(store, net, portfolioId, csv, opts));
     },
 

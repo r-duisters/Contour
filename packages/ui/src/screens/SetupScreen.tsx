@@ -8,8 +8,10 @@ import Button from "../Button";
 import MarkTile from "../MarkTile";
 import CurrencyField from "../CurrencyField";
 import TradingBackdrop from "../TradingBackdrop";
+import ImportSources from "../ImportSources";
 import { field } from "../field";
 import { importKindOf } from "../setup-steps";
+import type { FormatId } from "@/lib/import-formats";
 
 type Step = "currency" | "name" | "import";
 const STEPS: Step[] = ["currency", "name", "import"];
@@ -84,10 +86,12 @@ export default function SetupScreen({ onDone }: { onDone: () => void }) {
     }
   }
 
-  async function importFile(file: File) {
+  async function importFile(file: File, format?: FormatId) {
     setError(null);
     const text = await file.text();
-    const kind = importKindOf(text);
+    // A pinned source is always a CSV reader, so it settles the question a
+    // sniff would otherwise have to answer.
+    const kind = format ? "csv" : importKindOf(text);
     setBusy(kind === "backup" ? "Restoring your backup…" : "Reading your transactions…");
     try {
       if (kind === "backup") {
@@ -96,7 +100,19 @@ export default function SetupScreen({ onDone }: { onDone: () => void }) {
         await client.restoreBackup(text);
       } else {
         const created = await client.createPortfolio(name.trim() || "My portfolio");
-        await client.importCsv(created.id, text);
+        const report = await client.importCsv(created.id, text, { format });
+        if (report.imported === 0) {
+          // A file that produced nothing is not a success. Saying so here is
+          // the difference between "your data is in" and a portfolio someone
+          // discovers is empty a week later.
+          setError(
+            report.skipped.length > 0
+              ? `Nothing imported. First problem: ${report.skipped[0]!.reason}`
+              : "Nothing in that file was recognised as a transaction.",
+          );
+          setBusy(null);
+          return;
+        }
       }
       finish();
     } catch (e) {
@@ -159,23 +175,12 @@ export default function SetupScreen({ onDone }: { onDone: () => void }) {
               )}
 
               {step === "import" && (
-                <label className="block text-sm">
-                  <span className="text-neutral-400">Backup or Delta CSV</span>
-                  <input
-                    type="file"
-                    accept=".json,.csv,text/csv,application/json"
-                    className={`mt-1 w-full ${field()}`}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) void importFile(file);
-                    }}
-                  />
-                  <span className="text-xs text-neutral-500">
-                    A backup from the desktop app restores everything. A Delta export goes
-                    into the portfolio you just named. The file is read on this phone —
-                    nothing is uploaded.
-                  </span>
-                </label>
+                <div className="space-y-3">
+                  <ImportSources onFile={(file, format) => void importFile(file, format)} />
+                  <p className="text-xs text-neutral-500 text-center">
+                    The file is read on this phone. Nothing is uploaded.
+                  </p>
+                </div>
               )}
 
               {error && <p className="text-xs text-red-500">{error}</p>}

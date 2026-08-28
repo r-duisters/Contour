@@ -10,6 +10,19 @@ const Body = z.object({
   csv: z.string().min(1).max(5_000_000),
   /** Parse, price and audit, but write nothing. */
   dryRun: z.boolean().optional(),
+  /** Which reader to use; the service detects it when this is absent. */
+  format: z.enum(["delta", "binance", "coinbase", "kraken", "trading212", "degiro", "generic"])
+    .optional(),
+  /** Required by `generic`, which is a person naming the columns themselves. */
+  mapping: z.object({
+    time: z.string().min(1),
+    side: z.string().min(1),
+    symbol: z.string().min(1),
+    quantity: z.string().min(1),
+    price: z.string().optional(),
+    fee: z.string().optional(),
+    currency: z.string().optional(),
+  }).optional(),
 });
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -20,7 +33,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { store, net } = deps();
   try {
     return NextResponse.json(
-      await importDelta(store, net, id, body.data.csv, { dryRun: body.data.dryRun }),
+      await importDelta(store, net, id, body.data.csv, {
+        dryRun: body.data.dryRun,
+        format: body.data.format,
+        mapping: body.data.mapping,
+      }),
     );
   } catch (err) {
     if (err instanceof NotFoundError) return NextResponse.json({ error: "not found" }, { status: 404 });

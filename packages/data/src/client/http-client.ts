@@ -1,3 +1,4 @@
+import type { ColumnMapping as ImportColumnMapping, FormatId as ImportFormatId } from "@/core/import-formats";
 import type { RangeKey } from "@/core/ranges";
 import type { AssetInfo } from "@/core/asset-info";
 import { NotFoundError, RequestFailedError } from "../errors";
@@ -268,9 +269,24 @@ export function HttpClient(net: Net, baseUrl = ""): DataClient {
 
     /* --------------------------------------------------- import and restore */
 
-    importCsv(portfolioId: string, csv: string, opts?: { dryRun?: boolean }): Promise<ImportReport> {
+    importCsv(
+      portfolioId: string,
+      csv: string,
+      opts?: {
+      dryRun?: boolean;
+      format?: ImportFormatId;
+      mapping?: ImportColumnMapping;
+    },
+    ): Promise<ImportReport> {
       return send("POST", `/api/portfolios/${portfolioId}/import`, {
-        body: opts?.dryRun ? { csv, dryRun: true } : { csv },
+        // Only what was asked for: the route's schema rejects unknown keys,
+        // and an undefined `format` must mean "detect it" rather than "null".
+        body: {
+          csv,
+          ...(opts?.dryRun ? { dryRun: true } : {}),
+          ...(opts?.format ? { format: opts.format } : {}),
+          ...(opts?.mapping ? { mapping: opts.mapping } : {}),
+        },
         subject: portfolio(portfolioId),
       });
     },

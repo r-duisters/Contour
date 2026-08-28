@@ -1,5 +1,6 @@
 import type { AssetInfo } from "@/core/asset-info";
 import type { RangeKey } from "@/core/ranges";
+import type { ColumnMapping as ImportColumnMapping, FormatId as ImportFormatId } from "@/core/import-formats";
 import type { Settings, SettingsPatch, Side } from "../ports/store";
 import type { Benchmark, BenchmarkKey, Changes, History, Series } from "../services/series";
 import type { ImportReport } from "../services/transfer";
@@ -7,6 +8,7 @@ import type { Insights, Snapshot, Valuation } from "../services/valuation";
 import type { IndexDetail, MarketBoard, MarketCategory } from "../services/markets";
 
 export type { IndexDetail, MarketBoard, MarketCategory, MarketRow } from "../services/markets";
+export type { ColumnMapping as ImportColumnMapping, FormatId as ImportFormatId } from "@/core/import-formats";
 
 /**
  * Everything a screen is allowed to ask for.
@@ -248,7 +250,21 @@ export interface DataClient {
    * produced, `previewed: true` included. The upload flow uses it to show a
    * person what the file does to their ledger before they commit to it.
    */
-  importCsv(portfolioId: string, csv: string, opts?: { dryRun?: boolean }): Promise<ImportReport>;
+  importCsv(
+    portfolioId: string,
+    csv: string,
+    opts?: {
+      dryRun?: boolean;
+      /**
+       * Which reader to use. Omitted, the service detects it from the header
+       * and falls back to Delta — the behaviour this method has always had.
+       * A screen names it when a person has overridden the detection, and
+       * `"generic"` needs `mapping` alongside.
+       */
+      format?: ImportFormatId;
+      mapping?: ImportColumnMapping;
+    },
+  ): Promise<ImportReport>;
   /** Removes every CSV-imported transaction; `0` for an unknown portfolio. */
   clearImported(portfolioId: string): Promise<number>;
   /** Always into a NEW portfolio. @throws RequestFailedError on an unreadable backup. */
