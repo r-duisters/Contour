@@ -10,7 +10,7 @@ import SubHeading from "@/components/SubHeading";
 import Segmented from "@/components/Segmented";
 import Sparkline from "@/components/Sparkline";
 import { useDataClient } from "@/data/client/context";
-import { useAssetHref } from "@/components/routing";
+import { useAssetHref, useIndexHref } from "@/components/routing";
 import type { MarketBoard, MarketCategory, MarketRow } from "@/data/client/data-client";
 import type { IndexSeries } from "@/data/sources/markets";
 import { marketCap, marketMoney, percent } from "@/lib/display";
@@ -273,6 +273,7 @@ function IndexStrip({
 
 function IndexCard({ index }: { index: IndexSeries }) {
   const assetHref = useAssetHref();
+  const indexHref = useIndexHref();
   const up = index.changePct >= 0;
   /**
    * An equity index has a page of its own; a crypto card is a coin, and its
@@ -280,7 +281,7 @@ function IndexCard({ index }: { index: IndexSeries }) {
    * because they are two kinds of thing, not because the cards differ.
    */
   const href = index.slug
-    ? `/markets/${index.slug}`
+    ? indexHref(index.slug)
     : index.pair
       // The asset, not the pair: the asset page builds the pricing pair it
       // needs, and a link that says BTCUSDT names a Binance product rather

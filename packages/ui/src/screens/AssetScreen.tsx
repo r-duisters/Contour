@@ -22,7 +22,7 @@ import {
 import { positionChangeOverWindow } from "@/lib/change";
 import { assetName } from "@/lib/asset-names";
 import { annotateTransactions } from "@/lib/portfolio";
-import { useAlertsHref } from "@/components/routing";
+import { useAlertsHref, useChartHref } from "@/components/routing";
 import { useFitChart } from "@/components/useFitChart";
 import { shapePoints, thinKeepingExtremes } from "@/lib/chart-data";
 import { useStoredRange } from "@/components/useStoredRange";
@@ -102,8 +102,9 @@ export default function AssetScreen({
   const symbol = assetOf(raw);
 
   const client = useDataClient();
-  // Null in the device build, which has no alerts screen to link at.
+  // Both null in the device build, which has neither screen to link at.
   const alertsHref = useAlertsHref(pricingPair(symbol));
+  const chartHref = useChartHref(pricingPair(symbol));
   const [holding, setHolding] = useState<Holding | null | undefined>(undefined);
   const [txs, setTxs] = useState<Tx[]>([]);
   const [bars, setBars] = useState<{ t: number; c: number }[] | null>(null);
@@ -395,14 +396,16 @@ export default function AssetScreen({
           </span>
         )}
       </div>
-      {/* Crypto only. The detailed chart is fed by /api/candles, which is
-          Binance, so an equity would open an empty pane — and a tap that
-          leads nowhere is worse than no tap. */}
-      {resolvedType === "crypto" ? (
+      {/* Crypto only, and only where the chart page exists. It is fed by
+          /api/candles, which is Binance, so an equity would open an empty pane
+          — and a tap that leads nowhere is worse than no tap. In the device
+          build it leads somewhere worse than nowhere: out of the static export
+          and into a restart, which is why the seam answers null there. */}
+      {resolvedType === "crypto" && chartHref ? (
         <Link
-          // Both destinations address a venue, not a holding: the chart proxies
-          // Binance klines and an alert evaluates them, so each wants the pair.
-          href={`/chart?symbol=${encodeURIComponent(pricingPair(symbol))}`}
+          // The destination addresses a venue, not a holding: the chart proxies
+          // Binance klines, so it wants the pair.
+          href={chartHref}
           aria-label={`Open ${symbol} in the detailed chart`}
           className="block rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
         >

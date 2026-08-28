@@ -22,11 +22,35 @@ let pending: Promise<DataClient> | null = null;
 async function openDb(): Promise<DB> {
   const { CapacitorSQLite, SQLiteConnection } = await import("@capacitor-community/sqlite");
   const sqlite = new SQLiteConnection(CapacitorSQLite);
+
+  /*
+   * Reuse before create, because the native connection outlives the page.
+   *
+   * The plugin keeps its connections on the native side, and a full document
+   * load — following a link to a route this export does not contain, or any
+   * reload — builds a new WebView document against the *same* native plugin.
+   * `createConnection` then refuses, because that name is already registered,
+   * and the app showed "Contour could not open its database" for what was
+   * really a duplicate connection. The database was never the problem.
+   *
+   * So: adopt the existing one if it is there. `isConnection` is the plugin's
+   * own question, and both calls are guarded because a plugin version that
+   * lacks them must not take the whole open down with it.
+   */
+  let conn = null;
+  try {
+    const existing = await sqlite.isConnection(DB_NAME, false);
+    if (existing.result) conn = await sqlite.retrieveConnection(DB_NAME, false);
+  } catch {
+    // No existing connection, or a plugin that cannot say. Create one below.
+  }
   // `false` for encryption and `no-encryption` for the mode: a device database
   // holding a portfolio is protected by the device lock, and a key this app
   // invented would have to live beside the data it protects.
-  const conn = await sqlite.createConnection(DB_NAME, false, "no-encryption", 1, false);
-  await conn.open();
+  conn ??= await sqlite.createConnection(DB_NAME, false, "no-encryption", 1, false);
+  // Opening an already-open connection is not an error worth failing on; the
+  // plugin answers the same handle either way.
+  if (!(await conn.isDBOpen()).result) await conn.open();
 
   const db: DB = {
     async execute(statements) { await conn.execute(statements); },
