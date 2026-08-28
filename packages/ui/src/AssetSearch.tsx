@@ -10,6 +10,7 @@ import CoinIcon from "./CoinIcon";
 import Sheet from "./Sheet";
 import EmptyState from "./EmptyState";
 import { field } from "./field";
+import { iconButton } from "./icon-button";
 
 /**
  * Find an asset and open it.
@@ -72,9 +73,9 @@ export default function AssetSearch() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Search for an asset"
-        className="text-neutral-400 hover:text-neutral-200 transition-colors p-1 -m-1"
+        className={iconButton()}
       >
-        <Search size={18} aria-hidden />
+        <Search size={16} aria-hidden />
       </button>
 
       <Sheet open={open} onClose={() => setOpen(false)} title="Search">

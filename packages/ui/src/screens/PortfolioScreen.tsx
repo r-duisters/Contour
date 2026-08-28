@@ -6,10 +6,11 @@ import TxForm, { type NewTx } from "@/components/TxForm";
 import Sheet from "@/components/Sheet";
 import Link from "next/link";
 import {
-  ArrowUpDown, BarChart3, Plus, TrendingDown, TrendingUp, Wallet, X,
+  ArrowUpDown, Plus, TrendingDown, TrendingUp, Wallet, X,
 } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
 import PageLabel from "@/components/PageLabel";
+import { iconButton } from "@/components/icon-button";
 import AssetSearch from "@/components/AssetSearch";
 import { useDataClient } from "@/data/client/context";
 import { useAssetHref } from "@/components/routing";
@@ -316,17 +317,10 @@ export default function PortfolioScreen() {
           onClick={() => setAddOpen((v) => !v)}
           aria-label={addOpen ? "Close add transaction" : "Add transaction"}
           aria-expanded={addOpen}
-          className="w-11 h-11 flex items-center justify-center rounded-full border border-neutral-800 text-neutral-400 active:bg-neutral-900"
+          className={iconButton()}
         >
           {addOpen ? <X size={16} aria-hidden /> : <Plus size={16} aria-hidden />}
         </button>
-        <Link
-          href="/insights"
-          aria-label="Insights"
-          className="md:hidden w-11 h-11 flex items-center justify-center rounded-full border border-neutral-800 text-neutral-400 active:bg-neutral-900"
-        >
-          <BarChart3 size={16} aria-hidden />
-        </Link>
       </div>
 
       {selectedId && (
