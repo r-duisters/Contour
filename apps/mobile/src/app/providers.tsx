@@ -4,7 +4,10 @@ import { useEffect, useState, type ReactNode } from "react";
 import ContourMark from "@/ui/ContourMark";
 import { DataClientProvider } from "@/data/client/context";
 import type { DataClient } from "@/data/client/data-client";
-import { client } from "@/lib/deps";
+// Relative, not `@/lib/deps`: in this app `@/lib/*` points at packages/core,
+// the way packages/ui refers to itself. This app's own modules are reached
+// directly, which also makes it obvious which side of the seam a file is on.
+import { client } from "../lib/deps";
 
 /**
  * The device build's answer to "where does data come from": SQLite and
