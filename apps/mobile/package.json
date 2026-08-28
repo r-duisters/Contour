@@ -7,5 +7,8 @@
     "build": "next build",
     "lint": "eslint",
     "sync": "npm run build && cap sync android"
+  },
+  "dependencies": {
+    "@capacitor-community/sqlite": "^8.1.1"
   }
 }

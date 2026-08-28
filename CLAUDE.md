@@ -72,7 +72,7 @@ Warm-up is **1460 daily bars** before `riskMetric` becomes finite. The chart pag
 | Task | Command |
 |---|---|
 | Dev server | `npm run dev` (delegates to the `apps/web` workspace, default port 3000) |
-| Type-check | `npm run typecheck` (root `tsconfig.json` for the packages, then `-p apps/web` for the app) |
+| Type-check | `npm run typecheck` (root `tsconfig.json` for the packages, then `-p apps/web` and `-p apps/mobile`) |
 | Production build | `npm run build` |
 | Lint | `npm run lint` (loops over all three workspaces — see below) |
 | Tests (Vitest) | `npx vitest` from the repository root (e.g. `npx vitest run packages/core/src/indicator`) |

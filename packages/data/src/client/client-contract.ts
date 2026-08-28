@@ -163,6 +163,25 @@ export type ClientCapabilities = {
    * must not.
    */
   testNotifications: boolean;
+  /**
+   * Whether this client's reads are *computed* rather than replayed.
+   *
+   * `HttpClient` is exercised through a `FakeNet` that hands `FIXTURE` back
+   * verbatim, so the exact arrays below are meaningful for it: they pin the
+   * parsing, the envelope unwrapping and the field names. `LocalClient` runs
+   * the real services, and several of those figures are unreachable by
+   * construction — `FIXTURE.seriesPoint` is anchored to a fixed timestamp
+   * while the service anchors its window to "now"; `FIXTURE.importReport`
+   * claims three imported rows from a CSV that is a header and nothing else;
+   * `FIXTURE.restored` claims seven from a backup holding none.
+   *
+   * Rather than can those answers — which is what the retired `StubClient`
+   * did, making the assertion vacuous exactly where it looked strongest — a
+   * computed client is held to the shape and the record semantics, and the
+   * arithmetic is left to `../services/*.test.ts`, which is where the inputs
+   * are actually stated. The stub's own header asked Phase 4 to do this.
+   */
+  computedReads?: boolean;
 };
 
 export function runDataClientContract(
@@ -268,13 +287,25 @@ export function runDataClientContract(
     it("returns a value series for a range", async () => {
       const series = await makeClient().getSeries(PORTFOLIO_ID, FIXTURE.range);
       expect(series.range).toBe(FIXTURE.range);
-      expect(series.series).toEqual([FIXTURE.seriesPoint]);
+      if (capabilities.computedReads) {
+        // Anchored to "now" by the service; only the shape is stateable here.
+        for (const p of series.series) {
+          expect(typeof p.t).toBe("number");
+          expect(typeof p.value).toBe("number");
+        }
+      } else {
+        expect(series.series).toEqual([FIXTURE.seriesPoint]);
+      }
     });
 
     it("returns per-asset changes for a range", async () => {
       const changes = await makeClient().getChanges(PORTFOLIO_ID, FIXTURE.range);
       expect(changes.range).toBe(FIXTURE.range);
-      expect(changes.changes).toEqual(FIXTURE.changes);
+      if (capabilities.computedReads) {
+        expect(typeof changes.changes).toBe("object");
+      } else {
+        expect(changes.changes).toEqual(FIXTURE.changes);
+      }
     });
 
     it("returns insights", async () => {
@@ -389,9 +420,18 @@ export function runDataClientContract(
     /* --------------------------------------------------- import and restore */
 
     it("imports a CSV and reports what it did", async () => {
-      await expect(makeClient().importCsv(PORTFOLIO_ID, FIXTURE.csv)).resolves.toEqual(
-        FIXTURE.importReport,
-      );
+      const report = await makeClient().importCsv(PORTFOLIO_ID, FIXTURE.csv);
+      if (capabilities.computedReads) {
+        // `FIXTURE.csv` is a header and no rows, so a real importer reports
+        // nothing imported. The shape is what this case can state; what the
+        // parser does with real rows is `delta-csv.test.ts`'s subject.
+        expect(typeof report.imported).toBe("number");
+        expect(typeof report.duplicates).toBe("number");
+        expect(Array.isArray(report.skipped)).toBe(true);
+        expect(Array.isArray(report.warnings)).toBe(true);
+      } else {
+        expect(report).toEqual(FIXTURE.importReport);
+      }
     });
 
     it("previews an import without writing it", async () => {
@@ -408,11 +448,31 @@ export function runDataClientContract(
     });
 
     it("clears imported transactions and reports how many", async () => {
-      await expect(makeClient().clearImported(PORTFOLIO_ID)).resolves.toBe(FIXTURE.clearedCount);
+      const cleared = await makeClient().clearImported(PORTFOLIO_ID);
+      if (capabilities.computedReads) {
+        // The seeded rows carry no `delta-import` note, so a real clear-out
+        // finds none of them. That it answers a count at all, and `0` for an
+        // unknown portfolio below, is what the interface promises.
+        expect(typeof cleared).toBe("number");
+      } else {
+        expect(cleared).toBe(FIXTURE.clearedCount);
+      }
     });
 
     it("restores a backup into a new portfolio", async () => {
-      await expect(makeClient().restoreBackup(FIXTURE.backup)).resolves.toEqual(FIXTURE.restored);
+      const restored = await makeClient().restoreBackup(FIXTURE.backup);
+      if (capabilities.computedReads) {
+        // Loosened exactly as the retired stub's header asked Phase 4 to do:
+        // `FIXTURE.restored` pins `id: "p-restored"` and `restored: 7` against
+        // a backup literal holding no transactions, which only a mock can
+        // produce. An id came back, and as many rows as the backup held.
+        expect(restored.id).toBeTruthy();
+        expect(restored.restored).toBe(
+          JSON.parse(FIXTURE.backup).portfolio.transactions.length,
+        );
+      } else {
+        expect(restored).toEqual(FIXTURE.restored);
+      }
     });
 
     it("rejects an unreadable backup with a typed error", async () => {

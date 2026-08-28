@@ -15,7 +15,7 @@
     "start": "npm run start --workspace @contour/web --",
     "lint": "fail=0; for w in $(npm query .workspace --json | node -e \"const w=JSON.parse(require('fs').readFileSync(0));process.stdout.write(w.map(x=>x.name).join(' '))\"); do npm run lint --workspace $w --if-present || fail=1; done; exit $fail",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p apps/web",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p apps/web && tsc --noEmit -p apps/mobile",
     "android:sync": "npx cap sync android",
     "android:build": "cd android && ./gradlew assembleDebug"
   },
