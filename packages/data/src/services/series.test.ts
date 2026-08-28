@@ -474,3 +474,86 @@ describe("ledgerFingerprint", () => {
     expect(ledgerFingerprint([])).not.toBe(ledgerFingerprint([row]));
   });
 });
+
+/**
+ * #50: moving between chart periods used to refetch data already in memory.
+ *
+ * Six of the eight ranges are the same daily bars differing only in where they
+ * start, and `all` contains every one of the others. Six cache keys meant
+ * 1M → 1Y → All cost three cold round trips; on a phone `all` alone is four
+ * sequential requests and 107 KB.
+ */
+describe("changing the chart period", () => {
+  const DAY = 86_400_000;
+  /** Five years of daily closes, oldest first, as Binance returns them. */
+  const klines = () => {
+    const start = Date.now() - 5 * 365 * DAY;
+    return Array.from({ length: 5 * 365 }, (_, i) => [
+      start + i * DAY, "0", "0", "0", String(100 + i), "0", start + (i + 1) * DAY,
+      "0", 0, "0", "0", "0",
+    ]);
+  };
+
+  /**
+   * Honours `startTime`, because `fetchKlinesRange` walks pages with a cursor:
+   * a fake that returns the same rows whatever it is asked never lets the
+   * cursor advance, and the loop runs until the heap is gone. It did.
+   */
+  const countingNet = (counter: { n: number }) => {
+    const rows = klines();
+    return FakeNet({
+      "/api/v3/klines": (url: string) => {
+        counter.n += 1;
+        const from = Number(new URL(url).searchParams.get("startTime") ?? 0);
+        const limit = Number(new URL(url).searchParams.get("limit") ?? 1000);
+        return rows.filter((r) => (r[0] as number) >= from).slice(0, limit);
+      },
+    });
+  };
+
+  beforeEach(() => invalidate());
+
+  it("asks the network once, then serves narrower periods from what it has", async () => {
+    const store = MemoryStore();
+    const calls = { n: 0 };
+    const net = countingNet(calls);
+
+    const all = await history(store, net, "BTC", "crypto", "all");
+    const afterWidest = calls.n;
+    expect(afterWidest).toBeGreaterThan(0);
+
+    // Every one of these is a subset of what `all` already fetched.
+    for (const range of ["5y", "2y", "1y", "1m"] as const) {
+      await history(store, net, "BTC", "crypto", range);
+    }
+    expect(calls.n).toBe(afterWidest);
+    expect(all.bars.length).toBeGreaterThan(0);
+  });
+
+  it("still returns the period asked for, not the widest one", async () => {
+    // The saving is worthless if it hands back five years when asked for one.
+    const store = MemoryStore();
+    const net = countingNet({ n: 0 });
+
+    await history(store, net, "BTC", "crypto", "all");
+    const year = await history(store, net, "BTC", "crypto", "1y");
+    const all = await history(store, net, "BTC", "crypto", "all");
+
+    expect(year.bars.length).toBeLessThan(all.bars.length);
+    const oldest = year.bars[0]!.t;
+    expect(oldest).toBeGreaterThan(Date.now() - 370 * DAY);
+  });
+
+  it("widens rather than narrowing: a wider period after a narrow one still fetches", async () => {
+    const store = MemoryStore();
+    const calls = { n: 0 };
+    const net = countingNet(calls);
+
+    await history(store, net, "BTC", "crypto", "1y");
+    const afterYear = calls.n;
+    await history(store, net, "BTC", "crypto", "all");
+    // "all" reaches further back than the year did, so it cannot be served
+    // from it — asking the network is the correct answer here.
+    expect(calls.n).toBeGreaterThan(afterYear);
+  });
+});

@@ -160,6 +160,27 @@ function persist(): void {
   }
 }
 
+/**
+ * What is held under a key, without computing it if it is not.
+ *
+ * `cached()` cannot answer "is this already here?" — it takes a function and
+ * runs it on a miss, which is the wrong question when a caller has a *cheaper*
+ * answer available. The chart uses it to notice that a wider window is already
+ * in memory and slice that instead of asking the network for a subset of what
+ * it already has.
+ */
+export function peek<T>(key: string, now = Date.now()): T | undefined {
+  const hit = store_.get(key);
+  return hit && hit.expires > now ? (hit.value as T) : undefined;
+}
+
+/** Store a value a caller computed itself. `cached()`'s other half. */
+export function put<T>(key: string, value: T, ttlMs: number, now = Date.now()): void {
+  store_.set(key, { value, expires: now + ttlMs });
+  if (store_.size > MAX_ENTRIES) evict(now);
+  persist();
+}
+
 /** How many entries are held. For the test that proves the bound holds. */
 export function cacheSize(): number {
   return store_.size;

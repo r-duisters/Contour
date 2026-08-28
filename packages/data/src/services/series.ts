@@ -1,4 +1,4 @@
-import { cached } from "@/core/cache";
+import { cached, peek, put } from "@/core/cache";
 import { toDisplayTxs } from "@/core/display-tx";
 import { cashBalancesOver } from "@/core/cash";
 import { currencyForTicker } from "@/core/equity";
@@ -555,6 +555,29 @@ export type History = {
  * persisted setting. Nothing else here is read from disk, and no portfolio is
  * involved — a symbol is all it needs.
  */
+/**
+ * Every daily close from `from` to now, however many pages that takes.
+ *
+ * A year fits in one page; longer windows paginate, and `fetchKlinesRange`
+ * walks them with a cursor. Split out so the widening cache above reads as one
+ * decision rather than three.
+ */
+async function fetchDailyBars(
+  net: Net, pair: string, from: number,
+): Promise<{ t: number; c: number }[]> {
+  if (Date.now() - from > 1000 * DAY_MS) {
+    const raw = await fetchKlinesRange(net, {
+      symbol: pair, interval: "1d", from, to: Date.now(),
+    });
+    return raw.map((b) => ({ t: b.t, c: b.c }));
+  }
+  const days = Math.ceil((Date.now() - from) / DAY_MS) + 1;
+  const raw = await fetchKlines(net, {
+    symbol: pair, interval: "1d", limit: Math.min(1000, days),
+  });
+  return raw.filter((b) => b.t >= from).map((b) => ({ t: b.t, c: b.c }));
+}
+
 export async function history(
   store: Store,
   net: Net,
@@ -588,18 +611,32 @@ export async function history(
           const raw = await fetchKlines(net, { symbol: pair, interval: "1h", limit });
           return raw.map((b) => ({ t: b.t, c: b.c }));
         }
-        // Daily bars: one page is enough for a year, longer windows paginate.
-        if (from === 0 || Date.now() - from > 1000 * DAY_MS) {
-          const raw = await fetchKlinesRange(net, {
-            symbol: pair, interval: "1d", from: from || Date.parse("2017-01-01"), to: Date.now(),
-          });
-          return raw.map((b) => ({ t: b.t, c: b.c }));
+        /*
+         * Daily bars, and the widest window this pair has needed so far.
+         *
+         * Six of the eight ranges — 1m, ytd, 1y, 2y, 5y, all — are the same
+         * daily bars from the same source and differ only in where they start,
+         * so `all` contains every one of the others. They used to be six cache
+         * keys and six fetches: moving 1M → 1Y → All cost three cold round
+         * trips for data the first already held, and on a phone `all` alone is
+         * four sequential requests and 107 KB.
+         *
+         * One entry per pair instead, widening as it is asked for more. A
+         * narrower range is sliced out of it and costs nothing. This can never
+         * be slower than fetching per range — the entry only exists because
+         * some earlier range paid for it — and it is why the audit in #50
+         * treats this as the change with no trade-off.
+         */
+        const widest = `histdaily:${pair}:${Math.floor(Date.now() / 900_000)}`;
+        const held = peek<{ from: number; bars: { t: number; c: number }[] }>(widest);
+        const wanted = from || Date.parse("2017-01-01");
+        if (held && held.from <= wanted) {
+          return held.bars.filter((b) => b.t >= from);
         }
-        const days = Math.ceil((Date.now() - from) / DAY_MS) + 1;
-        const raw = await fetchKlines(net, {
-          symbol: pair, interval: "1d", limit: Math.min(1000, days),
-        });
-        return raw.filter((b) => b.t >= from).map((b) => ({ t: b.t, c: b.c }));
+
+        const bars = await fetchDailyBars(net, pair, wanted);
+        put(widest, { from: wanted, bars }, 900_000);
+        return bars.filter((b) => b.t >= from);
       },
     );
 
