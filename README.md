@@ -164,3 +164,23 @@ the browser. The build keeps the same app id, so it upgrades in place and
 nothing is lost.
 
 Over USB instead: `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`
+
+## Licence
+
+**AGPL-3.0-or-later.** The full text is in [LICENSE](LICENSE); [NOTICE](NOTICE)
+carries the copyright line and the exceptions.
+
+Two things worth knowing before you copy anything out of here:
+
+- **`samples/risk-metric.pine` is not mine to license.** It is Oakley Wood's
+  "Risk Metric Strategy", bundled for reference, and it carries no licence of
+  its own. `packages/core/src/indicator/` is a port of it — the sub-metrics and
+  their time curves are transcribed verbatim, which is the only reason the
+  figures match TradingView. NOTICE says so in full.
+- **Section 13 is why AGPL and not GPL.** Modify this and let other people use
+  it over a network, and you owe those users your source. Running it unmodified,
+  or running it for yourself, asks nothing of you.
+
+The TradingView attribution rendered on the More page satisfies Lightweight
+Charts' Apache-2.0 terms, and is why every chart sets `attributionLogo: false`.
+It is not decoration; removing it without replacing it is a breach.

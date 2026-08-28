@@ -1,0 +1,62 @@
+Contour
+Copyright (C) 2026 Roy Duisters
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE.  See the GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License along
+with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+The full licence text is in LICENSE, unmodified, as the licence requires.
+
+
+NOT COVERED BY THAT GRANT
+-------------------------
+
+samples/risk-metric.pine
+
+    "Risk Metric Strategy", by Oakley Wood. Included for reference, because the
+    analyzer and the backtester are only meaningful against the script they
+    were built to read.
+
+    It carries no licence of its own — the file states an author and nothing
+    more — so no rights in it are granted here. It is not mine to license, and
+    the AGPL grant above does not reach it.
+
+    packages/core/src/indicator/ is a port of that script: the three
+    sub-metrics and their hard-coded time curves are transcribed from it, and
+    CLAUDE.md says so plainly because matching TradingView depends on them
+    being exact. Treat that directory as derived from someone else's work when
+    deciding what you may do with it.
+
+    If you intend to redistribute this repository, resolving that with the
+    original author is the honest first step.
+
+
+THIRD-PARTY COMPONENTS
+----------------------
+
+Lightweight Charts™, by TradingView, Inc. — Apache License 2.0
+
+    Its terms ask for an attribution notice and a link to tradingview.com on a
+    page a user can reach. This app satisfies that with `ChartCredit`, rendered
+    on the More page of both builds, and every chart therefore sets
+    `attributionLogo: false`. Removing that component without replacing the
+    attribution some other way would breach the licence.
+
+Other dependencies keep their own licences; see each package in node_modules.
+
+
+RUNNING A MODIFIED VERSION AS A SERVICE
+---------------------------------------
+
+Section 13 of the AGPL is the reason it was chosen over the GPL. If you modify
+this program and let other people use it over a network, you must offer those
+users the source of your modified version. Running it unmodified, or running it
+for yourself, asks nothing of you.
