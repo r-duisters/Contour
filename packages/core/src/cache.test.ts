@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { attachCacheStore, cacheSize, cached, detachCacheStore, invalidate } from "./cache";
+import { attachCacheStore, cacheSize, cached, detachCacheStore, flushCache, invalidate } from "./cache";
 
 describe("cached, on a process that does not restart", () => {
   it("stays bounded as time-bucketed keys accumulate", async () => {
@@ -46,6 +46,7 @@ describe("cached, across a restart", () => {
     await cached("fx:2024", 60_000, async () => "rates");
 
     // A new process: the Map is empty and only the store survives.
+    flushCache();
     detachCacheStore();
     invalidate();
     attachCacheStore(store);
@@ -116,6 +117,7 @@ describe("what survives being written down", () => {
     attachCacheStore(store);
     await cached("ecb", 60_000, async () => new Map([[1, 0.9], [2, 0.91]]));
 
+    flushCache();
     detachCacheStore();
     invalidate();
     attachCacheStore(store);
@@ -133,6 +135,7 @@ describe("what survives being written down", () => {
     attachCacheStore(store);
     await cached("symbols", 60_000, async () => new Set(["BTCUSDT"]));
 
+    flushCache();
     detachCacheStore();
     invalidate();
     attachCacheStore(store);
@@ -196,6 +199,7 @@ describe("what is worth writing down", () => {
     attachCacheStore(store);
     await cached("klines:BTCUSDT:1d", 900_000, async () => fullHistory());
 
+    flushCache();
     detachCacheStore();
     invalidate();
     attachCacheStore(store);
@@ -218,6 +222,7 @@ describe("what is worth writing down", () => {
     for (let i = 0; i < 20; i++) {
       await cached(`klines:SYM${i}USDT:1d`, 900_000, async () => fullHistory());
     }
+    flushCache();
     const written = store.getItem("contour:cache")!.length;
     expect(written).toBeLessThanOrEqual(3 * 1024 * 1024 + 200_000);
     // Something was kept, and something was left behind. Both matter: keeping
@@ -239,7 +244,84 @@ describe("what is worth writing down", () => {
     invalidate();
     attachCacheStore(guarded);
     await expect(cached("k", 900_000, async () => fullHistory())).resolves.toHaveLength(3299);
+    flushCache();
     expect(removed).toBe(true);
+    detachCacheStore();
+    invalidate();
+  });
+});
+
+/**
+ * The bug the persisted cache had all along: it stored everything correctly
+ * and then looked for it under a different name.
+ *
+ * The sources built keys as `<what>:<15-minute bucket>`. Reopen the app twenty
+ * minutes later and the entry was still there, still unexpired — and invisible,
+ * because the bucket had moved on. Freshness was expressed twice, and the key's
+ * copy defeated the cache the TTL was keeping alive.
+ */
+describe("reopening the app later", () => {
+  const memory = () => {
+    const held = new Map<string, string>();
+    return {
+      getItem: (k: string) => held.get(k) ?? null,
+      setItem: (k: string, v: string) => { held.set(k, v); },
+      removeItem: (k: string) => { held.delete(k); },
+      held,
+    };
+  };
+
+  it("finds what the last run fetched, within its lifetime", async () => {
+    const store = memory();
+    invalidate();
+    attachCacheStore(store);
+    await cached("klines:BTCUSDT:1d:0", 900_000, async () => ["bars"]);
+    flushCache();
+
+    // A new process, ten minutes on: inside the TTL, so it must be a hit.
+    detachCacheStore();
+    invalidate();
+    attachCacheStore(store, Date.now() + 10 * 60_000);
+
+    let refetched = false;
+    await cached("klines:BTCUSDT:1d:0", 900_000, async () => { refetched = true; return ["again"]; });
+    expect(refetched).toBe(false);
+    detachCacheStore();
+    invalidate();
+  });
+
+  it("still refetches once the lifetime is up", async () => {
+    // The TTL is the rule, and it keeps meaning the same thing across a
+    // restart. Removing the bucket must not turn the cache into forever.
+    const store = memory();
+    invalidate();
+    attachCacheStore(store);
+    await cached("klines:BTCUSDT:1d:0", 900_000, async () => ["bars"]);
+    flushCache();
+
+    detachCacheStore();
+    invalidate();
+    attachCacheStore(store, Date.now() + 20 * 60_000);
+
+    let refetched = false;
+    await cached("klines:BTCUSDT:1d:0", 900_000, async () => { refetched = true; return ["again"]; });
+    expect(refetched).toBe(true);
+    detachCacheStore();
+    invalidate();
+  });
+
+  it("writes once for a burst, not once per entry", async () => {
+    // `persist()` serialises the whole store, so a write per `set` cost 6.1 MB
+    // of JSON during a startup to end up with 1 MB on disk.
+    const store = memory();
+    let writes = 0;
+    const counting = { ...store, setItem: (k: string, v: string) => { writes += 1; store.setItem(k, v); } };
+    invalidate();
+    attachCacheStore(counting);
+    for (let i = 0; i < 10; i++) await cached(`k${i}`, 900_000, async () => i);
+    expect(writes).toBe(0);
+    flushCache();
+    expect(writes).toBe(1);
     detachCacheStore();
     invalidate();
   });

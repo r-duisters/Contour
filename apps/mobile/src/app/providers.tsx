@@ -14,7 +14,7 @@ import type { DataClient } from "@/data/client/data-client";
 // the way packages/ui refers to itself. This app's own modules are reached
 // directly, which also makes it obvious which side of the seam a file is on.
 import { client } from "../lib/deps";
-import { attachCacheStore } from "@/lib/cache";
+import { attachCacheStore, flushCache } from "@/lib/cache";
 
 /**
  * The device build's answer to "where does data come from": SQLite and
@@ -41,6 +41,17 @@ export default function Providers({ children }: { children: ReactNode }) {
     // `packages/core` has no `localStorage` and must not grow one.
     try { attachCacheStore(localStorage); } catch { /* blocked storage: cold every time */ }
 
+    /*
+     * Write the cache down before Android takes the process.
+     *
+     * Writes are coalesced onto the next tick, so the newest entries live only
+     * in memory for a moment. Backgrounding is the moment before a kill, and
+     * it is the last chance to keep them — losing them costs a refetch on the
+     * next launch, which is the whole thing the cache exists to avoid.
+     */
+    const flush = () => { if (document.visibilityState === "hidden") flushCache(); };
+    document.addEventListener("visibilitychange", flush);
+
     let cancelled = false;
     client()
       .then((c) => { if (!cancelled) setReady(c); })
@@ -48,7 +59,10 @@ export default function Providers({ children }: { children: ReactNode }) {
       // it to degrade to: every screen's data lives there. Saying so beats a
       // splash that never ends.
       .catch(() => { if (!cancelled) setFailed(true); });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", flush);
+    };
   }, []);
 
   if (failed) {

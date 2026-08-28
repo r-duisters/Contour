@@ -128,7 +128,21 @@ export function attachCacheStore(store: CacheStore, now = Date.now()): void {
 
 /** For tests, and for a host that stops offering storage. */
 export function detachCacheStore(): void {
+  flushCache();
   persistent = null;
+}
+
+/**
+ * Write now rather than on the next tick.
+ *
+ * The coalescing below means a burst of `cached()` calls costs one write, at
+ * the price of a window in which the newest entries are only in memory. A host
+ * that knows it is about to be killed — an app going to the background — can
+ * close that window; so can a test that wants to read what it just wrote.
+ */
+export function flushCache(): void {
+  scheduled = false;
+  persistNow();
 }
 
 /**
@@ -156,7 +170,31 @@ function reviver(_key: string, value: unknown): unknown {
   return value;
 }
 
+/**
+ * Writes are coalesced, because `persist()` serialises the whole store.
+ *
+ * It is called on every `set`, and a startup does a dozen of them: measured at
+ * 6.1 MB of `JSON.stringify` to end up with a 1 MB blob, 198ms on a desktop
+ * and worse on a phone's UI thread, growing with the square of the cache. One
+ * write after the burst says exactly the same thing.
+ *
+ * A process killed before the timer fires loses the last write, which costs a
+ * refetch and never data — the same trade the cache makes everywhere else.
+ */
+let scheduled = false;
+
 function persist(): void {
+  if (!persistent || scheduled) return;
+  scheduled = true;
+  if (typeof setTimeout === "function") {
+    setTimeout(() => { scheduled = false; persistNow(); }, 0);
+    return;
+  }
+  scheduled = false;
+  persistNow();
+}
+
+function persistNow(): void {
   if (!persistent) return;
   try {
     /*

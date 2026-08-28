@@ -70,8 +70,15 @@ export function fetchKlinesRange(net: Net, opts: {
   from: number;
   to: number;
 }): Promise<Bar[]> {
-  const bucket = Math.floor(opts.to / 900_000); // 15-minute cache buckets
-  return cached(`klines:${opts.symbol}:${opts.interval}:${opts.from}:${bucket}`, 900_000, () =>
+  /*
+   * No time bucket in the key. The TTL already says how long this is good
+   * for, and putting the same fact in the key as well is what stopped a cold
+   * start ever reusing anything: the entry survived the restart and was not
+   * expired, but fifteen minutes later it was looked up under a different
+   * name. Freshness expressed twice, and the key's copy defeated the cache
+   * the TTL was keeping alive.
+   */
+  return cached(`klines:${opts.symbol}:${opts.interval}:${opts.from}`, 900_000, () =>
     fetchKlinesRangeUncached(net, opts),
   );
 }
@@ -330,8 +337,7 @@ export type Ticker = {
  * shorter window would refetch a megabyte on every category toggle.
  */
 export function fetch24hTicker(net: Net): Promise<Ticker[]> {
-  const bucket = Math.floor(Date.now() / 60_000);
-  return cached(`binance:ticker24h:${bucket}`, 60_000, async () => {
+  return cached("binance:ticker24h", 60_000, async () => {
     const raw = await net.json<{
       symbol: string;
       lastPrice: string;

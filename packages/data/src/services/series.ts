@@ -627,7 +627,9 @@ export async function history(
          * some earlier range paid for it — and it is why the audit in #50
          * treats this as the change with no trade-off.
          */
-        const widest = `histdaily:${pair}:${Math.floor(Date.now() / 900_000)}`;
+        // No time bucket: the TTL is the freshness rule, and a bucket in the
+        // key means a restart in the next quarter hour looks somewhere else.
+        const widest = `histdaily:${pair}`;
         const held = peek<{ from: number; bars: { t: number; c: number }[] }>(widest);
         const wanted = from || Date.parse("2017-01-01");
         if (held && held.from <= wanted) {

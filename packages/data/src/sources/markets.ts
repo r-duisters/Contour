@@ -70,8 +70,7 @@ export type EquityRow = {
  * free tier is rate-limited per minute.
  */
 export function fetchTopByMarketCap(net: Net, limit: number): Promise<CoinRow[]> {
-  const bucket = Math.floor(Date.now() / 900_000);
-  return cached(`coingecko:top:${limit}:${bucket}`, 900_000, async () => {
+  return cached(`coingecko:top:${limit}`, 900_000, async () => {
     const raw = await net.json<{
       symbol: string;
       name: string;
@@ -114,8 +113,7 @@ export type ScreenerId = "day_gainers" | "day_losers" | "most_actives";
  */
 export function fetchScreener(net: Net, id: ScreenerId, count: number): Promise<EquityRow[] | null> {
   const ttl = usMarketOpen(Date.now()) ? 300_000 : 3_600_000;
-  const bucket = Math.floor(Date.now() / ttl);
-  return cached(`yahoo:screener:${id}:${count}:${bucket}`, ttl, async () => {
+  return cached(`yahoo:screener:${id}:${count}`, ttl, async () => {
     const url =
       "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved" +
       `?scrIds=${id}&count=${count}`;
@@ -174,8 +172,7 @@ export type IndexSeries = {
  * move the last pixel and nothing else.
  */
 export function fetchIndexSeries(net: Net, spec: IndexSpec): Promise<IndexSeries | null> {
-  const bucket = Math.floor(Date.now() / 3_600_000);
-  return cached(`index:${spec.symbol}:${bucket}`, 3_600_000, async () => {
+  return cached(`index:${spec.symbol}`, 3_600_000, async () => {
     try {
       const closes = spec.kind === "crypto"
         ? await cryptoCloses(net, spec.symbol)
@@ -242,8 +239,7 @@ export type IndexMeta = {
  * would make the strip pay for eight copies of a block it never reads.
  */
 export function fetchIndexMeta(net: Net, symbol: string): Promise<IndexMeta | null> {
-  const bucket = Math.floor(Date.now() / 3_600_000);
-  return cached(`indexmeta:${symbol}:${bucket}`, 3_600_000, async () => {
+  return cached(`indexmeta:${symbol}`, 3_600_000, async () => {
     try {
       const raw = await net.json<{ chart?: { result?: { meta?: RawIndexMeta }[] | null } }>(
         `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}` +
@@ -307,8 +303,7 @@ export async function fetchConstituents(net: Net, symbols: string[]): Promise<Co
 }
 
 function fetchOneQuote(net: Net, symbol: string): Promise<Constituent | null> {
-  const bucket = Math.floor(Date.now() / 3_600_000);
-  return cached(`quote1:${symbol}:${bucket}`, 3_600_000, async () => {
+  return cached(`quote1:${symbol}`, 3_600_000, async () => {
     try {
       const raw = await net.json<{ chart?: { result?: { meta?: RawIndexMeta }[] | null } }>(
         `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}` +
