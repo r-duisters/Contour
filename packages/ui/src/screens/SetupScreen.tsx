@@ -5,13 +5,14 @@ import { useDataClient } from "@/data/client/context";
 import { asDisplayCurrency, type DisplayCurrency } from "@/lib/currencies";
 import { KEYS } from "@/lib/storage-keys";
 import Button from "../Button";
-import BusyMark from "../BusyMark";
 import MarkTile from "../MarkTile";
 import CurrencyField from "../CurrencyField";
+import TradingBackdrop from "../TradingBackdrop";
 import { field } from "../field";
 import { importKindOf } from "../setup-steps";
 
 type Step = "currency" | "name" | "import";
+const STEPS: Step[] = ["currency", "name", "import"];
 
 /**
  * First run, on a device that starts with nothing in it.
@@ -21,10 +22,20 @@ type Step = "currency" | "name" | "import";
  * has to get their own data into it, which is a different problem and gets a
  * different screen.
  *
+ * **Built on the lock screen's shell, deliberately.** Same moving market
+ * behind it, same centred column, same glowing 112px disc with the mark in it,
+ * same title and caption beneath. These are the two screens a person meets
+ * before the app proper, and they should look like the same app arriving
+ * rather than two designs that happen to share a colour. Only the caption and
+ * the control below it change between steps — which is also what makes the
+ * import's waiting state a *state* of this screen rather than a different
+ * screen swapped in for it: the mark stays exactly where it is and the ring
+ * starts turning around it.
+ *
  * Three steps, in the order they depend on each other: the currency everything
  * will be shown in, a name for the first portfolio, then the data that goes
  * into it. Every step can be skipped — the app is usable empty, and a wizard
- * that will not let go is worse than one that is left half-finished.
+ * that will not let go is worse than one left half-finished.
  *
  * **Nothing is created until it is needed.** The portfolio is not written when
  * its name is typed: a backup brings its own portfolio, so creating one first
@@ -94,102 +105,107 @@ export default function SetupScreen({ onDone }: { onDone: () => void }) {
     }
   }
 
-  if (busy) {
-    return (
-      <main className="min-h-screen flex items-center justify-center p-8">
-        <BusyMark label={busy} />
-      </main>
-    );
-  }
+  const caption = busy
+    ? busy
+    : step === "currency" ? "What should everything be shown in?"
+    : step === "name" ? "What should your portfolio be called?"
+    : "Bring your data over";
 
   return (
-    <main className="min-h-screen flex flex-col px-5 py-8 max-w-md mx-auto w-full">
-      <div className="flex items-center gap-3 mb-8">
-        <MarkTile size={48} />
-        <div>
-          <h1 className="text-lg font-semibold">Set up Contour</h1>
-          <p className="text-xs text-neutral-500">Step {STEPS.indexOf(step) + 1} of {STEPS.length}</p>
-        </div>
+    <div className="relative min-h-screen flex items-center justify-center px-6 py-10">
+      {/* The same flat ground and moving market as the lock and login, so all
+          three entrances to the app look like one app. */}
+      <div className="absolute inset-0 bg-neutral-950" />
+      <div className="absolute inset-0">
+        <TradingBackdrop />
       </div>
 
-      {step === "currency" && (
-        <div className="space-y-6">
-          <p className="text-sm text-neutral-400">
-            Everything is shown in one currency. You can change it later in Settings.
+      <div className="relative z-10 flex flex-col items-center gap-6 text-center w-full max-w-sm">
+        {/* The ring turns on the step a person waits at, and only there. */}
+        <MarkTile size={112} glow ring={busy !== null} />
+
+        <div>
+          <p className="text-2xl font-semibold tracking-wide">Contour</p>
+          {/* Keyed so each caption is a fresh node; `min-h` holds the line's
+              space, or everything below would step as the words change. */}
+          <p className="text-xs text-neutral-500 mt-1 min-h-4" role="status" aria-live="polite">
+            {caption}
           </p>
-          <CurrencyField value={currency} onChange={setCurrency} />
-          <Actions onNext={saveCurrency} onSkip={() => setStep("name")} next="Continue" />
         </div>
-      )}
 
-      {step === "name" && (
-        <div className="space-y-6">
-          <p className="text-sm text-neutral-400">
-            Give your portfolio a name. If you restore a backup next, it keeps the name it
-            was saved under and this one is not used.
-          </p>
-          <label className="block text-sm">
-            <span className="text-neutral-400">Name</span>
-            <input
-              className={`mt-1 w-full ${field()}`}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="My portfolio"
-            />
-          </label>
-          <Actions onNext={() => setStep("import")} onSkip={() => setStep("import")} next="Continue" />
-        </div>
-      )}
+        {/* Nothing to do while it works — the ring above says what is
+            happening, and a form that stayed interactive would invite a
+            second import on top of the first. */}
+        {!busy && (
+          <>
+            <div className="w-full text-left space-y-4">
+              {step === "currency" && (
+                <CurrencyField value={currency} onChange={setCurrency} />
+              )}
 
-      {step === "import" && (
-        <div className="space-y-6">
-          <p className="text-sm text-neutral-400">
-            Bring your data over. A backup file from the desktop app restores everything;
-            a Delta CSV export goes into the portfolio you just named.
-          </p>
-          <label className="block">
-            <span className="sr-only">Choose a file</span>
-            <input
-              type="file"
-              accept=".json,.csv,text/csv,application/json"
-              className={`w-full ${field()}`}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void importFile(file);
-              }}
-            />
-          </label>
-          <p className="text-xs text-neutral-500">
-            The file is read on this phone. Nothing is uploaded.
-          </p>
-          {error && <p className="text-xs text-red-500">{error}</p>}
-          <Actions onNext={createEmpty} onSkip={finish} next="Start empty" />
-        </div>
-      )}
+              {step === "name" && (
+                <label className="block text-sm">
+                  <span className="text-neutral-400">Name</span>
+                  <input
+                    className={`mt-1 w-full ${field()}`}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="My portfolio"
+                  />
+                  <span className="text-xs text-neutral-500">
+                    A backup keeps the name it was saved under, and this one is not used.
+                  </span>
+                </label>
+              )}
 
-      {error && step !== "import" && <p className="text-xs text-red-500 mt-4">{error}</p>}
-    </main>
-  );
-}
+              {step === "import" && (
+                <label className="block text-sm">
+                  <span className="text-neutral-400">Backup or Delta CSV</span>
+                  <input
+                    type="file"
+                    accept=".json,.csv,text/csv,application/json"
+                    className={`mt-1 w-full ${field()}`}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) void importFile(file);
+                    }}
+                  />
+                  <span className="text-xs text-neutral-500">
+                    A backup from the desktop app restores everything. A Delta export goes
+                    into the portfolio you just named. The file is read on this phone —
+                    nothing is uploaded.
+                  </span>
+                </label>
+              )}
 
-const STEPS: Step[] = ["currency", "name", "import"];
+              {error && <p className="text-xs text-red-500">{error}</p>}
+            </div>
 
-/** The same pair of controls on every step, so the way out never moves. */
-function Actions({
-  onNext,
-  onSkip,
-  next,
-}: {
-  onNext: () => void;
-  onSkip: () => void;
-  next: string;
-}) {
-  return (
-    <div className="flex items-center gap-3 pt-2">
-      <Button onClick={onNext}>{next}</Button>
-      <button type="button" onClick={onSkip} className="text-sm text-neutral-500 underline">
-        Skip
-      </button>
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={
+                  step === "currency" ? saveCurrency
+                  : step === "name" ? () => setStep("import")
+                  : createEmpty
+                }
+              >
+                {step === "import" ? "Start empty" : "Continue"}
+              </Button>
+              <button
+                type="button"
+                onClick={step === "import" ? finish : () => setStep(STEPS[STEPS.indexOf(step) + 1]!)}
+                className="text-sm text-neutral-500 underline"
+              >
+                Skip
+              </button>
+            </div>
+
+            <p className="text-xs text-neutral-600">
+              Step {STEPS.indexOf(step) + 1} of {STEPS.length}
+            </p>
+          </>
+        )}
+      </div>
     </div>
   );
 }
