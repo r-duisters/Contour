@@ -207,11 +207,16 @@ export function LocalClient(store: Store, net: Net): DataClient {
       return attempt(() => symbols(net));
     },
 
-    getAssetInfo(symbol: string, _assetType: "crypto" | "equity"): Promise<AssetInfo> {
-      // `assetType` is the web route's hint for the equity path, which needs a
-      // response header `Net` does not expose — spec §4.2, and the reason the
-      // route is only half-converted. Crypto is what a device can answer.
-      return attempt(() => assetInfo(net, symbol));
+    getAssetInfo(symbol: string, assetType: "crypto" | "equity"): Promise<AssetInfo> {
+      // Passed through, not ignored. It used to be dropped and every asset read
+      // as a coin, so a share was given crypto headlines and the crypto Fear &
+      // Greed index — the wrong answer rather than a thin one.
+      //
+      // What a device cannot reach for an equity is `quoteSummary`: the profile
+      // text and the ratios need Yahoo's cookie-and-crumb handshake and a
+      // response header `Net` does not expose (spec §4.2). Everything in the
+      // chart's `meta` block needs neither, and that is what it answers with.
+      return attempt(() => assetInfo(net, symbol, assetType));
     },
 
     /* --------------------------------------------------------------- markets */

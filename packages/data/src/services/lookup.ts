@@ -51,12 +51,22 @@ export async function symbols(net: Net): Promise<string[]> {
 }
 
 /**
- * Crypto only. Yahoo's quoteSummary endpoint, which the equity half needs,
- * wants a session cookie read off a response header that `Net` has no way to
- * expose — see `sources/asset-info.ts`'s file comment. `asset/[symbol]/route.ts`
- * calls this for `assetType: "crypto"` and the server-only
- * `apps/web/src/lib/equity-info.ts` for `"equity"`.
+ * What is known about an asset beyond its price, read in the right world.
+ *
+ * `assetType` defaults to crypto because `asset/[symbol]/route.ts` calls this
+ * only for coins — the web app has the server-only
+ * `apps/web/src/lib/equity-info.ts` for shares, which reaches `quoteSummary`
+ * for the profile text and the ratios.
+ *
+ * A device cannot: that endpoint wants a session cookie read off a response
+ * header `Net` has no way to expose (spec §4.2). What it *can* read is the
+ * chart's `meta` block — name, exchange, currency, day and 52-week ranges,
+ * volume — which needs no crumb. So an equity here is a smaller answer than
+ * the desktop's, and a correct one, which it was not while every asset was
+ * read as a coin.
  */
-export function assetInfo(net: Net, symbol: string): Promise<AssetInfo> {
-  return fetchCryptoAssetInfo(net, symbol);
+export function assetInfo(
+  net: Net, symbol: string, assetType: "crypto" | "equity" = "crypto",
+): Promise<AssetInfo> {
+  return fetchCryptoAssetInfo(net, symbol, assetType);
 }
