@@ -23,6 +23,7 @@ import { positionChangeOverWindow } from "@/lib/change";
 import { assetName } from "@/lib/asset-names";
 import { annotateTransactions } from "@/lib/portfolio";
 import { useAlertsHref, useChartHref } from "@/components/routing";
+import TransactionRow from "@/components/TransactionRow";
 import { useFitChart } from "@/components/useFitChart";
 import { shapePoints, thinKeepingExtremes } from "@/lib/chart-data";
 import { useStoredRange } from "@/components/useStoredRange";
@@ -673,76 +674,28 @@ function TransactionTable({ txs, onDelete }: { txs: Tx[]; onDelete: (id: string)
         )}
       </div>
 
-      {/* Column headings only where there is room to align under them. */}
-      <div className="hidden md:grid grid-cols-[6.5rem_5.5rem_1fr_1fr_1fr_1.5rem] gap-3 px-2 pb-1
-                      text-xs text-neutral-500 border-b border-neutral-800">
-        <span>Date</span>
-        <span>Type</span>
-        <span className="text-right">Quantity</span>
-        <span className="text-right">Price</span>
-        <span className="text-right">Value / result</span>
-        <span />
-      </div>
-
+      {/*
+        One row at every width, which is what "in line with the rest" means
+        here: `BRAND.md` describes the holdings row as the same row at two
+        densities, and this is that row. What it replaces was a single grid
+        that reflowed with `order-*` — six parts shuffled into two columns on a
+        phone, three visual lines per transaction, and a figure sitting above
+        the label explaining it.
+      */}
       <ul className="divide-y divide-neutral-800">
-        {visible.map((tx) => {
-          const incoming = tx.side === "buy" || tx.side === "transfer_in";
-          const value = tx.quantity * tx.price;
-          return (
-            <li
-              key={tx.id}
-              className="grid grid-cols-[1fr_auto] md:grid-cols-[6.5rem_5.5rem_1fr_1fr_1fr_1.5rem]
-                         gap-x-3 gap-y-1 items-center px-2 py-2 text-sm group"
-            >
-              <span className="text-neutral-400 text-xs md:text-sm order-1">
-                {new Date(tx.time).toLocaleDateString(undefined, {
-                  year: "numeric", month: "short", day: "numeric",
-                })}
-              </span>
-
-              <span className={`order-3 md:order-2 justify-self-start text-xs px-2 py-0.5 rounded ${
-                incoming ? "bg-green-950 text-green-400" : "bg-red-950 text-red-400"
-              }`}>
-                {tx.side.replace("_", " ")}
-              </span>
-
-              <span className="order-4 md:order-3 md:text-right tabular-nums text-xs md:text-sm">
-                {quantity(tx.quantity)}
-              </span>
-
-              <span className="order-5 md:order-4 md:text-right tabular-nums text-neutral-400 text-xs md:text-sm">
-                {tx.price > 0 ? money(tx.price) : "—"}
-                {tx.fee > 0 && (
-                  <span className="text-neutral-600"> · fee {money(tx.fee)}</span>
-                )}
-              </span>
-
-              <span className="order-2 md:order-5 justify-self-end md:text-right tabular-nums">
-                {tx.realized !== null ? (
-                  <span className={tx.realized >= 0 ? "text-green-500" : "text-red-500"}>
-                    {tx.realized >= 0 ? "+" : ""}{money(tx.realized)}
-                  </span>
-                ) : (
-                  <span className={incoming ? "text-neutral-200" : "text-neutral-400"}>
-                    {value > 0 ? money(value) : "—"}
-                  </span>
-                )}
-                <span className="block text-xs text-neutral-600">
-                  held {quantity(tx.positionAfter)}
-                </span>
-              </span>
-
-              <button
-                onClick={() => onDelete(tx.id)}
-                aria-label="Delete transaction"
-                className="order-6 justify-self-end text-neutral-700 hover:text-red-500 md:opacity-0
-                           md:group-hover:opacity-100 transition-opacity"
-              >
-                <Trash2 size={14} aria-hidden />
-              </button>
-            </li>
-          );
-        })}
+        {visible.map((tx) => (
+          <TransactionRow
+            key={tx.id}
+            side={tx.side}
+            quantity={tx.quantity}
+            price={tx.price}
+            fee={tx.fee}
+            time={tx.time}
+            positionAfter={tx.positionAfter}
+            realized={tx.realized}
+            onDelete={() => onDelete(tx.id)}
+          />
+        ))}
       </ul>
       {pageCount > 1 && (
         <nav className="flex items-center justify-between gap-2 mt-3" aria-label="Transaction pages">
