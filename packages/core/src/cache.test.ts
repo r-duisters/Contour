@@ -163,3 +163,84 @@ describe("what survives being written down", () => {
     invalidate();
   });
 });
+
+/**
+ * The per-entry cap used to do the opposite of its job.
+ *
+ * At 256 KB it dropped exactly one thing: a full daily history, which is
+ * 283,715 characters as `Bar[]` and costs four sequential requests to rebuild.
+ * Cheap entries were kept and the single most expensive one was silently
+ * discarded on every write, so the cache looked like it worked and did not
+ * where it mattered.
+ */
+describe("what is worth writing down", () => {
+  const DAY = 86_400_000;
+  const memory = () => {
+    const held = new Map<string, string>();
+    return {
+      getItem: (k: string) => held.get(k) ?? null,
+      setItem: (k: string, v: string) => { held.set(k, v); },
+      removeItem: (k: string) => { held.delete(k); },
+      held,
+    };
+  };
+  /** As `fetchKlinesRange` caches them: full OHLCV, one per day since 2017. */
+  const fullHistory = () =>
+    Array.from({ length: 3299 }, (_, i) => ({
+      t: 1483228800000 + i * DAY, o: 12345.67, h: 12456.78, l: 12234.56, c: 12345.67, v: 1234.5678,
+    }));
+
+  it("keeps a full daily history across a restart", async () => {
+    const store = memory();
+    invalidate();
+    attachCacheStore(store);
+    await cached("klines:BTCUSDT:1d", 900_000, async () => fullHistory());
+
+    detachCacheStore();
+    invalidate();
+    attachCacheStore(store);
+
+    let refetched = false;
+    const bars = await cached("klines:BTCUSDT:1d", 900_000, async () => {
+      refetched = true;
+      return fullHistory();
+    });
+    expect(refetched).toBe(false);
+    expect(bars).toHaveLength(3299);
+    detachCacheStore();
+    invalidate();
+  });
+
+  it("stops at the budget rather than trusting the quota to hold", async () => {
+    const store = memory();
+    invalidate();
+    attachCacheStore(store);
+    for (let i = 0; i < 20; i++) {
+      await cached(`klines:SYM${i}USDT:1d`, 900_000, async () => fullHistory());
+    }
+    const written = store.getItem("contour:cache")!.length;
+    expect(written).toBeLessThanOrEqual(3 * 1024 * 1024 + 200_000);
+    // Something was kept, and something was left behind. Both matter: keeping
+    // nothing would be a cache that does not work, keeping everything is how
+    // a quota error takes the whole blob with it.
+    const kept = Object.keys(JSON.parse(store.getItem("contour:cache")!).entries).length;
+    expect(kept).toBeGreaterThan(0);
+    expect(kept).toBeLessThan(20);
+    detachCacheStore();
+    invalidate();
+  });
+
+  it("drops the blob rather than leaving half of one when storage refuses", async () => {
+    // A stale entry that survives while its neighbours do not is worse than
+    // starting cold: the two would disagree about the same moment.
+    const store = { ...memory(), setItem: () => { throw new Error("QuotaExceededError"); } };
+    let removed = false;
+    const guarded = { ...store, removeItem: () => { removed = true; } };
+    invalidate();
+    attachCacheStore(guarded);
+    await expect(cached("k", 900_000, async () => fullHistory())).resolves.toHaveLength(3299);
+    expect(removed).toBe(true);
+    detachCacheStore();
+    invalidate();
+  });
+});

@@ -80,11 +80,21 @@ const PERSIST_KEY = "contour:cache";
  */
 const PERSIST_VERSION = 2;
 /**
- * Values above this are held in memory but never written. A month of klines is
- * worth keeping; a whole market board is not worth the write on every set, and
- * `localStorage` is a synchronous API on the UI thread.
+ * What may be written, per entry and in total.
+ *
+ * The per-entry cap started at 256 KB and quietly did the opposite of its job.
+ * A full BTC daily history is 283,715 characters as `Bar[]`, so the single
+ * most expensive thing in the cache — four sequential requests to rebuild —
+ * was the one entry always dropped, while cheap ones were kept. Measured, not
+ * guessed: `histdaily` at 108,898 survived a restart and `klines` did not.
+ *
+ * So the per-entry cap is now large enough to admit it, and a *total* budget
+ * does the job the per-entry cap was pretending to. A browser gives an origin
+ * roughly 5 MB; 3 MB leaves room for everything else this app stores and for
+ * the fact that the quota counts UTF-16 code units, not bytes.
  */
-const MAX_PERSISTED_BYTES = 256 * 1024;
+const MAX_PERSISTED_BYTES = 1024 * 1024;
+const TOTAL_BUDGET_CHARS = 3 * 1024 * 1024;
 
 let persistent: CacheStore | null = null;
 
@@ -149,14 +159,30 @@ function reviver(_key: string, value: unknown): unknown {
 function persist(): void {
   if (!persistent) return;
   try {
+    /*
+     * Longest-lived first, then fill until the budget is gone.
+     *
+     * Something has to be dropped when there is more cache than room, and the
+     * entry with the most life left is the one whose loss costs most — it is
+     * the one that would still have been answering questions tomorrow.
+     */
+    const ordered = [...store_.entries()].sort((a, b) => b[1].expires - a[1].expires);
     const out: Record<string, Entry> = {};
-    for (const [key, entry] of store_) {
+    let total = 0;
+    for (const [key, entry] of ordered) {
       const size = JSON.stringify(entry.value, replacer).length;
-      if (size <= MAX_PERSISTED_BYTES) out[key] = entry;
+      if (size > MAX_PERSISTED_BYTES) continue;
+      if (total + size > TOTAL_BUDGET_CHARS) continue;
+      out[key] = entry;
+      total += size;
     }
     persistent.setItem(PERSIST_KEY, JSON.stringify({ version: PERSIST_VERSION, entries: out }, replacer));
   } catch {
-    // Full or blocked storage costs speed on the next launch, never data.
+    // Over quota despite the budget, or storage blocked outright. Drop what is
+    // there rather than leaving a half-written blob behind: a stale entry that
+    // survives while its neighbours do not is worse than starting cold, and
+    // the next `persist()` will try again with whatever is in memory then.
+    try { persistent.removeItem(PERSIST_KEY); } catch { /* nothing left to do */ }
   }
 }
 
