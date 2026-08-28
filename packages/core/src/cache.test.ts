@@ -88,3 +88,78 @@ describe("cached, across a restart", () => {
     invalidate();
   });
 });
+
+/**
+ * The regression that made a portfolio screen render nothing but its
+ * transaction count.
+ *
+ * `fetchEcbRates` caches a `Map<number, number>`, and plain JSON destroys a Map
+ * more quietly than almost anything else: `JSON.stringify(new Map([[1, 2]]))`
+ * is `"{}"`. After a restart the rates came back as an empty object with no
+ * `.get`, so every valuation threw and the screen fell back to showing
+ * nothing at all.
+ */
+describe("what survives being written down", () => {
+  const memory = () => {
+    const held = new Map<string, string>();
+    return {
+      getItem: (k: string) => held.get(k) ?? null,
+      setItem: (k: string, v: string) => { held.set(k, v); },
+      removeItem: (k: string) => { held.delete(k); },
+      held,
+    };
+  };
+
+  it("brings a Map back as a Map, with its entries", async () => {
+    const store = memory();
+    invalidate();
+    attachCacheStore(store);
+    await cached("ecb", 60_000, async () => new Map([[1, 0.9], [2, 0.91]]));
+
+    detachCacheStore();
+    invalidate();
+    attachCacheStore(store);
+
+    const rates = await cached<Map<number, number>>("ecb", 60_000, async () => new Map());
+    expect(rates).toBeInstanceOf(Map);
+    expect(rates.get(2)).toBe(0.91);
+    detachCacheStore();
+    invalidate();
+  });
+
+  it("brings a Set back as a Set", async () => {
+    const store = memory();
+    invalidate();
+    attachCacheStore(store);
+    await cached("symbols", 60_000, async () => new Set(["BTCUSDT"]));
+
+    detachCacheStore();
+    invalidate();
+    attachCacheStore(store);
+
+    const symbols = await cached<Set<string>>("symbols", 60_000, async () => new Set());
+    expect(symbols).toBeInstanceOf(Set);
+    expect(symbols.has("BTCUSDT")).toBe(true);
+    detachCacheStore();
+    invalidate();
+  });
+
+  it("throws away a blob written by an older version", async () => {
+    // This is what heals a device that already holds one: version 1 stored a
+    // Map as `{}`, and reading it back is what broke the valuation.
+    const store = memory();
+    store.setItem("contour:cache", JSON.stringify({ "ecb": { value: {}, expires: Date.now() + 60_000 } }));
+    invalidate();
+    attachCacheStore(store);
+
+    let asked = false;
+    const rates = await cached<Map<number, number>>("ecb", 60_000, async () => {
+      asked = true;
+      return new Map([[1, 0.9]]);
+    });
+    expect(asked).toBe(true);
+    expect(rates).toBeInstanceOf(Map);
+    detachCacheStore();
+    invalidate();
+  });
+});

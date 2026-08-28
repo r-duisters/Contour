@@ -95,6 +95,7 @@ export default function PortfolioScreen() {
   // changes wait on it: see the note on the series effect below.
   const [primed, setPrimed] = useState(false);
   const [valuationLoading, setValuationLoading] = useState(false);
+  const [valuationError, setValuationError] = useState<string | null>(null);
   const [series, setSeries] = useState<{ t: number; value: number }[] | null>(null);
   // Opening the app asks "what happened today" — unless a period was chosen
   // before, in which case it asks that again.
@@ -148,10 +149,21 @@ export default function PortfolioScreen() {
     // Two requests in flight at once, each falling back to null on its own:
     // the valuation is the slow one, and holding the ledger behind it would
     // leave the table blank for as long as the prices take.
+    let failure: string | null = null;
     const [detail, val] = await Promise.all([
       client.getPortfolio(selectedId).catch(() => null),
-      client.getValuation(selectedId).catch(() => null),
+      // The reason is kept, not discarded. A valuation that fails with a
+      // cache behind it is invisible by design — yesterday's numbers are
+      // better than a spinner — but with nothing cached the screen used to
+      // draw its header, its transaction count and no holdings at all, which
+      // reads as an empty portfolio rather than as a failure. That is how a
+      // Map lost to JSON in the persisted cache stayed hidden.
+      client.getValuation(selectedId).catch((e: unknown) => {
+        failure = e instanceof Error ? e.message : String(e);
+        return null;
+      }),
     ]);
+    setValuationError(failure);
     setTransactions(detail?.transactions ?? []);
     if (val) {
       setDisplayCurrency(val.currency ?? "USD");
@@ -484,6 +496,18 @@ export default function PortfolioScreen() {
           )}
           {valuationLoading && !shown && (
             <p className="text-sm text-neutral-500 mb-8">Loading valuation…</p>
+          )}
+          {/*
+            Amber, per BRAND.md's rule for degraded data. Holdings absent
+            because nothing could be worked out is a different fact from a
+            portfolio holding nothing, and the transaction count below makes
+            the difference obvious once it is said.
+          */}
+          {!valuationLoading && !shown && (
+            <p className="text-sm text-amber-500 mb-8">
+              Could not work out what this portfolio is worth.
+              {valuationError ? ` ${valuationError}` : ""}
+            </p>
           )}
 
           <p className="text-xs text-neutral-500">

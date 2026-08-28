@@ -72,6 +72,14 @@ export type CacheStore = {
 
 const PERSIST_KEY = "contour:cache";
 /**
+ * Bumped whenever the stored shape changes. A blob written by an older version
+ * is discarded rather than read, which is what heals a device that already has
+ * one — version 1 stored `Map` values through plain `JSON.stringify`, and a Map
+ * serialises to `{}`. The FX rates came back as an empty object, `.get` was not
+ * a function, and every valuation threw.
+ */
+const PERSIST_VERSION = 2;
+/**
  * Values above this are held in memory but never written. A month of klines is
  * worth keeping; a whole market board is not worth the write on every set, and
  * `localStorage` is a synchronous API on the UI thread.
@@ -92,8 +100,12 @@ export function attachCacheStore(store: CacheStore, now = Date.now()): void {
   try {
     const raw = store.getItem(PERSIST_KEY);
     if (!raw) return;
-    const saved = JSON.parse(raw) as Record<string, Entry>;
-    for (const [key, entry] of Object.entries(saved)) {
+    const parsed = JSON.parse(raw, reviver) as { version?: number; entries?: Record<string, Entry> };
+    if (parsed?.version !== PERSIST_VERSION || !parsed.entries) {
+      store.removeItem(PERSIST_KEY);
+      return;
+    }
+    for (const [key, entry] of Object.entries(parsed.entries)) {
       if (entry && typeof entry.expires === "number" && entry.expires > now) {
         store_.set(key, entry);
       }
@@ -109,15 +121,40 @@ export function detachCacheStore(): void {
   persistent = null;
 }
 
+/**
+ * `Map` and `Set` survive the round trip; nothing else exotic may be cached.
+ *
+ * Not generality for its own sake — `fetchEcbRates` caches a
+ * `Map<number, number>` of exchange rates by day, and a Map is exactly what
+ * plain JSON destroys most quietly: `JSON.stringify(new Map([[1, 2]]))` is
+ * `"{}"`, so it comes back as an object that has lost every entry *and* every
+ * method. `cache.test.ts` pins both types; a value of any other exotic kind
+ * would be stored wrongly and must not be put through `cached()`.
+ */
+function replacer(_key: string, value: unknown): unknown {
+  if (value instanceof Map) return { __type: "Map", entries: [...value.entries()] };
+  if (value instanceof Set) return { __type: "Set", values: [...value.values()] };
+  return value;
+}
+
+function reviver(_key: string, value: unknown): unknown {
+  if (value && typeof value === "object" && "__type" in value) {
+    const tagged = value as { __type: string; entries?: [unknown, unknown][]; values?: unknown[] };
+    if (tagged.__type === "Map") return new Map(tagged.entries ?? []);
+    if (tagged.__type === "Set") return new Set(tagged.values ?? []);
+  }
+  return value;
+}
+
 function persist(): void {
   if (!persistent) return;
   try {
     const out: Record<string, Entry> = {};
     for (const [key, entry] of store_) {
-      const size = JSON.stringify(entry.value).length;
+      const size = JSON.stringify(entry.value, replacer).length;
       if (size <= MAX_PERSISTED_BYTES) out[key] = entry;
     }
-    persistent.setItem(PERSIST_KEY, JSON.stringify(out));
+    persistent.setItem(PERSIST_KEY, JSON.stringify({ version: PERSIST_VERSION, entries: out }, replacer));
   } catch {
     // Full or blocked storage costs speed on the next launch, never data.
   }
