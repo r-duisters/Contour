@@ -54,9 +54,13 @@ export const MORE_GROUPS: { title: string | null; items: MoreItem[] }[] = [
  * What the device build puts behind More.
  *
  * No alerts, no chart, no backtest, no analyzer: all four are server-only and
- * `apps/mobile` has no route for them. Settings and Portfolio data join this
- * list when their own tasks build the device versions — until then, offering
- * them would be a link to nowhere.
+ * `apps/mobile` has no route for them, so listing them would offer a link to
+ * nowhere.
+ *
+ * Settings *is* here, with a different hint, because the device screen is a
+ * subset rather than the same page: the currency and the price source are
+ * stored preferences `DataClient` carries, while notifications and passkeys
+ * are server mechanisms an APK does not have.
  */
 export const DEVICE_MORE_GROUPS: typeof MORE_GROUPS = [
   {
@@ -64,6 +68,8 @@ export const DEVICE_MORE_GROUPS: typeof MORE_GROUPS = [
     items: [
       { href: "/ledger", label: "Ledger", Icon: BookText,
         hint: "Cost basis, realised profit, fees" },
+      { href: "/settings", label: "Settings", Icon: Settings,
+        hint: "Currency and price sources" },
       { href: "/more", label: "Portfolio data", Icon: Database,
         hint: "Import, export, backups, portfolios" },
     ],
