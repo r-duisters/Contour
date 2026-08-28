@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import BiometricLock from "@/components/BiometricLock";
 import Nav from "./nav";
 import Providers from "./providers";
 import "./globals.css";
@@ -47,12 +48,21 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <Providers>
-          {/* No TopNav: it is `hidden md:block`, and there is no desktop here.
-              The tab bar carries its own list, because half of what the web
-              app puts behind More is server-only and has no route in this
-              build. */}
-          <div className="pb-20">{children}</div>
-          <Nav />
+          {/*
+            The only lock this build has. There is no password, no passkey, no
+            SESSION_SECRET, no /login and no /setup — the server did that, and
+            there is no server. Falling back to the device PIN is the plugin's
+            own behaviour and is the right one: a lock this app cannot itself
+            reset is the point.
+
+            No TopNav either: it is `hidden md:block`, and there is no desktop
+            here. The tab bar carries its own list, because half of what the
+            web app puts behind More is server-only.
+          */}
+          <BiometricLock>
+            <div className="pb-20">{children}</div>
+            <Nav />
+          </BiometricLock>
         </Providers>
       </body>
     </html>

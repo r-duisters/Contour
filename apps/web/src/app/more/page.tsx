@@ -1,6 +1,7 @@
 import PortfolioManager from "@/components/PortfolioManager";
 import { Database, Download } from "lucide-react";
 import PageLabel from "@/components/PageLabel";
+import ChartCredit from "@/components/ChartCredit";
 
 /**
  * What the More menu could not hold.
@@ -35,20 +36,7 @@ export default function MorePage() {
         to your browser, which installs it.
       </p>
 
-      {/*
-        This is not decoration. Lightweight Charts is Apache 2.0, and its terms
-        additionally ask for the attribution notice and a link to tradingview.com
-        on a page the user can reach. Its on-chart logo is one way to satisfy
-        that; this is ours, which is why `attributionLogo: false` is set on all
-        four charts. Remove this and those four become a licence breach.
-      */}
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mt-8 mb-2">Credits</h2>
-      <p className="text-xs text-neutral-500">
-        Charts by{" "}
-        <a href="https://www.tradingview.com/" target="_blank" rel="noreferrer noopener"
-           className="text-blue-500">TradingView</a>
-        {" "}— Lightweight Charts™, Copyright © 2023 TradingView, Inc.
-      </p>
+      <ChartCredit />
     </main>
   );
 }

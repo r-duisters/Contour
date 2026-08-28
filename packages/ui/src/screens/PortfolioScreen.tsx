@@ -483,8 +483,18 @@ export default function PortfolioScreen() {
           </p>
         </>
       )}
+      {/*
+        First run, and the only screen a fresh install opens on. It used to be
+        a bare sentence with nothing to act on — true, and a dead end. Both
+        paths the plan names live on the same screen, so one link serves both:
+        start empty, or import a Delta export.
+      */}
       {!selectedId && portfolios.length === 0 && (
-        <p className="text-sm text-neutral-500">Create a portfolio to start tracking.</p>
+        <EmptyState>
+          Nothing here yet.{" "}
+          <Link href="/more" className="text-blue-500">Create a portfolio</Link>{" "}
+          to start tracking, or import a Delta export into it.
+        </EmptyState>
       )}
     </main>
   );

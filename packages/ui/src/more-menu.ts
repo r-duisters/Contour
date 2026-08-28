@@ -64,6 +64,8 @@ export const DEVICE_MORE_GROUPS: typeof MORE_GROUPS = [
     items: [
       { href: "/ledger", label: "Ledger", Icon: BookText,
         hint: "Cost basis, realised profit, fees" },
+      { href: "/more", label: "Portfolio data", Icon: Database,
+        hint: "Import, export, backups, portfolios" },
     ],
   },
 ];
