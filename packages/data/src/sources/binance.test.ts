@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { invalidate } from "@/core/cache";
 import { QUOTE_ASSETS } from "@/core/symbols";
 import { FakeNet, respondWith } from "../testing/fake-net";
-import { fetchDailyStats, fetchQuotesFor } from "./binance";
+import { fetchDailyStats, fetchQuotesFor, fetchKlinesRange } from "./binance";
 
 /**
  * `exchangeInfo` is memoised for an hour under a key this module shares with
@@ -145,5 +145,89 @@ describe("fetchDailyStats, when the batch is rejected", () => {
     invalidate();
     const net = FakeNet({ [TICKER]: respondWith(400, { code: -1121, msg: "Invalid symbol." }) });
     expect(await fetchDailyStats(net, ["NOPEUSDT"])).toEqual({});
+  });
+});
+
+/**
+ * #50: five years of daily bars was four round trips *in series*, because the
+ * cursor loop awaited each page before asking for the next. 1,472ms on a
+ * desktop, and most of the four to five seconds a phone saw, where every trip
+ * pays mobile latency.
+ */
+describe("paging a long range", () => {
+  const DAY = 86_400_000;
+  const bar = (t: number) => [t, "1", "2", "0", "3", "10", t + DAY - 1, "0", 1, "0", "0", "0"];
+
+  beforeEach(() => invalidate());
+
+  it("asks for the pages at once, not one after another", async () => {
+    const from = Date.parse("2020-01-01T00:00:00Z");
+    const to = from + 2500 * DAY - 1;
+    let inFlight = 0;
+    let peak = 0;
+
+    const net = FakeNet({
+      "/api/v3/klines": async (url: string) => {
+        inFlight += 1;
+        peak = Math.max(peak, inFlight);
+        await new Promise((r) => setTimeout(r, 5));
+        inFlight -= 1;
+        const start = Number(new URL(url).searchParams.get("startTime"));
+        const end = Number(new URL(url).searchParams.get("endTime"));
+        const out = [];
+        for (let t = start; t <= Math.min(end, to); t += DAY) out.push(bar(t));
+        return out;
+      },
+    });
+
+    const bars = await fetchKlinesRange(net, { symbol: "BTCUSDT", interval: "1d", from, to });
+    expect(bars).toHaveLength(2500);
+    // Three pages of 1000; sequential would peak at one.
+    expect(peak).toBeGreaterThan(1);
+  });
+
+  it("does not stop at a gap, which a cursor walk could get away with", async () => {
+    // A coin that had not listed yet returns an empty page in the middle. The
+    // sequential loop broke on the first empty batch; parallel pages must be
+    // merged by open time so a hole costs its own page and nothing after it.
+    const from = Date.parse("2020-01-01T00:00:00Z");
+    const to = from + 2500 * DAY - 1;
+    const net = FakeNet({
+      "/api/v3/klines": (url: string) => {
+        const start = Number(new URL(url).searchParams.get("startTime"));
+        const end = Number(new URL(url).searchParams.get("endTime"));
+        if (start >= from + 1000 * DAY && start < from + 2000 * DAY) return [];
+        const out = [];
+        for (let t = start; t <= Math.min(end, to); t += DAY) out.push(bar(t));
+        return out;
+      },
+    });
+
+    const bars = await fetchKlinesRange(net, { symbol: "BTCUSDT", interval: "1d", from, to });
+    // The first thousand and the last five hundred survive the hole between.
+    expect(bars.length).toBe(1500);
+    expect(bars[0]!.t).toBe(from);
+    expect(bars[bars.length - 1]!.t).toBeGreaterThan(from + 2000 * DAY);
+  });
+
+  it("returns bars in order, however the pages arrive", async () => {
+    const from = Date.parse("2020-01-01T00:00:00Z");
+    const to = from + 2500 * DAY - 1;
+    const net = FakeNet({
+      "/api/v3/klines": async (url: string) => {
+        const start = Number(new URL(url).searchParams.get("startTime"));
+        const end = Number(new URL(url).searchParams.get("endTime"));
+        // Later pages answer first, which is what concurrency permits.
+        await new Promise((r) => setTimeout(r, start === from ? 20 : 1));
+        const out = [];
+        for (let t = start; t <= Math.min(end, to); t += DAY) out.push(bar(t));
+        return out;
+      },
+    });
+
+    const bars = await fetchKlinesRange(net, { symbol: "BTCUSDT", interval: "1d", from, to });
+    const times = bars.map((b) => b.t);
+    expect(times).toEqual([...times].sort((a, b) => a - b));
+    expect(new Set(times).size).toBe(times.length);
   });
 });

@@ -76,12 +76,65 @@ export function fetchKlinesRange(net: Net, opts: {
   );
 }
 
+/**
+ * How long one bar lasts, for the intervals whose length is fixed.
+ *
+ * `1M` is absent on purpose: a month is 28 to 31 days, so a page of them
+ * cannot be placed arithmetically. Anything not here falls back to walking the
+ * cursor, which is always correct and merely slower.
+ */
+const BAR_MS: Partial<Record<Timeframe, number>> = {
+  "1m": 60_000, "3m": 180_000, "5m": 300_000, "15m": 900_000, "30m": 1_800_000,
+  "1h": 3_600_000, "2h": 7_200_000, "4h": 14_400_000, "6h": 21_600_000,
+  "8h": 28_800_000, "12h": 43_200_000,
+  "1d": 86_400_000, "3d": 259_200_000, "1w": 604_800_000,
+};
+
+const PAGE = 1000;
+
 async function fetchKlinesRangeUncached(net: Net, opts: {
   symbol: string;
   interval: Timeframe;
   from: number;
   to: number;
 }): Promise<Bar[]> {
+  const barMs = BAR_MS[opts.interval];
+  const span = opts.to - opts.from;
+
+  /*
+   * Ask for the pages at once when their boundaries can be computed.
+   *
+   * The cursor loop below is correct and sequential: each page is awaited
+   * before the next is requested, so five years of daily bars is four round
+   * trips in series — 1,472ms on a desktop and most of the four to five
+   * seconds a phone saw, where every trip pays mobile latency (#50).
+   *
+   * For a fixed-length interval the windows need no cursor: page `i` starts at
+   * `from + i * PAGE * barMs`. Binance weights a 1000-bar klines request at 5
+   * against a 6,000-per-minute budget, so four at once is 20 — the concurrency
+   * is not what a rate limit is for. Pages are merged by open time rather than
+   * concatenated, because a gap (a coin that had not listed yet) means a page
+   * can come back short or empty without being the end of the data.
+   */
+  if (barMs !== undefined && span > PAGE * barMs) {
+    const pages = Math.ceil(span / (PAGE * barMs));
+    const batches = await Promise.all(
+      Array.from({ length: pages }, (_, i) => {
+        const start = opts.from + i * PAGE * barMs;
+        return fetchKlines(net, {
+          symbol: opts.symbol,
+          interval: opts.interval,
+          startTime: start,
+          endTime: Math.min(opts.to, start + PAGE * barMs - 1),
+          limit: PAGE,
+        });
+      }),
+    );
+    const byTime = new Map<number, Bar>();
+    for (const batch of batches) for (const bar of batch) byTime.set(bar.t, bar);
+    return [...byTime.values()].sort((a, b) => a.t - b.t);
+  }
+
   const out: Bar[] = [];
   let cursor = opts.from;
   while (cursor < opts.to) {
@@ -90,12 +143,12 @@ async function fetchKlinesRangeUncached(net: Net, opts: {
       interval: opts.interval,
       startTime: cursor,
       endTime: opts.to,
-      limit: 1000,
+      limit: PAGE,
     });
     if (batch.length === 0) break;
     out.push(...batch);
     const last = batch[batch.length - 1]!.t;
-    if (batch.length < 1000) break;
+    if (batch.length < PAGE) break;
     cursor = last + 1;
   }
   return out;
