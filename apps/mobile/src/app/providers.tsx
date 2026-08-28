@@ -14,6 +14,7 @@ import type { DataClient } from "@/data/client/data-client";
 // the way packages/ui refers to itself. This app's own modules are reached
 // directly, which also makes it obvious which side of the seam a file is on.
 import { client } from "../lib/deps";
+import { attachCacheStore } from "@/lib/cache";
 
 /**
  * The device build's answer to "where does data come from": SQLite and
@@ -31,6 +32,15 @@ export default function Providers({ children }: { children: ReactNode }) {
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
+    // Before the first request, so the cache is warm when the screens ask.
+    //
+    // A server process lives for weeks and keeps this in memory; a phone's is
+    // killed whenever Android likes, so every launch re-fetched everything the
+    // last one had — a three-year daily FX series among it, which is history
+    // and cannot change. Attached here rather than inside the package because
+    // `packages/core` has no `localStorage` and must not grow one.
+    try { attachCacheStore(localStorage); } catch { /* blocked storage: cold every time */ }
+
     let cancelled = false;
     client()
       .then((c) => { if (!cancelled) setReady(c); })

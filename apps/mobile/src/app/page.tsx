@@ -1,19 +1,17 @@
+import PortfolioScreen from "@/components/screens/PortfolioScreen";
+
 /**
- * A placeholder, and only that.
+ * The app's home, which is the portfolio.
  *
- * Task 1 proves the toolchain: that a second Next app builds to static files
- * against the shared packages and the shared stylesheet. The screens arrive in
- * Task 5, from `packages/ui`, so that there is exactly one copy of each.
+ * The web app redirects `/` to `/portfolio`. This renders the screen instead:
+ * a static export has no server to redirect at, so the alternative is a
+ * client-side `router.replace` — a blank frame and a history entry on every
+ * cold start, to arrive at the page this one already is.
+ *
+ * (It rendered a "screens arrive with Task 5" placeholder until now. Task 5
+ * moved every screen into `packages/ui` and wired the four routes it names,
+ * and nothing pointed back at this one to say it was still the stub.)
  */
 export default function Home() {
-  return (
-    <main className="flex-1 flex items-center justify-center p-8 text-center">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Contour</h1>
-        <p className="mt-2 text-sm text-neutral-500">
-          The device build. Screens arrive with Task 5.
-        </p>
-      </div>
-    </main>
-  );
+  return <PortfolioScreen />;
 }
