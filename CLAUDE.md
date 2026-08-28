@@ -37,9 +37,39 @@ Market data: **Binance** public REST + WebSocket for crypto (no API key required
 Twelve Data / Alpha Vantage for equities, and Frankfurter/ECB for fiat rates.
 Persistence: **SQLite via Prisma 6**.
 
-Where it is going: the logic is being moved out of the server so the same code can run inside an
-Android APK with no server behind it. Phase 2 built that seam — see **The data seam** below. The
-plan is `docs/superpowers/specs/2026-08-22-standalone-android-design.md`.
+Where it is going: the logic was moved out of the server so the same code runs inside an Android
+APK with no server behind it. Phase 2 built that seam — see **The data seam** below — and Phase 4
+shipped the device build. The plan is
+`docs/superpowers/specs/2026-08-22-standalone-android-design.md`.
+
+## The direction, and what it rules out
+
+**Local first, private by default, and a server only ever optional.** Decided 2026-08-28; every
+design question below resolves against it.
+
+- **The app is complete without a server.** The device build holds its own SQLite database and
+  answers every screen from it; prices come from public endpoints that need no account. Nothing
+  about the portfolio leaves the phone. That is why logos are bundled rather than proxied — asking
+  a CDN for a coin's icon tells it what is held — and why `Net` is injected rather than reached
+  for, so what talks to the outside is countable.
+- **A server may be added; it may never be required.** Alerting and sync are the two things a
+  server would genuinely earn, and both must arrive as *capabilities that can be absent*, the way
+  `sendTestNotification` already is: optional on the interface, feature-detected by the screen,
+  and drawing nothing when missing. See "How a screen asks for data".
+- **This rules things out.** No account, no telemetry, no third-party analytics, no crash
+  reporting that ships a payload, and no feature whose only implementation needs a service this
+  project runs. A feature that cannot degrade to the local build does not go in the shared
+  package.
+- **Two builds, and the difference is deliberate.** `packages/ui/src/more-menu.test.ts` fails if a
+  web destination is neither offered on the device nor accompanied by a written reason, and
+  `packages/data/src/client/contract-coverage.test.ts` fails if a `DataClient` method is added
+  without a contract case. Both exist because the drift this session found was never in the shared
+  screens — it was in the per-app tables and in one implementation quietly diverging from the
+  interface it claimed.
+
+The open question the direction does not answer is **sync**: the device holds a second, unsynced
+ledger today, and two portfolios that can disagree is a larger practical risk than any missing
+feature. Whatever answers it has to keep the phone usable with the server switched off.
 
 ## The indicator
 
