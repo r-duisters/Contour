@@ -63,3 +63,59 @@ export function writeCachedValuation<V>(
     // private mode, or the quota is gone: caching is an optimisation
   }
 }
+
+/**
+ * Forget everything remembered about one portfolio.
+ *
+ * Deleting a portfolio used to leave two pointers behind: its cached valuation
+ * and, if it happened to be the last one seen, `lastPortfolio`. Neither is
+ * reachable through the app afterwards and both outlive the record they
+ * describe — so the ledger and the asset screens, which open on the remembered
+ * id, went on showing a deleted portfolio's holdings and had nothing to
+ * correct them with, because the fetch behind them answers "not found" and a
+ * screen that falls back to its cache treats that as "not yet".
+ *
+ * `lastPortfolio` is cleared only when it names *this* portfolio: another
+ * portfolio's pointer is not this deletion's business.
+ */
+export function forgetPortfolio(
+  store: KeyValueStore & { removeItem(key: string): void },
+  portfolioId: string,
+  lastPortfolioKey: string,
+): void {
+  try {
+    store.removeItem(valuationKey(portfolioId));
+    if (store.getItem(lastPortfolioKey) === portfolioId) store.removeItem(lastPortfolioKey);
+  } catch {
+    // Blocked storage: the pointers stay, and the screens correct themselves
+    // the next time a valuation succeeds.
+  }
+}
+
+/**
+ * Drop a remembered portfolio that no longer exists.
+ *
+ * The companion to `forgetPortfolio`, for the state a device is *already* in:
+ * a portfolio deleted before that cleanup existed, or removed on another
+ * machine, leaves a pointer nothing will ever clear. The screens that open on
+ * it would show its holdings indefinitely, because the fetch that should
+ * correct them answers "not found" and a screen falling back to its cache
+ * cannot tell that from "not yet".
+ *
+ * Called with the ids that do exist, so it heals on the next launch rather
+ * than needing anyone to notice.
+ */
+export function pruneRememberedPortfolio(
+  store: KeyValueStore & { removeItem(key: string): void },
+  existingIds: string[],
+  lastPortfolioKey: string,
+): void {
+  try {
+    const remembered = store.getItem(lastPortfolioKey);
+    if (remembered && !existingIds.includes(remembered)) {
+      forgetPortfolio(store, remembered, lastPortfolioKey);
+    }
+  } catch {
+    // Blocked storage: nothing was remembered anyway.
+  }
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { changeFromPct } from "./change";
+import { changeFromPct, positionChangeOverWindow } from "./change";
 
 describe("changeFromPct", () => {
   it("works backwards from the value on screen", () => {
@@ -36,5 +36,41 @@ describe("changeFromPct", () => {
     expect(changeFromPct(500, null)).toBeNull();
     expect(changeFromPct(NaN, 5)).toBeNull();
     expect(changeFromPct(500, Infinity)).toBeNull();
+  });
+});
+
+describe("positionChangeOverWindow", () => {
+  const HELD_SINCE = Date.parse("2026-01-23T00:00:00Z");
+
+  it("keeps the figure for a window the position lived through", () => {
+    expect(positionChangeOverWindow({
+      value: 1325, pct: -10,
+      heldSince: HELD_SINCE, windowStart: Date.parse("2026-06-01T00:00:00Z"),
+    })).toBeCloseTo(-147.22, 2);
+  });
+
+  it("withholds it for a window that began before the position did", () => {
+    // 250 Ubisoft shares bought in January 2026, shown against the price back
+    // to 2000, read as a €4,288 loss beside a €1,000 cost basis. That money
+    // was never at stake.
+    expect(positionChangeOverWindow({
+      value: 1325, pct: -76.41,
+      heldSince: HELD_SINCE, windowStart: Date.parse("2000-01-01T00:00:00Z"),
+    })).toBeNull();
+  });
+
+  it("shows it when a bound is unknown, which cannot disprove anything", () => {
+    expect(positionChangeOverWindow({
+      value: 1325, pct: -10, heldSince: null, windowStart: 0,
+    })).toBeCloseTo(-147.22, 2);
+    expect(positionChangeOverWindow({
+      value: 1325, pct: -10, heldSince: HELD_SINCE, windowStart: null,
+    })).toBeCloseTo(-147.22, 2);
+  });
+
+  it("still refuses what changeFromPct refuses", () => {
+    expect(positionChangeOverWindow({
+      value: 500, pct: -100, heldSince: null, windowStart: null,
+    })).toBeNull();
   });
 });

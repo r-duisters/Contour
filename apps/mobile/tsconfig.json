@@ -1,0 +1,26 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "plugins": [{ "name": "next" }],
+    "paths": {
+      "@/data/*": ["../../packages/data/src/*"],
+      "@/core/*": ["../../packages/core/src/*"],
+      "@/ui/*": ["../../packages/ui/src/*"],
+      // Not apps/web's fallback arrays: this app has no `src/lib` or
+      // `src/components` of its own. They are single targets because
+      // `packages/ui` refers to itself through them — a shared screen
+      // importing `@/components/PageLabel` has to resolve from here too.
+      "@/lib/*": ["../../packages/core/src/*"],
+      "@/components/*": ["../../packages/ui/src/*"],
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": ["node_modules"]
+}

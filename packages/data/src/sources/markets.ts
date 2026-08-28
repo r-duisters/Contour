@@ -101,12 +101,18 @@ export type ScreenerId = "day_gainers" | "day_losers" | "most_actives";
  * not — the figures do not move outside the session, so a shorter window buys
  * nothing but requests.
  *
- * This is an undocumented endpoint that answers 401 when it feels like it, so
- * a response without `finance.result[0].quotes` yields an empty list rather
- * than throwing. A Markets page missing one column is better than one that
- * fails to render.
+ * This is an undocumented endpoint that answers 401 or 429 when it feels like
+ * it, so it never throws — a Markets page missing one column is better than
+ * one that fails to render.
+ *
+ * **`null` when it could not be read, not `[]`.** The two are different facts
+ * and only the caller can say what to do about them: an empty list means the
+ * screener ran and matched nothing, which on a day when everything is up is
+ * the honest answer for "day losers". A failure means nobody knows. Returning
+ * `[]` for both is what let three refused screeners render as a market where
+ * nothing happened, which is how this looked on a phone for a day.
  */
-export function fetchScreener(net: Net, id: ScreenerId, count: number): Promise<EquityRow[]> {
+export function fetchScreener(net: Net, id: ScreenerId, count: number): Promise<EquityRow[] | null> {
   const ttl = usMarketOpen(Date.now()) ? 300_000 : 3_600_000;
   const bucket = Math.floor(Date.now() / ttl);
   return cached(`yahoo:screener:${id}:${count}:${bucket}`, ttl, async () => {
@@ -117,10 +123,10 @@ export function fetchScreener(net: Net, id: ScreenerId, count: number): Promise<
     try {
       raw = await net.json(url);
     } catch {
-      return [];
+      return null;
     }
     const quotes = raw.finance?.result?.[0]?.quotes;
-    if (!Array.isArray(quotes)) return [];
+    if (!Array.isArray(quotes)) return null;
     return quotes.map((q) => ({
       symbol: q.symbol,
       name: q.shortName ?? q.longName ?? q.symbol,

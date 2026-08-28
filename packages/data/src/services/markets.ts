@@ -42,6 +42,12 @@ export type MarketBoard = {
   largest: MarketRow[];
   source: string;
   at: number;
+  /**
+   * Some of the board could not be loaded, and what is shown is what arrived.
+   * Absent when everything did. The screen says so, because four empty columns
+   * are indistinguishable from a flat market and only one of those is true.
+   */
+  partial?: boolean;
 };
 
 /**
@@ -136,11 +142,18 @@ export async function getMarkets(net: Net, category: MarketCategory): Promise<Ma
 }
 
 async function cryptoBoard(net: Net): Promise<MarketBoard> {
-  const [tickers, ranked, indices] = await Promise.all([
+  // Settled for the same reason as the stock board: three independent sources,
+  // and one refusal should cost its own section rather than the page.
+  const [tickers, ranked, indices] = await settleAll([
     fetch24hTicker(net),
     fetchTopByMarketCap(net, RANKED),
     indicesFor(net, "crypto"),
-  ]);
+  ] as const);
+
+  // The ticker is the board. Without it there is nothing to show, and an
+  // empty movers list would claim a still market.
+  if (!tickers) throw new Error("no market data could be loaded");
+  const partial = !ranked || !indices;
 
   const liquid = tickers.filter((t) => {
     if (!t.symbol.endsWith("USDT")) return false;
@@ -181,7 +194,7 @@ async function cryptoBoard(net: Net): Promise<MarketBoard> {
   const byBase = new Map(tickers.filter((t) => t.symbol.endsWith("USDT"))
     .map((t) => [t.symbol.slice(0, -4), t]));
 
-  const largest = ranked.map((c): MarketRow => {
+  const largest = (ranked ?? []).map((c): MarketRow => {
     const live = byBase.get(c.symbol);
     return {
       symbol: c.symbol,
@@ -194,16 +207,34 @@ async function cryptoBoard(net: Net): Promise<MarketBoard> {
     };
   });
 
-  return { indices, up, down, largest, source: "Binance and CoinGecko", at: Date.now() };
+  return {
+    indices: indices ?? [], up, down, largest,
+    source: "Binance and CoinGecko", at: Date.now(),
+    ...(partial ? { partial: true } : {}),
+  };
 }
 
 async function stockBoard(net: Net): Promise<MarketBoard> {
-  const [gainers, losers, actives, indices] = await Promise.all([
+  // Settled, not all. Four independent sources feed this board, and with
+  // `Promise.all` a single upstream refusal emptied the whole page — which is
+  // exactly what a phone saw when Yahoo answered 429 to one of them. Partial
+  // is worth showing; the board says so rather than passing gaps off as a
+  // quiet market.
+  const [gainers, losers, actives, indices] = await settleAll([
     fetchScreener(net, "day_gainers", COLUMN),
     fetchScreener(net, "day_losers", COLUMN),
     fetchScreener(net, "most_actives", RANKED + 25),
     indicesFor(net, "stocks"),
-  ]);
+  ] as const);
+
+  // Every screener refused is a failure, not an empty market: a board of empty
+  // columns claims the day was flat, and that is a different statement from
+  // "nothing loaded". The indices strip is judged separately — it is eight
+  // independent symbols and already drops the ones that fail.
+  if (!gainers && !losers && !actives) {
+    throw new Error("no market data could be loaded");
+  }
+  const partial = !gainers || !losers || !actives;
 
   const row = (e: { symbol: string; name: string; price: number; changePct: number; marketCap: number | null }): MarketRow => ({
     symbol: e.symbol,
@@ -218,20 +249,29 @@ async function stockBoard(net: Net): Promise<MarketBoard> {
   // active list sorted by cap. It is the largest of the actively traded, which
   // is what a browsing surface wants and is not quite the same claim — the
   // heading says "largest by market cap" of what is on the board.
-  const largest = actives
+  const largest = (actives ?? [])
     .filter((e) => typeof e.marketCap === "number")
     .sort((a, b) => (b.marketCap ?? 0) - (a.marketCap ?? 0))
     .slice(0, RANKED)
     .map(row);
 
   return {
-    indices,
-    up: gainers.filter((e) => e.changePct > 0).slice(0, COLUMN).map(row),
-    down: losers.filter((e) => e.changePct < 0).slice(0, COLUMN).map(row),
+    indices: indices ?? [],
+    up: (gainers ?? []).filter((e) => e.changePct > 0).slice(0, COLUMN).map(row),
+    down: (losers ?? []).filter((e) => e.changePct < 0).slice(0, COLUMN).map(row),
     largest,
     source: "Yahoo Finance",
     at: Date.now(),
+    ...(partial ? { partial: true } : {}),
   };
+}
+
+/** Every promise's value, or null where it rejected. */
+async function settleAll<T extends readonly Promise<unknown>[]>(
+  promises: T,
+): Promise<{ -readonly [K in keyof T]: Awaited<T[K]> | null }> {
+  const settled = await Promise.allSettled(promises);
+  return settled.map((r) => (r.status === "fulfilled" ? r.value : null)) as never;
 }
 
 /* ------------------------------------------------------------------ indices */

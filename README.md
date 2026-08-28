@@ -77,18 +77,67 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
    Then Settings → *Enable notifications* (Web Push needs the installed app, iOS 16.4+).
    Home Assistant keeps working as a second notification path.
 
-## Android app (Capacitor shell)
+## Android app
 
-A thin native wrapper so the tracker runs as a real Android app. It does not
-bundle the site: the WebView loads the running Contour server, so the phone app
-and the browser always show the same thing.
+The app runs on the phone with no server behind it. The same services that
+answer an HTTP request on the desktop run against a SQLite database on the
+device, so the portfolio, the ledger, insights and markets all work with the
+network off — prices are simply absent, and say so.
 
 ```bash
-# point the shell at your server (defaults to http://192.168.2.5:3001)
-export NABLA_URL="https://contour.example.com"
-npm run android:sync
+npm run build --workspace @contour/mobile
+npx cap sync android
 npm run android:build     # android/app/build/outputs/apk/debug/app-debug.apk
 ```
+
+### What the phone app does not do
+
+It is a different application from the desktop one, not a window onto it, and
+the gaps are deliberate rather than unfinished:
+
+- **Its data is its own.** The device database starts empty. A portfolio
+  arrives as a backup file through More → import; it is not read from the
+  server, and changes made on the phone stay on the phone. There is no sync.
+- **No alerts.** They need the alerts routes, Home Assistant, web-push and
+  FCM — all server-side. Alerts remain a desktop feature.
+- **No login or passkey.** There is no session and no `SESSION_SECRET`; the
+  device lock is the lock, falling back to the PIN. An app whose lock it
+  cannot itself reset is the point.
+- **No strategy tooling.** The chart, backtester, PineScript analyzer and
+  script library need the filesystem or a server-side Binance proxy.
+- **Equity background is thin.** Yahoo's cookie-and-crumb handshake needs a
+  response header the portable `Net` does not expose, so an equity's
+  information panel states its absence rather than showing an empty box.
+
+### Two apps, side by side
+
+The wrapper did not go away, and the two install alongside each other rather
+than replacing one another:
+
+| | Standalone | Wrapper |
+|---|---|---|
+| Built by | the commands above | `CONTOUR_URL=http://…` set first |
+| Application id | `app.contour.standalone` | `app.contour.local` |
+| Launcher name | Contour Standalone | Contour |
+| Data | its own, on the device | the server's |
+| Works offline | yes, without prices | no |
+| Alerts | no | yes, foreground and background |
+
+They carry different application ids deliberately. With one id each install
+would replace the other, and replacing the wrapper leaves the phone showing an
+empty portfolio — the standalone database is its own and starts empty. Having
+both on the phone is also the only way to compare them.
+
+```bash
+# the wrapper, exactly as it behaved before Phase 4
+export CONTOUR_URL="http://192.168.2.5:3001"
+npx cap sync android && npm run android:build
+```
+
+`android/app/build.gradle` reads the same variable to pick the id, the launcher
+name, the recents-card label and the deep-link scheme, so the two halves cannot
+drift apart. Both write to `app-debug.apk`, so copy one aside before building
+the other.
 
 Building needs a JDK 21 and the Android SDK (platform 35+, build-tools 35).
 Point Gradle at them with `android/local.properties` (`sdk.dir=/path/to/Sdk`)
@@ -97,16 +146,13 @@ and `JAVA_HOME`.
 Install the APK by copying it to the phone and opening it (allow installs from
 unknown sources), or over USB with `adb install -r app-debug.apk`.
 
-`cleartext` is enabled automatically while `NABLA_URL` is plain http, which is
-what makes a LAN address work. Once the app is on HTTPS this switches itself
-off, and passkey login starts working in the shell too.
+`cleartext` is enabled automatically while `CONTOUR_URL` is plain http, which
+is what makes a LAN address work in that mode.
 
-### Installing a new shell on the phone
+### Installing a new build on the phone
 
-Most changes need no install at all: the shell loads the server, so any change
-to the app itself is live as soon as the server restarts. Only changes to the
-native wrapper — icons, permissions, plugins, the Capacitor config — need a new
-APK.
+Every change now needs a new APK: the app is bundled, so nothing is live from
+the server any more. That is the cost of it working with the network off.
 
 ```bash
 npm run android:build          # writes android/app/build/outputs/apk/debug/

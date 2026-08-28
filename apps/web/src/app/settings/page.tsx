@@ -30,7 +30,8 @@ import Button from "@/components/Button";
 import { field } from "@/components/field";
 import EmptyState from "@/components/EmptyState";
 import PageLabel from "@/components/PageLabel";
-import { DISPLAY_CURRENCIES, CURRENCY_NAMES, asDisplayCurrency, type DisplayCurrency } from "@/lib/currencies";
+import { asDisplayCurrency, type DisplayCurrency } from "@/lib/currencies";
+import DisplaySettings from "@/components/DisplaySettings";
 
 export default function SettingsPage() {
   const client = useDataClient();
@@ -216,37 +217,21 @@ export default function SettingsPage() {
       </div>
       <section className="space-y-4 mb-10">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Display</h2>
-        <label className="block text-sm">
-          <span className="text-neutral-400">Portfolio currency</span>
-          <select className={`mt-1 w-full ${field()}`}
-                  value={displayCurrency}
-                  onChange={(e) => setDisplayCurrency(e.target.value as DisplayCurrency)}>
-            {DISPLAY_CURRENCIES.map((c) => (
-              <option key={c} value={c}>{c} — {CURRENCY_NAMES[c]}</option>
-            ))}
-          </select>
-          <span className="text-xs text-neutral-500">
-            Prices come from Binance in USDT. Every other currency converts at the live
-            ECB reference rate, published each weekday afternoon. Save to apply.
-          </span>
-        </label>
-        <label className="block text-sm">
-          <span className="text-neutral-400">Stock / ETF price source</span>
-          <select className={`mt-1 w-full ${field()}`}
-                  value={equityProvider} onChange={(e) => setEquityProvider(e.target.value)}>
-            <option value="yahoo">Yahoo Finance (no key needed)</option>
-            <option value="twelvedata">Twelve Data (free key, 800/day)</option>
-            <option value="alphavantage">Alpha Vantage (free key, 25/day)</option>
-          </select>
-        </label>
-        {equityProvider !== "yahoo" && (
-          <label className="block text-sm">
-            <span className="text-neutral-400">API key</span>
-            <input type="password" className={`mt-1 w-full ${field()}`}
-                   value={equityApiKey} onChange={(e) => setEquityApiKey(e.target.value)}
-                   placeholder={equityProvider === "twelvedata" ? "twelvedata.com key" : "alphavantage.co key"} />
-          </label>
-        )}
+        {/*
+          Shared with the device build's settings screen, which offers these
+          three fields and nothing else. The rest of this page is server
+          mechanism an APK has no access to; this section is the part that is
+          simply a stored preference, so it lives in packages/ui and is
+          rendered from both rather than copied into each.
+        */}
+        <DisplaySettings
+          value={{ displayCurrency, equityProvider, equityApiKey }}
+          onChange={(v) => {
+            setDisplayCurrency(v.displayCurrency);
+            setEquityProvider(v.equityProvider);
+            setEquityApiKey(v.equityApiKey);
+          }}
+        />
       </section>
 
       <section className="space-y-4">

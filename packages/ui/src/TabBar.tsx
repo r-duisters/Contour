@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BarChart3, Menu, TrendingUp, Wallet } from "lucide-react";
 import MoreMenu from "./MoreMenu";
-import { MORE_HREFS } from "./more-menu";
+import { MORE_GROUPS, hrefsOf, type MoreItem } from "./more-menu";
 
 const TABS = [
   { href: "/portfolio", label: "Portfolio", Icon: Wallet },
@@ -13,7 +13,10 @@ const TABS = [
   { href: "/insights", label: "Insights", Icon: BarChart3 },
 ];
 
-export default function TabBar() {
+export default function TabBar({ moreGroups = MORE_GROUPS }: {
+  /** See `MoreMenu` — the device build has fewer places to go. */
+  moreGroups?: { title: string | null; items: MoreItem[] }[];
+} = {}) {
   const pathname = usePathname();
   /**
    * Which route the menu was opened on — not a boolean.
@@ -31,11 +34,11 @@ export default function TabBar() {
   const active = (href: string) => pathname === href || pathname.startsWith(href + "/");
   // The fourth slot lights up for anything behind the menu, so a person on the
   // ledger can still see which quarter of the app they are in.
-  const inMore = MORE_HREFS.some(active);
+  const inMore = hrefsOf(moreGroups).some(active);
 
   return (
     <>
-      <MoreMenu open={open} onClose={() => setOpen(false)} variant="sheet" />
+      <MoreMenu open={open} onClose={() => setOpen(false)} variant="sheet" groups={moreGroups} />
       <nav className="fixed bottom-0 inset-x-0 md:hidden z-40 bg-neutral-950/95 border-t border-neutral-800 backdrop-blur pb-[env(safe-area-inset-bottom)]">
         <ul className="grid grid-cols-4">
           {TABS.map(({ href, label, Icon }) => (

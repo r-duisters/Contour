@@ -1,3 +1,4 @@
+import { detectFormat, parseImport, type ColumnMapping, type FormatId } from "@/core/import-formats";
 import { parseDeltaCsv, venueAssetType, type ParsedTx, type SkippedRow } from "@/core/delta-csv";
 import { toDisplayTxs } from "@/core/display-tx";
 import { auditLedger, type Finding } from "@/core/ledger-audit";
@@ -180,11 +181,21 @@ async function reclassifyNonCoins(net: Net, rows: ParsedTx[]): Promise<void> {
  */
 export async function importDelta(
   store: Store, net: Net, id: string, csv: string,
-  opts: { dryRun?: boolean } = {},
+  opts: { dryRun?: boolean; format?: FormatId; mapping?: ColumnMapping } = {},
 ): Promise<ImportReport> {
   const portfolio = await getPortfolio(store, id);
 
-  const { rows, skipped, warnings } = parseDeltaCsv(csv);
+  // Every reader produces the same rows, so nothing below this line knows or
+  // cares which tool the file came from: the FX resolution, the non-coin
+  // reclassification and the duplicate check are shared by all of them.
+  //
+  // An unnamed format is detected, and a file nothing recognises is read as
+  // Delta — which is what this route did for its whole life, and what the
+  // preview exists to catch when it is wrong.
+  const format = opts.format ?? detectFormat(csv) ?? "delta";
+  const { rows, skipped, warnings } = format === "delta"
+    ? parseDeltaCsv(csv)
+    : parseImport(csv, format, opts.mapping);
   await reclassifyNonCoins(net, rows);
   const fxWarnings = await resolvePendingQuotes(net, rows);
 

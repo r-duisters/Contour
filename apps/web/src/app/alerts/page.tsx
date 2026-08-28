@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 import SymbolPicker from "@/components/SymbolPicker";
 import { quoteAsset } from "@/components/CoinIcon";
@@ -9,6 +9,8 @@ import Button from "@/components/Button";
 import { field } from "@/components/field";
 import EmptyState from "@/components/EmptyState";
 import PageLabel from "@/components/PageLabel";
+import LastChecked from "@/components/LastChecked";
+import { KEYS, readKey } from "@/lib/storage-keys";
 
 type Alert = {
   id: string;
@@ -70,6 +72,26 @@ function Alerts() {
   const [scope, setScope] = useState<"symbol" | "portfolio">("symbol");
   const [portfolioId, setPortfolioId] = useState("");
   const [error, setError] = useState<string | null>(null);
+  /**
+   * When a check last ran, from either machine that runs one.
+   *
+   * The server stamps `lastEvaluated` on every alert it evaluates; the device
+   * writes a mark when its foreground check completes. Neither alone is the
+   * answer — a phone in aeroplane mode has only the first, a browser has only
+   * ever seen the second if it is the APK — so the line reports the later of
+   * the two. What a person wants to know is whether *anything* checked.
+   */
+  const deviceChecked = useSyncExternalStore(
+    // The mark is written by BackgroundAlerts, in this same document, so there
+    // is nothing to subscribe to beyond the reloads this screen already does.
+    () => () => {},
+    () => readKey(KEYS.alertsLastChecked),
+    () => null,
+  );
+  const serverChecked = alerts
+    .map((a) => (a.lastEvaluated ? Date.parse(a.lastEvaluated) : 0))
+    .reduce((a, b) => Math.max(a, b), 0);
+  const lastChecked = Math.max(serverChecked, Number(deviceChecked) || 0) || null;
 
   async function load() {
     const d = await fetch("/api/alerts").then((r) => r.json());
@@ -246,6 +268,43 @@ function Alerts() {
         <Button variant="secondary" onClick={evaluateNow}>
           <Play size={14} aria-hidden />Evaluate now
         </Button>
+      </div>
+      <div className="mt-3 mb-4">
+        <LastChecked at={lastChecked} />
+        {/*
+          Documentation, not a permission.
+
+          Play prohibits an app from requesting exemption from battery
+          optimisation unless its core function requires it, and a portfolio
+          tracker does not qualify. So this declares no permission and fires no
+          intent — it tells a person where the setting is and lets them decide.
+          Writing it down is not restricted; asking for it would be.
+
+          Framed as improving the odds, because that is all it does. Android
+          makes no promise about a background job either way.
+        */}
+        <details className="mt-2">
+          <summary className="text-xs text-neutral-500 cursor-pointer">
+            Why background checks are missed
+          </summary>
+          <div className="text-xs text-neutral-500 mt-2 space-y-2 max-w-prose">
+            <p>
+              Android decides when a closed app may run. On a phone that is managing
+              its battery, a fifteen-minute job can be delayed for hours or skipped
+              for days, and the app is not told.
+            </p>
+            <p>
+              Excluding Contour from battery optimisation improves the odds. It
+              does not guarantee anything, and Android offers no setting that would.
+              In Android Settings, open Apps, choose Contour, then Battery, and
+              select Unrestricted.
+            </p>
+            <p>
+              Opening the app always runs a check, so the surest way to catch up is
+              to open it.
+            </p>
+          </div>
+        </details>
       </div>
       {error && <p className="text-xs text-red-500 mb-4">{error}</p>}
       {kind === "price_target" && (

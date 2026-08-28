@@ -8,6 +8,21 @@
  * Deliberately only the cheap rules — price targets and daily moves. The risk
  * metric needs about two thousand daily bars to warm up, which is not work to
  * do on a phone every quarter of an hour.
+ *
+ * The rules arrive already expanded: `expandRules` in
+ * packages/core/src/alert-rules.ts turns each stored alert into one check per
+ * symbol, resolves a portfolio-scoped rule against what is actually held, and
+ * drops cash, equities and indicator rules. This runtime cannot do that work —
+ * it has no imports, and "every holding" needs a valuation. It evaluates what
+ * it is given and nothing more.
+ *
+ * This is the fallback path, not the feature. Android wakes a fifteen-minute
+ * job when it chooses to, and on a battery-optimised phone often never; the
+ * check that is guaranteed runs in the app, in BackgroundAlerts.tsx. Both
+ * write their dedupe marks in the same shape, but not to the same store —
+ * this one has CapacitorKV, the app has localStorage — so a condition can
+ * notify once from each. That is the deliberate trade: a duplicate is a far
+ * cheaper failure than a silence.
  */
 
 const BINANCE = "https://api.binance.com/api/v3";

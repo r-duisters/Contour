@@ -21,6 +21,22 @@ export function respondWith(status: number, body: unknown = ""): unknown {
   return { [FAILURE]: true, status, body } satisfies Failure;
 }
 
+const HEADERS = Symbol("headers");
+
+/**
+ * A 2xx that also carries headers, for the one place a caller reads one:
+ * `exportFile` takes its filename from `Content-Disposition`. Kept separate
+ * from `respondWith`, which describes a failure — a route needing headers is
+ * usually succeeding.
+ */
+export function respondWithHeaders(body: unknown, headers: Record<string, string>): unknown {
+  return { [HEADERS]: true, body, headers };
+}
+
+function isHeadered(value: unknown): value is { body: unknown; headers: Record<string, string> } {
+  return typeof value === "object" && value !== null && HEADERS in value;
+}
+
 /**
  * A route that never gets an HTTP response at all — DNS failure, connection
  * reset, timeout. Distinct from `respondWith`: a non-2xx is a value `request()`
@@ -130,12 +146,19 @@ export function FakeNet(routes: Record<string, unknown>): FakeNetInstance {
       // to hand back.
       if (isRejection(value)) throw unreachable(value.error);
       const failure = isFailure(value) ? value : null;
-      const body = failure ? failure.body : value;
+      const headered = isHeadered(value) ? value : null;
+      const body = failure ? failure.body : headered ? headered.body : value;
+      // Case-insensitive, matching `WebNet`, where `Headers.get` is. FakeNet
+      // has to match WebNet here or the parity is worthless.
+      const lower = Object.fromEntries(
+        Object.entries(headered?.headers ?? {}).map(([k, v]) => [k.toLowerCase(), v]),
+      );
       return {
         ok: !failure,
         status: failure ? failure.status : 200,
         text: async () => asText(body),
         json: async <T,>() => (typeof body === "string" ? (JSON.parse(body) as T) : (body as T)),
+        header: (name: string) => lower[name.toLowerCase()] ?? null,
       };
     },
   };

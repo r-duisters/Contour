@@ -34,6 +34,40 @@ const FORBIDDEN = [
   "buffer",
 ];
 
+/**
+ * Capacitor, which is forbidden *statically* and allowed dynamically.
+ *
+ * The adapters live in an app, not in a package — `SqliteStore` and
+ * `CapacitorNet` are to `apps/mobile` what `PrismaStore` and `WebNet` are to
+ * `apps/web`. A static import here would put Capacitor in every bundle,
+ * including the browser's and the server's, which is the property this file
+ * exists to keep.
+ *
+ * A dynamic `await import()` is a different thing and is already how this
+ * repository does platform-conditional code: `BiometricLock` reaches for
+ * `@capacitor/core` only after `isNativePlatform()` says there is one, and the
+ * module is never pulled into a bundle that will not use it. Banning that
+ * outright would have meant either deleting a working component or keeping a
+ * named exemption for it, and a rule that describes the property is better
+ * than a list of the files that break it.
+ *
+ * The scope alone is enough for `@capacitor`: the matcher appends an optional
+ * subpath, so it covers every plugin. `@capacitor-community` needs its own
+ * entry, because what follows the scope there is a hyphen rather than a slash.
+ */
+const FORBIDDEN_STATIC = ["@capacitor", "@capacitor-community", "@aparajita/capacitor-biometric-auth"];
+
+/**
+ * `from "x"` and a bare `import "x"`, but never `await import("x")` or
+ * `require("x")` — the two forms that are lazy by construction.
+ */
+function isStaticImport(src: string, mod: string): boolean {
+  const escaped = mod.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(
+    `(?:\\bfrom\\s*|\\bimport\\s+)(['"])${escaped}(?:/[^'"]*)?\\1`,
+  ).test(src);
+}
+
 const PORTABLE_PACKAGES = ["packages/core/src", "packages/ui/src", "packages/data/src"];
 
 /**
@@ -63,50 +97,23 @@ const NET_ONLY_PACKAGES = ["packages/data/src", "packages/core/src", "packages/u
  * goes to the WebView's own origin, where no server is listening, and the
  * element just renders nothing.
  *
- * The four below are real debt, deliberately not fixed in Phase 3 — each needs
- * a mechanism the phase did not build — and each is named individually so the
- * guard passes today without letting a fifth appear. An allowlist of *counts*
- * would let one be swapped for another; an allowlist of literals will not.
+ * There were four: one per export button, plus the icon proxy. All were real
+ * debt deliberately left by Phase 3, each needing a mechanism that phase did
+ * not build, and all four are now gone.
+ *
+ * Entries are named individually rather than counted, so that a fifth cannot
+ * appear by being swapped for a fourth. That is why the empty structure is
+ * worth keeping.
  */
 const ALLOWED_API_LITERALS: Record<string, { literal: string; needs: string }[]> = {
-  "packages/ui/src/CoinIcon.tsx": [
-    {
-      literal: "/api/icon",
-      needs:
-        "A device-capable icon strategy. The proxy exists so a coin logo is " +
-        "fetched by the server rather than by the user's browser, which is a " +
-        "privacy property the comment above the constant claims; a device has " +
-        "no proxy, so every logo silently falls back to coloured initials. " +
-        "Phase 4 has to choose between bundling the icon set, caching through " +
-        "the Store, or going direct over CapacitorHttp and giving up the " +
-        "property — a design decision, not a rename.",
-    },
-  ],
-  "packages/ui/src/PortfolioManager.tsx": [
-    {
-      literal: "/api/portfolios/${selectedId}/export?format=json",
-      needs:
-        "The JSON backup download. Needs the same two things as the other two " +
-        "anchors: a `DataClient` method that hands back the file, and " +
-        "somewhere on a device to put it.",
-    },
-    {
-      literal: "/api/portfolios/${selectedId}/export?format=csv",
-      needs:
-        "The CSV download, and the same two missing pieces. Listed separately " +
-        "because a fourth format must not slip in behind one entry.",
-    },
-    {
-      literal: "/api/portfolios/${selectedId}/export?format=ghostfolio",
-      needs:
-        "A way to save a file on a device, and a `DataClient.export…` method " +
-        "to feed it. `data-client.ts` explains why the method is absent: the " +
-        "filename lives in a `Content-Disposition` header that `Net` does not " +
-        "expose, so `HttpClient` would have to re-derive a name `transfer.ts` " +
-        "already composes. All three buttons 404 on a phone until Phase 4 adds " +
-        "the method together with whatever writes the file.",
-    },
-  ],
+  // Empty, and the structure stays. Phase 3 left four entries here — three
+  // export anchors and the icon proxy — each needing a mechanism that phase
+  // did not build. Phase 4 built both: `DataClient.exportFile` with a per-app
+  // saver, and a per-app `IconSource` whose web implementation lives in
+  // `apps/web` because it names a route.
+  //
+  // `packages/ui` now names no route at all. The mechanism is what stops the
+  // next one appearing, so it is kept rather than deleted with its contents.
 };
 
 /** Every `"…/api/…"`, `'…'` or `` `…` `` literal in a source file. */
@@ -180,6 +187,11 @@ describe("packages/core, packages/ui and packages/data stay portable", () => {
         for (const mod of FORBIDDEN) {
           if (isForbiddenImport(src, mod)) {
             offenders.push(`[${pkg}] ${file.replace(process.cwd() + "/", "")} -> ${mod}`);
+          }
+        }
+        for (const mod of FORBIDDEN_STATIC) {
+          if (isStaticImport(src, mod)) {
+            offenders.push(`[${pkg}] ${file.replace(process.cwd() + "/", "")} -> ${mod} (static)`);
           }
         }
       }

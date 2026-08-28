@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MORE_GROUPS } from "./more-menu";
+import { MORE_GROUPS, type MoreItem } from "./more-menu";
 import PrivacyToggle from "./PrivacyToggle";
 import SubHeading from "./SubHeading";
 import Sheet from "./Sheet";
@@ -23,11 +23,17 @@ import Sheet from "./Sheet";
  * hold, and is the last entry in the list.
  */
 export default function MoreMenu({
-  open, onClose, variant,
+  open, onClose, variant, groups = MORE_GROUPS,
 }: {
   open: boolean;
   onClose: () => void;
   variant: "sheet" | "dropdown";
+  /**
+   * Where this app can go. Defaults to the full list, so the web app — which
+   * has every destination — passes nothing; the device build passes its own,
+   * because half of these are server-only and have no route there.
+   */
+  groups?: { title: string | null; items: MoreItem[] }[];
 }) {
   const pathname = usePathname();
   const panel = useRef<HTMLDivElement>(null);
@@ -67,7 +73,7 @@ export default function MoreMenu({
   const list = (
     <div className="p-3 space-y-4">
       <PrivacyToggle />
-      {MORE_GROUPS.map((group, gi) => (
+      {groups.map((group, gi) => (
         <div key={gi}>
           {group.title && (
             <SubHeading className="mb-1.5 px-1">{group.title}</SubHeading>

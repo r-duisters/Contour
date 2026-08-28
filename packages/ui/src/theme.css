@@ -1,0 +1,98 @@
+/*
+ * The app's design layer: the ground, the type scale's variables, the focus
+ * ring and the two keyframes. Imported by every app's `globals.css`.
+ *
+ * It lives here rather than being copied into each app because BRAND.md is the
+ * authority on these values and a second hand-typed palette is exactly the
+ * drift it warns about. `apps/mobile` and `apps/web` now differ in their CSS
+ * by two lines of build wiring and nothing else.
+ *
+ * The `@source` directive stays in each app's own entry: Tailwind resolves it
+ * relative to the file it appears in, and each app also needs to be scanned
+ * itself.
+ */
+
+/*
+ * The ground is painted, not inherited.
+ *
+ * These defaulted to white and only went dark under a
+ * `prefers-color-scheme: dark` media query, so an owner whose machine was set
+ * to light got a white page behind components drawn for a dark one — every
+ * `text-neutral-400` label and `border-neutral-800` hairline sits on the wrong
+ * side of the contrast. It went unseen because the one owner's machine is
+ * dark; headless Chrome, which defaults to light, is what surfaced it.
+ *
+ * BRAND.md lists "relying on prefers-color-scheme" as an anti-pattern and
+ * states that nothing reads these properties. `body` did. A light mode is a
+ * real thing the app could grow, but it is a full palette, not a ground.
+ */
+:root {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  /* layout.tsx loads Geist and exposes it here; the previous Arial fallback
+     won over it, so two fonts were downloaded and neither was used. */
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/* One consistent keyboard-focus indicator for the whole app. Two spots drew
+   their own blue outline; this makes it global, so every input, button, select
+   and link shows the same accent ring instead of the browser's default. */
+:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* The sheet rises from the edge it is anchored to. One keyframe, used by
+   MoreMenu alone; Tailwind has no built-in for it and a utility class would
+   be a second place to look. */
+@keyframes more-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* The mark's breathing ring. In-app only — the launcher icon is a static PNG
+   and does not animate. The animation lives on a wrapper div rather than the
+   SVG circle: an HTML transform composites on the GPU, where scaling the SVG
+   circle directly is drawn on the CPU each frame and reads as jank.
+   No `will-change` here: Firefox pre-rasterises a hinted element at its base
+   size and then scales that bitmap, which blurs an SVG it wraps. */
+.breath {
+  animation: breathe 2.6s ease-in-out infinite;
+}
+@keyframes breathe {
+  0%, 100% { transform: scale(1);    opacity: 1; }
+  50%      { transform: scale(1.09); opacity: 0.72; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .breath { animation: none; }
+}
+
+/* The ring that turns around the mark while the app is busy with something a
+   person started and must wait for — an import, a restore. Distinct from
+   `.breath`, which says "starting up" and has no progress to report: this one
+   turns, so it reads as work being done rather than a screen sitting still.
+   The dash pattern is set in `BusyMark`; only the rotation lives here. */
+.turning {
+  animation: turn 1.1s linear infinite;
+  transform-origin: 50% 50%;
+}
+@keyframes turn {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Still moving, because a frozen progress ring reads as a hung app — but
+     slowly, and without the spin that causes trouble. */
+  .turning { animation: breathe 2.6s ease-in-out infinite; }
+}

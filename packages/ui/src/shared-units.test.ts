@@ -23,8 +23,11 @@ const ALLOWED = {
     // as their own shape, with a hover state the flat button does not have.
     "packages/ui/src/BiometricLock.tsx",
     // The mark's tile (Direction A, #49): the blue surface the white ring and
-    // rise sit on. It is the brand colour as a container, not as a button, and
-    // it lives in the three places the mark is framed.
+    // rise sit on. It is the brand colour as a container, not as a button.
+    // `MarkTile` is where new call sites get it; the four below predate it and
+    // each still spells its own radius. Folding them in is worth doing and is
+    // not this change.
+    "packages/ui/src/MarkTile.tsx",
     "packages/ui/src/TopNav.tsx",
     "apps/web/src/app/login/page.tsx",
     "apps/web/src/app/setup/page.tsx",

@@ -105,8 +105,14 @@ const ALLOWLIST: Exemption[] = [
   },
   {
     file: "components/BackgroundAlerts.tsx",
-    allowed: ["/api/alerts"],
-    why: "Polls the same server-only alerts route the alerts screen owns.",
+    allowed: ["/api/alerts", "/api/cron/evaluate"],
+    why:
+      "Reads the same server-only alerts route the alerts screen owns, and " +
+      "triggers the server-only evaluator on every foreground. Both are " +
+      "permanently inline per CLAUDE.md — the evaluator dispatches through " +
+      "Home Assistant, web-push and FCM, none of which exist in an APK. The " +
+      "device build mounts no alerts at all, so there is nothing here for a " +
+      "DataClient method to carry.",
   },
 ];
 

@@ -1,3 +1,4 @@
+import type { ColumnMapping as ImportColumnMapping, FormatId as ImportFormatId } from "@/core/import-formats";
 import type { RangeKey } from "@/core/ranges";
 import type { AssetInfo } from "@/core/asset-info";
 import { NotFoundError, RequestFailedError } from "../errors";
@@ -14,6 +15,8 @@ import type {
   PortfolioDetail,
   PortfolioRef,
   PortfolioSummary,
+  ExportedFile,
+  ExportFormat,
   RestoreResult,
   SettingsDto,
   TransactionDto,
@@ -266,9 +269,24 @@ export function HttpClient(net: Net, baseUrl = ""): DataClient {
 
     /* --------------------------------------------------- import and restore */
 
-    importCsv(portfolioId: string, csv: string, opts?: { dryRun?: boolean }): Promise<ImportReport> {
+    importCsv(
+      portfolioId: string,
+      csv: string,
+      opts?: {
+      dryRun?: boolean;
+      format?: ImportFormatId;
+      mapping?: ImportColumnMapping;
+    },
+    ): Promise<ImportReport> {
       return send("POST", `/api/portfolios/${portfolioId}/import`, {
-        body: opts?.dryRun ? { csv, dryRun: true } : { csv },
+        // Only what was asked for: the route's schema rejects unknown keys,
+        // and an undefined `format` must mean "detect it" rather than "null".
+        body: {
+          csv,
+          ...(opts?.dryRun ? { dryRun: true } : {}),
+          ...(opts?.format ? { format: opts.format } : {}),
+          ...(opts?.mapping ? { mapping: opts.mapping } : {}),
+        },
         subject: portfolio(portfolioId),
       });
     },
@@ -283,6 +301,35 @@ export function HttpClient(net: Net, baseUrl = ""): DataClient {
 
     restoreBackup(backup: string): Promise<RestoreResult> {
       return send("POST", "/api/portfolios/restore", { body: { backup } });
+    },
+
+    /**
+     * The export route, whose filename is in `Content-Disposition` — the
+     * header `Net` was given a reader for.
+     *
+     * The fallback matters more than it looks: a missing or malformed header
+     * must not produce a file called `undefined`, and this route is the only
+     * caller of `header()` in the app.
+     */
+    async exportFile(portfolioId: string, format: ExportFormat): Promise<ExportedFile> {
+      const url = `${baseUrl}/api/portfolios/${encodeURIComponent(portfolioId)}/export?format=${format}`;
+      let res;
+      try {
+        res = await net.request(url);
+      } catch (e) {
+        const reason = e instanceof Error ? e.message : String(e);
+        throw new RequestFailedError(`Could not reach the server (${reason}).`, reason, "unreachable");
+      }
+      if (!res.ok) {
+        throw new RequestFailedError(
+          "Could not export this portfolio.", `export -> ${res.status}`, "refused",
+        );
+      }
+      const name = /filename="([^"]+)"/.exec(res.header("content-disposition") ?? "")?.[1];
+      return {
+        body: await res.text(),
+        filename: name || `portfolio-${format === "ghostfolio" ? "ghostfolio" : format}.${format === "json" ? "json" : "csv"}`,
+      };
     },
   };
 }

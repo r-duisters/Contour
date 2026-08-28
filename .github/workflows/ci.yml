@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+# A second push to the same branch cancels the first: the only run worth
+# waiting for is the one for the newest commit.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Types, tests, lint, builds
+    runs-on: ubuntu-latest
+    # A clone has no `apps/web/.env`, and the web build imports the Prisma
+    # client. Nothing here reads or writes a database — every route that
+    # touches one is `force-dynamic` — so these only have to exist and be
+    # syntactically valid. They are not secrets and must never become the
+    # shape of one.
+    env:
+      DATABASE_URL: "file:./ci-unused.db"
+      SESSION_SECRET: "ci-does-not-authenticate-anything"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # A fresh clone has no generated client, and both typecheck and the web
+      # build import its types. CLAUDE.md says this is needed once per clone;
+      # in CI every clone is fresh.
+      - name: Generate the Prisma client
+        run: npx prisma generate
+
+      - run: npm run typecheck
+
+      # 876 of them, and the ones worth naming here are the guards that only
+      # fail in CI or on a handset: links.test.ts checks every path literal
+      # against the routes each app defines, boundary.test.ts and
+      # layer.test.ts hold the package seams, and client-contract.ts runs
+      # against both DataClient implementations.
+      - run: npm test
+
+      # Not `npm run lint`, which exits non-zero by design. See the script.
+      - name: Lint, against the known budget
+        run: node scripts/lint-budget.mjs
+
+      - name: Build the web app
+        run: npm run build
+
+      # The static export the APK ships. It has caught a missing PostCSS
+      # config, a route that was still a placeholder, and every screen that
+      # fails to prerender.
+      - name: Build the device app
+        run: npm run build --workspace @contour/mobile
+
+  android:
+    name: APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - run: npm ci
+
+      - name: Build the device app
+        run: npm run build --workspace @contour/mobile
+
+      # `cap sync` prints the plugins it found, and that count is the only
+      # sign of a native dependency declared in the wrong package.json — the
+      # failure that would have shipped an APK with no SQLite in it.
+      # `build-config.test.ts` asserts the invariant; this proves Capacitor
+      # agrees.
+      - name: Sync the Android project
+        run: npx cap sync android
+
+      - name: Assemble the debug APK
+        run: cd android && ./gradlew assembleDebug --no-daemon
+
+      # Not a release: there is no LICENSE file yet, and nothing here is
+      # signed. This is for downloading off a pull request to try on a phone.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: contour-standalone-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
