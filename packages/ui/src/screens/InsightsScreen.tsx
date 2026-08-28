@@ -13,6 +13,7 @@ import { BarChart3, ChevronRight, TrendingDown, TrendingUp } from "lucide-react"
 import PageLabel from "@/components/PageLabel";
 import CoinIcon from "@/components/CoinIcon";
 import { useDataClient } from "@/data/client/context";
+import { useAssetHref } from "@/components/routing";
 import { money as fmtMoney, percent, setDisplayCurrency } from "@/lib/display";
 import { usePrivacy } from "@/components/usePrivacy";
 import { allocation, concentration, contributions, type AllocationClass, type TradeStats } from "@/lib/insights";
@@ -556,6 +557,7 @@ function ContribList({
   }[];
   up: boolean;
 }) {
+  const assetHref = useAssetHref();
   return (
     <div>
       <SubHeading className="mb-2 flex items-center gap-1">
@@ -566,7 +568,7 @@ function ContribList({
         {rows.map((r) => (
           <li key={r.symbol}>
             <Link
-              href={`/portfolio/${encodeURIComponent(r.symbol)}?type=${r.assetType}`}
+              href={assetHref(r.symbol, r.assetType)}
               className="flex items-center gap-2 text-sm"
             >
               <CoinIcon symbol={r.symbol} size={20} assetType={r.assetType} />

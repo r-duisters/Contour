@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import ContourMark from "@/ui/ContourMark";
 import { DataClientProvider } from "@/data/client/context";
+import { DEVICE_ROUTING, RoutingProvider } from "@/components/routing";
 import type { DataClient } from "@/data/client/data-client";
 // Relative, not `@/lib/deps`: in this app `@/lib/*` points at packages/core,
 // the way packages/ui refers to itself. This app's own modules are reached
@@ -58,5 +59,11 @@ export default function Providers({ children }: { children: ReactNode }) {
     );
   }
 
-  return <DataClientProvider client={ready}>{children}</DataClientProvider>;
+  // The device spells the asset page as a query, because a static export
+  // cannot have a dynamic segment. See `routing.tsx`.
+  return (
+    <RoutingProvider routing={DEVICE_ROUTING}>
+      <DataClientProvider client={ready}>{children}</DataClientProvider>
+    </RoutingProvider>
+  );
 }

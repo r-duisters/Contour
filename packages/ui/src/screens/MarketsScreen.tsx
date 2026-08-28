@@ -10,6 +10,7 @@ import SubHeading from "@/components/SubHeading";
 import Segmented from "@/components/Segmented";
 import Sparkline from "@/components/Sparkline";
 import { useDataClient } from "@/data/client/context";
+import { useAssetHref } from "@/components/routing";
 import type { MarketBoard, MarketCategory, MarketRow } from "@/data/client/data-client";
 import type { IndexSeries } from "@/data/sources/markets";
 import { marketCap, marketMoney, percent } from "@/lib/display";
@@ -259,6 +260,7 @@ function IndexStrip({
 }
 
 function IndexCard({ index }: { index: IndexSeries }) {
+  const assetHref = useAssetHref();
   const up = index.changePct >= 0;
   /**
    * An equity index has a page of its own; a crypto card is a coin, and its
@@ -271,7 +273,7 @@ function IndexCard({ index }: { index: IndexSeries }) {
       // The asset, not the pair: the asset page builds the pricing pair it
       // needs, and a link that says BTCUSDT names a Binance product rather
       // than the coin the card is about.
-      ? `/portfolio/${encodeURIComponent(assetOf(index.pair))}?type=crypto`
+      ? assetHref(assetOf(index.pair), "crypto")
       : null;
   const inner = (
     <div className="rounded-lg border border-neutral-800/60 bg-neutral-900/40 px-2.5 pt-2 pb-1.5 min-w-0 h-full">
@@ -321,6 +323,7 @@ function Rows({
   showCap?: boolean;
   ranked?: boolean;
 }) {
+  const assetHref = useAssetHref();
   if (rows.length === 0) return <EmptyState>Nothing to show.</EmptyState>;
   return (
     <ul className="divide-y divide-neutral-800/60">
@@ -334,8 +337,7 @@ function Rows({
             // pricing pair it needs, so a link no longer has to know one.
             // And the kind, because that page reads it off a holding and a
             // mover is usually not one.
-            href={`/portfolio/${encodeURIComponent(r.symbol)}?type=${r.assetType}`
-              + (portfolioId ? `&p=${portfolioId}` : "")}
+            href={assetHref(r.symbol, r.assetType, portfolioId ? { p: portfolioId } : undefined)}
             className="flex items-center gap-3 py-2.5"
           >
             {ranked && (
