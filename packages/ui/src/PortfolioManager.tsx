@@ -7,6 +7,8 @@ import { useSaveFile } from "./save-file";
 import type { ExportFormat } from "@/data/client/data-client";
 import type { ImportReport } from "@/data/services/transfer";
 import type { Finding } from "@/core/ledger-audit";
+import { forgetPortfolio } from "@/lib/valuation-cache";
+import { KEYS } from "@/lib/storage-keys";
 import { field } from "./field";
 import Button from "./Button";
 
@@ -77,6 +79,11 @@ export default function PortfolioManager() {
     if (!window.confirm("Delete this portfolio and all its transactions?")) return;
     try {
       await client.deletePortfolio(selectedId);
+      // The record is gone; what the browser remembers about it must go too.
+      // Otherwise the ledger and asset screens keep opening on its cached
+      // valuation, and the fetch that would correct them answers "not found",
+      // which those screens read as "not yet" and fall back to the cache for.
+      forgetPortfolio(localStorage, selectedId, KEYS.lastPortfolio);
       setSelectedId(null);
       await load();
       setMsg("Portfolio deleted.");

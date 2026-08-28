@@ -20,6 +20,7 @@ import dynamic from "next/dynamic";
 import RangePicker from "@/components/RangePicker";
 import { usePrivacy } from "@/components/usePrivacy";
 import { useCachedValuation } from "@/components/useCachedValuation";
+import { pruneRememberedPortfolio } from "@/lib/valuation-cache";
 import StaleNote from "@/components/StaleNote";
 import { RANGE_KEYS, type RangeKey } from "@/lib/ranges";
 import EmptyState from "@/components/EmptyState";
@@ -114,6 +115,13 @@ export default function PortfolioScreen() {
     // screen as it was rather than rejecting into an unhandled promise.
     const rows = await client.listPortfolios().catch(() => null);
     if (!rows) return;
+    // The home screen is the one every launch passes through, so it is where a
+    // pointer at a deleted portfolio gets cleared. Without this, a portfolio
+    // removed before the cleanup existed keeps the ledger and asset screens
+    // showing its holdings for good: they open on the remembered id, and the
+    // fetch that should correct them answers "not found", which a screen
+    // falling back to its cache cannot tell from "not yet".
+    pruneRememberedPortfolio(localStorage, rows.map((p) => p.id), KEYS.lastPortfolio);
     setPortfolios(rows);
     setSelectedId((cur) => cur ?? rows[0]?.id ?? null);
   }, [client]);
