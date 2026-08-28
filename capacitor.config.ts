@@ -1,43 +1,40 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
 /**
- * The shell loads the running Contour server rather than bundling a static
- * build: the app is server-rendered and its API routes hold the data. This is
- * the wrapper that answers "does it feel right as a native app" before
- * committing to a local-first rewrite.
+ * The shell bundles `apps/mobile`'s static export and runs with no server.
  *
- * CONTOUR_URL overrides the address at build time — set it to the HTTPS domain
- * once the app is deployed, which also lets cleartext be turned off.
+ * It used to point `server.url` at the running Contour instance and load the
+ * web app over the LAN — a wrapper that answered "does this feel right as a
+ * native app" before the local-first work was worth starting. Phase 4 made
+ * that unnecessary: the same services now run against a SQLite database on
+ * the device, so there is nothing left for the shell to fetch a UI from.
+ *
+ * **This is a different app from the one the LAN wrapper produced**, and the
+ * differences are not accidents:
+ *
+ * - Its data is its own. The device database starts empty; a portfolio comes
+ *   over as a backup file, not by reaching the server.
+ * - No login, no passkey, no `SESSION_SECRET`. The device lock is the lock.
+ * - No alerts, and so no `BackgroundRunner` block. Alerts need the alerts
+ *   routes, Home Assistant, web-push and FCM — every one of them server-only
+ *   by design. Leaving the runner configured would have pointed it at a
+ *   `runner/alerts.js` this bundle does not contain, and given it a key store
+ *   no one writes rules into.
+ * - No strategy tooling: chart, backtest, analyze and the PineScript library
+ *   all need the filesystem or a server-side Binance proxy.
+ *
+ * Set `CONTOUR_URL` to go back to the wrapper for a comparison; it is not the
+ * shipping shape any more.
  */
-const url = process.env.CONTOUR_URL ?? process.env.NABLA_URL ?? "http://192.168.2.5:3001";
+const url = process.env.CONTOUR_URL;
 
 const config: CapacitorConfig = {
   appId: "app.contour.local",
   appName: "Contour",
-  // Unused while server.url points at the running app, but cap sync still
-  // wants it to exist; the web app moved under apps/web.
-  webDir: "apps/web/public",
-  server: {
-    url,
-    // Only needed while the server is plain http on the LAN.
-    cleartext: url.startsWith("http://"),
-  },
-  plugins: {
-    /**
-     * Wakes every quarter hour to check price alerts with the app closed.
-     * Android treats the interval as a target, not a promise: Doze and the
-     * manufacturer's power management can stretch it. Fine for the daily-scale
-     * rules it evaluates, and the reason the risk metric is not among them.
-     */
-    BackgroundRunner: {
-      label: "app.contour.local.alerts",
-      src: "runner/alerts.js",
-      event: "alertCheck",
-      repeat: true,
-      interval: 15,
-      autoStart: true,
-    },
-  },
+  webDir: "apps/mobile/out",
+  ...(url
+    ? { server: { url, cleartext: url.startsWith("http://") } }
+    : {}),
   android: {
     // Match the app's own dark background so launches don't flash white.
     backgroundColor: "#0a0a0a",

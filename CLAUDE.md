@@ -260,8 +260,27 @@ apps/web/prisma/
 samples/                  Bundled PineScripts; new versions are written here as
                           <stem>.fixes.pine (auto-incremented on conflict). Stayed at the
                           repository root — see repo-root.ts above.
+apps/mobile/src/            The device build: the same screens with no server behind them.
+  app/                      A static export (`output: "export"`), so every route is
+                          prerendered and the shell loads it from the APK. No API
+                          routes, no middleware, no login — see providers.tsx.
+    providers.tsx             Mounts LocalClient over SqliteStore + CapacitorNet, plus
+                          the device routing, save-file and icon strategies.
+    nav.tsx                   A client boundary for the More menu: lucide icons are
+                          functions, which a Server Component cannot pass across.
+  lib/
+    store/schema.ts           Hand-owned migrations — no Prisma on a device.
+    store/sqlite-store.ts     Store over @capacitor-community/sqlite
+    net/capacitor-net.ts      Net over CapacitorHttp, which resolves any status and so
+                          has to have unreachable/refused inverted back out of it.
+    local-client.ts           DataClient over the services. Passes client-contract.ts,
+                          the same suite HttpClient passes.
+
 android/, scripts/, capacitor.config.ts
                           The Capacitor shell. Also stayed at the repository root.
+                          `capacitor.config.ts` bundles `apps/mobile/out` and declares
+                          no server; setting CONTOUR_URL restores the old LAN wrapper
+                          for comparison.
 ```
 
 ## Workspaces
