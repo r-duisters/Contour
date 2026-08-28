@@ -22,6 +22,7 @@ import {
 import { changeFromPct } from "@/lib/change";
 import { assetName } from "@/lib/asset-names";
 import { annotateTransactions } from "@/lib/portfolio";
+import { useAlertsHref } from "@/components/routing";
 import { useFitChart } from "@/components/useFitChart";
 import { shapePoints, thinKeepingExtremes } from "@/lib/chart-data";
 import { useStoredRange } from "@/components/useStoredRange";
@@ -101,6 +102,8 @@ export default function AssetScreen({
   const symbol = assetOf(raw);
 
   const client = useDataClient();
+  // Null in the device build, which has no alerts screen to link at.
+  const alertsHref = useAlertsHref(pricingPair(symbol));
   const [holding, setHolding] = useState<Holding | null | undefined>(undefined);
   const [txs, setTxs] = useState<Tx[]>([]);
   const [bars, setBars] = useState<{ t: number; c: number }[] | null>(null);
@@ -412,13 +415,17 @@ export default function AssetScreen({
               <span className="flex-1" />
               {/* Alerts live on their own page and their routes are
                   server-only by design, so this hands the ticker over rather
-                  than growing a second, smaller alert form here. */}
-              <Link
-                href={`/alerts?symbol=${encodeURIComponent(pricingPair(symbol))}`}
-                className="text-xs text-neutral-300 inline-flex items-center gap-1"
-              >
-                <Bell size={12} aria-hidden />Alert me
-              </Link>
+                  than growing a second, smaller alert form here — and it is
+                  absent altogether where that page does not exist, rather
+                  than offered and broken. */}
+              {alertsHref && (
+                <Link
+                  href={alertsHref}
+                  className="text-xs text-neutral-300 inline-flex items-center gap-1"
+                >
+                  <Bell size={12} aria-hidden />Alert me
+                </Link>
+              )}
               <button
                 onClick={() => setAddOpen((v) => !v)}
                 className="text-xs text-neutral-300 inline-flex items-center gap-1"

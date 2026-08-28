@@ -36,3 +36,21 @@ describe("assetHref", () => {
       .toBe("/portfolio/asset?symbol=%5EGSPC&type=equity");
   });
 });
+
+/**
+ * Alerts are permanently server-only — the routes, Home Assistant, web-push
+ * and FCM are all listed in CLAUDE.md as things the device build will never
+ * call. So the standalone app has no `/alerts` page, and "Alert me" was a link
+ * to nothing.
+ */
+describe("where Alert me goes", () => {
+  it("carries the pair on the web, where the page exists", () => {
+    expect(WEB_ROUTING.alertsHref("BTCUSDT")).toBe("/alerts?symbol=BTCUSDT");
+  });
+
+  it("goes nowhere on a device, so the screen draws no button", () => {
+    // Null rather than a disabled control: `data-client.ts` sets the rule that
+    // a capability a platform cannot have is absent, not visibly broken.
+    expect(DEVICE_ROUTING.alertsHref("BTCUSDT")).toBeNull();
+  });
+});

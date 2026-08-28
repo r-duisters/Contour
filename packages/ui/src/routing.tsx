@@ -24,6 +24,20 @@ export type Routing = {
    * `&` depends on a URL shape the caller is not supposed to know.
    */
   assetHref(symbol: string, assetType?: string | null, extra?: Record<string, string>): string;
+  /**
+   * Where "Alert me" goes, or `null` where there is nowhere for it to go.
+   *
+   * Alerts are permanently server-only — the routes, Home Assistant, web-push
+   * and FCM are all listed in CLAUDE.md as things the device build will never
+   * call — so the standalone app has no `/alerts` page at all. A link to it
+   * was a link to nothing.
+   *
+   * Null rather than a disabled button, and rather than the screen asking
+   * which app it is in: `data-client.ts` sets the rule that a capability one
+   * platform cannot have is *absent*, not throwing and not visibly broken.
+   * This is the same rule, for a destination instead of a method.
+   */
+  alertsHref(pair: string): string | null;
 };
 
 function withQuery(path: string, params: Record<string, string | null | undefined>): string {
@@ -37,11 +51,16 @@ function withQuery(path: string, params: Record<string, string | null | undefine
 export const WEB_ROUTING: Routing = {
   assetHref: (symbol, assetType, extra) =>
     withQuery(`/portfolio/${encodeURIComponent(symbol)}`, { type: assetType, ...extra }),
+  alertsHref: (pair) => withQuery("/alerts", { symbol: pair }),
 };
 
 export const DEVICE_ROUTING: Routing = {
   assetHref: (symbol, assetType, extra) =>
     withQuery("/portfolio/asset", { symbol, type: assetType, ...extra }),
+  // There is no alerts screen in this build, and nothing to configure that
+  // would give it one: alerts need a server, and this app is the one with no
+  // server behind it.
+  alertsHref: () => null,
 };
 
 /**
@@ -57,4 +76,9 @@ export function RoutingProvider({ routing, children }: { routing: Routing; child
 
 export function useAssetHref(): Routing["assetHref"] {
   return useContext(RoutingContext).assetHref;
+}
+
+/** Null where this build has no alerts screen — the caller draws nothing. */
+export function useAlertsHref(pair: string): string | null {
+  return useContext(RoutingContext).alertsHref(pair);
 }
