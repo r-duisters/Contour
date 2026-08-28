@@ -1,0 +1,25 @@
+{
+  "//": "Which logos the device build ships. Committed, because a build that fetched them would need a network and would not be reproducible — and the whole point of the bundle is that the phone works offline. Anything absent falls back to coloured initials, which is legible rather than broken.",
+  "crypto": [
+    "BTC", "ETH", "USDT", "USDC", "BNB", "SOL", "XRP", "ADA", "DOGE", "TRX",
+    "AVAX", "DOT", "MATIC", "LTC", "LINK", "ATOM", "XMR", "ETC", "XLM", "BCH",
+    "ALGO", "VET", "ICP", "FIL", "HBAR", "NEAR", "OP", "ARB", "AAVE", "UNI",
+    "MKR", "GRT", "SAND", "MANA", "AXS", "EGLD", "EOS", "XTZ", "THETA", "FTM",
+    "RUNE", "KAVA", "ZEC", "DASH", "NEO", "IOTA", "GAS", "CAKE", "CRV", "SNX",
+    "COMP", "YFI", "BAT", "ZIL", "ENJ", "CHZ", "HOT", "KSM", "WAVES", "ONT",
+    "QTUM", "OMG", "LRC", "SUSHI", "REN", "KNC", "STORJ", "ANKR", "CELO", "ROSE",
+    "TAO", "INJ", "SEI", "TIA", "APT", "SUI", "STX", "IMX", "LDO", "RPL",
+    "PEPE", "SHIB", "TON", "FLOW", "GALA", "ONE", "IOTX", "CKB", "BAND", "SC",
+    "DGB", "RVN", "ZRX", "BAL", "UMA", "OCEAN", "NMR", "REQ", "SUB", "ANT"
+  ],
+  "equity": [
+    "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "AMD", "INTC", "NFLX",
+    "AVGO", "ORCL", "CRM", "ADBE", "CSCO", "QCOM", "TXN", "MU", "PYPL", "SHOP",
+    "V", "MA", "JPM", "BAC", "WMT", "COST", "KO", "PEP", "MCD", "NKE",
+    "DIS", "BA", "CAT", "GE", "XOM", "CVX", "PFE", "JNJ", "MRK", "UNH",
+    "ASML.AS", "SHELL.AS", "ADYEN.AS", "INGA.AS", "AD.AS", "PHIA.AS", "HEIA.AS",
+    "UBI.PA", "AF.PA", "MC.PA", "OR.PA", "SAN.PA", "AIR.PA",
+    "SAP.DE", "SIE.DE", "ALV.DE", "BMW.DE", "VOW3.DE", "EUDF.DE",
+    "GME", "EEM", "IWDA.AS", "VWRL.AS"
+  ]
+}

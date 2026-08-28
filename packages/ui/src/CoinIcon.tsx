@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
+import { NO_ICONS, type IconSource } from "./icon-source";
 
 const QUOTE_ASSETS = ["USDT", "FDUSD", "BUSD", "USDC", "TUSD", "BTC", "ETH", "BNB", "EUR", "TRY"];
 
@@ -34,10 +35,23 @@ function colorFor(ticker: string): string {
   return FALLBACK_COLORS[Math.abs(h) % FALLBACK_COLORS.length]!;
 }
 
-// Icons come from our own server, which fetches and caches them once. The
-// phone never talks to an icon CDN, so nothing outside learns what is held.
-// Unknown tickers 404 there too, leaving the initials fallback its turn.
-const ICON_API = "/api/icon";
+/**
+ * Where logos come from, supplied by the app.
+ *
+ * This component used to name `/api/icon` itself — the server-side proxy that
+ * fetches and caches each logo once, so the phone never talks to an icon CDN
+ * and nothing outside learns what is held. That route now lives in `apps/web`,
+ * because a device has no proxy and calling a CDN from it would break exactly
+ * that promise; the device build ships its logos instead.
+ *
+ * The default is initials. An app that wires nothing gets something legible
+ * rather than a broken image.
+ */
+const IconSourceContext = createContext<IconSource>(NO_ICONS);
+
+export function IconSourceProvider({ source, children }: { source: IconSource; children: ReactNode }) {
+  return <IconSourceContext.Provider value={source}>{children}</IconSourceContext.Provider>;
+}
 
 export default function CoinIcon({
   symbol, size = 20, assetType,
@@ -50,15 +64,17 @@ export default function CoinIcon({
   // knows the asset type would otherwise guess crypto, 404, and keep showing
   // initials even after the type arrives and a real logo becomes available.
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const iconSource = useContext(IconSourceContext);
   const base = baseAsset(symbol);
 
   // Cash has no logo anywhere; equities are looked up by their full ticker,
   // coins by the base asset of the pair.
-  const src = assetType === "equity"
-    ? `${ICON_API}?symbol=${encodeURIComponent(symbol.toUpperCase())}&type=equity`
-    : `${ICON_API}?symbol=${encodeURIComponent(base)}&type=crypto`;
+  const src = iconSource(symbol, assetType, base);
 
-  const failed = failedSrc === src;
+  // `null` is a source saying it has no logo for this ticker — the device
+  // build ships a bundle rather than a proxy, so anything outside it takes the
+  // initials, which is the honest answer and already looks deliberate.
+  const failed = src === null || failedSrc === src;
 
   if (failed || assetType === "cash") {
     return (

@@ -97,30 +97,23 @@ const NET_ONLY_PACKAGES = ["packages/data/src", "packages/core/src", "packages/u
  * goes to the WebView's own origin, where no server is listening, and the
  * element just renders nothing.
  *
- * There was one of these per export button plus the icon proxy — four, all
- * real debt deliberately left by Phase 3, each needing a mechanism that phase
- * did not build. The three export anchors are gone: `DataClient.exportFile`
- * hands back the bytes and a name, and each app supplies what saves them.
+ * There were four: one per export button, plus the icon proxy. All were real
+ * debt deliberately left by Phase 3, each needing a mechanism that phase did
+ * not build, and all four are now gone.
  *
- * The icon proxy is the one that remains, and it is a design decision rather
- * than a rename. Each is named individually so the guard passes today without
- * letting another appear — an allowlist of *counts* would let one be swapped
- * for another; an allowlist of literals will not.
+ * Entries are named individually rather than counted, so that a fifth cannot
+ * appear by being swapped for a fourth. That is why the empty structure is
+ * worth keeping.
  */
 const ALLOWED_API_LITERALS: Record<string, { literal: string; needs: string }[]> = {
-  "packages/ui/src/CoinIcon.tsx": [
-    {
-      literal: "/api/icon",
-      needs:
-        "A device-capable icon strategy. The proxy exists so a coin logo is " +
-        "fetched by the server rather than by the user's browser, which is a " +
-        "privacy property the comment above the constant claims; a device has " +
-        "no proxy, so every logo silently falls back to coloured initials. " +
-        "Phase 4 has to choose between bundling the icon set, caching through " +
-        "the Store, or going direct over CapacitorHttp and giving up the " +
-        "property — a design decision, not a rename.",
-    },
-  ],
+  // Empty, and the structure stays. Phase 3 left four entries here — three
+  // export anchors and the icon proxy — each needing a mechanism that phase
+  // did not build. Phase 4 built both: `DataClient.exportFile` with a per-app
+  // saver, and a per-app `IconSource` whose web implementation lives in
+  // `apps/web` because it names a route.
+  //
+  // `packages/ui` now names no route at all. The mechanism is what stops the
+  // next one appearing, so it is kept rather than deleted with its contents.
 };
 
 /** Every `"…/api/…"`, `'…'` or `` `…` `` literal in a source file. */
