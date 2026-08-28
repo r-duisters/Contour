@@ -1,6 +1,7 @@
 import type { AssetInfo } from "@/core/asset-info";
 import type { RangeKey } from "@/core/ranges";
 import type { ColumnMapping as ImportColumnMapping, FormatId as ImportFormatId } from "@/core/import-formats";
+import type { AssetHit } from "../sources/search";
 import type { Settings, SettingsPatch, Side } from "../ports/store";
 import type { Benchmark, BenchmarkKey, Changes, History, Series } from "../services/series";
 import type { ImportReport } from "../services/transfer";
@@ -9,6 +10,7 @@ import type { IndexDetail, MarketBoard, MarketCategory } from "../services/marke
 
 export type { IndexDetail, MarketBoard, MarketCategory, MarketRow } from "../services/markets";
 export type { ColumnMapping as ImportColumnMapping, FormatId as ImportFormatId } from "@/core/import-formats";
+export type { AssetHit } from "../sources/search";
 
 /**
  * Everything a screen is allowed to ask for.
@@ -196,6 +198,17 @@ export interface DataClient {
   /* ------------------------------------------------------------- reference */
 
   listSymbols(): Promise<string[]>;
+  /**
+   * Assets matching a name or ticker, crypto and listed alike.
+   *
+   * Only what this app can price. A result that cannot be looked up opens a
+   * page with a name and no numbers, which is the failure this interface's
+   * errors exist to avoid — so a fund, a future or an index is not a hit.
+   *
+   * Answers `[]` for a query too short to mean anything rather than throwing:
+   * an empty search box is not an error.
+   */
+  searchAssets(query: string): Promise<AssetHit[]>;
   getAssetInfo(symbol: string, assetType: "crypto" | "equity"): Promise<AssetInfo>;
 
   /* --------------------------------------------------------------- markets */

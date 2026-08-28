@@ -1,4 +1,5 @@
 import type { ColumnMapping as ImportColumnMapping, FormatId as ImportFormatId } from "@/lib/import-formats";
+import type { AssetHit } from "@/data/sources/search";
 import type { AssetInfo } from "@/core/asset-info";
 import type { RangeKey } from "@/core/ranges";
 import { NotFoundError, RequestFailedError } from "@/data/errors";
@@ -8,7 +9,7 @@ import { fetchQuotesFor } from "@/data/sources/binance";
 import * as portfolios from "@/data/services/portfolios";
 import * as settingsService from "@/data/services/settings";
 import * as transactions from "@/data/services/transactions";
-import { assetInfo, symbols } from "@/data/services/lookup";
+import { assetInfo, searchAssets, symbols } from "@/data/services/lookup";
 import { benchmark, changes, history, series } from "@/data/services/series";
 import type { Benchmark, Changes, History, Series } from "@/data/services/series";
 import { clearPortfolio, exportCsv, exportJson, importDelta, restore } from "@/data/services/transfer";
@@ -205,6 +206,10 @@ export function LocalClient(store: Store, net: Net): DataClient {
 
     listSymbols(): Promise<string[]> {
       return attempt(() => symbols(net));
+    },
+
+    searchAssets(query: string): Promise<AssetHit[]> {
+      return attempt(() => searchAssets(net, query));
     },
 
     getAssetInfo(symbol: string, assetType: "crypto" | "equity"): Promise<AssetInfo> {

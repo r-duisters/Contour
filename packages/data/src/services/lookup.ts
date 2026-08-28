@@ -2,6 +2,7 @@ import type { AssetInfo } from "@/core/asset-info";
 import type { Net } from "../ports/net";
 import { fetchUsdtSymbols } from "../sources/binance";
 import { assetInfo as fetchCryptoAssetInfo } from "../sources/asset-info";
+import { searchAssets as findAssets, type AssetHit } from "../sources/search";
 
 /**
  * The full USDT symbol list, and one asset's background/sentiment/headlines
@@ -69,4 +70,15 @@ export function assetInfo(
   net: Net, symbol: string, assetType: "crypto" | "equity" = "crypto",
 ): Promise<AssetInfo> {
   return fetchCryptoAssetInfo(net, symbol, assetType);
+}
+
+/**
+ * Find an asset by name or ticker, across both worlds this app prices.
+ *
+ * A thin pass-through, like `symbols` above: the merging and the ranking are
+ * the source's business, and the service exists so a route and a device client
+ * call the same thing.
+ */
+export function searchAssets(net: Net, query: string): Promise<AssetHit[]> {
+  return findAssets(net, query);
 }

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowUpDown, ChevronDown, TrendingUp } from "lucide-react";
 import PageLabel from "@/components/PageLabel";
+import AssetSearch from "@/components/AssetSearch";
 import CoinIcon from "@/components/CoinIcon";
 import EmptyState from "@/components/EmptyState";
 import SubHeading from "@/components/SubHeading";
@@ -117,6 +118,8 @@ export default function MarketsScreen() {
     <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-4 py-5 md:p-8 max-w-3xl mx-auto">
       <div className="flex items-center justify-between gap-3 mb-3">
         <PageLabel icon={TrendingUp}>Markets</PageLabel>
+        <span className="flex-1" />
+        <AssetSearch />
         {/* Paging resets with the category rather than in an effect watching
             it: carrying forty rows of crypto into the stocks table answers a
             question nobody asked, and a switch is an event, not a sync. */}

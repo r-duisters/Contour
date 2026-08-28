@@ -358,6 +358,25 @@ export function runDataClientContract(
       await expect(makeClient().listSymbols()).resolves.toEqual(FIXTURE.symbols);
     });
 
+    it("finds an asset by name or ticker, in both worlds", async () => {
+      const hits = await makeClient().searchAssets("eth");
+      expect(hits.length).toBeGreaterThan(0);
+      for (const hit of hits) {
+        expect(typeof hit.symbol).toBe("string");
+        expect(hit.symbol.length).toBeGreaterThan(0);
+        // The kind decides which price path answers for it later. A hit
+        // without one is a page that cannot be drawn.
+        expect(["crypto", "equity"]).toContain(hit.assetType);
+      }
+    });
+
+    it("answers an empty search with nothing, rather than an error", async () => {
+      // An empty box is not a failure, and a one-letter query matches most of
+      // the market. Both are `[]`, and neither costs a request.
+      await expect(makeClient().searchAssets("")).resolves.toEqual([]);
+      await expect(makeClient().searchAssets(" a ")).resolves.toEqual([]);
+    });
+
     it("returns background for one asset", async () => {
       const info = await makeClient().getAssetInfo(FIXTURE.historySymbol, "crypto");
       expect(info.symbol).toBe(FIXTURE.historySymbol);

@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
 import PageLabel from "@/components/PageLabel";
+import AssetSearch from "@/components/AssetSearch";
 import { useDataClient } from "@/data/client/context";
 import { useAssetHref } from "@/components/routing";
 import { money, quantity, setDisplayCurrency } from "@/lib/display";
@@ -298,6 +299,7 @@ export default function PortfolioScreen() {
       <div className="flex items-center gap-2 mb-4 md:mb-6">
         <PageLabel icon={Wallet}>Portfolio</PageLabel>
         <span className="flex-1" />
+        <AssetSearch />
         {portfolios.length > 1 && (
           <select
             aria-label="Portfolio"

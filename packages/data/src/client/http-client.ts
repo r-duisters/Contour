@@ -1,4 +1,5 @@
 import type { ColumnMapping as ImportColumnMapping, FormatId as ImportFormatId } from "@/core/import-formats";
+import type { AssetHit } from "../sources/search";
 import type { RangeKey } from "@/core/ranges";
 import type { AssetInfo } from "@/core/asset-info";
 import { NotFoundError, RequestFailedError } from "../errors";
@@ -217,6 +218,11 @@ export function HttpClient(net: Net, baseUrl = ""): DataClient {
       if (query.portfolioId !== undefined) q.push(`portfolioId=${query.portfolioId}`);
       if (query.opening !== undefined) q.push(`opening=${query.opening}`);
       return send("GET", `/api/benchmark?${q.join("&")}`);
+    },
+
+    searchAssets(query: string): Promise<AssetHit[]> {
+      if (query.trim().length < 2) return Promise.resolve([]);
+      return send("GET", `/api/symbols/search?q=${encodeURIComponent(query.trim())}`);
     },
 
     getHistory(symbol: string, assetType: "crypto" | "equity", range: RangeKey): Promise<History> {

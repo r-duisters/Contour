@@ -160,6 +160,10 @@ function seededNet(): FakeNetInstance {
         // `history` returns from its own catch, never a 404.
         ? { bars: [], range: FIXTURE.range, changePct: null, error: "no data" }
         : { bars: [{ t: FIXTURE.benchmarkFrom, c: 40_000 }], range: FIXTURE.range, changePct: 1.2 },
+    "/api/symbols/search": [
+      { symbol: "ASML.AS", name: "ASML HOLDING", assetType: "equity", exchange: "Amsterdam" },
+      { symbol: "AST", name: "AST", assetType: "crypto", exchange: "Binance" },
+    ],
     "/api/symbols": { symbols: FIXTURE.symbols },
     "/api/asset/": {
       symbol: FIXTURE.historySymbol, about: null, tags: [], stats: [],

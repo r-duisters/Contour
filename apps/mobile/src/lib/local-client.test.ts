@@ -166,6 +166,14 @@ function seededNet(): Net {
         { symbol: "ETHEUR", baseAsset: "ETH", quoteAsset: "EUR", status: "TRADING", isSpotTradingAllowed: true },
       ],
     },
+    // Yahoo's search, for the listed half of `searchAssets`. Without it the
+    // device would find coins and nothing else, and the contract case would
+    // pass on half the feature.
+    "query1.finance.yahoo.com/v1/finance/search": {
+      quotes: [
+        { symbol: "ETR.DE", shortname: "Ethereum Tracker", quoteType: "ETF", exchDisp: "XETRA" },
+      ],
+    },
     // The markets board. Volumes clear the service's floor so the rows are not
     // filtered away; the point of the contract case is the shape, not the
     // ranking.
