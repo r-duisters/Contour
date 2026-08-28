@@ -37,6 +37,18 @@ export type DB = {
   query<T>(sql: string, values?: unknown[]): Promise<T[]>;
   /** A parameterised write. */
   run(sql: string, values?: unknown[]): Promise<{ changes: number }>;
+  /**
+   * Many parameterised writes, all of them or none.
+   *
+   * A method rather than `BEGIN`/`COMMIT` around `run` because the two drivers
+   * do not agree on what a transaction is. `@capacitor-community/sqlite` wraps
+   * every `run` in a transaction of its own and commits it, so a hand-written
+   * BEGIN is already over by the time COMMIT is reached — which fails on a
+   * phone with "no current transaction" while passing every test, because
+   * `node:sqlite` has no such behaviour. Atomicity is the store's requirement;
+   * how it is obtained is the driver's business.
+   */
+  batch(statements: { sql: string; values: unknown[] }[]): Promise<void>;
 };
 
 /**
@@ -94,10 +106,15 @@ const TX_COLUMNS =
   "nativeCurrency, nativePrice, nativeFee, sourceSymbol, time, note, createdAt";
 
 function txValues(id: string, portfolioId: string, tx: NewTransaction, createdAt: number): unknown[] {
+  // Every nullable column coerced explicitly. An absent field is `undefined`
+  // in TypeScript and SQLite has no such value: `node:sqlite` refuses to bind
+  // it outright, and a driver that accepts it is guessing. Only `sourceSymbol`
+  // was being coerced, so any row without native-currency fields — which is
+  // most rows in a Delta export — depended on the driver being lenient.
   return [
     id, portfolioId, tx.symbol, tx.assetType, tx.side, tx.quantity, tx.price, tx.fee,
-    tx.nativeCurrency, tx.nativePrice, tx.nativeFee, tx.sourceSymbol ?? null,
-    tx.time, tx.note, createdAt,
+    tx.nativeCurrency ?? null, tx.nativePrice ?? null, tx.nativeFee ?? null,
+    tx.sourceSymbol ?? null, tx.time, tx.note ?? null, createdAt,
   ];
 }
 
@@ -185,22 +202,15 @@ export function SqliteStore(db: DB): Store {
         if (txs.length === 0) return 0;
         const createdAt = Date.now();
         const placeholders = TX_COLUMNS.split(", ").map(() => "?").join(", ");
-        // One SQL transaction, because a Delta import is hundreds of rows and
-        // a half-applied import is worse than a failed one. This is the one
-        // place the device store has to do by hand what Prisma does for free.
-        await db.execute("BEGIN;");
-        try {
-          for (const tx of txs) {
-            await db.run(
-              `INSERT INTO "Transaction" (${TX_COLUMNS}) VALUES (${placeholders})`,
-              txValues(newId("tx"), portfolioId, tx, createdAt),
-            );
-          }
-          await db.execute("COMMIT;");
-        } catch (err) {
-          await db.execute("ROLLBACK;");
-          throw err;
-        }
+        const sql = `INSERT INTO "Transaction" (${TX_COLUMNS}) VALUES (${placeholders})`;
+        // All of them or none: an import is hundreds of rows, and a
+        // half-applied one is worse than a failed one — the ledger would be
+        // wrong rather than empty, and nothing would say which rows are
+        // missing. `batch` is where each driver decides how.
+        await db.batch(txs.map((tx) => ({
+          sql,
+          values: txValues(newId("tx"), portfolioId, tx, createdAt),
+        })));
         return txs.length;
       },
 

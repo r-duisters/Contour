@@ -27,6 +27,19 @@ export async function openTestDb(): Promise<DB> {
       const res = raw.prepare(sql).run(...(values as never[]));
       return { changes: Number(res.changes) };
     },
+    // `node:sqlite` runs statements outside any transaction unless one is
+    // opened, so here BEGIN/COMMIT is exactly right. The plugin's driver must
+    // not do this — see the note on `DB.batch`.
+    async batch(statements) {
+      raw.exec("BEGIN");
+      try {
+        for (const { sql, values } of statements) raw.prepare(sql).run(...(values as never[]));
+        raw.exec("COMMIT");
+      } catch (err) {
+        raw.exec("ROLLBACK");
+        throw err;
+      }
+    },
   };
   await db.execute(ENABLE_FOREIGN_KEYS);
   await migrate(db);

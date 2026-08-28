@@ -38,6 +38,19 @@ async function openDb(): Promise<DB> {
       const res = await conn.run(sql, values as never[]);
       return { changes: res.changes?.changes ?? 0 };
     },
+    // `executeSet` is the plugin's own bulk write: it opens one transaction
+    // around the whole set and commits or rolls back as a unit. Issuing
+    // BEGIN and COMMIT by hand around `run` does not work here — every `run`
+    // already carries its own transaction and commits it, so the COMMIT lands
+    // with nothing open and the plugin answers "Cannot perform this operation
+    // because there is no current transaction".
+    async batch(statements) {
+      if (statements.length === 0) return;
+      await conn.executeSet(
+        statements.map((s) => ({ statement: s.sql, values: s.values as never[] })),
+        true,
+      );
+    },
   };
 
   await db.execute(ENABLE_FOREIGN_KEYS);
