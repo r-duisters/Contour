@@ -24,6 +24,16 @@ export const KEYS = {
    * costs one corrected render.
    */
   lastPortfolio: `${PREFIX}last-portfolio`,
+  /**
+   * When an alert check last completed, and which rules have already been
+   * notified today.
+   *
+   * Both belong to the device rather than the server: the reliable check is
+   * the app opening, and only the device knows when that last happened. The
+   * marks are what stop a standing condition notifying on every launch.
+   */
+  alertsLastChecked: `${PREFIX}alerts-last-checked`,
+  alertsSent: `${PREFIX}alerts-sent`,
 } as const;
 
 /** Read a key, adopting any value the old name still holds. */
