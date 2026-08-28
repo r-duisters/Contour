@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { TxSide } from "@/lib/portfolio";
 import TxForm, { type NewTx } from "@/components/TxForm";
 import Sheet from "@/components/Sheet";
@@ -13,7 +13,7 @@ import PageLabel from "@/components/PageLabel";
 import { useDataClient } from "@/data/client/context";
 import { useAssetHref } from "@/components/routing";
 import { money, quantity, setDisplayCurrency } from "@/lib/display";
-import { changeFromPct } from "@/lib/change";
+import { positionChangeOverWindow } from "@/lib/change";
 import { useStoredRange } from "@/components/useStoredRange";
 import { KEYS } from "@/lib/storage-keys";
 import dynamic from "next/dynamic";
@@ -131,6 +131,21 @@ export default function PortfolioScreen() {
   // Opening the app should show last night's numbers instantly, then correct
   // them, rather than a spinner over an empty screen.
   const { cached, at: stale, remember } = useCachedValuation<Valuation>(selectedId);
+  /**
+   * When each holding was opened, from the ledger this screen already has.
+   *
+   * Only the earliest matters: a period figure is a false statement when the
+   * window starts before the position existed, and buying more later does not
+   * change when it started.
+   */
+  const heldSinceBySymbol = useMemo(() => {
+    const out = new Map<string, number>();
+    for (const t of transactions) {
+      const at = out.get(t.symbol);
+      if (at === undefined || t.time < at) out.set(t.symbol, t.time);
+    }
+    return out;
+  }, [transactions]);
   // Set during render, not in an effect: `money()` reads a module variable
   // rather than React state, so an effect would run after the figures below
   // had already been formatted — and with the cache derived rather than
@@ -409,7 +424,17 @@ export default function PortfolioScreen() {
                 {visibleHoldings.map((h) => {
                   const share = totalValue > 0 && h.value !== null ? (h.value / totalValue) * 100 : null;
                   const periodChange = assetChanges[h.symbol];
-                  const periodMoney = changeFromPct(h.value, periodChange ?? null);
+                  // Withheld where the window opened before this holding did:
+                  // the same false statement the asset page made, one row per
+                  // holding. `heldSince` comes from the ledger already loaded
+                  // here, and the window from the first point of the series
+                  // the chart above is drawing.
+                  const periodMoney = positionChangeOverWindow({
+                    value: h.value,
+                    pct: periodChange ?? null,
+                    heldSince: heldSinceBySymbol.get(h.symbol) ?? null,
+                    windowStart: series && series.length > 0 ? series[0]!.t : null,
+                  });
                   const isCash = h.assetType === "cash";
                   const inner = (
                     <>

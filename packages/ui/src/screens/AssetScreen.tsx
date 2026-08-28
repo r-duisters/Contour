@@ -19,7 +19,7 @@ import { useDataClient } from "@/data/client/context";
 import {
   marketMoney, money as fmtMoney, percent, quantity, setDisplayCurrency,
 } from "@/lib/display";
-import { changeFromPct } from "@/lib/change";
+import { positionChangeOverWindow } from "@/lib/change";
 import { assetName } from "@/lib/asset-names";
 import { annotateTransactions } from "@/lib/portfolio";
 import { useAlertsHref } from "@/components/routing";
@@ -275,8 +275,19 @@ export default function AssetScreen({
 
   // The period's price move expressed in money, using what is held here. Null
   // when nothing is held or nothing is priced, which is the state this page is
-  // in whenever it is reached from Markets rather than from the portfolio.
-  const rangeMoney = changeFromPct(shownHolding?.value ?? null, changePct);
+  // in whenever it is reached from Markets rather than from the portfolio —
+  // and null too when the window opened before the position did, where the
+  // figure would describe money that was never at stake.
+  //
+  // Both bounds come from what is already on screen: the window starts at the
+  // first bar the chart drew, and the position starts at its earliest
+  // transaction. No duration table, and no disagreement with the chart.
+  const rangeMoney = positionChangeOverWindow({
+    value: shownHolding?.value ?? null,
+    pct: changePct,
+    heldSince: txs.length > 0 ? Math.min(...txs.map((t) => t.time)) : null,
+    windowStart: bars && bars.length > 0 ? bars[0]!.t : null,
+  });
 
   return (
     <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-3 py-4 md:p-8 max-w-4xl mx-auto">

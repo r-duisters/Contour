@@ -13,6 +13,9 @@
  * been held throughout, so the figure runs high. That caveat belongs to the
  * percentage already; this only states it in a currency, where it is easier to
  * mistake for realised profit.
+ *
+ * There is a point where that stops being a caveat and becomes a false
+ * statement, and `positionChangeOverWindow` below is where the line is drawn.
  */
 
 /**
@@ -35,4 +38,37 @@ export function changeFromPct(value: number | null, pct: number | null): number 
   const before = value / factor;
   const delta = value - before;
   return Number.isFinite(delta) ? delta : null;
+}
+
+/**
+ * The same figure, withheld when the window began before the position did.
+ *
+ * "The asset moved this much; on what I hold, that is this many euros" is a
+ * fair reading while the window is one the position lived through. Over a
+ * window that predates it, the sentence describes money that was never at
+ * stake: 250 shares of a stock bought in January 2026, shown against a
+ * twenty-six-year price history, read as a €4,288 loss beside a €1,000 cost
+ * basis. The percentage is still true — it is the asset's price return and
+ * says nothing about who held it — so it stays, and only the currency figure
+ * goes.
+ *
+ * `null` for either bound means "not known", and an unknown bound cannot
+ * disprove the figure, so it is shown. The caller that has neither gets the
+ * behaviour it always had.
+ */
+export function positionChangeOverWindow({
+  value,
+  pct,
+  heldSince,
+  windowStart,
+}: {
+  value: number | null;
+  pct: number | null;
+  /** When the position was opened — the earliest transaction in this asset. */
+  heldSince: number | null;
+  /** The first moment the window covers. */
+  windowStart: number | null;
+}): number | null {
+  if (heldSince !== null && windowStart !== null && heldSince > windowStart) return null;
+  return changeFromPct(value, pct);
 }
