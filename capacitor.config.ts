@@ -23,17 +23,48 @@ import type { CapacitorConfig } from "@capacitor/cli";
  * - No strategy tooling: chart, backtest, analyze and the PineScript library
  *   all need the filesystem or a server-side Binance proxy.
  *
- * Set `CONTOUR_URL` to go back to the wrapper for a comparison; it is not the
- * shipping shape any more.
+ * Set `CONTOUR_URL` to build the wrapper instead. The two are **different
+ * applications and install side by side**: `app.contour.standalone` /
+ * "Contour Standalone" against `app.contour.local` / "Contour". Sharing one
+ * id would mean each install replaced the other, and replacing the wrapper
+ * leaves the phone showing an empty portfolio, since the standalone build's
+ * database is its own and starts empty.
+ *
+ * `android/app/build.gradle` reads the same variable and must agree with this;
+ * it is the half Android actually installs by, and it also names the launcher
+ * icon, the recents card and the deep-link scheme.
  */
-const url = process.env.CONTOUR_URL;
+const url = process.env.CONTOUR_URL?.trim() || undefined;
 
 const config: CapacitorConfig = {
-  appId: "app.contour.local",
-  appName: "Contour",
-  webDir: "apps/mobile/out",
+  appId: url ? "app.contour.local" : "app.contour.standalone",
+  appName: url ? "Contour" : "Contour Standalone",
+  // The wrapper serves its UI from the running app, so its bundle is the web
+  // app's public directory — which is also where `runner/alerts.js` lives.
+  webDir: url ? "apps/web/public" : "apps/mobile/out",
   ...(url
-    ? { server: { url, cleartext: url.startsWith("http://") } }
+    ? {
+        server: { url, cleartext: url.startsWith("http://") },
+        plugins: {
+          /**
+           * Wakes every quarter hour to check price alerts with the app
+           * closed. Android treats the interval as a target, not a promise.
+           *
+           * Only the wrapper gets it. Alerts need the alerts routes, Home
+           * Assistant, web-push and FCM, all of which live on the server, so
+           * in the standalone build this would wake on a schedule to read a
+           * key store nothing writes rules into.
+           */
+          BackgroundRunner: {
+            label: "app.contour.local.alerts",
+            src: "runner/alerts.js",
+            event: "alertCheck",
+            repeat: true,
+            interval: 15,
+            autoStart: true,
+          },
+        },
+      }
     : {}),
   android: {
     // Match the app's own dark background so launches don't flash white.

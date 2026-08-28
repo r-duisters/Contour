@@ -109,10 +109,35 @@ the gaps are deliberate rather than unfinished:
   response header the portable `Net` does not expose, so an equity's
   information panel states its absence rather than showing an empty box.
 
-To go back to the old shape — a WebView pointed at the running server, which
-shows exactly what the browser shows — set `CONTOUR_URL` before syncing. That
-was how the shell worked before Phase 4 and is still useful for comparing the
-two side by side.
+### Two apps, side by side
+
+The wrapper did not go away, and the two install alongside each other rather
+than replacing one another:
+
+| | Standalone | Wrapper |
+|---|---|---|
+| Built by | the commands above | `CONTOUR_URL=http://…` set first |
+| Application id | `app.contour.standalone` | `app.contour.local` |
+| Launcher name | Contour Standalone | Contour |
+| Data | its own, on the device | the server's |
+| Works offline | yes, without prices | no |
+| Alerts | no | yes, foreground and background |
+
+They carry different application ids deliberately. With one id each install
+would replace the other, and replacing the wrapper leaves the phone showing an
+empty portfolio — the standalone database is its own and starts empty. Having
+both on the phone is also the only way to compare them.
+
+```bash
+# the wrapper, exactly as it behaved before Phase 4
+export CONTOUR_URL="http://192.168.2.5:3001"
+npx cap sync android && npm run android:build
+```
+
+`android/app/build.gradle` reads the same variable to pick the id, the launcher
+name, the recents-card label and the deep-link scheme, so the two halves cannot
+drift apart. Both write to `app-debug.apk`, so copy one aside before building
+the other.
 
 Building needs a JDK 21 and the Android SDK (platform 35+, build-tools 35).
 Point Gradle at them with `android/local.properties` (`sdk.dir=/path/to/Sdk`)

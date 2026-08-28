@@ -1,10 +1,39 @@
 apply plugin: 'com.android.application'
 
+/**
+ * Which of the two apps this build is.
+ *
+ * They are genuinely different applications, not two configurations of one:
+ * the standalone build keeps its own database on the device and has no server,
+ * no alerts and no login, while the wrapper is a WebView onto a running
+ * Contour instance. Installing one over the other would replace it and leave
+ * the phone with an empty portfolio, so they carry different application ids
+ * and sit side by side instead.
+ *
+ * CONTOUR_URL is the same switch capacitor.config.ts reads, so one variable
+ * decides both the bundle and the identity. Setting it builds the wrapper.
+ *
+ * `namespace` deliberately stays put: it is the Java package, and moving it
+ * would mean moving MainActivity on disk for no gain. Android identifies an
+ * installed app by its applicationId, which is what differs here.
+ */
+def contourUrl = System.getenv("CONTOUR_URL")
+def isWrapper = contourUrl != null && !contourUrl.trim().isEmpty()
+def contourAppId = isWrapper ? "app.contour.local" : "app.contour.standalone"
+def contourAppName = isWrapper ? "Contour" : "Contour Standalone"
+
 android {
     namespace = "app.contour.local"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "app.contour.local"
+        applicationId contourAppId
+        // Generated here rather than in strings.xml so both builds cannot
+        // claim the same name in the launcher, the recents card (MainActivity
+        // reads title_activity_main) or a deep link.
+        resValue "string", "app_name", contourAppName
+        resValue "string", "title_activity_main", contourAppName
+        resValue "string", "package_name", contourAppId
+        resValue "string", "custom_url_scheme", contourAppId
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

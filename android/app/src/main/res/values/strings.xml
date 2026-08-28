@@ -1,7 +1,9 @@
 <?xml version='1.0' encoding='utf-8'?>
+<!--
+  The four strings that used to live here are generated in app/build.gradle
+  instead, because they differ between the standalone build and the LAN
+  wrapper. Defining them in both places is a duplicate-resource error, so this
+  file is deliberately empty rather than deleted: Capacitor expects it.
+-->
 <resources>
-    <string name="app_name">Contour</string>
-    <string name="title_activity_main">Contour</string>
-    <string name="package_name">app.contour.local</string>
-    <string name="custom_url_scheme">app.contour.local</string>
 </resources>
