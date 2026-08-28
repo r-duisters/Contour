@@ -78,3 +78,21 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .breath { animation: none; }
 }
+
+/* The ring that turns around the mark while the app is busy with something a
+   person started and must wait for — an import, a restore. Distinct from
+   `.breath`, which says "starting up" and has no progress to report: this one
+   turns, so it reads as work being done rather than a screen sitting still.
+   The dash pattern is set in `BusyMark`; only the rotation lives here. */
+.turning {
+  animation: turn 1.1s linear infinite;
+  transform-origin: 50% 50%;
+}
+@keyframes turn {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Still moving, because a frozen progress ring reads as a hung app — but
+     slowly, and without the spin that causes trouble. */
+  .turning { animation: breathe 2.6s ease-in-out infinite; }
+}

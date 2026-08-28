@@ -34,6 +34,13 @@ export const KEYS = {
    */
   alertsLastChecked: `${PREFIX}alerts-last-checked`,
   alertsSent: `${PREFIX}alerts-sent`,
+  /**
+   * That first-run setup has been through once, whether it was completed or
+   * skipped. Skipping means "don't ask again"; without this the flow would
+   * reappear on every launch until a portfolio existed, which is the opposite
+   * of what the button says.
+   */
+  setupDone: `${PREFIX}setup-done`,
 } as const;
 
 /** Read a key, adopting any value the old name still holds. */

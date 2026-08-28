@@ -1,7 +1,8 @@
 "use client";
 
-import { DISPLAY_CURRENCIES, CURRENCY_NAMES, type DisplayCurrency } from "@/lib/currencies";
+import { type DisplayCurrency } from "@/lib/currencies";
 import { field } from "./field";
+import CurrencyField from "./CurrencyField";
 
 /**
  * The half of Settings that both builds have.
@@ -36,22 +37,11 @@ export default function DisplaySettings({
 
   return (
     <>
-      <label className="block text-sm">
-        <span className="text-neutral-400">Portfolio currency</span>
-        <select
-          className={`mt-1 w-full ${field()}`}
-          value={value.displayCurrency}
-          onChange={(e) => set("displayCurrency", e.target.value as DisplayCurrency)}
-        >
-          {DISPLAY_CURRENCIES.map((c) => (
-            <option key={c} value={c}>{c} — {CURRENCY_NAMES[c]}</option>
-          ))}
-        </select>
-        <span className="text-xs text-neutral-500">
-          Prices come from Binance in USDT. Every other currency converts at the live
-          ECB reference rate, published each weekday afternoon. Save to apply.
-        </span>
-      </label>
+      <CurrencyField
+        value={value.displayCurrency}
+        onChange={(c) => set("displayCurrency", c)}
+        hint="Save to apply."
+      />
       <label className="block text-sm">
         <span className="text-neutral-400">Stock / ETF price source</span>
         <select

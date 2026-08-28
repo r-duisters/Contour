@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import BiometricLock from "@/components/BiometricLock";
+import FirstRun from "./first-run";
 import Nav from "./nav";
 import Providers from "./providers";
 import "./globals.css";
@@ -60,8 +61,13 @@ export default function RootLayout({
             web app puts behind More is server-only.
           */}
           <BiometricLock>
-            <div className="pb-20">{children}</div>
-            <Nav />
+            {/* An empty device gets the setup flow instead of an empty
+                portfolio — and instead of the tab bar, so the wizard has the
+                screen to itself. */}
+            <FirstRun>
+              <div className="pb-20">{children}</div>
+              <Nav />
+            </FirstRun>
           </BiometricLock>
         </Providers>
       </body>

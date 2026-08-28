@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import ContourMark from "@/ui/ContourMark";
+import MarkTile from "@/components/MarkTile";
 import { DataClientProvider } from "@/data/client/context";
 import { DEVICE_ROUTING, RoutingProvider } from "@/components/routing";
 import { SaveFileProvider } from "@/components/save-file";
@@ -55,10 +56,7 @@ export default function Providers({ children }: { children: ReactNode }) {
   if (!ready) {
     return (
       <main className="flex-1 flex items-center justify-center p-8">
-        <span className="rounded-full bg-blue-600 flex items-center justify-center"
-              style={{ width: 112, height: 112 }}>
-          <ContourMark size={96} breathing />
-        </span>
+        <MarkTile size={112} breathing />
       </main>
     );
   }

@@ -1,6 +1,6 @@
 import {
   Bell, BookText, CandlestickChart, Database, FlaskConical, History, Settings,
-  type LucideIcon,
+  Wand2, type LucideIcon,
 } from "lucide-react";
 
 /**
@@ -46,6 +46,9 @@ export const MORE_GROUPS: { title: string | null; items: MoreItem[] }[] = [
       // portfolio manager, the Android build, the attribution credit.
       { href: "/more", label: "Portfolio data", Icon: Database,
         hint: "Import, export, backups, portfolios" },
+      // What makes "Skip" honest: the first-run flow stays findable.
+      { href: "/setup", label: "Set up again", Icon: Wand2,
+        hint: "Currency, a new portfolio, import" },
     ],
   },
 ];
@@ -72,6 +75,9 @@ export const DEVICE_MORE_GROUPS: typeof MORE_GROUPS = [
         hint: "Currency and price sources" },
       { href: "/more", label: "Portfolio data", Icon: Database,
         hint: "Import, export, backups, portfolios" },
+      // What makes "Skip" honest: the first-run flow stays findable.
+      { href: "/setup", label: "Set up again", Icon: Wand2,
+        hint: "Currency, a new portfolio, import" },
     ],
   },
 ];
