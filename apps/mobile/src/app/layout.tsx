@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Nav from "./nav";
 import Providers from "./providers";
 import "./globals.css";
 
@@ -45,7 +46,14 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <Providers>{children}</Providers>
+        <Providers>
+          {/* No TopNav: it is `hidden md:block`, and there is no desktop here.
+              The tab bar carries its own list, because half of what the web
+              app puts behind More is server-only and has no route in this
+              build. */}
+          <div className="pb-20">{children}</div>
+          <Nav />
+        </Providers>
       </body>
     </html>
   );

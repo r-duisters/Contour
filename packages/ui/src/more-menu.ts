@@ -10,6 +10,12 @@ import {
  * this and diverge — the desktop listed Ledger and Alerts inline while the
  * phone buried them, which is a real difference and stays. What must not
  * differ is what is *behind* More, and that is this file.
+ *
+ * Two lists now, and the second is not drift: the device build genuinely has
+ * fewer places to go. The strategy tooling and the alerts screen are
+ * server-only and are not in that app at all, so listing them would offer a
+ * destination that 404s. Both lists live here so the difference is one diff
+ * away rather than in two components.
  */
 export type MoreItem = { href: string; label: string; Icon: LucideIcon; hint?: string };
 
@@ -44,5 +50,26 @@ export const MORE_GROUPS: { title: string | null; items: MoreItem[] }[] = [
   },
 ];
 
+/**
+ * What the device build puts behind More.
+ *
+ * No alerts, no chart, no backtest, no analyzer: all four are server-only and
+ * `apps/mobile` has no route for them. Settings and Portfolio data join this
+ * list when their own tasks build the device versions — until then, offering
+ * them would be a link to nowhere.
+ */
+export const DEVICE_MORE_GROUPS: typeof MORE_GROUPS = [
+  {
+    title: null,
+    items: [
+      { href: "/ledger", label: "Ledger", Icon: BookText,
+        hint: "Cost basis, realised profit, fees" },
+    ],
+  },
+];
+
 /** Flat, for anything that needs to ask "is one of these the current page?". */
-export const MORE_HREFS = MORE_GROUPS.flatMap((g) => g.items.map((i) => i.href));
+export const hrefsOf = (groups: typeof MORE_GROUPS): string[] =>
+  groups.flatMap((g) => g.items.map((i) => i.href));
+
+export const MORE_HREFS = hrefsOf(MORE_GROUPS);
