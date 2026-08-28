@@ -256,6 +256,17 @@ describe("LocalClient answers from the services, not from the wire", () => {
     expect(after.transactions.map((t) => t.id)).toEqual(["t-0"]);
   });
 
+  it("ties the series to the valuation on real numbers, not on two zeroes", async () => {
+    // The contract's computed-read case asserts that the last series point
+    // equals the valuation total. That is only worth having if both are
+    // non-zero — comparing 0 to 0 would pass while proving nothing.
+    const client = LocalClient(seededStore(), seededNet());
+    const series = await client.getSeries(PORTFOLIO_ID, "1y");
+    const valuation = await client.getValuation(PORTFOLIO_ID);
+    expect(valuation.totals.value).toBe(24_000);
+    expect(series.series[series.series.length - 1]!.value).toBeCloseTo(24_000, 6);
+  });
+
   it("really restores a backup, rather than reporting that it did", async () => {
     const client = LocalClient(seededStore(), seededNet());
     const backup = JSON.stringify({
@@ -273,5 +284,60 @@ describe("LocalClient answers from the services, not from the wire", () => {
     expect(out.restored).toBe(1);
     const back = await client.getPortfolio(out.id);
     expect(back.transactions).toHaveLength(1);
+  });
+});
+
+/**
+ * The state a phone is actually in most of the time.
+ *
+ * This is not in `client-contract.ts` because the two implementations
+ * legitimately differ here, and the difference is the whole point of the
+ * device build: `HttpClient` with no network has nothing to answer with, so it
+ * throws. `LocalClient` still has the ledger — it is on the device — and only
+ * the prices are missing.
+ *
+ * R2's stated mitigation in the strategy document is "never a silent zero": a
+ * broken source must degrade honestly, saying "no price" and staying out of
+ * the totals rather than reporting nothing as if it were zero. These are the
+ * tests that make that true rather than intended.
+ */
+describe("LocalClient with the price feed offline", () => {
+  const offline = () => FakeNet({});
+
+  it("still reports what is held, from the device", async () => {
+    const client = LocalClient(seededStore(), offline());
+    const out = await client.getValuation(PORTFOLIO_ID);
+    expect(out.holdings.length).toBeGreaterThan(0);
+    for (const h of out.holdings) {
+      expect(h.quantity).toBeGreaterThan(0);
+      expect(h.costBasis).toBeGreaterThan(0);
+    }
+  });
+
+  it("says it has no price, rather than calling it zero", async () => {
+    const out = await LocalClient(seededStore(), offline()).getValuation(PORTFOLIO_ID);
+    for (const h of out.holdings) {
+      expect(h.price).toBeNull();
+      expect(h.value).toBeNull();
+      // The failure this guards: a `?? 0` anywhere on this path turns an
+      // unreachable feed into a portfolio that appears to be worth nothing.
+      expect(h.value).not.toBe(0);
+    }
+  });
+
+  it("keeps an unpriced holding out of the total instead of counting it as nothing", async () => {
+    const out = await LocalClient(seededStore(), offline()).getValuation(PORTFOLIO_ID);
+    expect(out.totals.value).toBe(0);
+    // Zero *because nothing could be priced*, and the rows above say so. The
+    // distinction is only legible because each holding reports null rather
+    // than a number, which is why the previous case matters.
+    expect(out.holdings.every((h) => h.value === null)).toBe(true);
+  });
+
+  it("does not throw, so the screen renders rather than showing an error", async () => {
+    // The services degrade on purpose. A client that turned an offline feed
+    // into a rejection would replace a readable portfolio with a message.
+    await expect(LocalClient(seededStore(), offline()).getPortfolio(PORTFOLIO_ID)).resolves
+      .toMatchObject({ id: PORTFOLIO_ID });
   });
 });

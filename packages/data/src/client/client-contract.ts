@@ -288,11 +288,20 @@ export function runDataClientContract(
       const series = await makeClient().getSeries(PORTFOLIO_ID, FIXTURE.range);
       expect(series.range).toBe(FIXTURE.range);
       if (capabilities.computedReads) {
-        // Anchored to "now" by the service; only the shape is stateable here.
+        // `FIXTURE.seriesPoint` is anchored to a fixed timestamp while the
+        // service anchors its window to "now", so that exact array is
+        // unreachable. What *is* stateable is that the series agrees with the
+        // valuation: the last point is the portfolio as it stands, and a
+        // client returning a plausible but wrong series fails on it. Checking
+        // shape alone would not have.
+        expect(series.series.length).toBeGreaterThan(0);
         for (const p of series.series) {
           expect(typeof p.t).toBe("number");
           expect(typeof p.value).toBe("number");
         }
+        const last = series.series[series.series.length - 1]!;
+        const now = await makeClient().getValuation(PORTFOLIO_ID);
+        expect(last.value).toBeCloseTo(now.totals.value, 6);
       } else {
         expect(series.series).toEqual([FIXTURE.seriesPoint]);
       }
@@ -302,7 +311,13 @@ export function runDataClientContract(
       const changes = await makeClient().getChanges(PORTFOLIO_ID, FIXTURE.range);
       expect(changes.range).toBe(FIXTURE.range);
       if (capabilities.computedReads) {
-        expect(typeof changes.changes).toBe("object");
+        // Keyed by something actually held, not merely an object. An empty
+        // map would satisfy `typeof`, and an empty map is what a client that
+        // never asked would return.
+        const held = (await makeClient().getValuation(PORTFOLIO_ID)).holdings.map((h) => h.symbol);
+        for (const symbol of Object.keys(changes.changes)) {
+          expect(held).toContain(symbol);
+        }
       } else {
         expect(changes.changes).toEqual(FIXTURE.changes);
       }
