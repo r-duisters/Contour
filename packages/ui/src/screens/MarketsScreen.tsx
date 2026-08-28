@@ -133,6 +133,18 @@ export default function MarketsScreen() {
         </p>
       )}
 
+      {/*
+        Amber, per BRAND.md's rule for degraded data. A board missing one of
+        its sources looks exactly like a quiet market otherwise, and only one
+        of those is true — the same argument as the alerts screen's
+        last-checked line.
+      */}
+      {board?.partial && (
+        <p className="text-xs text-amber-500 mb-5">
+          Some of this could not be loaded. What is shown did arrive.
+        </p>
+      )}
+
       {!board && failed && (
         <EmptyState>Could not reach the market data. Pull to refresh, or try again in a minute.</EmptyState>
       )}

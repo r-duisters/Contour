@@ -32,6 +32,24 @@ async function nativeHttp(options: Parameters<HttpRequest>[0]) {
   return CapacitorHttp.request(options as never) as unknown as { status: number; data: unknown };
 }
 
+/**
+ * What this app calls itself when it asks an upstream for data.
+ *
+ * Not cosmetic. Android's `HttpURLConnection`, which `CapacitorHttp` uses,
+ * identifies itself as `Dalvik/2.1.0 (Linux; U; Android …)`, and Yahoo answers
+ * that with 429 every single time — measured, not assumed: `Dalvik/…` was
+ * refused on three tries out of three against both the screener and the chart
+ * endpoint, while this string was served on three out of three. That one header
+ * was the whole of "the stock market page is empty and asset pages have less
+ * on them than the web app".
+ *
+ * Honest rather than disguised: it says what the client is instead of
+ * impersonating a browser, which is also what Yahoo appears to be filtering —
+ * a Chrome-on-Android string was refused about half the time, presumably
+ * because a real browser is expected to carry a consent cookie.
+ */
+const USER_AGENT = "Contour/1.0 (+self-hosted portfolio tracker)";
+
 export function CapacitorNet(http: HttpRequest = nativeHttp): Net {
   /**
    * Origin and path, never the query string. Provider credentials travel as
@@ -49,9 +67,16 @@ export function CapacitorNet(http: HttpRequest = nativeHttp): Net {
     }
   }
 
-  function headersOf(init?: RequestInit): Record<string, string> | undefined {
-    if (!init?.headers) return undefined;
-    return Object.fromEntries(new Headers(init.headers).entries());
+  function headersOf(init?: RequestInit): Record<string, string> {
+    const headers = init?.headers
+      ? Object.fromEntries(new Headers(init.headers).entries())
+      : {};
+    // Case-insensitively, because HTTP header names are and `Headers` lowercases
+    // what it is given. Spreading a "User-Agent" over a "user-agent" leaves both
+    // in the object and lets the native layer choose — so the caller's header
+    // would not reliably win, which is the opposite of the intent here.
+    const named = Object.keys(headers).some((h) => h.toLowerCase() === "user-agent");
+    return named ? headers : { ...headers, "User-Agent": USER_AGENT };
   }
 
   /**

@@ -90,3 +90,35 @@ describe("CapacitorNet", () => {
     expect(err.message).toContain("POST");
   });
 });
+
+describe("what the app calls itself", () => {
+  /**
+   * Android's `HttpURLConnection`, which `CapacitorHttp` uses, sends
+   * `Dalvik/2.1.0 (Linux; U; Android …)`. Yahoo answers that with 429 every
+   * time — three tries out of three against both the screener and the chart
+   * endpoint — which emptied the Markets board and thinned every equity page
+   * on the device while the web app was fine.
+   */
+  it("identifies itself, because the default is refused upstream", async () => {
+    let sent: Record<string, string> | undefined;
+    const net = CapacitorNet(async (opts) => {
+      sent = opts.headers;
+      return { status: 200, data: "{}" };
+    });
+    await net.json("https://example.test/thing");
+    expect(sent?.["User-Agent"]).toContain("Contour");
+    expect(sent?.["User-Agent"]).not.toContain("Dalvik");
+  });
+
+  it("does not overrule a header the caller set", async () => {
+    let sent: Record<string, string> | undefined;
+    const net = CapacitorNet(async (opts) => {
+      sent = opts.headers;
+      return { status: 200, data: "{}" };
+    });
+    await net.json("https://example.test/thing", { headers: { "User-Agent": "Something/2" } });
+    // One user-agent in the result, whatever its casing — not ours beside theirs.
+    const agents = Object.entries(sent ?? {}).filter(([k]) => k.toLowerCase() === "user-agent");
+    expect(agents).toEqual([["user-agent", "Something/2"]]);
+  });
+});

@@ -154,3 +154,55 @@ describe("getMarkets stocks", () => {
     expect(board.largest.every((r) => typeof r.marketCap === "number")).toBe(true);
   });
 });
+
+/**
+ * One refusal used to cost the whole page.
+ *
+ * `Promise.all` meant a single upstream 429 rejected the board, and that is
+ * what a phone saw: Yahoo answers Android's default user-agent with 429, so
+ * Markets was simply empty while the same code served the web app fine. The
+ * user-agent is fixed in `CapacitorNet`; this is the other half, because the
+ * next flaky source should cost its own section and nothing more.
+ */
+describe("a board with a source down", () => {
+  it("shows what arrived, and says it is partial", async () => {
+    const net = FakeNet({
+      "query1.finance.yahoo.com/v8/finance/chart": {
+        chart: { result: [{ timestamp: [1, 2], indicators: { quote: [{ close: [100, 105] }] } }] },
+      },
+      "scrIds=day_gainers": { finance: { result: [{ quotes: [quote("HOOD", "Robinhood", 42.5, 13.7, 3.7e10)] }] } },
+      "scrIds=day_losers": respondWith(429, "rate limited"),
+      "scrIds=most_actives": { finance: { result: [{ quotes: [quote("AAPL", "Apple", 230, 0.4, 3.4e12)] }] } },
+    });
+    const board = await getMarkets(net, "stocks");
+    expect(board.up.map((r) => r.symbol)).toEqual(["HOOD"]);
+    expect(board.largest.map((r) => r.symbol)).toEqual(["AAPL"]);
+    expect(board.down).toEqual([]);
+    expect(board.partial).toBe(true);
+  });
+
+  it("does not claim to be partial when everything arrived", async () => {
+    expect((await getMarkets(fakeStockNet(), "stocks")).partial).toBeUndefined();
+  });
+
+  it("fails rather than reporting a flat market when every source is down", async () => {
+    // Four empty columns and no warning would read as "nothing moved today",
+    // which is a different statement from "nothing loaded".
+    const net = FakeNet({
+      "query1.finance.yahoo.com": respondWith(429, "rate limited"),
+    });
+    await expect(getMarkets(net, "stocks")).rejects.toThrow();
+  });
+
+  it("keeps the crypto board alive when only the ranking is down", async () => {
+    const net = FakeNet({
+      "/api/v3/ticker/24hr": ticker([["BTCUSDT", 65000, 1.1, 9e8], ["ETHUSDT", 3200, -0.7, 5e8]]),
+      "api.coingecko.com": respondWith(429, "rate limited"),
+      "/api/v3/klines": klines([100, 110]),
+    });
+    const board = await getMarkets(net, "crypto");
+    expect(board.up.map((r) => r.symbol)).toEqual(["BTC"]);
+    expect(board.largest).toEqual([]);
+    expect(board.partial).toBe(true);
+  });
+});

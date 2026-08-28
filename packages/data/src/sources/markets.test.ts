@@ -52,12 +52,16 @@ describe("fetchScreener", () => {
     ]);
   });
 
-  it("answers an empty list rather than throwing when Yahoo returns no result", async () => {
+  it("answers null rather than throwing when Yahoo returns no result", async () => {
     const net = FakeNet({
       "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=day_losers&count=1":
         { finance: { result: null, error: { code: "Unauthorized" } } },
     });
-    expect(await fetchScreener(net, "day_losers", 1)).toEqual([]);
+    // Null, not []. A screener that could not be read and one that matched
+    // nothing are different facts, and only the board can decide what to do
+    // about each — an empty "day losers" column is honest on a day when
+    // everything rose, and dishonest when Yahoo simply refused.
+    expect(await fetchScreener(net, "day_losers", 1)).toBeNull();
   });
 });
 
