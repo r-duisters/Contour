@@ -71,7 +71,16 @@ export default function TransactionRow({
 
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-medium truncate">
-          {ticker && <span className="font-mono tracking-wider">{ticker}</span>}
+          {/*
+            No added tracking, unlike BRAND's `tracking-wider`. That spelling
+            is for the ticker inside an 11px sub-line, where short tickers need
+            the air; at the primary's 14px it opens a gap either side of a dot
+            and `SHELL.AS` reads as "SHELL . AS".
+            Mono still gives a period its own character cell, so some of that
+            space is the typeface and not a setting — this is as close as it
+            gets without giving up the mono that says "identifier".
+          */}
+          {ticker && <span className="font-mono">{ticker}</span>}
           {ticker && " · "}
           {VERB[side] ?? side.replace("_", " ")}
           {movesPosition && <> <span className="tabular-nums">{quantity(qty)}</span></>}

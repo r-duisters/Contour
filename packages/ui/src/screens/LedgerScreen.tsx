@@ -1,10 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, BookText } from "lucide-react";
 import PageLabel from "@/components/PageLabel";
 import { useDataClient } from "@/data/client/context";
+import EmptyState from "@/components/EmptyState";
+import TransactionRow from "@/components/TransactionRow";
+import { annotateLedger, type TxSide } from "@/lib/portfolio";
 import { money, quantity, setDisplayCurrency } from "@/lib/display";
 import { useCachedValuation, useLastPortfolio } from "@/components/useCachedValuation";
 import StaleNote from "@/components/StaleNote";
@@ -34,6 +37,23 @@ type Snap = {
   rows: { symbol: string; assetType: string; quantity: number; value: number | null }[];
 };
 
+/** What the row needs, out of the rows the client already returns. */
+type LedgerTx = {
+  id: string;
+  symbol: string;
+  side: TxSide;
+  quantity: number;
+  price: number;
+  fee: number;
+  time: number;
+};
+
+/**
+ * Rows revealed at a time. Ten matches the asset page's page size, so the two
+ * lists grow at the same rate and neither feels denser than the other.
+ */
+const PER_PAGE = 10;
+
 export default function LedgerScreen() {
   const client = useDataClient();
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
@@ -45,6 +65,8 @@ export default function LedgerScreen() {
   const remembered = useLastPortfolio();
   const { cached, at: stale, remember } = useCachedValuation(portfolioId ?? remembered);
   const [byYear, setByYear] = useState<{ year: number; net: number }[]>([]);
+  const [txs, setTxs] = useState<LedgerTx[]>([]);
+  const [shownTxs, setShownTxs] = useState(PER_PAGE);
   const [snapDate, setSnapDate] = useState("");
   const [snap, setSnap] = useState<Snap | null>(null);
   const [snapLoading, setSnapLoading] = useState(false);
@@ -75,11 +97,15 @@ export default function LedgerScreen() {
       // Both in flight at once, each falling back on its own: the accounting
       // rows and the per-year bars are independent, and the priced valuation
       // is the slow half.
-      const [val, ins] = await Promise.all([
+      const [val, ins, detail] = await Promise.all([
         client.getValuation(id).catch(() => null),
         client.getInsights(id).catch(() => null),
+        // The ledger's own subject. Cheap next to the valuation — it is the
+        // rows this screen already has, read straight from the store.
+        client.getPortfolio(id).catch(() => null),
       ]);
       if (cancelled) return;
+      setTxs((detail?.transactions ?? []) as LedgerTx[]);
       setDisplayCurrency(val?.currency ?? "USD");
       // A failed valuation leaves whatever the cache put on screen: replacing
       // real figures with "Loading…" because a refresh failed is strictly
@@ -93,6 +119,29 @@ export default function LedgerScreen() {
     })();
     return () => { cancelled = true; };
   }, [client, remember]);
+
+  const reloadTxs = useCallback(async () => {
+    if (!portfolioId) return;
+    const detail = await client.getPortfolio(portfolioId).catch(() => null);
+    if (detail) setTxs(detail.transactions as LedgerTx[]);
+  }, [client, portfolioId]);
+
+  const deleteTx = useCallback(async (id: string) => {
+    // Same as the asset page: the delete's own answer is never read, because
+    // the reload is what tells a person whether the row is gone.
+    await client.deleteTransaction(id).catch(() => {});
+    await reloadTxs();
+  }, [client, reloadTxs]);
+
+  /**
+   * Every transaction, newest first, each knowing what it left behind.
+   *
+   * `annotateLedger` groups by asset before replaying, which is the whole
+   * difficulty of a mixed list: a single pass would carry one asset's average
+   * cost into another's sale and report figures that look plausible and are
+   * not. Its tests are the ones that matter here.
+   */
+  const ledgerRows = useMemo(() => annotateLedger(txs), [txs]);
 
   const loadSnapshot = useCallback(async () => {
     if (!portfolioId || !snapDate) return;
@@ -132,6 +181,57 @@ export default function LedgerScreen() {
             <Row label="Fees paid" value={money(shownTotals.fees)} muted />
             {typeof shownTotals.cash === "number" && (
               <Row label="Cash" value={money(shownTotals.cash)} />
+            )}
+          </section>
+
+          <section className="mb-10">
+            <div className="flex items-baseline gap-2 mb-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
+                Transactions
+              </h2>
+              {ledgerRows.length > 0 && (
+                <span className="text-xs text-neutral-500">{ledgerRows.length}</span>
+              )}
+            </div>
+            {ledgerRows.length === 0 ? (
+              <EmptyState>
+                No transactions yet — import a Delta export, or add one from an asset&rsquo;s page.
+              </EmptyState>
+            ) : (
+              <>
+                {/* The same row the asset page draws, with the ticker shown
+                    because this list mixes assets and that is the only
+                    difference between the two. */}
+                <ul className="divide-y divide-neutral-800">
+                  {ledgerRows.slice(0, shownTxs).map((tx) => (
+                    <TransactionRow
+                      key={tx.id}
+                      ticker={tx.symbol}
+                      side={tx.side}
+                      quantity={tx.quantity}
+                      price={tx.price}
+                      fee={tx.fee}
+                      time={tx.time}
+                      positionAfter={tx.positionAfter}
+                      realized={tx.realized}
+                      onDelete={() => deleteTx(tx.id)}
+                    />
+                  ))}
+                </ul>
+                {shownTxs < ledgerRows.length && (
+                  // More rows rather than pages: this screen is already a long
+                  // scroll, and paging it would put a control halfway down that
+                  // moves the reader somewhere else entirely.
+                  <button
+                    onClick={() => setShownTxs((n) => n + PER_PAGE)}
+                    className="mt-3 w-full text-xs text-neutral-400 border border-neutral-800
+                               rounded py-2 hover:border-neutral-600 transition-colors"
+                  >
+                    Show {Math.min(PER_PAGE, ledgerRows.length - shownTxs)} more
+                    <span className="text-neutral-600"> · {ledgerRows.length - shownTxs} left</span>
+                  </button>
+                )}
+              </>
             )}
           </section>
 

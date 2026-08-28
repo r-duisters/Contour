@@ -227,3 +227,30 @@ export function annotateTransactions<T extends Tx>(txs: T[]): AnnotatedTx<T>[] {
   }
   return out;
 }
+
+/**
+ * A mixed ledger, newest first, each row knowing what it left behind.
+ *
+ * `annotateTransactions` replays *one* asset's history: the position after a
+ * trade and what a sale realised both depend on every earlier trade in that
+ * same asset and on nothing else. Run it over a list of several assets and it
+ * carries one asset's average cost into another's sale — a Bitcoin position
+ * answering for a Ubisoft purchase — and every figure after the first symbol
+ * is wrong in a way that looks plausible.
+ *
+ * So: group, annotate each group on its own, then merge by time. The grouping
+ * is by `symbol` rather than by symbol and kind, because a stored symbol is
+ * already an asset rather than a market — `pricingPair` builds the pair for a
+ * request and nothing stores the result.
+ */
+export function annotateLedger<T extends Tx & { symbol: string }>(txs: T[]): AnnotatedTx<T>[] {
+  const bySymbol = new Map<string, T[]>();
+  for (const tx of txs) {
+    const held = bySymbol.get(tx.symbol);
+    if (held) held.push(tx);
+    else bySymbol.set(tx.symbol, [tx]);
+  }
+  return [...bySymbol.values()]
+    .flatMap((group) => annotateTransactions(group))
+    .sort((a, b) => b.time - a.time);
+}

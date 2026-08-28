@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  annotateTransactions, computeHoldings, portfolioValueSeries, valueHoldings, type Tx,
-} from "./portfolio";
+  annotateTransactions, computeHoldings, portfolioValueSeries, valueHoldings, type Tx, annotateLedger, type TxSide } from "./portfolio";
 import type { Bar } from "./types";
 
 const DAY = 86_400_000;
@@ -242,5 +241,59 @@ describe("invested — every euro the position ever consumed", () => {
       { symbol: "BTC", side: "transfer_out", quantity: 1, price: 0, fee: 0, time: 2 },
     ]);
     expect(h!.invested).toBe(200);
+  });
+});
+
+describe("annotateLedger", () => {
+  const tx = (symbol: string, side: TxSide, quantity: number, price: number, time: number) =>
+    ({ id: `${symbol}-${time}`, symbol, side, quantity, price, fee: 0, time });
+
+  it("replays each asset against its own history, not the list's", () => {
+    // The failure this exists to prevent: one asset's average cost answering
+    // for another's sale. Interleaved in time so a naive single pass would
+    // mix them.
+    const rows = annotateLedger([
+      tx("BTC", "buy", 1, 10_000, 1),
+      tx("UBI", "buy", 100, 4, 2),
+      tx("BTC", "buy", 1, 20_000, 3),
+      tx("UBI", "sell", 50, 6, 4),
+      tx("BTC", "sell", 1, 30_000, 5),
+    ]);
+
+    const ubiSale = rows.find((r) => r.symbol === "UBI" && r.side === "sell")!;
+    // 50 × (6 − 4), against UBI's own average cost of 4 — not against
+    // Bitcoin's 15,000.
+    expect(ubiSale.realized).toBeCloseTo(100, 6);
+    expect(ubiSale.positionAfter).toBe(50);
+
+    const btcSale = rows.find((r) => r.symbol === "BTC" && r.side === "sell")!;
+    // 1 × (30,000 − 15,000), BTC's average of two buys.
+    expect(btcSale.realized).toBeCloseTo(15_000, 6);
+    expect(btcSale.positionAfter).toBe(1);
+  });
+
+  it("returns newest first, across every asset", () => {
+    const rows = annotateLedger([
+      tx("BTC", "buy", 1, 10_000, 10),
+      tx("UBI", "buy", 100, 4, 30),
+      tx("ETH", "buy", 2, 2_000, 20),
+    ]);
+    expect(rows.map((r) => r.time)).toEqual([30, 20, 10]);
+  });
+
+  it("holds each asset's running position apart", () => {
+    const rows = annotateLedger([
+      tx("BTC", "buy", 1, 10_000, 1),
+      tx("ETH", "buy", 5, 2_000, 2),
+      tx("BTC", "buy", 2, 12_000, 3),
+    ]);
+    const held = Object.fromEntries(rows.map((r) => [`${r.symbol}@${r.time}`, r.positionAfter]));
+    expect(held["BTC@1"]).toBe(1);
+    expect(held["ETH@2"]).toBe(5);
+    expect(held["BTC@3"]).toBe(3);
+  });
+
+  it("is empty for an empty ledger", () => {
+    expect(annotateLedger([])).toEqual([]);
   });
 });
