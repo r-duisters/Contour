@@ -8,6 +8,7 @@ import PageLabel from "../PageLabel";
 import Button from "../Button";
 import DisplaySettings, { type DisplaySettingsValue } from "../DisplaySettings";
 import AboutSection from "../AboutSection";
+import BigMoveSetting from "../BigMoveSetting";
 
 /**
  * Settings, for a build with no server behind it.
@@ -92,11 +93,13 @@ export default function SettingsScreen() {
           Alerts are checked on this phone.
         </p>
         <p className="text-xs text-neutral-500 mt-1 max-w-prose">
-          Every time you open the app, and sometimes in the background when Android allows.
-          There is no server behind this build, so nothing checks while it is shut — a price
-          hit and reverted overnight can be missed. Set one from an asset&rsquo;s page;
+          Every time you open the app, and every half hour in the background when Android
+          allows it — it treats that schedule as a target rather than a promise, and a
+          battery-optimised phone may defer it. Set an alert from an asset&rsquo;s page;
           see them under Alerts.
         </p>
+
+        <BigMoveSetting />
         <p className="text-xs text-neutral-500 mt-3 max-w-prose">
           Home Assistant, web-push and passkeys live on the desktop app. Each needs a server,
           and this build has none — the device lock is what keeps this app shut.

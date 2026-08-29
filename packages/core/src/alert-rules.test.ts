@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { expandRules, shouldNotify, type AlertRule } from "./alert-rules";
+import { expandRules, shouldNotify, type AlertRule, type HeldAsset } from "./alert-rules";
+
+const coin = (symbol: string): HeldAsset => ({ symbol, assetType: "crypto" });
+const share = (symbol: string): HeldAsset => ({ symbol, assetType: "equity" });
 
 const rule = (over: Partial<AlertRule>): AlertRule => ({
   id: "a", kind: "pct_move", symbol: null, portfolioId: null, params: {}, ...over,
@@ -12,7 +15,7 @@ describe("expandRules", () => {
     // never fired for anyone.
     const rules = expandRules(
       [rule({ id: "a", portfolioId: "p", params: { threshold: 5 } })],
-      ["BTC", "ETH"],
+      [coin("BTC"), coin("ETH")],
     );
     expect(rules.map((r) => r.symbol)).toEqual(["BTCUSDT", "ETHUSDT"]);
     expect(rules.every((r) => r.id.startsWith("a:"))).toBe(true);
@@ -36,13 +39,42 @@ describe("expandRules", () => {
     // A EUR balance is a positive quantity under the symbol EUR, and
     // `pricingPair` turns that into EURUSDT — a real Binance market. Without
     // this filter a portfolio-wide swing rule pages its owner about the euro.
-    expect(expandRules([rule({ portfolioId: "p", params: { threshold: 5 } })], ["EUR", "BTC"])
+    expect(expandRules([rule({ portfolioId: "p", params: { threshold: 5 } })], [coin("EUR"), coin("BTC")])
       .map((r) => r.symbol)).toEqual(["BTCUSDT"]);
   });
 
-  it("keeps equities out, rather than asking Binance for ASML.ASUSDT", () => {
-    expect(expandRules([rule({ portfolioId: "p", params: { threshold: 5 } })], ["ASML.AS", "BTC"])
-      .map((r) => r.symbol)).toEqual(["BTCUSDT"]);
+  it("asks for a share by its plain ticker, never as a Binance pair", () => {
+    // `ASML.ASUSDT` is not a market. Equities used to be dropped here for that
+    // reason; they are priced by their own provider now, and the rule carries
+    // which one applies.
+    const rules = expandRules(
+      [rule({ portfolioId: "p", params: { threshold: 5 } })],
+      [share("ASML.AS"), coin("BTC")],
+    );
+    expect(rules.map((r) => [r.symbol, r.assetType])).toEqual([
+      ["ASML.AS", "equity"],
+      ["BTCUSDT", "crypto"],
+    ]);
+  });
+
+  it("never infers the venue from the ticker, because AMD looks like a coin", () => {
+    // The bug this replaced: the filter dropped anything containing a dot, so
+    // every US listing passed it and AMD was priced as AMDUSDT — a market that
+    // exists and answers with an unrelated token. Firing on the wrong number
+    // is the failure nobody can see.
+    const rules = expandRules(
+      [rule({ portfolioId: "p", params: { threshold: 5 } })],
+      [share("AMD")],
+    );
+    expect(rules.map((r) => [r.symbol, r.assetType])).toEqual([["AMD", "equity"]]);
+  });
+
+  it("takes a named rule's venue from the alert row, not from its symbol", () => {
+    const rules = expandRules(
+      [rule({ symbol: "NVDA", assetType: "equity", params: { threshold: 5 } })],
+      [],
+    );
+    expect(rules.map((r) => [r.symbol, r.assetType])).toEqual([["NVDA", "equity"]]);
   });
 
   it("drops a disabled rule", () => {

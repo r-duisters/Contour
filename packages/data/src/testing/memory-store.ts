@@ -181,6 +181,11 @@ export function MemoryStore(seed?: StoreSeed): Store {
       async create(alert) {
         const row: Alert = {
           ...alert,
+          // Normalised to null rather than left undefined, so this store and
+          // the SQLite one answer the same shape — a column that was never
+          // written reads back as null there.
+          symbol: alert.symbol ?? null,
+          portfolioId: alert.portfolioId ?? null,
           id: `alert-${++alertSeq}`,
           enabled: alert.enabled ?? true,
           createdAt: Date.now(),

@@ -104,6 +104,7 @@ function toSummary(a: Alert): AlertSummary {
     id: a.id,
     kind: a.kind,
     symbol: a.symbol,
+    portfolioId: a.portfolioId,
     assetType: a.assetType,
     params: a.kind === "price_target"
       ? { direction: a.direction, price: a.threshold }
@@ -239,13 +240,26 @@ export function LocalClient(store: Store, net: Net): DataClient {
     },
 
     async createAlert(alert: NewAlertInput): Promise<AlertSummary> {
-      return attempt(async () => toSummary(await store.alerts.create({
-        kind: "price_target",
-        symbol: alert.symbol,
-        assetType: alert.assetType,
-        threshold: alert.price,
-        direction: alert.direction,
-      })));
+      return attempt(async () => toSummary(await store.alerts.create(
+        alert.kind === "pct_move"
+          ? {
+              kind: "pct_move",
+              // A portfolio, not a symbol. `expandRules` resolves it against
+              // whatever is held at the moment of the check, so a coin bought
+              // next week is covered by a rule written today.
+              portfolioId: alert.portfolioId,
+              assetType: "crypto",
+              threshold: alert.threshold,
+              direction: null,
+            }
+          : {
+              kind: "price_target",
+              symbol: alert.symbol,
+              assetType: alert.assetType,
+              threshold: alert.price,
+              direction: alert.direction,
+            },
+      )));
     },
 
     async deleteAlert(id: string): Promise<void> {

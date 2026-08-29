@@ -15,7 +15,16 @@ export type { ColumnMapping as ImportColumnMapping, FormatId as ImportFormatId }
 export type AlertSummary = {
   id: string;
   kind: string;
+  /** Null for a portfolio-scoped rule. See `portfolioId`. */
   symbol: string | null;
+  /**
+   * Which portfolio "every holding" means, for a rule that names no symbol.
+   *
+   * Absent from this type until the setup flow started creating such rules,
+   * and its absence is why they could not work: an evaluator holding only
+   * `symbol: null` has no way to ask what is held.
+   */
+  portfolioId: string | null;
   assetType: string;
   params: Record<string, unknown>;
   enabled: boolean;
@@ -24,18 +33,30 @@ export type AlertSummary = {
 /**
  * What a screen may create, which is narrower than what the alerts page can.
  *
- * `price_target` only. The indicator alerts are Bitcoin-specific — the risk
+ * Two kinds, and no indicator alerts. Those are Bitcoin-specific — the risk
  * metric's three curves are fitted to BTC and match TradingView only for it —
- * so offering them per-coin would invite alerts that cannot mean anything. The
- * alerts page keeps its full form; this is the subset an asset page can offer
- * without implying more than the maths supports.
+ * so offering them per-coin would invite alerts that cannot mean anything, and
+ * 1,460 bars of warm-up is not work for a phone either way. The alerts page
+ * keeps its full form; this is the subset a screen can offer without implying
+ * more than the maths supports.
  */
-export type NewAlertInput = {
-  symbol: string;
-  assetType: "crypto" | "equity";
-  direction: "above" | "below";
-  price: number;
-};
+export type NewAlertInput =
+  /** One asset crossing a level. One-shot: the evaluator deletes it once hit. */
+  | {
+      kind?: "price_target";
+      symbol: string;
+      assetType: "crypto" | "equity";
+      direction: "above" | "below";
+      price: number;
+    }
+  /**
+   * Every holding moving more than `threshold` percent in a day.
+   *
+   * Standing, not one-shot, and it names a portfolio rather than a symbol —
+   * `expandRules` turns it into one check per holding at evaluation time, so
+   * something bought tomorrow is covered without touching the rule.
+   */
+  | { kind: "pct_move"; portfolioId: string; threshold: number };
 export type { AssetHit } from "../sources/search";
 
 /**

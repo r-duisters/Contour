@@ -31,8 +31,18 @@ const ALLOWED = {
     "packages/ui/src/TopNav.tsx",
     "apps/web/src/app/login/page.tsx",
     "apps/web/src/app/setup/page.tsx",
+    // The on/off switch. `BRAND.md` gives the accent to the on state, and this
+    // is a track rather than a button: no padding, no radius of its own, no
+    // disabled dimming. Rendering it as a `Button` would mean overriding every
+    // one of those, which is how a "reuse" becomes a fourteenth copy.
+    "packages/ui/src/Switch.tsx",
   ],
-  "bg-neutral-700": ["packages/ui/src/Button.tsx"],
+  "bg-neutral-700": [
+    "packages/ui/src/Button.tsx",
+    // The same switch, off. Its two states are one control and belong in one
+    // file; splitting them to satisfy this list would be the tail wagging.
+    "packages/ui/src/Switch.tsx",
+  ],
   "bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm": [
     "packages/ui/src/field.ts",
   ],

@@ -230,14 +230,22 @@ export function HttpClient(net: Net, baseUrl = ""): DataClient {
       // The route's own shape, which this is the last file to know about:
       // `kind` and a nested `params`, where the interface takes one flat
       // object because a screen has no reason to learn an envelope.
-      const d = await send<{ alert: AlertSummary }>("POST", "/api/alerts", {
-        body: {
-          kind: "price_target",
-          symbol: alert.symbol,
-          assetType: alert.assetType,
-          params: { direction: alert.direction, price: alert.price },
-        },
-      });
+      const body = alert.kind === "pct_move"
+        ? {
+            kind: "pct_move",
+            // No symbol, deliberately: the route reads the portfolio and the
+            // evaluator expands it. Naming one here would pin the rule to
+            // whatever was held on the day it was made.
+            portfolioId: alert.portfolioId,
+            params: { threshold: alert.threshold },
+          }
+        : {
+            kind: "price_target",
+            symbol: alert.symbol,
+            assetType: alert.assetType,
+            params: { direction: alert.direction, price: alert.price },
+          };
+      const d = await send<{ alert: AlertSummary }>("POST", "/api/alerts", { body });
       return d.alert;
     },
 

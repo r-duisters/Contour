@@ -15,22 +15,35 @@ import { assetOf, pricingPair } from "./symbols";
  * imports at all. See the comment in `public/runner/alerts.js`.
  */
 
+export type AssetKind = "crypto" | "equity";
+
 export type AlertRule = {
   id: string;
   kind: AlertKind;
   /** Null for a portfolio-scoped rule, which names no symbol of its own. */
   symbol: string | null;
+  /** How to price it. Only meaningful when `symbol` is set. */
+  assetType?: AssetKind | null;
   portfolioId?: string | null;
   params: Record<string, unknown>;
   enabled?: boolean;
 };
 
+/** A holding a portfolio-scoped rule expands over, and how to price it. */
+export type HeldAsset = { symbol: string; assetType: AssetKind };
+
 export type ExpandedRule = {
   /** Unique per check: a portfolio-scoped rule yields one id per symbol. */
   id: string;
   kind: "price_target" | "pct_move";
-  /** The Binance market to price. */
+  /**
+   * What to ask for. A Binance market for a coin — `pricingPair` has already
+   * been applied — and the plain ticker for a share, which is what the equity
+   * providers take.
+   */
   symbol: string;
+  /** Which venue lists it. Never guessed from the ticker; see below. */
+  assetType: AssetKind;
   /** The asset, for a person reading the notification. */
   name: string;
   direction?: "above" | "below";
@@ -47,31 +60,43 @@ export type ExpandedRule = {
  * far read `a.symbol &&` — so those alerts were dropped before evaluation and
  * have never fired for anyone. They expand here instead, one check per holding.
  *
- * **Cash and equities are not Binance markets.** `pricingPair` answers
- * `EURUSDT` for a euro balance, which is a real market, and `ASML.ASUSDT` for
- * a share, which is not. The first pages someone about the euro as though they
- * held it; the second prices a holding at nothing. Both are filtered here,
- * which is why `heldSymbols` may be passed raw.
+ * **Cash is not a holding to be alerted on.** `pricingPair` answers `EURUSDT`
+ * for a euro balance, which is a real market — so a euro balance would page
+ * its owner about the euro as though they had bought it. Filtered here, which
+ * is why the caller may pass its holdings raw.
+ *
+ * **A share is not a Binance market, and the ticker cannot say so.** This
+ * dropped anything containing a dot, which caught `ASML.AS` and missed every
+ * US listing: `AMD` has no suffix, so it went to Binance as `AMDUSDT` — a
+ * market that exists and answers with an unrelated token's price. Firing on
+ * the wrong number is worse than not firing, and it is the failure a person
+ * cannot see. So the kind is *carried*, never inferred: each holding says what
+ * it is, and a rule that names its own symbol says so on the alert row.
  *
  * **Indicator rules need 1,460 daily bars** to warm up. That is not work for a
  * phone, so they stay on the server and are dropped here.
  */
-export function expandRules(alerts: AlertRule[], heldSymbols: string[]): ExpandedRule[] {
+export function expandRules(alerts: AlertRule[], held: HeldAsset[]): ExpandedRule[] {
   const out: ExpandedRule[] = [];
 
   for (const a of alerts) {
     if (a.enabled === false) continue;
     if (a.kind === "indicator") continue;
 
-    const targets = a.symbol ? [a.symbol] : heldSymbols.filter(isPriceable);
+    const targets: HeldAsset[] = a.symbol
+      ? [{ symbol: a.symbol, assetType: a.assetType === "equity" ? "equity" : "crypto" }]
+      : held.filter((h) => !isCash(h.symbol));
     for (const target of targets) {
-      const asset = assetOf(target);
+      const asset = assetOf(target.symbol);
       const base: ExpandedRule = {
         // A rule that named its own symbol keeps its id; an expanded one is
         // suffixed, so the dedupe marks of two holdings cannot collide.
         id: a.symbol ? a.id : `${a.id}:${asset}`,
         kind: a.kind,
-        symbol: pricingPair(target),
+        // A pair for a coin, the bare ticker for a share: `ASML.ASUSDT` is not
+        // a market, and the equity providers want `ASML.AS`.
+        symbol: target.assetType === "equity" ? asset : pricingPair(target.symbol),
+        assetType: target.assetType,
         name: asset,
       };
 
@@ -90,9 +115,9 @@ export function expandRules(alerts: AlertRule[], heldSymbols: string[]): Expande
   return out;
 }
 
-/** A symbol Binance can price: not cash, not an exchange-listed share. */
-function isPriceable(symbol: string): boolean {
-  return !isDisplayCurrency(assetOf(symbol)) && !symbol.includes(".");
+/** A currency balance rather than a position someone chose to take. */
+function isCash(symbol: string): boolean {
+  return isDisplayCurrency(assetOf(symbol));
 }
 
 /**

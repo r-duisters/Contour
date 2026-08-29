@@ -88,7 +88,13 @@ export type Settings = {
 export type Alert = {
   id: string;
   kind: "price_target" | "pct_move";
-  symbol: string;
+  /**
+   * Null for a portfolio-scoped rule, which names no symbol of its own and
+   * expands to one check per holding. See `expandRules`.
+   */
+  symbol: string | null;
+  /** Which portfolio "every holding" means. Null when a symbol is named. */
+  portfolioId: string | null;
   assetType: "crypto" | "equity";
   /** `price_target`: the level. `pct_move`: the threshold in percent. */
   threshold: number;
@@ -98,7 +104,15 @@ export type Alert = {
   createdAt: number;
 };
 
-export type NewAlert = Omit<Alert, "id" | "createdAt" | "enabled"> & { enabled?: boolean };
+/**
+ * `symbol` and `portfolioId` are each optional so a caller states only the one
+ * it means: a named-symbol rule leaves the portfolio out, a portfolio-wide one
+ * leaves the symbol out. Exactly one of them is expected, and a row with
+ * neither expands to nothing rather than to everything.
+ */
+export type NewAlert =
+  Omit<Alert, "id" | "createdAt" | "enabled" | "symbol" | "portfolioId">
+  & { enabled?: boolean; symbol?: string | null; portfolioId?: string | null };
 
 export type NewTransaction =
   Omit<Transaction, "id" | "portfolioId" | "sourceSymbol"> & { sourceSymbol?: string | null };

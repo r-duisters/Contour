@@ -11,10 +11,14 @@ import TradingBackdrop from "../TradingBackdrop";
 import ImportSources from "../ImportSources";
 import { field } from "../field";
 import { importKindOf } from "../setup-steps";
+import Switch from "../Switch";
+import { DEFAULT_MOVE_THRESHOLD } from "../move-threshold";
+import { isBatteryExempt, requestBatteryExemption, requestNotifications } from "../device-notifications";
 import type { FormatId } from "@/lib/import-formats";
 
-type Step = "currency" | "name" | "import";
-const STEPS: Step[] = ["currency", "name", "import"];
+type Step = "currency" | "name" | "import" | "alerts";
+const STEPS: Step[] = ["currency", "name", "import", "alerts"];
+
 
 /**
  * First run, on a device that starts with nothing in it.
@@ -34,10 +38,18 @@ const STEPS: Step[] = ["currency", "name", "import"];
  * screen swapped in for it: the mark stays exactly where it is and the ring
  * starts turning around it.
  *
- * Three steps, in the order they depend on each other: the currency everything
- * will be shown in, a name for the first portfolio, then the data that goes
- * into it. Every step can be skipped — the app is usable empty, and a wizard
- * that will not let go is worse than one left half-finished.
+ * Four steps, in the order they depend on each other: the currency everything
+ * will be shown in, a name for the first portfolio, the data that goes into
+ * it, and how it should reach you. Every step can be skipped — the app is
+ * usable empty, and a wizard that will not let go is worse than one left
+ * half-finished.
+ *
+ * **The notifications step comes last because it needs the others.** "Tell me
+ * about big moves" is one rule meaning *every holding*, so it has to name a
+ * portfolio, and there is no portfolio until data has arrived. Someone who
+ * skips the import skips this too: an app with nothing in it has nothing to
+ * report, and asking for notification permission then is asking for something
+ * with no use yet.
  *
  * **Nothing is created until it is needed.** The portfolio is not written when
  * its name is typed: a backup brings its own portfolio, so creating one first
@@ -52,6 +64,16 @@ export default function SetupScreen({ onDone }: { onDone: () => void }) {
   const [name, setName] = useState("My portfolio");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** Set once data has landed somewhere; what a portfolio-wide rule names. */
+  const [portfolioId, setPortfolioId] = useState<string | null>(null);
+  const [bigMoves, setBigMoves] = useState(true);
+  /**
+   * Null until the permission has been asked for. Once true, the remaining
+   * question is whether Android will actually run the scheduled check, which
+   * is a different permission and the one nobody would think to look for.
+   */
+  const [armed, setArmed] = useState(false);
+  const [batteryExempt, setBatteryExempt] = useState<boolean | null>(null);
 
   function finish() {
     try {
@@ -78,12 +100,63 @@ export default function SetupScreen({ onDone }: { onDone: () => void }) {
     setError(null);
     setBusy("Creating your portfolio…");
     try {
-      await client.createPortfolio(name.trim() || "My portfolio");
-      finish();
+      const created = await client.createPortfolio(name.trim() || "My portfolio");
+      setPortfolioId(created.id);
+      setBusy(null);
+      setStep("alerts");
     } catch (e) {
       setError((e as Error).message);
       setBusy(null);
     }
+  }
+
+  /**
+   * Turn on what the switch promises, in the order the promises depend on.
+   *
+   * Permission first, because a rule that cannot notify is worse than no rule
+   * — it looks like it is working. Then the rule itself. Then the battery
+   * question, which is asked only when Android says it applies and has not
+   * already been answered; where it does apply, the screen stays put and the
+   * primary button becomes that request, so the two system dialogs never
+   * arrive on top of each other.
+   */
+  async function arm() {
+    if (!bigMoves || !portfolioId) { finish(); return; }
+    setError(null);
+    setBusy("Turning on notifications…");
+    try {
+      const permission = await requestNotifications();
+      if (permission === "denied") {
+        setError("Android refused notification permission. You can grant it later in Settings.");
+        setBusy(null);
+        return;
+      }
+      // Optional on the interface, because the web build has no local
+      // notifications to schedule. Absent rather than throwing.
+      await client.createAlert?.({
+        kind: "pct_move",
+        portfolioId,
+        threshold: DEFAULT_MOVE_THRESHOLD,
+      });
+      const exempt = await isBatteryExempt();
+      setArmed(true);
+      setBatteryExempt(exempt);
+      setBusy(null);
+      // Nothing more to ask: either the phone has no such restriction, or it
+      // has already been lifted.
+      if (exempt !== false) finish();
+    } catch (e) {
+      setError((e as Error).message);
+      setBusy(null);
+    }
+  }
+
+  async function allowBackground() {
+    setBusy("Waiting for Android…");
+    // The answer is not checked: a refusal is a real choice, and the app still
+    // checks every time it is opened. Either way the flow is over.
+    await requestBatteryExemption().catch(() => null);
+    finish();
   }
 
   async function importFile(file: File, format?: FormatId) {
@@ -97,9 +170,10 @@ export default function SetupScreen({ onDone }: { onDone: () => void }) {
       if (kind === "backup") {
         // The backup names its own portfolio, so the typed name goes unused —
         // which is why nothing was created for it.
-        await client.restoreBackup(text);
+        setPortfolioId((await client.restoreBackup(text)).id);
       } else {
         const created = await client.createPortfolio(name.trim() || "My portfolio");
+        setPortfolioId(created.id);
         const report = await client.importCsv(created.id, text, { format });
         if (report.imported === 0) {
           // A file that produced nothing is not a success. Saying so here is
@@ -114,7 +188,8 @@ export default function SetupScreen({ onDone }: { onDone: () => void }) {
           return;
         }
       }
-      finish();
+      setBusy(null);
+      setStep("alerts");
     } catch (e) {
       setError((e as Error).message);
       setBusy(null);
@@ -125,7 +200,8 @@ export default function SetupScreen({ onDone }: { onDone: () => void }) {
     ? busy
     : step === "currency" ? "What should everything be shown in?"
     : step === "name" ? "What should your portfolio be called?"
-    : "Bring your data over";
+    : step === "import" ? "Bring your data over"
+    : "How should Contour reach you?";
 
   return (
     <div className="relative min-h-screen flex items-center justify-center px-6 py-10">
@@ -183,6 +259,45 @@ export default function SetupScreen({ onDone }: { onDone: () => void }) {
                 </div>
               )}
 
+              {step === "alerts" && (
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm">Tell me about big moves</p>
+                      <p className="text-xs text-neutral-500 mt-0.5">
+                        A notification when anything you own rises or falls more than{" "}
+                        {DEFAULT_MOVE_THRESHOLD}% in a day. Coins and shares both. Change
+                        the figure, or turn this off, in Settings.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={bigMoves}
+                      onChange={setBigMoves}
+                      label="Tell me about big moves"
+                    />
+                  </div>
+
+                  {/*
+                    Only once Android has said the restriction applies here.
+                    Asking before that would be a button that does nothing on
+                    a phone that never had the problem.
+                  */}
+                  {armed && batteryExempt === false && (
+                    <p className="text-xs text-amber-500">
+                      Android holds background checks back to save battery, which can
+                      delay these by hours. The next screen is its own — allowing it lets
+                      Contour check every half hour while it is shut.
+                    </p>
+                  )}
+
+                  <p className="text-xs text-neutral-500">
+                    Prices are checked on this phone, and nothing about your portfolio
+                    leaves it. Shares are checked through Yahoo while the app is shut,
+                    whichever provider you pick in Settings.
+                  </p>
+                </div>
+              )}
+
               {error && <p className="text-xs text-red-500">{error}</p>}
             </div>
 
@@ -191,14 +306,31 @@ export default function SetupScreen({ onDone }: { onDone: () => void }) {
                 onClick={
                   step === "currency" ? saveCurrency
                   : step === "name" ? () => setStep("import")
-                  : createEmpty
+                  : step === "import" ? createEmpty
+                  // Two presses at most, and only where Android asks for two:
+                  // the switch arms the rule, and if the phone then says the
+                  // scheduled check is throttled, the same button becomes that
+                  // request rather than stacking a second system dialog on
+                  // top of the first.
+                  : armed && batteryExempt === false ? allowBackground
+                  : arm
                 }
               >
-                {step === "import" ? "Start empty" : "Continue"}
+                {step === "import" ? "Start empty"
+                  : step !== "alerts" ? "Continue"
+                  : armed && batteryExempt === false ? "Allow background checks"
+                  : bigMoves ? "Turn on notifications"
+                  : "Finish"}
               </Button>
               <button
                 type="button"
-                onClick={step === "import" ? finish : () => setStep(STEPS[STEPS.indexOf(step) + 1]!)}
+                onClick={
+                  // Skipping the import skips the notifications step too: an
+                  // app with nothing in it has nothing to report.
+                  step === "import" || step === "alerts"
+                    ? finish
+                    : () => setStep(STEPS[STEPS.indexOf(step) + 1]!)
+                }
                 className="text-sm text-neutral-500 underline"
               >
                 Skip

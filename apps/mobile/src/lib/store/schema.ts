@@ -101,6 +101,41 @@ export const MIGRATIONS: ((db: DB) => Promise<void>)[] = [
       );
     `);
   },
+
+  /**
+   * A rule that watches every holding rather than one symbol.
+   *
+   * `symbol` was NOT NULL and there was no portfolio, so the only alert this
+   * database could hold was one about a single named asset. The setup flow's
+   * "tell me about big moves" is the other kind — one row meaning "everything
+   * I own" — and `expandRules` has understood that shape since it was written.
+   *
+   * SQLite cannot drop a NOT NULL, so the table is rebuilt. Written to be
+   * replayable, as the rule at the top of this file demands: the work happens
+   * only while the old table is still the one called `Alert`, so a run
+   * interrupted anywhere either did nothing or finished.
+   */
+  async (db) => {
+    const cols = await db.query<{ name: string }>("PRAGMA table_info(Alert)");
+    if (cols.some((c) => c.name === "portfolioId")) return;
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS Alert_v2 (
+        id          TEXT PRIMARY KEY,
+        kind        TEXT NOT NULL,
+        symbol      TEXT,
+        portfolioId TEXT,
+        assetType   TEXT NOT NULL DEFAULT 'crypto',
+        threshold   REAL NOT NULL,
+        direction   TEXT,
+        enabled     INTEGER NOT NULL DEFAULT 1,
+        createdAt   INTEGER NOT NULL
+      );
+      INSERT OR IGNORE INTO Alert_v2 (id, kind, symbol, portfolioId, assetType, threshold, direction, enabled, createdAt)
+        SELECT id, kind, symbol, NULL, assetType, threshold, direction, enabled, createdAt FROM Alert;
+      DROP TABLE Alert;
+      ALTER TABLE Alert_v2 RENAME TO Alert;
+    `);
+  },
 ];
 
 /**

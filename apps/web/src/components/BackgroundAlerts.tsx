@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useDataClient } from "@/data/client/context";
-import { expandRules, type AlertRule } from "@/lib/alert-rules";
+import { expandRules, type AlertRule, type HeldAsset } from "@/lib/alert-rules";
 import { KEYS } from "@/lib/storage-keys";
 
 type Alert = AlertRule & { timeframe: string };
@@ -62,7 +62,7 @@ export default function BackgroundAlerts() {
       // Before this, a portfolio-scoped rule was dropped by a `a.symbol &&`
       // filter here and never reached the runner at all.
       if (alerts.length) {
-        void dispatchToRunner(expandRules(alerts, await heldSymbols(alerts)));
+        void dispatchToRunner(expandRules(alerts, await heldAssets(alerts)));
       }
       if (cancelled) return;
 
@@ -78,22 +78,30 @@ export default function BackgroundAlerts() {
      *
      * Only asked for when such a rule exists — this is a valuation request,
      * and most alerts name their own symbol.
+     *
+     * The kind travels with the symbol. The valuation already knows which
+     * holdings are shares, and it is the only thing that does: a ticker cannot
+     * say, and guessing sent AMD to Binance as AMDUSDT.
      */
-    async function heldSymbols(alerts: Alert[]): Promise<string[]> {
+    async function heldAssets(alerts: Alert[]): Promise<HeldAsset[]> {
       const ids = [...new Set(
         alerts.filter((a) => !a.symbol && a.portfolioId).map((a) => a.portfolioId!),
       )];
-      const symbols = new Set<string>();
+      const bySymbol = new Map<string, HeldAsset>();
       for (const id of ids) {
         try {
           const valuation = await client.getValuation(id);
-          for (const h of valuation.holdings) if (h.quantity > 0) symbols.add(h.symbol);
+          for (const h of valuation.holdings) {
+            if (h.quantity > 0 && h.assetType !== "cash") {
+              bySymbol.set(h.symbol, { symbol: h.symbol, assetType: h.assetType });
+            }
+          }
         } catch {
           // A portfolio that cannot be valued contributes no rules, rather
           // than failing the check for the alerts that name a symbol.
         }
       }
-      return [...symbols];
+      return [...bySymbol.values()];
     }
 
     const run = () => void check().catch(() => {

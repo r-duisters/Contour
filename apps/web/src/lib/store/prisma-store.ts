@@ -117,7 +117,8 @@ const DELETE_CHUNK = 500;
 
 /** One Prisma row as the port describes it. */
 function toAlert(row: {
-  id: string; kind: string; symbol: string | null; assetType: string;
+  id: string; kind: string; symbol: string | null; portfolioId: string | null;
+  assetType: string;
   params: string; enabled: boolean; createdAt: Date;
 }): Alert {
   const params = JSON.parse(row.params) as { direction?: string; price?: number; threshold?: number };
@@ -125,7 +126,12 @@ function toAlert(row: {
   return {
     id: row.id,
     kind: target ? "price_target" : "pct_move",
-    symbol: row.symbol ?? "",
+    // Null, not "". A portfolio-scoped rule names no symbol, and the empty
+    // string reads as one that failed to load — `expandRules` branches on
+    // exactly this, so flattening it turned "every holding" into "a holding
+    // called nothing".
+    symbol: row.symbol ?? null,
+    portfolioId: row.portfolioId ?? null,
     assetType: row.assetType === "equity" ? "equity" : "crypto",
     threshold: (target ? params.price : params.threshold) ?? 0,
     direction: target ? (params.direction === "below" ? "below" : "above") : null,
@@ -219,7 +225,11 @@ export function PrismaStore(client: PrismaClient = defaultClient): Store {
     alerts: {
       async list() {
         const rows = await client.alert.findMany({
-          where: { kind: { in: ["price_target", "pct_move"] }, symbol: { not: null } },
+          // No `symbol: { not: null }`. That filter dropped every
+          // portfolio-scoped rule before anything could evaluate it — the
+          // second of three places this shape was being discarded on the way
+          // to a device.
+          where: { kind: { in: ["price_target", "pct_move"] } },
           orderBy: { createdAt: "desc" },
         });
         return rows.map(toAlert);
@@ -228,7 +238,8 @@ export function PrismaStore(client: PrismaClient = defaultClient): Store {
         const row = await client.alert.create({
           data: {
             kind: alert.kind,
-            symbol: alert.symbol,
+            symbol: alert.symbol ?? null,
+            portfolioId: alert.portfolioId ?? null,
             assetType: alert.assetType,
             timeframe: "1d",
             enabled: alert.enabled ?? true,

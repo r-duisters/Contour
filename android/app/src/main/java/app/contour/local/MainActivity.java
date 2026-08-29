@@ -16,6 +16,9 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // Before super: Capacitor builds the bridge there, and a plugin
+        // registered afterwards is not in it.
+        registerPlugin(BatteryOptimizationPlugin.class);
         super.onCreate(savedInstanceState);
 
         // A WebView ignores downloads unless something is listening, and

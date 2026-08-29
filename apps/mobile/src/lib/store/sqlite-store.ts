@@ -120,7 +120,8 @@ function txValues(id: string, portfolioId: string, tx: NewTransaction, createdAt
 }
 
 type AlertRow = {
-  id: string; kind: string; symbol: string; assetType: string;
+  id: string; kind: string; symbol: string | null; portfolioId: string | null;
+  assetType: string;
   threshold: number; direction: string | null; enabled: number; createdAt: number;
 };
 
@@ -129,7 +130,8 @@ function toAlert(row: AlertRow): Alert {
   return {
     id: row.id,
     kind: row.kind === "pct_move" ? "pct_move" : "price_target",
-    symbol: row.symbol,
+    symbol: row.symbol ?? null,
+    portfolioId: row.portfolioId ?? null,
     assetType: row.assetType === "equity" ? "equity" : "crypto",
     threshold: row.threshold,
     direction: row.direction === "above" || row.direction === "below" ? row.direction : null,
@@ -308,10 +310,11 @@ export function SqliteStore(db: DB): Store {
         const id = newId("alert");
         const createdAt = Date.now();
         await db.run(
-          `INSERT INTO Alert (id, kind, symbol, assetType, threshold, direction, enabled, createdAt)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO Alert (id, kind, symbol, portfolioId, assetType, threshold, direction, enabled, createdAt)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            id, alert.kind, alert.symbol, alert.assetType, alert.threshold,
+            id, alert.kind, alert.symbol ?? null, alert.portfolioId ?? null,
+            alert.assetType, alert.threshold,
             alert.direction ?? null, (alert.enabled ?? true) ? 1 : 0, createdAt,
           ],
         );

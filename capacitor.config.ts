@@ -15,11 +15,12 @@ import type { CapacitorConfig } from "@capacitor/cli";
  * - Its data is its own. The device database starts empty; a portfolio comes
  *   over as a backup file, not by reaching the server.
  * - No login, no passkey, no `SESSION_SECRET`. The device lock is the lock.
- * - No alerts, and so no `BackgroundRunner` block. Alerts need the alerts
- *   routes, Home Assistant, web-push and FCM — every one of them server-only
- *   by design. Leaving the runner configured would have pointed it at a
- *   `runner/alerts.js` this bundle does not contain, and given it a key store
- *   no one writes rules into.
+ - Alerts are its own. It has no alerts routes, no Home Assistant and no
+ *   web-push — all server-only by design — but a price target and a daily move
+ *   need none of that, so it evaluates them itself and posts a local
+ *   notification. Both builds run a `BackgroundRunner`, each against its own
+ *   copy of `runner/alerts.js` inside its own `webDir`, under its own label so
+ *   two installs cannot dispatch into each other.
  * - No strategy tooling: chart, backtest, analyze and the PineScript library
  *   all need the filesystem or a server-side Binance proxy.
  *
@@ -42,30 +43,33 @@ const config: CapacitorConfig = {
   // The wrapper serves its UI from the running app, so its bundle is the web
   // app's public directory — which is also where `runner/alerts.js` lives.
   webDir: url ? "apps/web/public" : "apps/mobile/out",
-  ...(url
-    ? {
-        server: { url, cleartext: url.startsWith("http://") },
-        plugins: {
-          /**
-           * Wakes every quarter hour to check price alerts with the app
-           * closed. Android treats the interval as a target, not a promise.
-           *
-           * Only the wrapper gets it. Alerts need the alerts routes, Home
-           * Assistant, web-push and FCM, all of which live on the server, so
-           * in the standalone build this would wake on a schedule to read a
-           * key store nothing writes rules into.
-           */
-          BackgroundRunner: {
-            label: "app.contour.local.alerts",
-            src: "runner/alerts.js",
-            event: "alertCheck",
-            repeat: true,
-            interval: 15,
-            autoStart: true,
-          },
-        },
-      }
-    : {}),
+  /**
+   * Wakes on a schedule to check price alerts with the app closed.
+   *
+   * Android treats the interval as a target and not a promise: a
+   * battery-optimised phone may never grant the job at all, which is why the
+   * app's setup flow offers to lift that restriction, and why the check that
+   * is guaranteed still runs on every foreground.
+   *
+   * The label is per-app because the two builds install side by side. A shared
+   * label would let one build's foreground pass write rules the other build's
+   * job then evaluates, against a portfolio it has never seen.
+   *
+   * Half an hour rather than the wrapper's quarter: a check is two requests
+   * for coins and one per share, and doubling the gap halves that against a
+   * schedule Android already declines to honour precisely.
+   */
+  plugins: {
+    BackgroundRunner: {
+      label: url ? "app.contour.local.alerts" : "app.contour.standalone.alerts",
+      src: "runner/alerts.js",
+      event: "alertCheck",
+      repeat: true,
+      interval: url ? 15 : 30,
+      autoStart: true,
+    },
+  },
+  ...(url ? { server: { url, cleartext: url.startsWith("http://") } } : {}),
   android: {
     // Match the app's own dark background so launches don't flash white.
     backgroundColor: "#0a0a0a",

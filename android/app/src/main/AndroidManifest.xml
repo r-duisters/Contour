@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <application
         android:allowBackup="true"
@@ -38,4 +39,37 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+      Lets the app show the system's own "allow this app to run in the
+      background" dialog, which the setup flow offers once. Without the
+      exemption Android may defer the scheduled alert check indefinitely, and
+      the only symptom is a notification that never arrives.
+
+      Play restricts apps that declare this to a few categories. Contour is
+      built from source and sideloaded rather than distributed there, so the
+      direct dialog is available — and it is far kinder than sending someone
+      into Settings to find this app in a list.
+    -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!--
+      Location, removed.
+
+      @capacitor/background-runner declares ACCESS_COARSE_LOCATION,
+      ACCESS_FINE_LOCATION and ACCESS_BACKGROUND_LOCATION in its own manifest,
+      because the runner can be used for geofencing. This app uses it for one
+      thing — waking every half hour to compare prices — and never asks where
+      the phone is.
+
+      The merger would fold them in silently, and they would show on the
+      install screen and in the app's permission list. For an app whose whole
+      argument is that nothing about the portfolio leaves the device, shipping
+      a background-location permission it never calls is not a cosmetic
+      problem: it is the app contradicting itself in the one place a person
+      actually checks.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" tools:node="remove" />
 </manifest>
