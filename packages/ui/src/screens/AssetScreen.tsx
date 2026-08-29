@@ -546,25 +546,6 @@ export default function AssetScreen({
           <div className="flex justify-center mb-2">
             <RangePicker value={range} onChange={setRange} />
           </div>
-          {/* Centred under the picker it belongs to: it states what the
-              selected period did, so it reads as that control's answer rather
-              than as a caption on the chart below it. */}
-          <div className="mb-2 text-center">
-            {changePct !== null && (
-              <span className={`text-sm ${changePct >= 0 ? "text-green-500" : "text-red-500"}`}>
-                {changePct >= 0 ? "+" : ""}{changePct.toFixed(2)}%
-                {/* What that price move is worth on the position. Absent when
-                    nothing is held here — this page renders for assets reached
-                    from Markets, where there is no quantity to apply it to. */}
-                {rangeMoney !== null && (
-                  <> <span className="tabular-nums">
-                    {rangeMoney >= 0 ? "+" : ""}{money(rangeMoney)}
-                  </span></>
-                )}
-                <span className="text-neutral-500 text-xs"> price, {changeWindowLabel(range)}</span>
-              </span>
-            )}
-          </div>
       {/* Crypto only, and only where the chart page exists. It is fed by
           /api/candles, which is Binance, so an equity would open an empty pane
           — and a tap that leads nowhere is worse than no tap. In the device
@@ -585,7 +566,40 @@ export default function AssetScreen({
       )}
 
           {/*
-            Two figures under the chart, not six above it.
+            The period's change, after the thing it describes.
+            ==================================================
+
+            It sat above the chart, where a summary is announced before there
+            is anything to summarise. Under it, it reads as what was just
+            drawn.
+
+            It is still two quantities: the percentage is what the *price* did
+            over the selected period, and the money beside it is what that move
+            was worth to *your position* — a different subject, computed from
+            your quantity, and absent for an asset you hold none of. The words
+            say which is which now, rather than a trailing "price, 1Y" that
+            named only the first.
+          */}
+          {changePct !== null && (
+            <div className="mt-2 text-center text-sm">
+              <span className={changePct >= 0 ? "text-green-500" : "text-red-500"}>
+                {changePct >= 0 ? "+" : ""}{changePct.toFixed(2)}%
+              </span>
+              <span className="text-neutral-500 text-xs"> over {changeWindowLabel(range)}</span>
+              {rangeMoney !== null && (
+                <>
+                  <span className="text-neutral-600"> · </span>
+                  <span className={`tabular-nums ${rangeMoney >= 0 ? "text-green-500" : "text-red-500"}`}>
+                    {rangeMoney >= 0 ? "+" : ""}{money(rangeMoney)}
+                  </span>
+                  <span className="text-neutral-500 text-xs"> to you</span>
+                </>
+              )}
+            </div>
+          )}
+
+          {/*
+            Every figure folds away, and the page is the chart by default.
             ============================================
 
             Six equal tiles opened this page — average cost, last price, cost
@@ -593,31 +607,25 @@ export default function AssetScreen({
             any chart on a 412px phone. The common task is a glance, and a
             glance was made to scroll for it.
 
-            "Last price" used to be the left of this pair. It moved into the
-            chart, where it rests in the readout slot that only appeared under
-            a dragging finger — so keeping a tile of it here would be the same
-            figure twice, at two sizes, six lines apart. What is left is the
-            pair about the position rather than the price: what it cost on
-            average, and what it cost in total.
+            This began as six of them — average cost, last price, cost basis,
+            unrealised, realised, fees — about 380px of figures before anything
+            was drawn. Two were kept visible for a while; none are now. The
+            chart carries the price in its own readout and the header carries
+            what the position is worth and what it has made, so what is left
+            down here is accounting, and accounting is what a fold is for.
 
-            Unrealised has left the tiles entirely — it is the header's second
-            column now, beside the day, where both readings sit together.
+            Last price is inside as well as in the chart, deliberately. The
+            readout follows a dragging finger; this one holds still, which is
+            what you want while comparing it with the cost beside it.
           */}
-          {shownHolding && (
-            <div className="grid grid-cols-2 gap-2 md:gap-3 text-sm mt-4">
-              <StatTile label="Average cost" value={shownHolding.quantity > 0 ? money(shownHolding.avgCost) : "—"} />
-              <StatTile label="Cost basis" value={money(shownHolding.costBasis)} />
-            </div>
-          )}
 
           {/*
-            The rest folds out rather than being deleted. "Cost basis and
-            realised are the point of a portfolio tool versus watching a candle
-            on TradingView" — they are wanted, just not on every glance, and
-            the cost of demoting them is one tap for somebody reconciling.
-            Which is why the fold is remembered: that person is reading several
-            holdings in one sitting, and re-opening it on each would be the
-            annoying half of the trade.
+            Nothing is deleted. "Cost basis and realised are the point of a
+            portfolio tool versus watching a candle on TradingView" — they are
+            wanted, just not on every glance, and the cost of demoting them is
+            one tap for somebody reconciling. Which is why the fold is
+            remembered: that person is reading several holdings in one sitting,
+            and re-opening it on each would be the annoying half of the trade.
           */}
           {shownHolding && (
             <>
@@ -636,7 +644,7 @@ export default function AssetScreen({
                            hover:border-neutral-700 hover:text-neutral-300 transition-colors
                            focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
               >
-                Realised and fees
+                Prices, costs and fees
                 <ChevronDown
                   size={14}
                   aria-hidden
@@ -644,7 +652,10 @@ export default function AssetScreen({
                 />
               </button>
               {ledgerOpen && (
-                <div id={ledgerId} className="grid grid-cols-2 gap-2 md:gap-3 text-sm mt-2">
+                <div id={ledgerId} className="grid grid-cols-2 sm:grid-cols-3 gap-2 md:gap-3 text-sm mt-2">
+                  <StatTile label="Last price" value={shownHolding.price !== null ? money(shownHolding.price) : "no price"} />
+                  <StatTile label="Average cost" value={shownHolding.quantity > 0 ? money(shownHolding.avgCost) : "—"} />
+                  <StatTile label="Cost basis" value={money(shownHolding.costBasis)} />
                   <StatTile label="Realised" value={money(shownHolding.realizedPnl)} signed={shownHolding.realizedPnl} />
                   <StatTile label="Fees" value={money(shownHolding.fees)} />
                 </div>
