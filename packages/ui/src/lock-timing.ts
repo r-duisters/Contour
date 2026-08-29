@@ -22,6 +22,29 @@
  * prompt and can never finish early enough to leave a dead pause.
  */
 
+/**
+ * The disc's diameter while the system splash is up, in CSS pixels.
+ *
+ * Not a choice. Android draws its splash icon at the size of its own icon
+ * canvas — the inner 192dp of `core-splashscreen`'s 288dp box — and there is
+ * no way to ask for less: sizing the drawable smaller was tried and changed
+ * nothing, because One UI draws the launcher icon there rather than the
+ * drawable we supply. Measured off a screen recording on a Galaxy S24 at 564
+ * of 1080 device pixels, which is 188 CSS pixels at that screen's 3x.
+ *
+ * So the app's own splash draws the mark at this size rather than at
+ * `LOCK_DISC_PX`, and the difference is spent during the travel instead of
+ * jumped at the handover. It used to jump: 188 to 112, a shrink of two fifths,
+ * on the one frame where the picture must not change.
+ */
+export const SPLASH_DISC_PX = 188;
+
+/** The disc's diameter at rest, which is `BRAND.md`'s size and `MarkTile`'s. */
+export const LOCK_DISC_PX = 112;
+
+/** What the mark has to shrink by on its way to its resting place. */
+export const SETTLE_SCALE = SPLASH_DISC_PX / LOCK_DISC_PX;
+
 /** A moment held still first, so the splash reads as a splash and not as a start gun. */
 export const SETTLE_DELAY_MS = 220;
 

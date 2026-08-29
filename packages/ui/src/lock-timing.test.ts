@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  LOCK_DISC_PX,
   MIN_SPLASH_MS,
+  SETTLE_SCALE,
+  SPLASH_DISC_PX,
   REST_MS,
   SETTLE_DELAY_MS,
   SETTLE_MS,
@@ -55,5 +58,23 @@ describe("the entrance fits the splash", () => {
 
   it("holds the mark still before moving it", () => {
     expect(SETTLE_DELAY_MS).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * The entrance's two disc sizes, and the one that is not ours to choose.
+ *
+ * `SPLASH_DISC_PX` is whatever Android's splash icon canvas renders at; the
+ * app matches it so the handover shows the same picture. If someone "tidies"
+ * the app's splash back to 112 to match the lock, the jump of two fifths comes
+ * back and nothing else would notice.
+ */
+describe("the entrance's geometry", () => {
+  it("shrinks the mark by exactly the difference between the two sizes", () => {
+    expect(SETTLE_SCALE).toBeCloseTo(SPLASH_DISC_PX / LOCK_DISC_PX, 10);
+  });
+
+  it("starts larger than it ends, which is the direction the system forces", () => {
+    expect(SPLASH_DISC_PX).toBeGreaterThan(LOCK_DISC_PX);
   });
 });

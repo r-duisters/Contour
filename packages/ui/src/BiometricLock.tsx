@@ -6,6 +6,8 @@ import ContourMark from "@/components/ContourMark";
 import TradingBackdrop from "@/components/TradingBackdrop";
 import {
   ENTRANCE_EASE,
+  LOCK_DISC_PX,
+  SETTLE_SCALE,
   SETTLE_DELAY_MS,
   SETTLE_MS,
   TITLE_DELAY_MS,
@@ -208,13 +210,19 @@ function Overlay({
           between the two centres: the block's top is at 14vh and the disc is
           112px tall, so its centre rests at 14vh + 56px, against 50vh.
 
+          It also shrinks. The system draws its splash icon at its own canvas
+          size and will not be argued down, so the app's splash matches that
+          size and the mark reaches its resting 112px on the way rather than in
+          one frame. Scaling is about the element's centre and translation is
+          applied first, so the two compose without the offset changing.
+
           The curve is ENTRANCE_EASE, and the whole sequence's timing lives in
           lock-timing.ts beside the splash it has to fit inside. Backticks are
           not available in here: this comment sits inside a template literal,
           and one closes it.
         */
         @keyframes lock-settle {
-          from { transform: translateY(calc(36vh - 56px)); }
+          from { transform: translateY(calc(36vh - 56px)) scale(var(--settle-scale)); }
           to   { transform: none; }
         }
         @media (prefers-reduced-motion: reduce) {
@@ -229,6 +237,7 @@ function Overlay({
             ? {
                 animation: `lock-settle ${SETTLE_MS}ms ${ENTRANCE_EASE} both`,
                 animationDelay: `${SETTLE_DELAY_MS}ms`,
+                ["--settle-scale" as string]: SETTLE_SCALE,
               }
             : undefined}
         >
@@ -247,9 +256,13 @@ function Overlay({
               above still clears it by 10px. */}
           <span
             className="rounded-full bg-blue-600 flex items-center justify-center"
-            style={{ width: 112, height: 112, boxShadow: "0 0 60px rgba(37,99,235,0.45)" }}
+            style={{
+              width: LOCK_DISC_PX,
+              height: LOCK_DISC_PX,
+              boxShadow: "0 0 60px rgba(37,99,235,0.45)",
+            }}
           >
-            <ContourMark size={96} breathing />
+            <ContourMark size={Math.round(LOCK_DISC_PX * 0.86)} breathing />
           </span>
         </div>
 

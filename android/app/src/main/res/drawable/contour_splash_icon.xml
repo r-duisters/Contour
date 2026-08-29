@@ -10,6 +10,14 @@
   showed instead was the launcher icon on Android's default ground: the square
   logo on the wrong colour, one frame before the app drew the circular one.
 
+  The disc fills this drawable deliberately, and so renders at whatever size
+  the system's icon canvas is — measured at 188dp on a Galaxy S24. Declaring a
+  larger canvas here to make the disc come out at 112dp was tried and changed
+  nothing at all on that phone, which is the evidence that One UI is drawing
+  the launcher icon rather than this file. Since both routes land on the same
+  ~192dp, the app's own splash is sized to match it instead; see
+  `SPLASH_DISC_PX` in `packages/ui/src/lock-timing.ts`.
+
   The icon is drawn into a fixed canvas and then circle-masked. Without an
   icon background colour that canvas is 288dp with the inner 192dp visible —
   `core-splashscreen`'s own `splashscreen_icon_size_no_background` (288dp) and
@@ -27,25 +35,6 @@
   one screen whose whole job is to not change.
 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <!--
-      Nothing to look at: this layer exists to give the drawable an intrinsic
-      size. Android 12 scales a splash icon's intrinsic size to fill its canvas,
-      so without it the disc was the intrinsic size and was stretched to fill.
-      See `@dimen/splash_icon_canvas`, which carries the measurement.
-
-      Harmless on the other path: `contour_splash.xml` composes this drawable at
-      window size, where a LayerDrawable lays its children out at the sizes they
-      declare rather than scaling them.
-    -->
-    <item
-        android:width="@dimen/splash_icon_canvas"
-        android:height="@dimen/splash_icon_canvas"
-        android:gravity="center">
-        <shape android:shape="rectangle">
-            <solid android:color="@android:color/transparent" />
-        </shape>
-    </item>
-
     <item
         android:width="@dimen/contour_mark_disc"
         android:height="@dimen/contour_mark_disc"

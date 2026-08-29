@@ -15,6 +15,7 @@ import type { DataClient } from "@/data/client/data-client";
 // directly, which also makes it obvious which side of the seam a file is on.
 import { client } from "../lib/deps";
 import { attachCacheStore, flushCache } from "@/lib/cache";
+import { SPLASH_DISC_PX } from "@/components/lock-timing";
 
 /**
  * The device build's answer to "where does data come from": SQLite and
@@ -110,13 +111,17 @@ export default function Providers({ children }: { children: ReactNode }) {
   }
 
   // The same disc, at the same size, in the same place as the launch window
-  // that was on screen a moment ago and the lock screen that arrives next.
-  // `glow` is what the lock draws, so the mark does not change appearance
-  // halfway through its own entrance.
+  // that was on screen a moment ago. `SPLASH_DISC_PX` is that size and is not
+  // ours to pick — Android draws its splash icon at its own canvas size — so
+  // this matches it and the lock shrinks the mark to 112 during the travel.
+  // Drawn at 112 here once cost the entrance a visible jump of two fifths.
+  //
+  // `glow` is what the lock draws, so nothing about the mark changes
+  // appearance halfway through its own entrance either.
   if (!ready) {
     return (
       <main className="flex-1 flex items-center justify-center p-8">
-        <MarkTile size={112} breathing glow />
+        <MarkTile size={SPLASH_DISC_PX} breathing glow />
       </main>
     );
   }

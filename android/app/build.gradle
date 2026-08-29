@@ -22,6 +22,16 @@ def isWrapper = contourUrl != null && !contourUrl.trim().isEmpty()
 def contourAppId = isWrapper ? "app.contour.local" : "app.contour.standalone"
 def contourAppName = isWrapper ? "Contour" : "Contour Standalone"
 
+/**
+ * Minutes since 2026-01-01T00:00Z, as an int.
+ *
+ * `intdiv` rather than `/`: Groovy's division on longs yields a BigDecimal,
+ * which `versionCode` rejects with "Value is null". And a local rather than an
+ * expression at the call site: `versionCode (x) as int` parses as
+ * `versionCode(x)` — a call that returns null — and then casts that.
+ */
+def contourBuildNumber = (System.currentTimeMillis().intdiv(60000L) - 29453760L).intValue()
+
 android {
     namespace = "app.contour.local"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -36,7 +46,21 @@ android {
         resValue "string", "custom_url_scheme", contourAppId
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
+        // Minutes since 2026-01-01T00:00Z, computed in `contourBuildNumber`
+        // just above the `android` block.
+        //
+        // This was a literal 1 and had been since the project was generated.
+        // Samsung's launcher keys its icon cache on package plus versionCode,
+        // so every build ever installed looked like the same version to it and
+        // the cache was never invalidated: the home screen kept drawing an icon
+        // from an early build through a dozen reinstalls, while the app-open
+        // animation — which reads the icon fresh — drew the current one. The
+        // two disagreed on screen and neither was wrong.
+        //
+        // Monotonic, with four millennia of int left. It makes a build
+        // non-reproducible in this one field, which is the point: a rebuild a
+        // launcher cannot tell apart is exactly the failure above.
+        versionCode contourBuildNumber
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {

@@ -33,9 +33,10 @@ public class MainActivity extends BridgeActivity {
      * "loaded" and "on screen" are not the same frame. Without this the splash
      * came down onto a screen of bare ground and the mark was missing for about
      * a tenth of a second — measured at 1.50s to 1.62s in a recording, every
-     * pixel of it #0a0a0a.
+     * pixel of it #0a0a0a. Two frames cut that to roughly one; five is the
+     * measurement rounded up rather than a guess refined.
      */
-    private static final int SPLASH_SETTLE_FRAMES = 2;
+    private static final int SPLASH_SETTLE_FRAMES = 5;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
