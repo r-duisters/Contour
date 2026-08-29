@@ -43,6 +43,12 @@ export default function AlertsPage() {
    * Android saying it is holding background work back — draws anything.
    */
   const [batteryExempt, setBatteryExempt] = useState<boolean | null>(null);
+  /**
+   * What the background runner reports about itself. Null while unknown, or
+   * where there is no runner to ask — a browser, or a plugin that is not
+   * registered yet on a first launch.
+   */
+  const [runner, setRunner] = useState<RunnerStatus | null>(null);
 
   // Inlined rather than a `void load()` in the effect: the lint rule cannot
   // see through a callback to know the assignment happens after an await, and
@@ -67,6 +73,8 @@ export default function AlertsPage() {
       // they stop arriving.
       const exempt = await isBatteryExempt();
       if (!cancelled) setBatteryExempt(exempt);
+      const status = await runnerStatus();
+      if (!cancelled) setRunner(status);
     })();
     return () => { cancelled = true; };
   }, [client]);
@@ -117,6 +125,32 @@ export default function AlertsPage() {
           at={checked}
           note="Checked when you open the app, and every half hour in the background."
         />
+        {/*
+          What the background half has been doing, which the line above cannot
+          say: it reports this app's own foreground checks, from localStorage,
+          and the runner keeps its record in CapacitorKV — a different store in
+          a different runtime. For as long as both existed, "last checked" was
+          only ever half the answer, and the half that Android might silently
+          never run was the invisible one.
+        */}
+        {runner && (
+          <p className="text-xs text-neutral-500 mt-1">
+            {runner.lastRun
+              ? <>In the background: last ran {sinceWords(runner.lastRun)}, watching{" "}
+                  {runner.ruleCount} {runner.ruleCount === 1 ? "check" : "checks"}
+                  {runner.notified > 0 && <> · {runner.notified} sent that time</>}.</>
+              : <span className="text-amber-500">
+                  In the background: has not run yet. Android schedules it when it
+                  chooses to, and a new install may wait a while for the first one.
+                </span>}
+          </p>
+        )}
+        {runner?.lastError && (
+          <p className="text-xs text-amber-500 mt-1">
+            Last background attempt failed {sinceWords(runner.lastError.at)}: {runner.lastError.message}
+          </p>
+        )}
+
         {/*
           Only when Android says it is throttling this app. A button that
           cannot change anything is worse than no button, and on a phone that
@@ -224,6 +258,47 @@ function Group({
         : <ul className="divide-y divide-neutral-800">{alerts.map(children)}</ul>}
     </section>
   );
+}
+
+type RunnerStatus = {
+  lastRun: number | null;
+  lastError: { at: number; message: string } | null;
+  ruleCount: number;
+  notified: number;
+};
+
+/**
+ * Ask the background runner what it has been doing.
+ *
+ * The only channel out of that runtime: `dispatchEvent` resolves with whatever
+ * the runner passes to `resolve`. Absent on anything that is not a phone with
+ * the plugin registered, which is why every failure answers null rather than
+ * throwing — a diagnostic that breaks the screen it diagnoses is worse than no
+ * diagnostic.
+ */
+async function runnerStatus(): Promise<RunnerStatus | null> {
+  try {
+    const { BackgroundRunner } = await import("@capacitor/background-runner");
+    return await BackgroundRunner.dispatchEvent<RunnerStatus>({
+      label: "app.contour.standalone.alerts",
+      event: "getStatus",
+      details: {},
+    });
+  } catch {
+    return null;
+  }
+}
+
+/** "12 minutes ago", in the same words `LastChecked` uses. */
+function sinceWords(at: number): string {
+  const ago = Date.now() - at;
+  const minutes = Math.floor(ago / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} ${minutes === 1 ? "minute" : "minutes"} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} ${days === 1 ? "day" : "days"} ago`;
 }
 
 /**

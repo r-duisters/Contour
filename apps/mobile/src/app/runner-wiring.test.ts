@@ -18,6 +18,8 @@ const ROOT = join(new URL("../../../../", import.meta.url).pathname);
 const config = readFileSync(join(ROOT, "capacitor.config.ts"), "utf8");
 const dispatcher = readFileSync(join(ROOT, "apps/mobile/src/app/device-alerts.tsx"), "utf8");
 const runner = readFileSync(join(ROOT, "apps/mobile/public/runner/alerts.js"), "utf8");
+/** The alerts screen, which is the other end of the status channel. */
+const dispatcher0 = readFileSync(join(ROOT, "apps/mobile/src/app/alerts/page.tsx"), "utf8");
 
 describe("the background runner's wiring", () => {
   it("ships the file the config names, inside the bundle the config ships", () => {
@@ -55,6 +57,25 @@ describe("the background runner's wiring", () => {
 
   it("waits half an hour, which is what the settings screen tells people", () => {
     expect(config).toContain("interval: url ? 15 : 30");
+  });
+
+  it("can be asked what it has been doing, from the app", () => {
+    /*
+     * Android decides whether a periodic job runs, and when it declines there
+     * is no error and no event — the check simply does not happen. The alerts
+     * page showed a "last checked" time written by the *foreground* pass, from
+     * localStorage, while the runner records its own in CapacitorKV. Two
+     * stores: the line never covered the background half, so a runner that had
+     * never once fired looked exactly like a market that had not moved.
+     *
+     * `dispatchEvent` resolving is the only channel out of that runtime, so
+     * both ends have to name the same event.
+     */
+    expect(runner).toContain('addEventListener("getStatus"');
+    expect(dispatcher0).toContain('event: "getStatus"');
+    // And the runner has to be writing what it reports.
+    expect(runner).toContain('writeJson("lastRun"');
+    expect(runner).toContain('writeJson("lastError"');
   });
 
   it("keeps the runner's location permissions out of the build", () => {

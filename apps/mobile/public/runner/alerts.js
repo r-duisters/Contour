@@ -89,6 +89,32 @@ addEventListener("setRules", (resolve, reject, args) => {
 });
 
 /**
+ * What this runner has actually been doing, for the app to show a person.
+ *
+ * Android decides whether a periodic job runs at all, and when it declines
+ * there is no error and no event — the check simply does not happen. Until
+ * this existed the app could not tell that apart from a quiet market: it
+ * displayed a "last checked" time written by its *own* foreground pass, from
+ * localStorage, while this runtime writes to CapacitorKV. Two stores, and the
+ * line that looked like it covered both never reflected a background run.
+ *
+ * So the runner is asked. `dispatchEvent` resolves with whatever is passed to
+ * `resolve`, which is the only channel out of here.
+ */
+addEventListener("getStatus", (resolve, reject) => {
+  try {
+    resolve({
+      lastRun: readJson("lastRun", null),
+      lastError: readJson("lastError", null),
+      ruleCount: (readJson("alertRules", []) || []).length,
+      notified: readJson("lastNotified", 0),
+    });
+  } catch (err) {
+    reject(err);
+  }
+});
+
+/**
  * Coins, in two requests however many there are.
  *
  * `openPrice` from the rolling 24-hour window is the price exactly a day ago,
@@ -177,6 +203,7 @@ addEventListener("alertCheck", async (resolve, reject) => {
     const sent = readJson("alertsSent", {});
     const day = Math.floor(Date.now() / DAY_MS);
     let id = Date.now() % 100000;
+    let notified = 0;
 
     for (const rule of rules) {
       const price = prices[rule.symbol];
@@ -189,6 +216,7 @@ addEventListener("alertCheck", async (resolve, reject) => {
         if (hit && !alreadySentToday(sent, key, day)) {
           notify(id++, `${name} ${rule.direction} ${rule.price}`, `Now ${price}`);
           sent[key] = day;
+          notified++;
         }
       } else if (rule.kind === "pct_move") {
         const base = dayAgo[rule.symbol];
@@ -202,6 +230,7 @@ addEventListener("alertCheck", async (resolve, reject) => {
             `Now ${price}`,
           );
           sent[key] = day;
+          notified++;
         }
       }
     }
@@ -210,8 +239,15 @@ addEventListener("alertCheck", async (resolve, reject) => {
     for (const key of Object.keys(sent)) if (sent[key] < day - 1) delete sent[key];
     writeJson("alertsSent", sent);
     writeJson("lastRun", Date.now());
+    writeJson("lastNotified", notified);
+    // A run that finished clears the last failure: keeping it would make one
+    // bad night look like a runner that is still broken.
+    writeJson("lastError", null);
     resolve();
   } catch (err) {
+    // Recorded, because a throw in here is otherwise completely silent — the
+    // job simply stops and Android says nothing to anybody.
+    writeJson("lastError", { at: Date.now(), message: String((err && err.message) || err) });
     reject(err);
   }
 });
