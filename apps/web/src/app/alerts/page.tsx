@@ -306,7 +306,10 @@ function Alerts() {
         </Button>
       </div>
       <div className="mt-3 mb-4">
-        <LastChecked at={lastChecked} />
+        <LastChecked
+          at={lastChecked}
+          note="Checked when you open the app, and whenever the evaluator you have scheduled runs."
+        />
         {/*
           Documentation, not a permission.
 
@@ -375,7 +378,9 @@ function Alerts() {
         {alerts.filter((a) => a.enabled).map((a) => (
           <li
             key={a.id}
-            className={`py-3 flex items-start gap-3 ${a.enabled ? "" : "opacity-60"}`}
+            // Centred: the switch and the bin belong to the row, not to its
+            // first line.
+            className={`py-3 flex items-center gap-3 ${a.enabled ? "" : "opacity-60"}`}
           >
             <div className="min-w-0 flex-1">
               <p className="text-sm">{describe(a)}</p>
@@ -405,7 +410,7 @@ function Alerts() {
               // carried by the accessible name now that there is no text.
               aria-label={`Delete alert: ${describe(a)}…`}
               title="Delete alert…"
-              className={`${deleteButton()} mt-0.5`}
+              className={deleteButton()}
             >
               <Trash2 size={16} aria-hidden />
             </button>
@@ -424,7 +429,7 @@ function Alerts() {
           <SubHeading className="mt-8 mb-1">Paused</SubHeading>
           <ul className="divide-y divide-neutral-800">
             {alerts.filter((a) => !a.enabled).map((a) => (
-              <li key={a.id} className="py-3 flex items-start gap-3 opacity-60">
+              <li key={a.id} className="py-3 flex items-center gap-3 opacity-60">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm">{describe(a)}</p>
                   <p className="text-xs text-neutral-500 mt-0.5">
@@ -443,7 +448,7 @@ function Alerts() {
                   onClick={() => remove(a)}
                   aria-label={`Delete alert: ${describe(a)}…`}
                   title="Delete alert…"
-                  className={`${deleteButton()} mt-0.5`}
+                  className={deleteButton()}
                 >
                   <Trash2 size={16} aria-hidden />
                 </button>

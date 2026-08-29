@@ -9,6 +9,8 @@ import EmptyState from "@/components/EmptyState";
 import LastChecked from "@/components/LastChecked";
 import SubHeading from "@/components/SubHeading";
 import Switch from "@/components/Switch";
+import Button from "@/components/Button";
+import { isBatteryExempt, requestBatteryExemption } from "@/components/device-notifications";
 import { deleteButton } from "@/components/icon-button";
 import { KEYS, readKey } from "@/lib/storage-keys";
 
@@ -36,6 +38,11 @@ export default function AlertsPage() {
   const [names, setNames] = useState<Record<string, string>>({});
   const [checked, setChecked] = useState<number | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  /**
+   * Null while unknown or where the question does not apply. Only `false` —
+   * Android saying it is holding background work back — draws anything.
+   */
+  const [batteryExempt, setBatteryExempt] = useState<boolean | null>(null);
 
   // Inlined rather than a `void load()` in the effect: the lint rule cannot
   // see through a callback to know the assignment happens after an await, and
@@ -55,6 +62,11 @@ export default function AlertsPage() {
       setNames(Object.fromEntries(portfolios.map((p) => [p.id, p.name])));
       const raw = readKey(KEYS.alertsLastChecked);
       setChecked(raw ? Number(JSON.parse(raw)) : null);
+      // Asked here as well as during setup, because "Not now" there left no
+      // way back: the one screen about alerts is where somebody goes when
+      // they stop arriving.
+      const exempt = await isBatteryExempt();
+      if (!cancelled) setBatteryExempt(exempt);
     })();
     return () => { cancelled = true; };
   }, [client]);
@@ -101,7 +113,31 @@ export default function AlertsPage() {
       </div>
 
       <div className="mb-6">
-        <LastChecked at={checked} />
+        <LastChecked
+          at={checked}
+          note="Checked when you open the app, and every half hour in the background."
+        />
+        {/*
+          Only when Android says it is throttling this app. A button that
+          cannot change anything is worse than no button, and on a phone that
+          never had the restriction there is nothing to fix.
+        */}
+        {batteryExempt === false && (
+          <div className="mt-2 flex items-start gap-2 flex-wrap">
+            <p className="text-xs text-amber-500 flex-1 min-w-40">
+              Android is holding background checks back to save battery, so the half-hourly
+              check may be delayed for hours or skipped.
+            </p>
+            <Button
+              variant="secondary"
+              onClick={() => void (async () => {
+                setBatteryExempt(await requestBatteryExemption());
+              })()}
+            >
+              Allow background checks
+            </Button>
+          </div>
+        )}
       </div>
 
       {alerts === null ? null : rows.length === 0 ? (
@@ -129,10 +165,10 @@ export default function AlertsPage() {
       )}
 
       <p className="text-xs text-neutral-500 mt-10 max-w-prose">
-        Checked every time you open the app, and every half hour in the background when
-        Android allows it — it treats that schedule as a target rather than a promise, so a
-        price hit and reverted overnight can still be missed. Indicator alerts need about
-        1,460 days of history to warm up and stay on the desktop.
+        Android treats the half-hourly schedule as a target rather than a promise, so a
+        price hit and reverted between checks can still be missed. Opening the app always
+        runs one. Indicator alerts need about 1,460 days of history to warm up and stay on
+        the desktop.
       </p>
     </main>
   );
@@ -140,7 +176,10 @@ export default function AlertsPage() {
   function row(a: AlertSummary) {
     const p = a.params as { direction?: string; price?: number; threshold?: number };
     return (
-      <li key={a.id} className={`flex items-start gap-3 py-3 ${a.enabled ? "" : "opacity-60"}`}>
+      // `items-center`, so the switch and the bin sit on the row's own centre
+      // line rather than each at the top of a two-line block, where they read
+      // as floating beside the text instead of belonging to it.
+      <li key={a.id} className={`flex items-center gap-3 py-3 ${a.enabled ? "" : "opacity-60"}`}>
         <div className="min-w-0 flex-1">
           <p className="text-sm truncate">{subject(a, names)}</p>
           <p className="text-xs text-neutral-500 mt-0.5">
@@ -160,7 +199,7 @@ export default function AlertsPage() {
           onClick={() => void remove(a)}
           disabled={busy === a.id}
           aria-label={`Delete alert on ${subject(a, names)}…`}
-          className={`${deleteButton()} mt-0.5`}
+          className={deleteButton()}
         >
           <Trash2 size={16} aria-hidden />
         </button>

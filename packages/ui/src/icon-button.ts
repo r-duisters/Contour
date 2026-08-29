@@ -29,11 +29,17 @@ export function iconButton(): string {
  * not alarming. Held a little back at rest so a list of ten rows is not ten
  * red marks, full strength on hover and press.
  *
- * The padding is the point as much as the colour. A 14px glyph is a 14px
- * target; the negative margin buys a 30px one without moving anything on the
- * row, which matters most next to a control that does something else entirely.
+ * **A bordered circle, like `iconButton` and a size down.** The first attempt
+ * was a bare glyph with negative margins for a hit area, and it read as
+ * floating: nothing gave it an edge, so it sat at whatever height its own
+ * padding happened to put it while the switch beside it had a defined shape
+ * and sat somewhere else. Two controls on one row have to look like two
+ * controls of the same kind. 36px rather than the header's 44 because a row
+ * is not a page header, and it is still comfortably above the glyph.
  */
 export function deleteButton(): string {
-  return "shrink-0 -m-2 p-2 rounded text-red-500/70 hover:text-red-400 " +
-    "active:bg-red-950/40 disabled:opacity-40 transition-colors";
+  return "shrink-0 w-9 h-9 flex items-center justify-center rounded-full " +
+    "border border-neutral-800 text-red-500/80 " +
+    "hover:text-red-400 hover:border-red-900 active:bg-red-950/40 " +
+    "disabled:opacity-40 transition-colors";
 }

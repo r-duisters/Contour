@@ -69,7 +69,15 @@ function useNow(intervalMs = MINUTE): number {
   return bucket * intervalMs;
 }
 
-export default function LastChecked({ at }: { at: number | null }) {
+/**
+ * `note` is the caller's, because what happens between checks is not the same
+ * on both builds and this component cannot know which it is in. It used to say
+ * "sometimes in the background when Android allows" on every screen, which was
+ * written before the standalone build had a background runner at all and
+ * undersold it afterwards — while remaining wrong for the desktop, which has
+ * no Android to speak of.
+ */
+export default function LastChecked({ at, note }: { at: number | null; note?: string }) {
   const now = useNow();
   // Pre-hydration there is no clock, and a relative time without one would be
   // a guess. One frame of nothing beats one frame of "just now".
@@ -78,16 +86,8 @@ export default function LastChecked({ at }: { at: number | null }) {
   return (
     <p className={`text-xs ${stale ? "text-amber-500" : "text-neutral-500"}`}>
       {text}
-      {". "}
-      {/*
-        No interval appears here, because none can be kept. Android wakes a
-        background job when it chooses to; the only schedule this app controls
-        is the one the person themselves sets by opening it.
-      */}
-      <span className="text-neutral-500">
-        Checked every time you open the app, and sometimes in the background when Android
-        allows. A target hit and reverted overnight can be missed.
-      </span>
+      {note ? ". " : ""}
+      <span className="text-neutral-500">{note}</span>
     </p>
   );
 }
