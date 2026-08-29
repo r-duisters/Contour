@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { invalidate } from "@/core/cache";
-import { FakeNet, respondWith } from "../testing/fake-net";
+import { FakeNet, respondWith, respondWithHeaders } from "../testing/fake-net";
 import { assetInfo } from "./asset-info";
 
 beforeEach(() => invalidate());
@@ -151,5 +151,49 @@ describe("per-asset sentiment", () => {
     });
     const info = await assetInfo(net, "UBI.PA", "equity");
     expect(info.sentiment).toBeNull();
+  });
+});
+
+
+/**
+ * A share's About was one sentence — "ASML Holding N.V., listed on
+ * Amsterdam." — beside a coin's several paragraphs, because the company's own
+ * description lives behind Yahoo's cookie-and-crumb handshake and this module
+ * was documented as unable to perform one. That stopped being true when
+ * `NetResponse.header()` arrived.
+ *
+ * Two things worth pinning: that the description is used when the handshake
+ * works, and that its absence still leaves the one-liner rather than nothing.
+ */
+describe("an equity's description", () => {
+  const PROFILE = {
+    quoteSummary: { result: [{ assetProfile: {
+      longBusinessSummary: "ASML Holding N.V. provides lithography solutions.",
+    } }] },
+  };
+
+  it("uses the company's own words when the session forms", async () => {
+    const net = FakeNet({
+      "fc.yahoo.com": respondWithHeaders("", { "set-cookie": "A3=token; Path=/; Secure" }),
+      "v1/test/getcrumb": respondWithHeaders("abc123", {}),
+      "v10/finance/quoteSummary": PROFILE,
+      "query1.finance.yahoo.com/v8/finance/chart": CHART,
+      "feeds.finance.yahoo.com": respondWith(200, "<rss></rss>"),
+    });
+    const info = await assetInfo(net, "ASML.AS", "equity");
+    expect(info.about).toBe("ASML Holding N.V. provides lithography solutions.");
+  });
+
+  it("keeps the one-line fallback when it does not", async () => {
+    // A browser cannot read `Set-Cookie` by rule, so this is the web build's
+    // normal path through this module — and it must stay a sentence rather
+    // than becoming nothing.
+    const net = FakeNet({
+      "fc.yahoo.com": respondWithHeaders("", {}),
+      "query1.finance.yahoo.com/v8/finance/chart": CHART,
+      "feeds.finance.yahoo.com": respondWith(200, "<rss></rss>"),
+    });
+    const info = await assetInfo(net, "UBI.PA", "equity");
+    expect(info.about).toBe("Ubisoft Entertainment SA, listed on Paris.");
   });
 });

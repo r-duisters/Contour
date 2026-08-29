@@ -9,14 +9,17 @@ import type { Net } from "../ports/net";
  * module is now pure: only the types and the parsing helpers stayed, and both
  * halves import them from there.
  *
- * The equity half is **not** here. It needs a Yahoo session cookie read back
- * off the *first* response's `Set-Cookie` header before the crumb-bearing
- * second request can be made, and `Net`/`NetResponse` (`ports/net.ts`) is
- * body-only on both sides — no response header reader exists on `json()`,
- * `text()`, or `request()`, and a browser `fetch` could not read `Set-Cookie`
- * even if one did. Growing the port a cookie jar is a task of its own, so that
- * half lives server-only in `apps/web/src/lib/equity-info.ts`, beside its one
- * caller.
+ * The equity half used to be excluded entirely: Yahoo's company profile sits
+ * behind a cookie-and-crumb handshake, and the note here said `Net` was
+ * body-only with no way to read the `Set-Cookie` off the first response. That
+ * stopped being true when `NetResponse.header()` was added for
+ * `Content-Disposition` — and a native HTTP stack, which is what the device
+ * has, is not subject to the browser rule that makes `Set-Cookie` unreadable.
+ *
+ * So it is attempted here now, and falls back to what the chart endpoint alone
+ * can say. `apps/web/src/lib/equity-info.ts` still exists and the web route
+ * still uses it: it fetches more modules and has a working implementation, and
+ * replacing a working server path to prove a point is not a reason.
  *
  * The cache key (`info:crypto:${symbol}`) is the one core used, so nothing was
  * lost when core's copy went.
@@ -24,6 +27,17 @@ import type { Net } from "../ports/net";
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
+
+/**
+ * What every Yahoo call here sends, and what only the JSON ones do.
+ *
+ * `Accept: application/json` is not shared, because `getcrumb` answers plain
+ * text and refuses that header with a 406 — which is a session that silently
+ * never forms, and therefore a company description that silently never
+ * arrives. Found by sending the two-header block to all three endpoints.
+ */
+const YAHOO_UA = { "User-Agent": UA } as const;
+const YAHOO_JSON = { ...YAHOO_UA, Accept: "application/json" } as const;
 
 /** The subset of CoinGecko's coin-detail payload `cryptoInfo` reads. */
 type CoinGeckoCoin = {
@@ -161,6 +175,69 @@ async function headlines(net: Net, symbol: string, assetType: "crypto" | "equity
  * path for every asset, so Ubisoft was shown the mood of the coin market. That
  * is not a thinner answer, it is a wrong one.
  */
+/**
+ * A Yahoo session, for the endpoints that will not answer without one.
+ *
+ * Two requests: something on the yahoo.com domain that sets a cookie, then the
+ * crumb endpoint with that cookie. Both are cheap and the pair is cached for
+ * an hour, because every asset page would otherwise repeat them.
+ *
+ * Returns null on anything unexpected, and every caller treats that as "no
+ * profile" rather than as an error. On a browser `Set-Cookie` is unreadable by
+ * rule, so this simply never succeeds there — which is correct, since the web
+ * build has a server-side implementation that does not need it.
+ */
+async function yahooSession(net: Net): Promise<{ cookie: string; crumb: string } | null> {
+  return cached("yahoo:session", 3_600_000, async () => {
+    try {
+      const seed = await net.request("https://fc.yahoo.com/", { headers: YAHOO_UA });
+      const raw = seed.header("set-cookie");
+      if (!raw) return null;
+      // Only the name=value part: the attributes are the browser's business
+      // and Yahoo rejects a Cookie header that carries them back.
+      const cookie = raw.split(",").map((c) => c.split(";")[0]!.trim()).filter(Boolean).join("; ");
+      if (!cookie) return null;
+
+      const res = await net.request("https://query2.finance.yahoo.com/v1/test/getcrumb", {
+        headers: { ...YAHOO_UA, Cookie: cookie },
+      });
+      if (!res.ok) return null;
+      const crumb = (await res.text()).trim();
+      // A crumb is a short token. An HTML error page is not, and answering one
+      // as though it were is how a bad session becomes a confusing 401 later.
+      return crumb && crumb.length < 32 ? { cookie, crumb } : null;
+    } catch {
+      return null;
+    }
+  });
+}
+
+/**
+ * The company's own description, which the chart endpoint does not carry.
+ *
+ * Without this a share's About is one sentence — "Advanced Micro Devices,
+ * Inc., listed on NasdaqGS." — beside a coin's several paragraphs, which is
+ * the difference a person notices.
+ */
+async function equityProfile(net: Net, symbol: string): Promise<string | null> {
+  const session = await yahooSession(net);
+  if (!session) return null;
+  try {
+    const res = await net.request(
+      `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}` +
+        `?modules=assetProfile&crumb=${encodeURIComponent(session.crumb)}`,
+      { headers: { ...YAHOO_JSON, Cookie: session.cookie } },
+    );
+    if (!res.ok) return null;
+    const r = (await res.json<{
+      quoteSummary?: { result?: { assetProfile?: { longBusinessSummary?: string } }[] };
+    }>())?.quoteSummary?.result?.[0]?.assetProfile?.longBusinessSummary;
+    return r ? plainText(r) : null;
+  } catch {
+    return null;
+  }
+}
+
 async function equityInfo(net: Net, symbol: string): Promise<Partial<AssetInfo>> {
   const raw = await net.json<{ chart?: { result?: { meta?: EquityMeta }[] | null } }>(
     `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}` +
@@ -197,8 +274,13 @@ async function equityInfo(net: Net, symbol: string): Promise<Partial<AssetInfo>>
   );
 
   const name = m.longName ?? m.shortName ?? null;
+  // The company's own words where the handshake worked, and the one-line
+  // fallback where it did not — which is what this answered for every share
+  // until now.
+  const summary = await equityProfile(net, symbol);
   return {
-    about: name ? `${name}${m.fullExchangeName ? `, listed on ${m.fullExchangeName}` : ""}.` : null,
+    about: summary
+      ?? (name ? `${name}${m.fullExchangeName ? `, listed on ${m.fullExchangeName}` : ""}.` : null),
     tags: m.instrumentType ? [m.instrumentType.toLowerCase()] : [],
     stats,
     sentiment: rangePosition(m),
