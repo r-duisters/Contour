@@ -9,8 +9,58 @@
  * watching a launch animation.
  */
 
-/** Long enough to register as a deliberate entrance rather than a flicker. */
-export const MIN_SPLASH_MS = 1_000;
+/**
+ * The entrance, as four numbers that add up.
+ *
+ * These were scattered: a 380ms travel in the component, a 320ms fade after
+ * it, and a flat 1,000ms splash here that had no relationship to either. The
+ * sequence finished at 700ms and then the screen sat still for 300ms before
+ * the system sheet arrived — the mark hurried to its place and then waited.
+ *
+ * So the splash is no longer a number of its own. It *is* the length of the
+ * animation plus a beat, which means the movement can never overrun the
+ * prompt and can never finish early enough to leave a dead pause.
+ */
+
+/** A moment held still first, so the splash reads as a splash and not as a start gun. */
+export const SETTLE_DELAY_MS = 220;
+
+/**
+ * How long the mark takes to travel from the centre to its resting place.
+ *
+ * Slow on purpose. At 380ms with an ease-out quint the disc covered 96% of the
+ * distance in the first half and then crept — which is what "it moves up too
+ * quickly" means: not the duration alone, but a curve that spent it all at
+ * once. See ENTRANCE_EASE.
+ */
+export const SETTLE_MS = 900;
+
+/** The name, arriving only once the mark has stopped. */
+export const TITLE_MS = 560;
+
+/** Everything at rest, briefly, before the system takes the screen. */
+export const REST_MS = 260;
+
+/**
+ * The easing of the travel, as a CSS timing function.
+ *
+ * Eased in as well as out. The mark is already still when it starts — it has
+ * been the splash for a second — so a curve that begins at full speed reads as
+ * a jump. This one leaves slowly, covers the middle, and settles.
+ */
+export const ENTRANCE_EASE = "cubic-bezier(0.45, 0, 0.15, 1)";
+
+/** When the name begins to fade in: the moment the mark has arrived. */
+export const TITLE_DELAY_MS = SETTLE_DELAY_MS + SETTLE_MS;
+
+/**
+ * How long the app's own screen is owed before the prompt covers it.
+ *
+ * Derived, not chosen: the entrance above, plus its beat of rest. Raising any
+ * one of those raises this, which is the only way the sheet cannot arrive over
+ * a mark still in flight.
+ */
+export const MIN_SPLASH_MS = SETTLE_DELAY_MS + SETTLE_MS + TITLE_MS + REST_MS;
 
 /**
  * Milliseconds still owed to the splash, given when it started.

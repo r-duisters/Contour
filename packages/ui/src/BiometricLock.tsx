@@ -4,7 +4,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Fingerprint } from "lucide-react";
 import ContourMark from "@/components/ContourMark";
 import TradingBackdrop from "@/components/TradingBackdrop";
-import { remainingSplash } from "./lock-timing";
+import {
+  ENTRANCE_EASE,
+  SETTLE_DELAY_MS,
+  SETTLE_MS,
+  TITLE_DELAY_MS,
+  TITLE_MS,
+  remainingSplash,
+} from "./lock-timing";
 
 /** Re-lock after this long in the background; a glance away should not cost a prompt. */
 const RELOCK_AFTER_MS = 60_000;
@@ -17,16 +24,6 @@ const RELOCK_AFTER_MS = 60_000;
  * read as a dissolve, short enough that it is not a wait.
  */
 const CLOSE_MS = 260;
-
-/**
- * How long the mark takes to travel from the centre to its resting place.
- *
- * The lock used to draw the disc at 14vh outright, so the mark the launch
- * window and the web splash had both shown dead centre teleported the moment
- * the lock mounted. Moving it is the same picture continuing rather than a
- * third one replacing the second.
- */
-const SETTLE_MS = 380;
 
 /**
  * `splash` is the app's own screen, held briefly before the system sheet
@@ -211,8 +208,10 @@ function Overlay({
           between the two centres: the block's top is at 14vh and the disc is
           112px tall, so its centre rests at 14vh + 56px, against 50vh.
 
-          Eased out hard, so it looks like something settling rather than
-          something sliding.
+          The curve is ENTRANCE_EASE, and the whole sequence's timing lives in
+          lock-timing.ts beside the splash it has to fit inside. Backticks are
+          not available in here: this comment sits inside a template literal,
+          and one closes it.
         */
         @keyframes lock-settle {
           from { transform: translateY(calc(36vh - 56px)); }
@@ -226,7 +225,12 @@ function Overlay({
       <div className="relative z-10 flex flex-col items-center gap-6 text-center">
         <div
           className="lock-anim relative flex items-center justify-center"
-          style={entrance ? { animation: `lock-settle ${SETTLE_MS}ms cubic-bezier(0.22, 1, 0.36, 1) both` } : undefined}
+          style={entrance
+            ? {
+                animation: `lock-settle ${SETTLE_MS}ms ${ENTRANCE_EASE} both`,
+                animationDelay: `${SETTLE_DELAY_MS}ms`,
+              }
+            : undefined}
         >
           {/* A ring that breathes while the prompt is up, so a slow sensor
               still looks like the app is doing something. */}
@@ -256,7 +260,7 @@ function Overlay({
         <div
           className="lock-anim"
           style={entrance
-            ? { animation: `lock-fade 320ms ease-out both`, animationDelay: `${SETTLE_MS}ms` }
+            ? { animation: `lock-fade ${TITLE_MS}ms ease-out both`, animationDelay: `${TITLE_DELAY_MS}ms` }
             : { animation: "lock-rise 400ms ease-out both" }}
         >
           <p className="text-2xl font-semibold tracking-wide">Contour</p>
