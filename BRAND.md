@@ -443,8 +443,11 @@ One structure, two renderings, never both visible at once.
   The sheet ends *above* the tab bar rather than behind it, and the More slot
   stays lit, so it is visibly the bar's own drawer.
 - **`/more` survives for what a menu cannot hold**: the portfolio manager and
-  its import, the Android build, the TradingView credit. It is titled
-  "Portfolio data", which is what it is.
+  its import. It is titled "Portfolio data", which is what it is — and holds
+  only that. The Android build and the TradingView credit sat here too, and
+  were there because this screen inherited whatever the menu could not carry;
+  they belong to Settings → About, which is where a person looks for a version
+  and a licence.
 - **`md:` and up** — `TopNav`, sticky at the top, the mark at the left and the
   destinations inline: Portfolio, Markets, Insights, Ledger, Alerts, then
   More.

@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import ContourMark from "@/ui/ContourMark";
 import MarkTile from "@/components/MarkTile";
+import Button from "@/components/Button";
 import { DataClientProvider } from "@/data/client/context";
 import { DEVICE_ROUTING, RoutingProvider } from "@/components/routing";
 import { SaveFileProvider } from "@/components/save-file";
@@ -30,6 +30,9 @@ import { attachCacheStore, flushCache } from "@/lib/cache";
 export default function Providers({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState<DataClient | null>(null);
   const [failed, setFailed] = useState(false);
+  // Which go this is. Nothing is retried automatically — the count exists so
+  // the screen can stop repeating advice that has already been followed once.
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     // Before the first request, so the cache is warm when the screens ask.
@@ -51,7 +54,13 @@ export default function Providers({ children }: { children: ReactNode }) {
      */
     const flush = () => { if (document.visibilityState === "hidden") flushCache(); };
     document.addEventListener("visibilitychange", flush);
+    return () => document.removeEventListener("visibilitychange", flush);
+  }, []);
 
+  // Separate from the cache wiring above, and keyed on the attempt: a retry
+  // re-runs the open and nothing else. Re-attaching the cache or the
+  // visibility listener on every press would be a leak per press.
+  useEffect(() => {
     let cancelled = false;
     client()
       .then((c) => { if (!cancelled) setReady(c); })
@@ -59,20 +68,43 @@ export default function Providers({ children }: { children: ReactNode }) {
       // it to degrade to: every screen's data lives there. Saying so beats a
       // splash that never ends.
       .catch(() => { if (!cancelled) setFailed(true); });
-    return () => {
-      cancelled = true;
-      document.removeEventListener("visibilitychange", flush);
-    };
-  }, []);
+    return () => { cancelled = true; };
+  }, [attempt]);
 
+  /*
+   * The splash held still, not a second screen.
+   *
+   * This drew a bare `ContourMark` at 64 while the splash a moment earlier
+   * drew `MarkTile` at 112, so the app changed identity at the instant it
+   * failed — the one moment it should look most like itself. Same mark, same
+   * size, same place: only the breathing stops, and the words and the action
+   * arrive underneath.
+   *
+   * And it is an action now. "Reopening the app usually clears this" asked a
+   * person to do by hand the one thing the screen could do itself, and the
+   * commonest cause — a duplicate native connection after a full document
+   * load — is cleared by exactly that retry.
+   */
   if (failed) {
     return (
-      <main className="flex-1 flex items-center justify-center p-8 text-center">
+      <main className="flex-1 flex flex-col items-center justify-center gap-6 p-8 text-center">
+        <MarkTile size={112} />
         <div>
-          <ContourMark size={64} />
-          <p className="mt-4 text-sm text-neutral-400">Contour could not open its database.</p>
-          <p className="mt-1 text-xs text-neutral-500">Reopening the app usually clears this.</p>
+          <p className="text-sm text-neutral-400">Contour could not open its database.</p>
+          <p className="mt-1 text-xs text-neutral-500 max-w-xs">
+            {attempt === 0
+              ? "Nothing is lost — the file is still on this phone."
+              : "Still not opening. Close Contour completely, then open it again."}
+          </p>
         </div>
+        <Button
+          onClick={() => {
+            setFailed(false);
+            setAttempt((n) => n + 1);
+          }}
+        >
+          Try again
+        </Button>
       </main>
     );
   }

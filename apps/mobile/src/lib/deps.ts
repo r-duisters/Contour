@@ -13,6 +13,12 @@ import { ENABLE_FOREIGN_KEYS, migrate } from "./store/schema";
  * client is built once, lazily, and every caller awaits the same promise. A
  * second call while the first is still opening gets that same promise rather
  * than a second connection to the same file.
+ *
+ * Memoising the *failure* would be a different thing entirely: a rejected
+ * promise held forever means every later call re-reads the same rejection
+ * without touching the database, so a retry cannot succeed even once the
+ * cause has gone. The duplicate-connection case in `openDb` is exactly that
+ * kind of cause. So the slot is cleared when the open fails, and only then.
  */
 const DB_NAME = "contour";
 
@@ -83,6 +89,10 @@ async function openDb(): Promise<DB> {
 }
 
 export function client(): Promise<DataClient> {
-  pending ??= (async () => LocalClient(SqliteStore(await openDb()), CapacitorNet()))();
+  pending ??= (async () => LocalClient(SqliteStore(await openDb()), CapacitorNet()))()
+    .catch((e) => {
+      pending = null;
+      throw e;
+    });
   return pending;
 }
