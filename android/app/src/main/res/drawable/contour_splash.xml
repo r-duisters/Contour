@@ -1,34 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   What Android draws when there is no app content to show: the launch window
-  before the WebView's first paint, and the recents card, which since
+  below API 31, and the recents card, which since
   `setRecentsScreenshotEnabled(false)` is substituted from the window
   background rather than photographed.
 
-  The disc is drawn here as a shape rather than borrowed from the launcher
-  icon, and that is not a style preference. `@mipmap/ic_launcher_round`
-  resolves to `mipmap-anydpi-v26/ic_launcher_round.xml` on API 26 and above,
-  which is an `adaptive-icon` and not a bitmap; putting it inside `bitmap`
-  compiles without complaint and then throws when the window background is
-  inflated, which is at activity start. That crashed the app on launch.
-
-  `@mipmap/ic_launcher_foreground` is safe under `bitmap` because it is a real
-  PNG at every density and has no `anydpi` override to turn it into XML. It is
-  the white mark on transparency, already inset for the adaptive icon's safe
-  area, so it sits inside the disc without further padding.
-
-  This drawable is *not* what a phone on API 31 or above shows at launch —
+  This drawable is *not* what a phone on API 31 or above shows at launch.
   `Theme.SplashScreen` composes that from `windowSplashScreenBackground` and
-  `windowSplashScreenAnimatedIcon`, and reads no window background at all. See
-  `contour_splash_icon.xml`.
+  `windowSplashScreenAnimatedIcon`, and reads no window background at all — a
+  fact that cost this app a square logo at every launch for months, because the
+  disc drawn here was only ever reached below 31.
+
+  The mark comes from `contour_splash_icon`, which is a vector sized to its own
+  canvas. So the size is declared here, on the item: without it the vector
+  would be stretched to the whole window, which on a recents card is a disc the
+  size of the screen.
 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/contour_ground" />
 
-    <!--
-      The disc itself lives in `contour_splash_icon.xml`, because Android 12's
-      splash screen needs it without a ground behind it and the two must not be
-      allowed to drift apart. Its diameter is `@dimen/contour_mark_disc`.
-    -->
-    <item android:drawable="@drawable/contour_splash_icon" />
+    <item
+        android:width="@dimen/contour_mark_disc"
+        android:height="@dimen/contour_mark_disc"
+        android:gravity="center"
+        android:drawable="@drawable/contour_splash_icon" />
 </layer-list>

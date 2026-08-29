@@ -1,35 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!--
-      The diameter of the mark's disc, everywhere the system draws it: the
-      Android 12 splash icon, the pre-31 launch window and the recents card.
+      The diameter of the mark's disc on the surfaces this project sizes
+      itself: the pre-31 launch window and the recents card, both drawn from
+      `contour_splash.xml`.
 
-      112 is the lock screen's disc in `BiometricLock.tsx` and the web splash's
-      in `providers.tsx`. One number, because the point of the entrance is that
-      nothing about the mark changes size or place between the four pictures a
-      cold start shows.
+      112 is `MarkTile`'s size and the lock screen's. It is deliberately *not*
+      the size of the Android 12 splash icon, which is not ours to choose —
+      Android renders that at its own canvas size, measured at 188dp on a
+      Galaxy S24. `SPLASH_DISC_PX` in `packages/ui/src/lock-timing.ts` carries
+      that number and the app's own splash matches it.
+
+      The disc's share of the adaptive icon and the mark's share of each disc
+      are no longer dimens: they live inside the generated vectors, as
+      proportions of a viewport, because a dp declared in a layer-list is not
+      honoured when Android scales a drawable to fill a canvas. That is exactly
+      how the splash disc ended up two thirds too large.
     -->
     <dimen name="contour_mark_disc">112dp</dimen>
-
-    <!--
-      The mark inside that disc: 86% of it, which is `MarkTile`'s rule and so
-      what the lock screen draws one frame later.
-    -->
-    <dimen name="contour_mark">96dp</dimen>
-
-    <!--
-      The disc inside an adaptive icon, and the mark inside that disc.
-
-      An adaptive icon's layers are 108dp and a launcher's mask crops them to
-      at most the central 72dp — a circle on one launcher, a squircle on the
-      next, a rounded square on a third. Drawing the disc at exactly that 72dp
-      means a circular mask is filled edge to edge, with no ring of ground
-      showing, while any other mask leaves the ground in its corners and the
-      mark still reads as a circle. The shape stops being the launcher's
-      decision, which is the whole point.
-
-      86% is `MarkTile`'s rule for the mark's share of its disc.
-    -->
-    <dimen name="adaptive_disc">72dp</dimen>
-    <dimen name="adaptive_disc_mark">62dp</dimen>
 </resources>
