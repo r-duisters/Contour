@@ -16,6 +16,12 @@ says). Read it before touching an icon, `MainActivity`'s splash handling or
 `lock-timing.ts`; the rules there were measured off screen recordings and are
 not guessable from the code.
 
+`docs/asset-logos.md` covers where an asset's logo comes from — a proxy on the
+web, a bundle on the device, and that difference is a privacy property rather
+than plumbing — and why the background behind one is measured per logo rather
+than set once. Read it before changing `CoinIcon`, the bundler or anything that
+draws a ticker's mark.
+
 `BRAND.md` is the guide for anything user-facing: the app's name, voice,
 colour, layout rules, established components and the anti-patterns already
 removed once. Read it before writing UI or copy.
