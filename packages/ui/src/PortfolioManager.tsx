@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, Download, Plus, Trash2, Upload } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { AlertTriangle, Download, Plus, Trash2 } from "lucide-react";
 import { useDataClient } from "@/data/client/context";
 import { useSaveFile } from "./save-file";
 import type { ExportFormat } from "@/data/client/data-client";
@@ -12,6 +12,9 @@ import { KEYS } from "@/lib/storage-keys";
 import { field } from "./field";
 import Button from "./Button";
 import SubHeading from "./SubHeading";
+import ImportSources from "./ImportSources";
+import { importKindOf } from "./setup-steps";
+import type { FormatId } from "@/lib/import-formats";
 
 /**
  * A file this app can produce, and what it is for.
@@ -39,7 +42,7 @@ const EXPORTS: [ExportFormat, string, string][] = [
 function ActionRow({
   icon: Icon, label, detail, onClick,
 }: {
-  icon: typeof Upload;
+  icon: typeof Download;
   label: string;
   detail: string;
   onClick: () => void;
@@ -93,9 +96,11 @@ export default function PortfolioManager() {
   const [newName, setNewName] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   /** A previewed import waiting on a decision: the file, and what it found. */
-  const [pending, setPending] = useState<{ csv: string; report: ImportReport } | null>(null);
-  const csvRef = useRef<HTMLInputElement>(null);
-  const backupRef = useRef<HTMLInputElement>(null);
+  const [pending, setPending] = useState<
+    { csv: string; format?: FormatId; report: ImportReport } | null
+  >(null);
+  /** Set while a file is being read, so the sources cannot be tapped twice. */
+  const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     const rows = await client.listPortfolios().catch(() => null);
@@ -149,33 +154,54 @@ export default function PortfolioManager() {
    * meets the panel when their ledger will not balance, and then they are
    * choosing with the findings in front of them rather than after the fact.
    */
-  async function importCsv(file: File) {
+  /*
+   * One handler for whatever was picked, because the tiles offer one gesture.
+   *
+   * This screen used to have two buttons and two hidden file inputs — "Import
+   * Delta CSV" and "Restore backup…" — while the first-run flow already
+   * offered eight sources through `ImportSources`. The importer had grown
+   * readers for Binance, Coinbase, Kraken, Trading 212 and DEGIRO, plus a
+   * column mapper for anything else, and none of them were reachable here:
+   * the everyday screen named the one format the app started with.
+   *
+   * A pinned source is always a CSV reader, so it settles the question a sniff
+   * would otherwise answer — the same rule the setup flow follows, from the
+   * same function.
+   */
+  async function importFile(file: File, format?: FormatId) {
     if (!selectedId) return;
-    setMsg("Checking the file…");
     setPending(null);
+    setBusy(true);
     try {
-      const csv = await file.text();
-      const preview = await client.importCsv(selectedId, csv, { dryRun: true });
+      const text = await file.text();
+      if (!format && importKindOf(text) === "backup") {
+        await restoreBackup(text);
+        return;
+      }
+      setMsg("Checking the file…");
+      const preview = await client.importCsv(selectedId, text, { dryRun: true, format });
       if (preview.audit.length > 0) {
-        setPending({ csv, report: preview });
+        setPending({ csv: text, format, report: preview });
         setMsg(null);
         return;
       }
-      await commitImport(csv);
+      await commitImport(text, format);
     } catch (e) {
       // A refused import used to be reported from the response body here; the
       // client now carries that same sentence on the error, so both the refusal
       // and an unreachable server land in this one branch.
       setMsg(`Import failed: ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
     }
   }
 
-  async function commitImport(csv: string) {
+  async function commitImport(csv: string, format?: FormatId) {
     if (!selectedId) return;
     setPending(null);
     setMsg("Importing…");
     try {
-      const d = await client.importCsv(selectedId, csv);
+      const d = await client.importCsv(selectedId, csv, { format });
       const parts = [`Imported ${d.imported} transactions`];
       if (d.duplicates) parts.push(`${d.duplicates} already present (skipped)`);
       if (d.skipped.length) {
@@ -184,7 +210,12 @@ export default function PortfolioManager() {
         parts.push(`skipped ${d.skipped.length} (${shown}${d.skipped.length > 3 ? "; …" : ""})`);
       }
       if (d.warnings.length) parts.push(`${d.warnings.length} without a price`);
-      setMsg(parts.join(" · "));
+      // A file that produced nothing is not a success, however cleanly it
+      // parsed. Saying so is the difference between "your data is in" and a
+      // portfolio someone finds empty a week later.
+      setMsg(d.imported === 0
+        ? `Nothing was imported. ${parts.slice(1).join(" · ") || "No row in that file was recognised as a transaction."}`
+        : parts.join(" · "));
       await load();
     } catch (e) {
       setMsg(`Import failed: ${(e as Error).message}`);
@@ -203,10 +234,9 @@ export default function PortfolioManager() {
     }
   }
 
-  async function restoreBackup(file: File) {
+  async function restoreBackup(backup: string) {
     setMsg("Restoring…");
     try {
-      const backup = await file.text();
       const d = await client.restoreBackup(backup);
       setMsg(`Restored ${d.restored} transactions into "${d.name}".`);
       await load();
@@ -268,7 +298,7 @@ export default function PortfolioManager() {
             missing rows are added.
           </p>
           <div className="flex gap-2 flex-wrap">
-            <Button onClick={() => commitImport(pending.csv)}>Import anyway</Button>
+            <Button onClick={() => commitImport(pending.csv, pending.format)}>Import anyway</Button>
             <Button variant="secondary" onClick={() => { setPending(null); setMsg("Import cancelled. Nothing was changed."); }}>
               Cancel and fix the export
             </Button>
@@ -276,29 +306,19 @@ export default function PortfolioManager() {
         </div>
       )}
 
-      <input ref={csvRef} type="file" accept=".csv,text/csv" className="hidden"
-             onChange={(e) => { const f = e.target.files?.[0]; if (f) importCsv(f); e.target.value = ""; }} />
-      <input ref={backupRef} type="file" accept=".json,application/json" className="hidden"
-             onChange={(e) => { const f = e.target.files?.[0]; if (f) restoreBackup(f); e.target.value = ""; }} />
-
       {selectedId && (
         <>
           <div>
             <SubHeading className="mb-2">Bring data in</SubHeading>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <ActionRow
-                icon={Upload}
-                label="Import Delta CSV"
-                detail="Adds transactions from a Delta by eToro export. Rows already here are skipped."
-                onClick={() => csvRef.current?.click()}
-              />
-              <ActionRow
-                icon={Upload}
-                label="Restore backup…"
-                detail="Reads a Contour backup and replaces what this portfolio holds."
-                onClick={() => backupRef.current?.click()}
-              />
-            </div>
+            {/* The same grid the first-run flow shows. Pinning a source is how
+                a file the sniffer misreads gets in anyway, and it is the only
+                route to the column mapper behind "Other". */}
+            <ImportSources onFile={(file, format) => void importFile(file, format)} busy={busy} />
+            <p className="text-xs text-neutral-500 mt-2">
+              Transactions already here are skipped, so re-importing the same
+              export adds only what is new. A Contour backup replaces a
+              portfolio rather than adding to one.
+            </p>
           </div>
 
           {/* Buttons, not `<a download>` anchors. An anchor cannot work on a
