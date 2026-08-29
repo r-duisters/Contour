@@ -249,6 +249,13 @@ export function HttpClient(net: Net, baseUrl = ""): DataClient {
       return d.alert;
     },
 
+    async setAlertEnabled(id: string, enabled: boolean): Promise<AlertSummary> {
+      const d = await send<{ alert: AlertSummary }>(
+        "PATCH", `/api/alerts/${encodeURIComponent(id)}`, { body: { enabled } },
+      );
+      return d.alert;
+    },
+
     async deleteAlert(id: string): Promise<void> {
       await send("DELETE", `/api/alerts/${encodeURIComponent(id)}`);
     },

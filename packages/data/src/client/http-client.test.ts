@@ -40,10 +40,17 @@ const summary = {
  * server's wire format, and `HttpClient`'s job is to be the last place that
  * knows about them.
  */
+type AlertRow = {
+  id: string; kind: string; symbol: string | null; portfolioId: string | null;
+  assetType: string; params: Record<string, unknown>; enabled: boolean;
+};
+
 function seededNet(): FakeNetInstance {
   // Per-client, because the contract requires settings to start unwritten and
   // to read back once saved — a fresh install that goes through setup.
   let settingsWritten = false;
+  // Same reason: alerts made in one case must not be visible to the next.
+  const alertRows = new Map<string, AlertRow>();
 
   return FakeNet({
     "/api/markets": { board: { indices: [], up: [], down: [], largest: [], source: "test", at: 0 } },
@@ -160,17 +167,41 @@ function seededNet(): FakeNetInstance {
         // `history` returns from its own catch, never a 404.
         ? { bars: [], range: FIXTURE.range, changePct: null, error: "no data" }
         : { bars: [{ t: FIXTURE.benchmarkFrom, c: 40_000 }], range: FIXTURE.range, changePct: 1.2 },
-    "/api/alerts/alert-1": {},
-    "/api/alerts": (url: string, init?: RequestInit) =>
-      init?.method === "POST"
-        ? {
-            alert: {
-              id: "alert-1", kind: "price_target", symbol: "BTCUSDT",
-              assetType: "crypto", params: { direction: "above", price: 100000 },
-              enabled: true,
-            },
-          }
-        : { alerts: [] },
+    /*
+     * Stateful, and echoing what was sent, for the same reason the transaction
+     * and import fakes are: a stub that answered one canned price-target
+     * whatever it received would let the client drop `kind`, `portfolioId` or
+     * the threshold on the way out and still satisfy every assertion about
+     * them. It would also make the paused/enabled case meaningless, since the
+     * answer would never change.
+     */
+    "/api/alerts/": (url: string, init?: RequestInit) => {
+      const id = url.split("/api/alerts/")[1]!.split("?")[0]!;
+      const row = alertRows.get(id);
+      if (method(init) === "DELETE") { alertRows.delete(id); return { ok: true }; }
+      if (!row) return notFound;
+      const body = JSON.parse(String(init?.body ?? "{}")) as { enabled?: boolean };
+      row.enabled = body.enabled ?? row.enabled;
+      return { alert: { ...row } };
+    },
+    "/api/alerts": (_url: string, init?: RequestInit) => {
+      if (method(init) !== "POST") return { alerts: [...alertRows.values()] };
+      const sent = JSON.parse(String(init?.body ?? "{}")) as {
+        kind?: string; symbol?: string; assetType?: string;
+        portfolioId?: string; params?: Record<string, unknown>;
+      };
+      const row = {
+        id: `alert-${alertRows.size + 1}`,
+        kind: sent.kind ?? "price_target",
+        symbol: sent.symbol ?? null,
+        portfolioId: sent.portfolioId ?? null,
+        assetType: sent.assetType ?? "crypto",
+        params: sent.params ?? {},
+        enabled: true,
+      };
+      alertRows.set(row.id, row);
+      return { alert: { ...row } };
+    },
     "/api/symbols/search": [
       { symbol: "ASML.AS", name: "ASML HOLDING", assetType: "equity", exchange: "Amsterdam" },
       { symbol: "AST", name: "AST", assetType: "crypto", exchange: "Binance" },

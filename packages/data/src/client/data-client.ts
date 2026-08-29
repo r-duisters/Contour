@@ -324,6 +324,18 @@ export interface DataClient {
   createAlert?(alert: NewAlertInput): Promise<AlertSummary>;
   /** @throws RequestFailedError when the alert is not there. */
   deleteAlert?(id: string): Promise<void>;
+  /**
+   * Stop watching without forgetting the rule, or start again.
+   *
+   * Distinct from deleting, and the distinction is the whole feature: a target
+   * you are about to trip on purpose, or a swing rule during a week the market
+   * is loud, is something to silence for a few days rather than to rebuild
+   * from scratch afterwards. The evaluators already skip a disabled row —
+   * `expandRules` drops `enabled === false` — so nothing downstream changes.
+   *
+   * @throws RequestFailedError when the alert is not there.
+   */
+  setAlertEnabled?(id: string, enabled: boolean): Promise<AlertSummary>;
 
   /* --------------------------------------------------- import and restore */
 

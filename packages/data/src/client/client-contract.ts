@@ -471,11 +471,13 @@ export function runDataClientContract(
         expect(client.listAlerts).toBeUndefined();
         expect(client.createAlert).toBeUndefined();
         expect(client.deleteAlert).toBeUndefined();
+        expect(client.setAlertEnabled).toBeUndefined();
         return;
       }
       expect(typeof client.listAlerts).toBe("function");
       expect(typeof client.createAlert).toBe("function");
       expect(typeof client.deleteAlert).toBe("function");
+      expect(typeof client.setAlertEnabled).toBe("function");
       await expect(client.listAlerts!()).resolves.toBeInstanceOf(Array);
     });
 
@@ -492,6 +494,44 @@ export function runDataClientContract(
       // The kind travels: without it the evaluator prices a share through
       // Binance and the alert never fires — see #19.
       expect(made.assetType).toBe("crypto");
+    });
+
+    it("pauses an alert and lets it back on, without forgetting the rule", async () => {
+      if (!capabilities.alerts) return;
+      const client = makeClient();
+      const made = await client.createAlert!({
+        symbol: "SOLUSDT", assetType: "crypto", direction: "above", price: 500,
+      });
+      expect(made.enabled).toBe(true);
+
+      const paused = await client.setAlertEnabled!(made.id, false);
+      expect(paused.id).toBe(made.id);
+      expect(paused.enabled).toBe(false);
+      // The rule survives being switched off: pausing is not a soft delete,
+      // and what it was watching has to come back unchanged.
+      expect(paused.symbol).toBe(made.symbol);
+      expect(paused.params).toEqual(made.params);
+
+      const back = await client.setAlertEnabled!(made.id, true);
+      expect(back.enabled).toBe(true);
+
+      // And it is the stored row that changed, not just the answer.
+      const listed = (await client.listAlerts!()).find((a) => a.id === made.id);
+      expect(listed?.enabled).toBe(true);
+    });
+
+    it("creates a rule that watches every holding rather than one symbol", async () => {
+      if (!capabilities.alerts) return;
+      const made = await makeClient().createAlert!({
+        kind: "pct_move",
+        portfolioId: PORTFOLIO_ID,
+        threshold: 5,
+      });
+      // No symbol is the shape that means "everything": `expandRules` reads
+      // exactly this to decide whether to resolve the portfolio's holdings.
+      expect(made.symbol).toBe(null);
+      expect(made.portfolioId).toBe(PORTFOLIO_ID);
+      expect(made.params).toMatchObject({ threshold: 5 });
     });
 
     it("removes one it made", async () => {

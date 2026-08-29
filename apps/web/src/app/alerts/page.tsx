@@ -4,12 +4,14 @@ import { Suspense, useEffect, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 import SymbolPicker from "@/components/SymbolPicker";
 import { quoteAsset } from "@/components/CoinIcon";
-import { Bell, Pause, Play, Plus, Trash2 } from "lucide-react";
+import { Bell, Play, Plus, Trash2 } from "lucide-react";
 import Button from "@/components/Button";
 import { field } from "@/components/field";
 import EmptyState from "@/components/EmptyState";
 import PageLabel from "@/components/PageLabel";
 import LastChecked from "@/components/LastChecked";
+import Switch from "@/components/Switch";
+import SubHeading from "@/components/SubHeading";
 import { KEYS, readKey } from "@/lib/storage-keys";
 
 type Alert = {
@@ -345,47 +347,128 @@ function Alerts() {
       )}
       <div className="mb-6" />
 
+      {/*
+        A row per alert, in the app's list-row anatomy rather than a line of
+        wrapping text.
+
+        Every alert answers three questions — what it watches, what would fire
+        it, and whether it is on — and all three were crammed onto one flex row
+        in `font-mono break-all`, beside two chips and two underlined text
+        buttons. At a narrow width the whole thing folded into four ragged
+        lines and the state chip could end up below the buttons that change it.
+
+        The subject leads, the condition sits under it with what is known about
+        the last check, and the switch is the control: the state is the thing
+        you came here to change, so it is a switch rather than a label plus a
+        verb. Delete stays a separate, quieter action — the two are not
+        neighbours in consequence.
+      */}
+      {/*
+        Split into what will reach you and what will not, the same way the
+        device screen does. Mixed together a paused row is just a row that
+        looks slightly wrong, and the two groups are read for different
+        reasons: one is "am I covered", the other is "what did I switch off".
+      */}
+      {alerts.length > 0 && <SubHeading className="mb-1">Watching</SubHeading>}
       <ul className="divide-y divide-neutral-800">
-        {alerts.map((a) => (
-          <li key={a.id} className="py-3 flex items-center gap-3 text-sm flex-wrap">
-            <span className="font-mono break-all">{describe(a)}</span>
-            {/* Green means money gained everywhere else in the app, so an
-                enabled alert is marked with the accent, not with a gain. */}
-            <span className={`text-xs px-2 py-0.5 rounded border ${
-              a.enabled
-                ? "border-blue-900 bg-blue-950/50 text-blue-400"
-                : "border-neutral-800 bg-neutral-900 text-neutral-500"
-            }`}>
-              {a.enabled ? "Enabled" : a.kind === "price_target" ? "Fired, paused" : "Paused"}
-            </span>
-            <span className="text-neutral-500 text-xs">
-              {a.lastEvaluated ? `last: ${new Date(a.lastEvaluated).toLocaleString()}` : "never evaluated"}
-            </span>
-            <span className="flex-1" />
-            <button onClick={() => toggle(a)} className="text-xs underline text-neutral-400 inline-flex items-center gap-1">
-              {a.enabled ? <Pause size={12} aria-hidden /> : <Play size={12} aria-hidden />}
-              {a.enabled ? "Pause" : "Enable"}
+        {alerts.filter((a) => a.enabled).map((a) => (
+          <li
+            key={a.id}
+            className={`py-3 flex items-start gap-3 ${a.enabled ? "" : "opacity-60"}`}
+          >
+            <div className="min-w-0 flex-1">
+              <p className="text-sm">{describe(a)}</p>
+              {/*
+                No "fired, paused". A one-shot target disables itself when it
+                fires, and this said so — but pausing by hand now produces the
+                identical row, and the data cannot tell the two apart. The
+                heading above already says paused; claiming to know why was
+                true only while there was one way to get there.
+              */}
+              <p className="text-xs text-neutral-500 mt-0.5">
+                {a.kind === "price_target" && "One-shot · "}
+                {a.lastEvaluated
+                  ? `last checked ${new Date(a.lastEvaluated).toLocaleString()}`
+                  : "never checked"}
+              </p>
+            </div>
+            <Switch
+              checked={a.enabled}
+              onChange={() => toggle(a)}
+              label={`${a.enabled ? "Pause" : "Resume"} ${describe(a)}`}
+            />
+            <button
+              onClick={() => remove(a)}
+              aria-label={`Delete alert: ${describe(a)}`}
+              className="shrink-0 mt-0.5 text-neutral-700 hover:text-red-500 transition-colors"
+            >
+              <Trash2 size={14} aria-hidden />
             </button>
-            <button onClick={() => remove(a)} className="text-xs underline text-red-500 inline-flex items-center gap-1"><Trash2 size={12} aria-hidden />Delete alert…</button>
           </li>
         ))}
         {alerts.length === 0 && (
           <EmptyState as="li" className="py-4">No alerts yet — build one above and press Create.</EmptyState>
         )}
+        {alerts.length > 0 && alerts.every((a) => !a.enabled) && (
+          <EmptyState as="li" className="py-4">Everything is paused.</EmptyState>
+        )}
       </ul>
+
+      {alerts.some((a) => !a.enabled) && (
+        <>
+          <SubHeading className="mt-8 mb-1">Paused</SubHeading>
+          <ul className="divide-y divide-neutral-800">
+            {alerts.filter((a) => !a.enabled).map((a) => (
+              <li key={a.id} className="py-3 flex items-start gap-3 opacity-60">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm">{describe(a)}</p>
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    {a.kind === "price_target" && "One-shot · "}
+                    {a.lastEvaluated
+                      ? `last checked ${new Date(a.lastEvaluated).toLocaleString()}`
+                      : "never checked"}
+                  </p>
+                </div>
+                <Switch
+                  checked={false}
+                  onChange={() => toggle(a)}
+                  label={`Resume ${describe(a)}`}
+                />
+                <button
+                  onClick={() => remove(a)}
+                  aria-label={`Delete alert: ${describe(a)}`}
+                  className="shrink-0 mt-0.5 text-neutral-700 hover:text-red-500 transition-colors"
+                >
+                  <Trash2 size={14} aria-hidden />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </main>
   );
 }
 
+/**
+ * What the alert watches and what would fire it, as a sentence.
+ *
+ * Was `BTCUSDT ≥ 100000` in a monospace face, which reads as a stored row
+ * rather than as a thing someone asked for. The symbols keep the mono face —
+ * they are identifiers, which `BRAND.md` reserves it for — and the rest is
+ * prose.
+ */
 function describe(a: Alert): string {
   if (a.kind === "price_target") {
     const p = a.params as { direction?: string; price?: number };
-    return `${a.symbol} ${p.direction === "below" ? "≤" : "≥"} ${p.price}`;
+    return `${a.symbol} ${p.direction === "below" ? "falls below" : "rises above"} ${p.price}`;
   }
   if (a.kind === "pct_move") {
     const p = a.params as { threshold?: number };
-    const scope = a.symbol ?? `portfolio “${a.portfolioName ?? "?"}”`;
-    return `${scope} moves ±${p.threshold}% (24h)`;
+    // A portfolio-scoped rule names no symbol; that is the shape that means
+    // every holding, and it must not render as a blank subject.
+    const scope = a.symbol ?? `Everything in ${a.portfolioName ?? "your portfolio"}`;
+    return `${scope} moves ±${p.threshold}% in a day`;
   }
-  return `${a.symbol} ${a.timeframe} indicator`;
+  return `${a.symbol} ${a.timeframe} indicator signal`;
 }

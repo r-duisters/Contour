@@ -262,6 +262,10 @@ export function LocalClient(store: Store, net: Net): DataClient {
       )));
     },
 
+    async setAlertEnabled(id: string, enabled: boolean): Promise<AlertSummary> {
+      return attempt(async () => toSummary(await store.alerts.setEnabled(id, enabled)));
+    },
+
     async deleteAlert(id: string): Promise<void> {
       return attempt(() => store.alerts.remove(id));
     },
