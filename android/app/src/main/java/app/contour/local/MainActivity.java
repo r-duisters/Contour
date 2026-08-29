@@ -12,6 +12,7 @@ import android.os.SystemClock;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.core.splashscreen.SplashScreen;
+import androidx.core.splashscreen.SplashScreenViewProvider;
 
 import com.getcapacitor.BridgeActivity;
 
@@ -41,6 +42,20 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
 
         holdSplashUntilWebViewPaints(splash);
+        /*
+         * Take the splash away without animating it.
+         *
+         * The default exit animates the icon out, which only ever made sense
+         * when what lay beneath was a different screen. It is not: by the time
+         * this runs the WebView has drawn the same mark, at the same size, in
+         * the same place. Animating one away over the other is a dissolve
+         * between two identical pictures, and on a real launch it reads as the
+         * mark flickering.
+         *
+         * Removing it immediately is a cut, and a cut between two identical
+         * frames is invisible.
+         */
+        splash.setOnExitAnimationListener(SplashScreenViewProvider::remove);
 
         // A WebView ignores downloads unless something is listening, and
         // Capacitor installs no listener — so "Install the latest build" did

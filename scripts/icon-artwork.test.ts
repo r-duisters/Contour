@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
+import { ICON_DISC_FRACTION, SPLASH_CANVAS_PX, SPLASH_DISC_PX } from "../packages/ui/src/lock-timing";
 
 /**
  * No launcher bitmap may be a full-bleed blue square.
@@ -80,5 +81,49 @@ describe("launcher artwork", () => {
       const icon = readFileSync(join(RES, "mipmap-anydpi-v26", name), "utf8");
       expect(icon, name).toContain('android:drawable="@drawable/ic_launcher_disc"');
     }
+  });
+});
+
+/**
+ * Every picture in the launch draws its disc at the same share of its space.
+ *
+ * Android 12 cannot be told to skip its splash screen — an app chooses what is
+ * on it, never whether it appears — and the launcher morphs its own icon into
+ * that splash before the app draws anything. Three pictures, in a row, of the
+ * same mark. Any two of them disagreeing on the disc's size is a switch a
+ * person sees partway through the animation, and that is exactly what this app
+ * did for months.
+ *
+ * The two Android icons are generated, so this reads the generated files
+ * rather than the generator. The third is the app's own splash, which takes
+ * its size from `SPLASH_DISC_PX`.
+ */
+describe("the launch draws one disc at one size", () => {
+  /** The disc is the first <path> in each generated vector; its radius is in the arc. */
+  function discFraction(file: string): number {
+    const xml = readFileSync(join(RES, "drawable", file), "utf8");
+    const viewport = Number(/android:viewportWidth="([\d.]+)"/.exec(xml)?.[1]);
+    const radius = Number(/android:pathData="M[\d.-]+,[\d.-]+ a([\d.]+),/.exec(xml)?.[1]);
+    expect(viewport, `${file}: no viewportWidth`).toBeGreaterThan(0);
+    expect(radius, `${file}: no disc path`).toBeGreaterThan(0);
+    return (radius * 2) / viewport;
+  }
+
+  /** What a launcher's mask crops an adaptive icon's 108dp layers to. */
+  const MASK_DP = 72;
+  const LAYER_DP = 108;
+
+  it("the launcher icon's disc covers the agreed share of the masked icon", () => {
+    // Declared against the 108dp layer, but only the masked 72 is ever seen.
+    const ofLayer = discFraction("ic_launcher_disc.xml");
+    expect(ofLayer * (LAYER_DP / MASK_DP)).toBeCloseTo(ICON_DISC_FRACTION, 2);
+  });
+
+  it("the splash icon's disc covers the same share of its canvas", () => {
+    expect(discFraction("contour_splash_icon.xml")).toBeCloseTo(ICON_DISC_FRACTION, 2);
+  });
+
+  it("the app's own splash draws the mark at that share too", () => {
+    expect(SPLASH_DISC_PX / SPLASH_CANVAS_PX).toBeCloseTo(ICON_DISC_FRACTION, 2);
   });
 });

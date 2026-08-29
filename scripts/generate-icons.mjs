@@ -192,10 +192,24 @@ async function androidIcons() {
    * logo.
    */
   await writeFile(`${drawables}/ic_launcher_disc.xml`, vectorIcon(108, 64));
-  // The splash icon, whose disc fills its canvas because Android renders it at
-  // the canvas size either way. `SPLASH_DISC_PX` in packages/ui carries the
-  // measurement of what that comes out as.
-  await writeFile(`${drawables}/contour_splash_icon.xml`, vectorIcon(192, 192));
+  /*
+   * The splash icon, sized to be *the same picture* as the launcher icon.
+   *
+   * Android 12 cannot be told not to show a splash screen; the only thing an
+   * app chooses is what is on it. And the launcher morphs its own icon into
+   * that splash — so if the two differ, the difference is a visible switch
+   * partway through the animation, which is what "it flashes the app icon and
+   * then swaps to the real one" describes.
+   *
+   * A launcher's mask crops the adaptive icon to 72 of its 108dp and scales
+   * that to fill; a 64dp disc therefore covers 64/72 of the icon it draws. So
+   * this disc covers 64/72 of its own canvas — 171 of 192 — and the two agree
+   * whichever of them One UI happens to draw.
+   */
+  await writeFile(
+    `${drawables}/contour_splash_icon.xml`,
+    vectorIcon(192, Math.round((192 * 64) / 72)),
+  );
   console.log("wrote", drawables);
 
   for (const [density, size] of DENSITIES) {

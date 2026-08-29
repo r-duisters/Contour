@@ -25,19 +25,37 @@
 /**
  * The disc's diameter while the system splash is up, in CSS pixels.
  *
- * Not a choice. Android draws its splash icon at the size of its own icon
- * canvas — the inner 192dp of `core-splashscreen`'s 288dp box — and there is
- * no way to ask for less: sizing the drawable smaller was tried and changed
- * nothing, because One UI draws the launcher icon there rather than the
- * drawable we supply. Measured off a screen recording on a Galaxy S24 at 564
- * of 1080 device pixels, which is 188 CSS pixels at that screen's 3x.
+ * Not a choice, and derived rather than picked. Android 12 always shows a
+ * splash screen — an app chooses what is on it, never whether it appears — and
+ * it draws the icon at its own canvas size. Measured off a screen recording on
+ * a Galaxy S24 at 564 of 1080 device pixels, which is 188 CSS pixels at that
+ * screen's 3x, back when the disc filled the icon it was drawn from.
+ *
+ * It no longer fills it. The launcher icon's disc is 64 of the 72dp a mask
+ * crops to, so every icon in the chain draws its disc at 64/72 of the space it
+ * is given, and 188 becomes 167. The chain has to agree end to end: the
+ * launcher morphs its icon into the splash, and the splash hands over to this
+ * screen. Any two of them disagreeing is a visible switch.
  *
  * So the app's own splash draws the mark at this size rather than at
  * `LOCK_DISC_PX`, and the difference is spent during the travel instead of
- * jumped at the handover. It used to jump: 188 to 112, a shrink of two fifths,
- * on the one frame where the picture must not change.
+ * jumped at the handover.
  */
-export const SPLASH_DISC_PX = 188;
+export const SPLASH_CANVAS_PX = 188;
+
+/**
+ * The disc's share of any icon it is drawn inside: 64 of the 72dp a launcher's
+ * mask crops an adaptive icon to.
+ *
+ * One number for the whole chain. It is 64 rather than 72 because a disc of
+ * exactly 72 is one whose edge no mask can reveal — it filled a Galaxy S24's
+ * squircle corner to corner and the icon read as a square. See
+ * `scripts/generate-icons.mjs`, which draws both Android icons to this
+ * fraction, and `scripts/icon-artwork.test.ts`, which checks they still do.
+ */
+export const ICON_DISC_FRACTION = 64 / 72;
+
+export const SPLASH_DISC_PX = Math.round(SPLASH_CANVAS_PX * ICON_DISC_FRACTION);
 
 /** The disc's diameter at rest, which is `BRAND.md`'s size and `MarkTile`'s. */
 export const LOCK_DISC_PX = 112;
