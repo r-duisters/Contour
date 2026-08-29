@@ -26,17 +26,8 @@ public class MainActivity extends BridgeActivity {
      */
     private static final long SPLASH_HOLD_CAP_MS = 2_500;
 
-    /**
-     * Frames to keep the splash after the page reports itself loaded.
-     *
-     * A WebView paints its background colour before it composites content, so
-     * "loaded" and "on screen" are not the same frame. Without this the splash
-     * came down onto a screen of bare ground and the mark was missing for about
-     * a tenth of a second — measured at 1.50s to 1.62s in a recording, every
-     * pixel of it #0a0a0a. Two frames cut that to roughly one; five is the
-     * measurement rounded up rather than a guess refined.
-     */
-    private static final int SPLASH_SETTLE_FRAMES = 5;
+    /** Any value; postVisualStateCallback only echoes it back to identify the request. */
+    private static final long VISUAL_STATE_REQUEST = 1L;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -78,26 +69,43 @@ public class MainActivity extends BridgeActivity {
      * separated from the system's by a frame of bare colour. Held, the handover
      * is invisible: the disc never leaves the screen.
      *
-     * `getContentHeight()` is the signal because it is the cheapest thing that
-     * means "this document has been laid out". The condition is re-evaluated on
-     * every pre-draw by the library, so nothing polls and nothing sleeps.
+     * The condition is re-evaluated on every pre-draw by the library, so nothing
+     * polls and nothing sleeps.
      *
      * The cap is not a fallback for a slow phone — it is the guarantee that a
      * broken one still gets past this screen. See SPLASH_HOLD_CAP_MS.
      */
     private void holdSplashUntilWebViewPaints(SplashScreen splash) {
         final long startedAt = SystemClock.uptimeMillis();
-        final int[] settled = { 0 };
+        final boolean[] asked = { false };
+        final boolean[] drawable = { false };
         splash.setKeepOnScreenCondition(() -> {
             if (SystemClock.uptimeMillis() - startedAt > SPLASH_HOLD_CAP_MS) return false;
+            if (drawable[0]) return false;
             WebView webView = getBridge().getWebView();
             if (webView == null) return true;
-            // getContentHeight() alone was the first attempt, and it is true at
-            // the document's first layout — long before anything is drawn.
-            if (webView.getProgress() < 100 || webView.getContentHeight() == 0) return true;
-            // The condition is re-evaluated on every pre-draw, so counting them
-            // is counting frames. Nothing polls and nothing sleeps.
-            return ++settled[0] <= SPLASH_SETTLE_FRAMES;
+            // Two earlier attempts guessed at this from the outside and both
+            // left a gap: getContentHeight() != 0 is true at the document's
+            // first layout (a 120ms gap), and progress == 100 plus five
+            // pre-draws is true while the renderer still has nothing composited
+            // (70ms). A WebView draws on its own thread, so no amount of
+            // counting the *host's* frames can know when it has a picture.
+            //
+            // postVisualStateCallback is the API that does: it reports when the
+            // state of the document at the time of the call is ready to be
+            // drawn. Asked for once the page has finished loading, its callback
+            // is the moment the mark exists on screen.
+            if (!asked[0] && webView.getProgress() == 100 && webView.getContentHeight() > 0) {
+                asked[0] = true;
+                // An abstract class, not an interface, so no lambda here.
+                webView.postVisualStateCallback(VISUAL_STATE_REQUEST, new WebView.VisualStateCallback() {
+                    @Override
+                    public void onComplete(long requestId) {
+                        drawable[0] = true;
+                    }
+                });
+            }
+            return true;
         });
     }
 

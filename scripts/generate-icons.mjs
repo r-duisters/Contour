@@ -174,9 +174,24 @@ async function androidIcons() {
   }
   const drawables = `${root}/drawable`;
   await mkdir(drawables, { recursive: true });
-  // The adaptive icon's foreground: a 72dp disc in the 108dp layer, so a
-  // launcher's mask crops the app's ground rather than the blue.
-  await writeFile(`${drawables}/ic_launcher_disc.xml`, vectorIcon(108, 72));
+  /*
+   * The adaptive icon's foreground.
+   *
+   * 64 of the 108dp layer, not 72. 72 is the largest a launcher's mask ever
+   * crops to, so a disc of exactly 72 is a disc the mask can never reveal the
+   * edge of: on a Galaxy S24 it filled the squircle corner to corner and the
+   * icon read as a blue square again — the very thing moving the disc into the
+   * foreground was meant to fix. The launcher's own app-open animation showed
+   * the ground and the disc correctly, which is how we know the artwork was
+   * right and only its size was wrong.
+   *
+   * 64 sits inside Android's 66dp safe zone, so it survives every mask with
+   * ground still showing around it. The cost is a thin ring of ground on a
+   * launcher that masks to a circle, where the old 72 met the edge exactly.
+   * That is the right way round: a ring is a detail, a square is a different
+   * logo.
+   */
+  await writeFile(`${drawables}/ic_launcher_disc.xml`, vectorIcon(108, 64));
   // The splash icon, whose disc fills its canvas because Android renders it at
   // the canvas size either way. `SPLASH_DISC_PX` in packages/ui carries the
   // measurement of what that comes out as.
