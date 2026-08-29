@@ -9,6 +9,13 @@ bugs, the capability gaps Phase 4 inherits, deferred review findings, and the
 decisions waiting on a person. Read it before planning a phase — the per-phase
 ledgers that used to hold this are deleted when their phase merges.
 
+`docs/android-launch.md` is what a cold start on Android actually does — the
+four times the mark is drawn before the portfolio appears, which of them are
+ours, and how Android really sizes a splash icon (not the way the drawable
+says). Read it before touching an icon, `MainActivity`'s splash handling or
+`lock-timing.ts`; the rules there were measured off screen recordings and are
+not guessable from the code.
+
 `BRAND.md` is the guide for anything user-facing: the app's name, voice,
 colour, layout rules, established components and the anti-patterns already
 removed once. Read it before writing UI or copy.

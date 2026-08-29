@@ -50,6 +50,13 @@ The mark lives in two places that must stay in step: `ContourMark.tsx` for the
 screen, and `scripts/generate-icons.mjs` for every icon file. Change one and run
 `node scripts/generate-icons.mjs` to redraw the rest.
 
+**The disc is 112dp on every entrance surface** — the Android splash, the app's
+own splash, the lock screen — so opening the app is one picture that moves
+rather than four that replace each other. Holding the system splash to that size
+takes a trick that is invisible in the artwork and easy to delete by accident;
+`docs/android-launch.md` has the measurements and the reasoning, and is required
+reading before changing any icon file.
+
 ## What the app is
 
 A private portfolio tracker for one person, on their own hardware. Crypto and
