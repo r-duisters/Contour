@@ -88,39 +88,39 @@ export default function CoinIcon({
     );
   }
 
-  // Equity logos are clipped to the same circle as a coin icon so the list is
-  // one column of discs. They fill it edge to edge rather than sitting inset.
-  if (assetType === "equity") {
-    return (
-      <span
-        aria-hidden
-        className="inline-flex items-center justify-center rounded-full overflow-hidden shrink-0 bg-white"
-        style={{ width: size, height: size }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={src}
-          alt=""
-          aria-hidden
-          loading="lazy"
-          style={{ width: size, height: size, objectFit: "cover" }}
-          onError={() => setFailedSrc(src)}
-        />
-      </span>
-    );
-  }
-
+  /*
+   * Every logo sits on a white disc, coins included.
+   *
+   * Equities had this and coins did not, and the difference was invisible for
+   * as long as coin artwork came from a set drawn to one house style. It stops
+   * being invisible when the source becomes each project's own mark: CoinGecko
+   * serves Immutable X as pure black on transparent, so on this app's
+   * `#0a0a0a` ground it rendered as a hole where a logo should be. APT, NMR
+   * and ZRX were barely better.
+   *
+   * Measured before changing it, because the obvious risk is the mirror image
+   * — a white-on-transparent mark would vanish the other way. Of the 97 coin
+   * logos shipped, the worst contrast against white is 69 out of 255, so
+   * nothing is close. And an opaque logo covers the disc completely, which is
+   * why the 93 that were already fine look no different.
+   */
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={src}
-      width={size}
-      height={size}
-      alt=""
+    <span
       aria-hidden
-      loading="lazy"
-      className="rounded-full shrink-0"
-      onError={() => setFailedSrc(src)}
-    />
+      className="inline-flex items-center justify-center rounded-full overflow-hidden shrink-0 bg-white"
+      style={{ width: size, height: size }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt=""
+        aria-hidden
+        loading="lazy"
+        // `cover`, so a logo fills the disc edge to edge rather than sitting
+        // inset in it — the list reads as one column of discs either way.
+        style={{ width: size, height: size, objectFit: "cover" }}
+        onError={() => setFailedSrc(src)}
+      />
+    </span>
   );
 }

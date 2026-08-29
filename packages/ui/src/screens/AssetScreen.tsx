@@ -108,6 +108,15 @@ export default function AssetScreen({
   const [holding, setHolding] = useState<Holding | null | undefined>(undefined);
   const [txs, setTxs] = useState<Tx[]>([]);
   const [bars, setBars] = useState<{ t: number; c: number }[] | null>(null);
+  /**
+   * The latest close in the asset's own quote currency.
+   *
+   * Separate from `bars`, which are in the display currency. The transaction
+   * form types a native price — USDT for a coin, the venue's currency for a
+   * share — so offering it a converted figure would be wrong by the exchange
+   * rate under a label that names the other one.
+   */
+  const [nativeClose, setNativeClose] = useState<{ value: number; currency: string } | null>(null);
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
   const hideAmounts = usePrivacy();
   const [range, setRange, rangeReady] = useStoredRange<RangeKey>(
@@ -239,9 +248,12 @@ export default function AssetScreen({
       .then((d) => {
         if (cancelled) return;
         setBars(d.bars);
+        setNativeClose(d.nativeClose);
         setChangePct(d.changePct);
       })
-      .catch(() => { if (!cancelled) { setBars([]); setChangePct(null); } });
+      .catch(() => {
+        if (!cancelled) { setBars([]); setNativeClose(null); setChangePct(null); }
+      });
     return () => { cancelled = true; };
   }, [client, symbol, range, shownHolding, rangeReady, resolvedType]);
 
@@ -370,13 +382,13 @@ export default function AssetScreen({
 
       <Sheet open={addOpen} onClose={() => setAddOpen(false)} title="Add a transaction">
         <div className="p-3">
-          {/* `lastClose` and not the holding's `price`: the holding is
-              valued in the *display* currency and this field is in the
-              asset's own. Measured on the live ledger, AMD reads 457.58
-              from the series and €389.13 on the holding — the same asset,
-              differing by the exchange rate. */}
+          {/* `nativeClose`, not the holding's `price` and not the bars: the
+              holding is valued in the *display* currency and so are the bars
+              now, while this field is in the asset's own. Measured on the live
+              ledger, AMD reads 457.58 natively and €389.13 on the holding —
+              the same asset, differing by the exchange rate. */}
           <TxForm onSubmit={addTransaction} error={formError} lockedSymbol={symbol}
-                  assetType={resolvedType} livePrice={lastClose} />
+                  assetType={resolvedType} livePrice={nativeClose?.value ?? null} />
         </div>
       </Sheet>
 

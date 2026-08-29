@@ -541,9 +541,27 @@ function yahooRange(range: RangeKey): { range: string; interval: string } {
 }
 
 export type History = {
+  /** Closes in `currency`, converted from whatever the feed quoted. */
   bars: { t: number; c: number }[];
   range: RangeKey;
+  /**
+   * What `bars` are in. "USD" when a rate lookup failed, matching the
+   * relabelling `series` already does — a figure whose currency could not be
+   * established is reported as the dollars it is, never as the euros it is not.
+   */
+  currency: string;
   changePct: number | null;
+  /**
+   * The latest close in the asset's *own* quote currency — USDT for a coin,
+   * the venue's currency for a share.
+   *
+   * The transaction form types a native price, so it cannot use `bars`: those
+   * are in the display currency now, and offering "Use 2091" against a field
+   * labelled USDT would be wrong by the exchange rate. Separate rather than
+   * derived, because dividing back out by a rate is how a rounding error
+   * becomes a stored price.
+   */
+  nativeClose: { value: number; currency: string } | null;
   /** Present only when the price feed failed. */
   error?: string;
 };
@@ -651,21 +669,81 @@ export async function history(
     // It matters that this is the same call the header reads: the two figures
     // sit inches apart on the asset page, and agreeing by coincidence is how
     // they came to disagree in the first place.
-    if (range === "1d" && assetType === "crypto" && bars.length > 0) {
+    /*
+     * The bars arrive in whatever the feed quotes — USDT from Binance, the
+     * venue's own currency from Yahoo — and this returned them untouched while
+     * the screen formatted them with the display currency's symbol. Someone
+     * reading in euros saw ETH at "€2,433" when the euro price was €2,091: the
+     * dollar figure wearing a € sign, and off by exactly the exchange rate.
+     * The tiles directly above the chart were converted, so the same asset
+     * showed two different numbers a few pixels apart.
+     *
+     * Two legs, both borrowed from `series` rather than invented here, because
+     * a second policy for the same question is how the two charts would come
+     * to disagree: a share is brought to USD at the ECB rate *for each bar's
+     * own day*, then the whole line is taken to the display currency at
+     * today's rate. The second leg is a single rate on purpose — it is the
+     * same choice the portfolio's value chart makes, and matching it matters
+     * more than my preference.
+     */
+    const native = assetType === "equity" ? currencyForTicker(symbol) : "USDT";
+    const nativeLast = bars.length > 0 ? bars[bars.length - 1]!.c : null;
+    const nativeClose = nativeLast === null ? null : { value: nativeLast, currency: native };
+
+    const ctx = await displayContext(store, net);
+    const inUsd = await toUsdBars(net, bars, assetType === "equity" ? native : "USD");
+    const shown = inUsd.map((b) => ({ t: b.t, c: b.c * ctx.toDisplay }));
+    // `displayUsd === 0` is a failed rate lookup, which leaves `toDisplay` at
+    // 1 — so the figures are still dollars and are labelled as such.
+    const currency = ctx.displayUsd > 0 ? ctx.currency : "USD";
+
+    if (range === "1d" && assetType === "crypto" && shown.length > 0) {
       const pair = pricingPair(symbol);
       const stat = (await fetchDailyStats(net, [pair]))[pair];
       if (stat) {
-        return { bars, range, changePct: ((stat.last - stat.open24h) / stat.open24h) * 100 };
+        return {
+          bars: shown, range, currency, nativeClose,
+          // A ratio, so the conversion cannot touch it.
+          changePct: ((stat.last - stat.open24h) / stat.open24h) * 100,
+        };
       }
     }
 
-    const first = bars.find((b) => b.c > 0)?.c;
-    const last = bars[bars.length - 1]?.c;
+    const first = shown.find((b) => b.c > 0)?.c;
+    const last = shown[shown.length - 1]?.c;
     const changePct = first && last ? ((last - first) / first) * 100 : null;
-    return { bars, range, changePct };
+    return { bars: shown, range, currency, nativeClose, changePct };
   } catch (e) {
-    return { bars: [], range, changePct: null, error: (e as Error).message };
+    return { bars: [], range, currency: "USD", nativeClose: null, changePct: null, error: (e as Error).message };
   }
+}
+
+/**
+ * A line of closes brought to USD, each bar at the ECB rate for its own day.
+ *
+ * Today's rate applied to five years of history would restate every old price
+ * at a rate nobody traded at. `series` converts equity closes exactly this way
+ * for the portfolio chart; this is the same walk over one symbol.
+ */
+async function toUsdBars(
+  net: Net,
+  bars: { t: number; c: number }[],
+  currency: string,
+): Promise<{ t: number; c: number }[]> {
+  if (currency === "USD" || currency === "USDT" || bars.length === 0) return bars;
+  let fx: Map<number, number>;
+  try {
+    fx = await fetchEcbRates(net, currency, "USD", bars[0]!.t, Date.now());
+  } catch {
+    // No rates is not a reason to draw nothing: the line stays in its own
+    // currency, and the label above says which. Wrong by a rate is worse than
+    // absent, but absent is worse than honest.
+    return bars;
+  }
+  return bars.flatMap((b) => {
+    const rate = rateOn(fx, b.t);
+    return rate === null ? [] : [{ t: b.t, c: b.c * rate }];
+  });
 }
 
 /**

@@ -373,6 +373,93 @@ describe("history", () => {
     expect(net.calls.some((c) => c.url.includes("binance"))).toBe(false);
   });
 
+  /*
+   * The bug this describes: a euro reader saw ETH at 2,433 when the euro price
+   * was 2,091. The bars came back in USDT and the screen formatted them with
+   * the display currency's symbol, so the dollar figure wore a € sign and was
+   * wrong by exactly the exchange rate — while the tiles a few pixels above it
+   * were converted and right.
+   */
+  describe("in a display currency that is not the dollar", () => {
+    const EURUSD = "https://api.frankfurter.dev/v1/latest?base=EUR&symbols=USD";
+    const eurStore = () => MemoryStore({ settings: { displayCurrency: "EUR" } });
+
+    it("converts a coin's closes, and says which currency they are in", async () => {
+      const net = FakeNet({
+        "api.binance.com/api/v3/klines": binanceKlines(() => 2000),
+        [EURUSD]: { rates: { USD: 1.25 } },
+      });
+      const out = await history(eurStore(), net, "ETHUSDT", "crypto", "1m");
+
+      // 2000 USDT at 1.25 USD per EUR is 1600 EUR, not 2000 of anything.
+      expect(out.bars.every((b) => b.c === 1600)).toBe(true);
+      expect(out.currency).toBe("EUR");
+    });
+
+    it("keeps the native close for the form, which types the asset's own currency", async () => {
+      const net = FakeNet({
+        "api.binance.com/api/v3/klines": binanceKlines(() => 2000),
+        [EURUSD]: { rates: { USD: 1.25 } },
+      });
+      const out = await history(eurStore(), net, "ETHUSDT", "crypto", "1m");
+
+      // Offering 1600 against a field labelled USDT would be wrong by the rate.
+      expect(out.nativeClose).toEqual({ value: 2000, currency: "USDT" });
+    });
+
+    it("leaves the percentage alone, because a ratio has no currency", async () => {
+      const rises = (t: number) => (t >= TODAY - 2 * DAY_MS ? 200 : 100);
+      const usd = await history(MemoryStore(), FakeNet({
+        "api.binance.com/api/v3/klines": binanceKlines(rises),
+      }), "ETHUSDT", "crypto", "1m");
+      invalidate();
+      const eur = await history(eurStore(), FakeNet({
+        "api.binance.com/api/v3/klines": binanceKlines(rises),
+        [EURUSD]: { rates: { USD: 1.25 } },
+      }), "ETHUSDT", "crypto", "1m");
+
+      expect(eur.changePct).toBeCloseTo(usd.changePct!, 10);
+      expect(eur.bars[eur.bars.length - 1]!.c).toBe(160);
+    });
+
+    it("says USD when the rate could not be fetched, rather than labelling dollars as euros", async () => {
+      // The failure that matters: a figure whose currency is unknown must not
+      // be presented as the one the reader asked for. `displayContext` leaves
+      // `toDisplay` at 1 here, so these really are dollars.
+      const net = FakeNet({
+        "api.binance.com/api/v3/klines": binanceKlines(() => 2000),
+        [EURUSD]: () => { throw new Error("rates down"); },
+      });
+      const out = await history(eurStore(), net, "ETHUSDT", "crypto", "1m");
+
+      expect(out.bars.every((b) => b.c === 2000)).toBe(true);
+      expect(out.currency).toBe("USD");
+    });
+
+    it("brings a share to USD at each bar's own day before converting", async () => {
+      // ASML lists in euros. Today's rate applied to two years of history
+      // would restate every old close at a rate nobody traded at, so the first
+      // leg is dated — the same walk `series` does for the portfolio chart.
+      const day = (n: number) => TODAY - n * DAY_MS;
+      const net = FakeNet({
+        "chart/ASML.AS": yahooChart([{ t: day(1), c: 100 }, { t: TODAY, c: 200 }]),
+        // EUR -> USD, dated: 2.0 on the older bar, 1.0 on the newer.
+        "frankfurter.dev/v1/2": {
+          rates: {
+            [new Date(day(1)).toISOString().slice(0, 10)]: { USD: 2 },
+            [new Date(TODAY).toISOString().slice(0, 10)]: { USD: 1 },
+          },
+        },
+        // ...then USD -> EUR for display, at one rate.
+        [EURUSD]: { rates: { USD: 1 } },
+      });
+      const out = await history(eurStore(), net, "ASML.AS", "equity", "1y");
+
+      expect(out.bars).toEqual([{ t: day(1), c: 200 }, { t: TODAY, c: 200 }]);
+      expect(out.nativeClose).toEqual({ value: 200, currency: "EUR" });
+    });
+  });
+
   it("charts a bare asset by asking Binance for its pair", async () => {
     const net = FakeNet({ "api.binance.com/api/v3/klines": binanceKlines(() => FLAT) });
     const out = await history(MemoryStore(), net, "BTC", "crypto", "1m");
