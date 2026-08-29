@@ -39,6 +39,8 @@ type CoinGeckoCoin = {
     circulating_supply?: number;
     max_supply?: number | null;
   };
+  /** Share of CoinGecko voters who are bullish on *this* coin, 0–100. */
+  sentiment_votes_up_percentage?: number | null;
 };
 
 async function cryptoInfo(net: Net, ticker: string): Promise<Partial<AssetInfo>> {
@@ -81,11 +83,43 @@ async function cryptoInfo(net: Net, ticker: string): Promise<Partial<AssetInfo>>
     about: d.description?.en ? plainText(d.description.en) : null,
     tags: [d.categories?.[0], d.categories?.[1], d.hashing_algorithm].filter(Boolean) as string[],
     stats,
+    sentiment: coinSentiment(d, ticker),
     sources: ["CoinGecko"],
   };
 }
 
-/** Market-wide crypto sentiment. There is no per-coin equivalent that is free. */
+/**
+ * How this coin's own holders feel about it, from the response already in hand.
+ *
+ * The Fear & Greed index below is a reading of the whole crypto market, and it
+ * said so — "Whole-market mood, not this coin" — which is an honest caption on
+ * a figure that should not have been there. Three reviewers independently
+ * called it filler, and they were right about the generic version: a number
+ * identical on every coin page tells you nothing about the coin you opened.
+ *
+ * CoinGecko carries a per-coin one and this module was already fetching it.
+ * The comment on `fearGreed` claimed no free per-coin equivalent existed; the
+ * field was in the same JSON the line above it parses.
+ */
+function coinSentiment(d: CoinGeckoCoin, ticker: string): Sentiment | null {
+  const up = d.sentiment_votes_up_percentage;
+  if (typeof up !== "number" || !Number.isFinite(up)) return null;
+  return {
+    label: "Community sentiment",
+    value: `${Math.round(up)}% bullish`,
+    detail: `CoinGecko voters, on ${ticker.toUpperCase()} itself`,
+    score: (up - 50) / 50,
+  };
+}
+
+/**
+ * Market-wide crypto sentiment, and now only the fallback.
+ *
+ * This carried the note "There is no per-coin equivalent that is free", which
+ * was wrong: CoinGecko ships one in the same JSON `cryptoInfo` was already
+ * parsing. It is used when a coin has no votes of its own, and it keeps saying
+ * plainly that it is the market's mood rather than this coin's.
+ */
 async function fearGreed(net: Net): Promise<Sentiment | null> {
   const res = await net.request("https://api.alternative.me/fng/?limit=1");
   if (!res.ok) return null;
@@ -167,8 +201,38 @@ async function equityInfo(net: Net, symbol: string): Promise<Partial<AssetInfo>>
     about: name ? `${name}${m.fullExchangeName ? `, listed on ${m.fullExchangeName}` : ""}.` : null,
     tags: m.instrumentType ? [m.instrumentType.toLowerCase()] : [],
     stats,
-    sentiment: null,
+    sentiment: rangePosition(m),
     sources: ["Yahoo Finance"],
+  };
+}
+
+/**
+ * Where a share sits between its own 52-week low and high.
+ *
+ * Not a mood, and it is not labelled as one. A share has no free per-company
+ * sentiment feed this app can reach — Yahoo's analyst figures live behind
+ * `quoteSummary`, which answers "Invalid Crumb" without the cookie-and-crumb
+ * handshake the portable `Net` cannot perform (spec §4.2). Inventing a mood
+ * from a price would be worse than having none.
+ *
+ * What it can say is true and specific to the company: 90% of the way up its
+ * own year is a different situation from 10%, and it needs no source the page
+ * is not already reading — the two bounds are in the same `meta` the stat
+ * above uses. A bar is a better fit for a position in a range than it ever was
+ * for a mood.
+ */
+function rangePosition(m: EquityMeta): Sentiment | null {
+  const { fiftyTwoWeekLow: lo, fiftyTwoWeekHigh: hi, regularMarketPrice: px } = m;
+  if (typeof lo !== "number" || typeof hi !== "number" || typeof px !== "number") return null;
+  if (!(hi > lo)) return null;
+  const at = Math.min(1, Math.max(0, (px - lo) / (hi - lo)));
+  return {
+    label: "52-week position",
+    value: `${Math.round(at * 100)}% of the way up`,
+    detail: "Between this share's own year low and year high",
+    // Centred like the others: the middle of the range is neutral, and the
+    // ends are the only readings worth colouring.
+    score: at * 2 - 1,
   };
 }
 
@@ -177,6 +241,7 @@ type EquityMeta = {
   fullExchangeName?: string; exchangeName?: string; currency?: string;
   regularMarketDayHigh?: number; regularMarketDayLow?: number; regularMarketVolume?: number;
   fiftyTwoWeekHigh?: number; fiftyTwoWeekLow?: number;
+  regularMarketPrice?: number;
 };
 
 /**
