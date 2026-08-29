@@ -533,9 +533,20 @@ export default function AssetScreen({
       */}
       {shownHolding !== undefined && (
         <>
-          <div className="flex items-center gap-2 mb-2 flex-wrap">
-        <RangePicker value={range} onChange={setRange} />
-        <span className="flex-1" />
+          {/*
+            Centred, and on its own line.
+            ============================
+
+            It shared a row with the change figure, pushed apart by a spacer,
+            and on a phone the row wrapped anyway — so the picker sat hard left
+            with the change beneath it, which is neither of the two things that
+            arrangement was for. Centred above the chart it reads as the
+            chart's own control rather than as the first item in a toolbar.
+          */}
+          <div className="flex justify-center mb-2">
+            <RangePicker value={range} onChange={setRange} />
+          </div>
+          <div className="mb-2">
         {changePct !== null && (
           <span className={`text-sm ${changePct >= 0 ? "text-green-500" : "text-red-500"}`}>
             {changePct >= 0 ? "+" : ""}{changePct.toFixed(2)}%

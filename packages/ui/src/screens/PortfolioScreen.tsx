@@ -358,7 +358,8 @@ export default function PortfolioScreen() {
                 )}
               </header>
               <StaleNote at={stale} />
-              <div className="flex items-center gap-2 mb-2 flex-wrap">
+              {/* Centred above its chart, the same as the asset page's. */}
+              <div className="flex justify-center mb-2">
                 <RangePicker value={range} onChange={setRange} />
               </div>
               <div className="mb-6 md:mb-8">
