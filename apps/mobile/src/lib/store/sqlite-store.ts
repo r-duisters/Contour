@@ -10,6 +10,7 @@ import {
   type Store,
   type Transaction,
   type TransactionPatch,
+  type Alert,
 } from "@/data/ports/store";
 
 /**
@@ -118,7 +119,33 @@ function txValues(id: string, portfolioId: string, tx: NewTransaction, createdAt
   ];
 }
 
+type AlertRow = {
+  id: string; kind: string; symbol: string; assetType: string;
+  threshold: number; direction: string | null; enabled: number; createdAt: number;
+};
+
+/** SQLite has no boolean and no union type; the port has both. */
+function toAlert(row: AlertRow): Alert {
+  return {
+    id: row.id,
+    kind: row.kind === "pct_move" ? "pct_move" : "price_target",
+    symbol: row.symbol,
+    assetType: row.assetType === "equity" ? "equity" : "crypto",
+    threshold: row.threshold,
+    direction: row.direction === "above" || row.direction === "below" ? row.direction : null,
+    enabled: row.enabled !== 0,
+    createdAt: row.createdAt,
+  };
+}
+
 export function SqliteStore(db: DB): Store {
+  async function readAlert(id: string): Promise<Alert> {
+    const rows = await db.query<AlertRow>("SELECT * FROM Alert WHERE id = ?", [id]);
+    const row = rows[0];
+    if (!row) throw new Error(`no alert ${id}`);
+    return toAlert(row);
+  }
+
   async function readTx(id: string): Promise<Transaction> {
     const rows = await db.query<TxRow>(`SELECT ${TX_COLUMNS} FROM "Transaction" WHERE id = ?`, [id]);
     const row = rows[0];
@@ -270,6 +297,38 @@ export function SqliteStore(db: DB): Store {
       },
     },
 
+    alerts: {
+      async list() {
+        const rows = await db.query<AlertRow>(
+          "SELECT * FROM Alert ORDER BY createdAt DESC, id DESC",
+        );
+        return rows.map(toAlert);
+      },
+      async create(alert) {
+        const id = newId("alert");
+        const createdAt = Date.now();
+        await db.run(
+          `INSERT INTO Alert (id, kind, symbol, assetType, threshold, direction, enabled, createdAt)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            id, alert.kind, alert.symbol, alert.assetType, alert.threshold,
+            alert.direction ?? null, (alert.enabled ?? true) ? 1 : 0, createdAt,
+          ],
+        );
+        return readAlert(id);
+      },
+      async remove(id) {
+        const res = await db.run("DELETE FROM Alert WHERE id = ?", [id]);
+        // Throws on a missing row, as `transactions.remove` does and the
+        // contract pins — Prisma does it whether or not anyone asked.
+        if (res.changes === 0) throw new Error(`no alert ${id}`);
+      },
+      async setEnabled(id, enabled) {
+        const res = await db.run("UPDATE Alert SET enabled = ? WHERE id = ?", [enabled ? 1 : 0, id]);
+        if (res.changes === 0) throw new Error(`no alert ${id}`);
+        return readAlert(id);
+      },
+    },
     settings: {
       async get() {
         const rows = await db.query<Record<string, unknown>>("SELECT * FROM Settings WHERE id = 1");

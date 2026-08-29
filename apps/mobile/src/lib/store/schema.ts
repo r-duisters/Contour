@@ -73,6 +73,34 @@ export const MIGRATIONS: ((db: DB) => Promise<void>)[] = [
       );
     `);
   },
+
+  /**
+   * Migration 1: alerts.
+   *
+   * A separate entry, unlike `sourceSymbol`, because by the time this was
+   * written a database existed on a real phone with a real ledger in it.
+   * Folding it into migration 0 would have been correct only for installs
+   * that did not yet exist.
+   *
+   * Narrower than the server's `Alert` table on purpose: no timeframe, no
+   * JSON params, no indicator kind. The risk metric needs 1,460 daily bars to
+   * warm up, which is not work for a phone, and a column for it would invite
+   * one.
+   */
+  async (db) => {
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS Alert (
+        id         TEXT PRIMARY KEY,
+        kind       TEXT NOT NULL,
+        symbol     TEXT NOT NULL,
+        assetType  TEXT NOT NULL DEFAULT 'crypto',
+        threshold  REAL NOT NULL,
+        direction  TEXT,
+        enabled    INTEGER NOT NULL DEFAULT 1,
+        createdAt  INTEGER NOT NULL
+      );
+    `);
+  },
 ];
 
 /**

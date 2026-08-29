@@ -362,5 +362,80 @@ export function runStoreContract(name: string, makeStore: () => Promise<Store>):
       await store.settings.save({});
       expect(await store.settings.exists()).toBe(true);
     });
+
+    /* ---------------------------------------------------------------- alerts */
+
+    /**
+     * On the port because the device evaluates its own. The alerts *routes*
+     * stay server-only — dispatch needs Home Assistant, web-push or FCM — but
+     * the rules are rows, and a phone that checks them on every foreground and
+     * posts a local notification needs nowhere to send them.
+     */
+    describe("alerts", () => {
+      const target = {
+        kind: "price_target" as const,
+        symbol: "BTCUSDT",
+        assetType: "crypto" as const,
+        threshold: 100_000,
+        direction: "above" as const,
+      };
+
+      it("stores one and hands it back with an id", async () => {
+        const store = await makeStore();
+        const made = await store.alerts.create(target);
+        expect(made.id).toBeTruthy();
+        expect(made).toMatchObject({ symbol: "BTCUSDT", threshold: 100_000, direction: "above" });
+        // Enabled unless told otherwise: an alert nobody asked to be off is on.
+        expect(made.enabled).toBe(true);
+      });
+
+      it("lists newest first", async () => {
+        // Relative, not absolute: one implementation's `makeStore` hands back a
+        // shared store, so rows from earlier cases are still there. What is
+        // being asserted is the order of these two, not the contents.
+        const store = await makeStore();
+        const older = await store.alerts.create({ ...target, symbol: "OLD" });
+        const newer = await store.alerts.create({ ...target, symbol: "NEW" });
+        const ids = (await store.alerts.list()).map((a) => a.id);
+        expect(ids.indexOf(newer.id)).toBeLessThan(ids.indexOf(older.id));
+      });
+
+      it("keeps a move rule's null direction, which is not a missing value", async () => {
+        // A percentage rule fires either way; `above` would be a claim it does
+        // not make, and the two stores must agree on that rather than one of
+        // them defaulting.
+        const store = await makeStore();
+        const made = await store.alerts.create({
+          kind: "pct_move", symbol: "ETHUSDT", assetType: "crypto",
+          threshold: 5, direction: null,
+        });
+        expect(made.direction).toBeNull();
+        expect((await store.alerts.list())[0]!.direction).toBeNull();
+      });
+
+      it("carries the asset kind, which decides how it is priced", async () => {
+        const store = await makeStore();
+        const made = await store.alerts.create({ ...target, symbol: "ASML.AS", assetType: "equity" });
+        expect(made.assetType).toBe("equity");
+        expect((await store.alerts.list())[0]!.assetType).toBe("equity");
+      });
+
+      it("turns one off and on", async () => {
+        const store = await makeStore();
+        const made = await store.alerts.create(target);
+        expect((await store.alerts.setEnabled(made.id, false)).enabled).toBe(false);
+        expect((await store.alerts.list())[0]!.enabled).toBe(false);
+        expect((await store.alerts.setEnabled(made.id, true)).enabled).toBe(true);
+      });
+
+      it("removes one, and throws for one that is not there", async () => {
+        const store = await makeStore();
+        const made = await store.alerts.create(target);
+        await store.alerts.remove(made.id);
+        expect((await store.alerts.list()).map((a) => a.id)).not.toContain(made.id);
+        await expect(store.alerts.remove(made.id)).rejects.toThrow();
+        await expect(store.alerts.setEnabled("nope", false)).rejects.toThrow();
+      });
+    });
   });
 }

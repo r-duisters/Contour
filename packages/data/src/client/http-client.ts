@@ -241,6 +241,10 @@ export function HttpClient(net: Net, baseUrl = ""): DataClient {
       return d.alert;
     },
 
+    async deleteAlert(id: string): Promise<void> {
+      await send("DELETE", `/api/alerts/${encodeURIComponent(id)}`);
+    },
+
     searchAssets(query: string): Promise<AssetHit[]> {
       if (query.trim().length < 2) return Promise.resolve([]);
       return send("GET", `/api/symbols/search?q=${encodeURIComponent(query.trim())}`);

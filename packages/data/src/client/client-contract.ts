@@ -470,10 +470,12 @@ export function runDataClientContract(
         // present case would pass for a client that had quietly grown them.
         expect(client.listAlerts).toBeUndefined();
         expect(client.createAlert).toBeUndefined();
+        expect(client.deleteAlert).toBeUndefined();
         return;
       }
       expect(typeof client.listAlerts).toBe("function");
       expect(typeof client.createAlert).toBe("function");
+      expect(typeof client.deleteAlert).toBe("function");
       await expect(client.listAlerts!()).resolves.toBeInstanceOf(Array);
     });
 
@@ -490,6 +492,15 @@ export function runDataClientContract(
       // The kind travels: without it the evaluator prices a share through
       // Binance and the alert never fires — see #19.
       expect(made.assetType).toBe("crypto");
+    });
+
+    it("removes one it made", async () => {
+      if (!capabilities.alerts) return;
+      const client = makeClient();
+      const made = await client.createAlert!({
+        symbol: "ETHUSDT", assetType: "crypto", direction: "below", price: 1000,
+      });
+      await expect(client.deleteAlert!(made.id)).resolves.toBeUndefined();
     });
 
     /* --------------------------------------------------- import and restore */

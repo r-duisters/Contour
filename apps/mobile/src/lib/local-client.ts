@@ -1,5 +1,7 @@
 import type { ColumnMapping as ImportColumnMapping, FormatId as ImportFormatId } from "@/lib/import-formats";
 import type { AssetHit } from "@/data/sources/search";
+import type { AlertSummary, NewAlertInput } from "@/data/client/data-client";
+import type { Alert } from "@/data/ports/store";
 import type { AssetInfo } from "@/core/asset-info";
 import type { RangeKey } from "@/core/ranges";
 import { NotFoundError, RequestFailedError } from "@/data/errors";
@@ -94,6 +96,20 @@ async function attempt<T>(run: () => Promise<T>): Promise<T> {
   } catch (e) {
     translate(e);
   }
+}
+
+/** The port's row as a screen reads it. */
+function toSummary(a: Alert): AlertSummary {
+  return {
+    id: a.id,
+    kind: a.kind,
+    symbol: a.symbol,
+    assetType: a.assetType,
+    params: a.kind === "price_target"
+      ? { direction: a.direction, price: a.threshold }
+      : { threshold: a.threshold },
+    enabled: a.enabled,
+  };
 }
 
 export function LocalClient(store: Store, net: Net): DataClient {
@@ -206,6 +222,34 @@ export function LocalClient(store: Store, net: Net): DataClient {
 
     listSymbols(): Promise<string[]> {
       return attempt(() => symbols(net));
+    },
+
+    /*
+     * Alerts, on a build with no server.
+     *
+     * They were absent because dispatch needed Home Assistant, web-push or
+     * FCM. None of that is true of a *price target checked on this phone*:
+     * `alert-rules.ts` has been pure since it was written, evaluation needs
+     * one live price, and `LocalNotifications` posts the result without asking
+     * anyone. What stays out of reach is the indicator kind, which wants 1,460
+     * daily bars of warm-up — see the port.
+     */
+    async listAlerts(): Promise<AlertSummary[]> {
+      return attempt(async () => (await store.alerts.list()).map(toSummary));
+    },
+
+    async createAlert(alert: NewAlertInput): Promise<AlertSummary> {
+      return attempt(async () => toSummary(await store.alerts.create({
+        kind: "price_target",
+        symbol: alert.symbol,
+        assetType: alert.assetType,
+        threshold: alert.price,
+        direction: alert.direction,
+      })));
+    },
+
+    async deleteAlert(id: string): Promise<void> {
+      return attempt(() => store.alerts.remove(id));
     },
 
     searchAssets(query: string): Promise<AssetHit[]> {

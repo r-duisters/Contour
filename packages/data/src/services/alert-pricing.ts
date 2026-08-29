@@ -1,9 +1,9 @@
 import { pricingPair } from "@/core/symbols";
 import { isEquityTicker } from "@/core/equity";
-import { fetchPricesSafe } from "@/data/sources/binance";
-import { makeEquitySource } from "@/data/sources/equity";
-import { fetchCrypto24hAgo } from "@/data/services/pricing";
-import type { Net } from "@/data/ports/net";
+import { fetchPricesSafe } from "../sources/binance";
+import { makeEquitySource } from "../sources/equity";
+import { fetchCrypto24hAgo } from "./pricing";
+import type { Net } from "../ports/net";
 import type { EquityQuote } from "@/core/equity";
 
 /**
@@ -15,8 +15,10 @@ import type { EquityQuote } from "@/core/equity";
  * error, no event, no sign — the alert simply never fired, which is the worst
  * shape a bug can take in a feature whose whole job is to tell you something.
  *
- * Server-only, like the rest of the alerts: `CLAUDE.md` lists the evaluator
- * among the endpoints the mobile build will never call.
+ * A service, not a server module. The alerts *routes* are server-only — Home
+ * Assistant, web-push and FCM all need one — but pricing a symbol is neither
+ * HTTP nor persistence, and the device evaluates its own alerts on every
+ * foreground. Both callers hand it the same `Net`.
  */
 
 export type AssetKind = "crypto" | "equity";

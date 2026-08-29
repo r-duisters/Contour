@@ -520,6 +520,15 @@ MQTT is a viable alternative (publish to `trader/signals/<symbol>`), but isn't i
 - **Bar timestamps are ms** internally; convert to seconds (`/1000`) only when handing to `lightweight-charts`.
 - **Indicator series return `NaN` during warm-up** (matching Pine's `na`). Strip with `Number.isFinite` before plotting.
 - **`BigInt` for `barTime` in Prisma**. Convert to `number` at API boundaries.
+- **A device evaluates its own alerts.** The alerts *routes* are server-only
+  and stay that way — Home Assistant, web-push and FCM all need a server — but
+  the rules are rows on the `Store` port, and `apps/mobile/src/app/device-alerts.tsx`
+  checks them on every foreground and posts a local notification itself. That
+  is why `alert-rules.ts` is pure and `alert-pricing.ts` is a service taking a
+  `Net`. Not FCM: push needs Firebase, Google and a server to push *from*,
+  which the direction above rules out as a requirement. Indicator alerts stay
+  on the desktop — 1,460 daily bars of warm-up is not work for a phone, and
+  the port has no column that would invite one.
 - **An alert records how to price itself.** `Alert.assetType` is `"crypto"` or
   `"equity"`, written when the alert is made, and the evaluator branches on it
   — Binance for coins, `makeEquitySource` for shares. It is not inferred from

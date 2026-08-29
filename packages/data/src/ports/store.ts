@@ -81,6 +81,25 @@ export type Settings = {
  * there is one, which is a handful of income rows out of hundreds. Every other
  * nullable field predates it and is spelled out by every caller already.
  */
+/**
+ * A rule a device can evaluate on its own: a price target, or a move over a
+ * day. Both need one live price and nothing else.
+ */
+export type Alert = {
+  id: string;
+  kind: "price_target" | "pct_move";
+  symbol: string;
+  assetType: "crypto" | "equity";
+  /** `price_target`: the level. `pct_move`: the threshold in percent. */
+  threshold: number;
+  /** `price_target` only; `null` for a move, which fires either way. */
+  direction: "above" | "below" | null;
+  enabled: boolean;
+  createdAt: number;
+};
+
+export type NewAlert = Omit<Alert, "id" | "createdAt" | "enabled"> & { enabled?: boolean };
+
 export type NewTransaction =
   Omit<Transaction, "id" | "portfolioId" | "sourceSymbol"> & { sourceSymbol?: string | null };
 export type TransactionPatch = Partial<NewTransaction>;
@@ -121,6 +140,28 @@ export interface Store {
      * report how many there are.
      */
     countByPortfolio(): Promise<Record<string, number>>;
+  };
+  /**
+   * The rules this app is watching.
+   *
+   * On the port rather than only in Prisma because the device evaluates its
+   * own: the alerts *routes* stay server-only — Home Assistant, web-push and
+   * FCM all need a server — but the rules themselves are rows, and a phone
+   * that checks them on every foreground and posts a local notification needs
+   * nowhere to send them. See `alert-rules.ts`, which has been pure since it
+   * was written for exactly this.
+   *
+   * Deliberately narrower than `schema.prisma`'s `Alert`. No `timeframe`, no
+   * `params` free-for-all, no indicator kind: the risk metric needs 1,460
+   * daily bars to warm up, which is not work for a phone, and a port that
+   * carried the column would invite one.
+   */
+  alerts: {
+    list(): Promise<Alert[]>;
+    create(alert: NewAlert): Promise<Alert>;
+    remove(id: string): Promise<void>;
+    /** Enable or disable one. A fired one-shot target disables itself. */
+    setEnabled(id: string, enabled: boolean): Promise<Alert>;
   };
   settings: {
     get(): Promise<Settings>;

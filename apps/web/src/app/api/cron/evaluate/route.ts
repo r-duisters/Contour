@@ -4,7 +4,7 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { pricingPair } from "@/core/symbols";
 import { fetchKlines } from "@/data/sources/binance";
-import { assetTypeOf, baselines, priceSymbols, type PricedSymbol, type Settings } from "@/lib/alert-pricing";
+import { assetTypeOf, baselines, priceSymbols, type PricedSymbol, type Settings } from "@/data/services/alert-pricing";
 import { deps } from "@/lib/deps";
 import { run } from "@/lib/indicator";
 import {

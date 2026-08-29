@@ -1,3 +1,4 @@
+import type { Alert } from "../ports/store";
 import {
   DEFAULT_SETTINGS,
   type NewTransaction,
@@ -58,6 +59,8 @@ export type StoreSeed = {
 export function MemoryStore(seed?: StoreSeed): Store {
   const portfolios = new Map<string, Portfolio>();
   const transactions = new Map<string, Transaction>();
+  const alerts: Alert[] = [];
+  let alertSeq = 0;
   let settings: Settings = { ...DEFAULT_SETTINGS, ...defined(seed?.settings ?? {}) };
   // Mirrors PrismaStore, where the row is created on first save: seeding
   // settings is the in-memory equivalent of an install that has been through
@@ -162,6 +165,41 @@ export function MemoryStore(seed?: StoreSeed): Store {
         const counts: Record<string, number> = {};
         for (const t of transactions.values()) counts[t.portfolioId] = (counts[t.portfolioId] ?? 0) + 1;
         return counts;
+      },
+    },
+    alerts: {
+      async list() {
+        // Newest first, and *stably*: two alerts made in the same millisecond
+        // share a `createdAt`, and a sort on that alone left them in whichever
+        // order the engine chose. SqliteStore orders by `createdAt DESC, id
+        // DESC`, so the tiebreak is insertion order here to match it.
+        return alerts
+          .map((a, i) => ({ a, i }))
+          .sort((x, y) => y.a.createdAt - x.a.createdAt || y.i - x.i)
+          .map(({ a }) => ({ ...a }));
+      },
+      async create(alert) {
+        const row: Alert = {
+          ...alert,
+          id: `alert-${++alertSeq}`,
+          enabled: alert.enabled ?? true,
+          createdAt: Date.now(),
+        };
+        alerts.push(row);
+        return { ...row };
+      },
+      async remove(id) {
+        const at = alerts.findIndex((a) => a.id === id);
+        // Throws on a missing row, like `transactions.remove`: the contract
+        // pins that, and Prisma does it whether or not anyone asked.
+        if (at < 0) throw new Error(`no alert ${id}`);
+        alerts.splice(at, 1);
+      },
+      async setEnabled(id, enabled) {
+        const row = alerts.find((a) => a.id === id);
+        if (!row) throw new Error(`no alert ${id}`);
+        row.enabled = enabled;
+        return { ...row };
       },
     },
     settings: {

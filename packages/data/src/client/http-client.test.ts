@@ -160,6 +160,7 @@ function seededNet(): FakeNetInstance {
         // `history` returns from its own catch, never a 404.
         ? { bars: [], range: FIXTURE.range, changePct: null, error: "no data" }
         : { bars: [{ t: FIXTURE.benchmarkFrom, c: 40_000 }], range: FIXTURE.range, changePct: 1.2 },
+    "/api/alerts/alert-1": {},
     "/api/alerts": (url: string, init?: RequestInit) =>
       init?.method === "POST"
         ? {

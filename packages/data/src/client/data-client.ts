@@ -301,6 +301,8 @@ export interface DataClient {
   listAlerts?(): Promise<AlertSummary[]>;
   /** @throws RequestFailedError when the alert cannot be stored. */
   createAlert?(alert: NewAlertInput): Promise<AlertSummary>;
+  /** @throws RequestFailedError when the alert is not there. */
+  deleteAlert?(id: string): Promise<void>;
 
   /* --------------------------------------------------- import and restore */
 

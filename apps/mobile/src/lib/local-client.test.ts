@@ -230,9 +230,10 @@ beforeEach(() => invalidate());
 runDataClientContract(
   "LocalClient (services over MemoryStore)",
   () => LocalClient(seededStore(), seededNet()),
-  // No alerts either: dispatch needs Home Assistant, web-push or FCM, and
-  // this build has no server behind it to reach any of them.
-  { testNotifications: false, computedReads: true, alerts: false },
+  // Alerts are claimed now. They were absent while dispatch meant Home
+  // Assistant, web-push or FCM; a price target checked on this phone and
+  // posted as a local notification needs none of them.
+  { testNotifications: false, computedReads: true, alerts: true },
 );
 
 /**

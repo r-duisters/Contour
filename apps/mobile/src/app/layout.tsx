@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import BiometricLock from "@/components/BiometricLock";
+import DeviceAlerts from "./device-alerts";
 import FirstRun from "./first-run";
 import Nav from "./nav";
 import Providers from "./providers";
@@ -64,6 +65,8 @@ export default function RootLayout({
             {/* An empty device gets the setup flow instead of an empty
                 portfolio — and instead of the tab bar, so the wizard has the
                 screen to itself. */}
+            {/* Checks the rules on every foreground and posts them itself. */}
+            <DeviceAlerts />
             <FirstRun>
               <div className="pb-20">{children}</div>
               <Nav />

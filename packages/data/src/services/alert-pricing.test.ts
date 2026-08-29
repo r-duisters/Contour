@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { invalidate } from "@/core/cache";
-import { FakeNet } from "@/data/testing/fake-net";
+import { FakeNet } from "../testing/fake-net";
 import { assetTypeOf, baselines, priceSymbols } from "./alert-pricing";
 
 beforeEach(() => invalidate());

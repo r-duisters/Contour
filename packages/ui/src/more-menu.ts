@@ -71,6 +71,8 @@ export const DEVICE_MORE_GROUPS: typeof MORE_GROUPS = [
     items: [
       { href: "/ledger", label: "Ledger", Icon: BookText,
         hint: "Cost basis, realised profit, fees" },
+      { href: "/alerts", label: "Alerts", Icon: Bell,
+        hint: "Price targets, checked when you open the app" },
       { href: "/settings", label: "Settings", Icon: Settings,
         hint: "Currency and price sources" },
       { href: "/more", label: "Portfolio data", Icon: Database,

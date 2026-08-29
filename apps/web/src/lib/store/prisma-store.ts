@@ -3,6 +3,7 @@ import { asDisplayCurrency } from "@/core/currencies";
 import {
   DEFAULT_SETTINGS,
   type AssetType,
+  type Alert,
   type NewTransaction,
   type Portfolio,
   type PortfolioWithTransactions,
@@ -114,6 +115,25 @@ function toSettings(row: {
  */
 const DELETE_CHUNK = 500;
 
+/** One Prisma row as the port describes it. */
+function toAlert(row: {
+  id: string; kind: string; symbol: string | null; assetType: string;
+  params: string; enabled: boolean; createdAt: Date;
+}): Alert {
+  const params = JSON.parse(row.params) as { direction?: string; price?: number; threshold?: number };
+  const target = row.kind === "price_target";
+  return {
+    id: row.id,
+    kind: target ? "price_target" : "pct_move",
+    symbol: row.symbol ?? "",
+    assetType: row.assetType === "equity" ? "equity" : "crypto",
+    threshold: (target ? params.price : params.threshold) ?? 0,
+    direction: target ? (params.direction === "below" ? "below" : "above") : null,
+    enabled: row.enabled,
+    createdAt: row.createdAt.getTime(),
+  };
+}
+
 export function PrismaStore(client: PrismaClient = defaultClient): Store {
   return {
     portfolios: {
@@ -182,6 +202,50 @@ export function PrismaStore(client: PrismaClient = defaultClient): Store {
         // them.
         const rows = await client.transaction.groupBy({ by: ["portfolioId"], _count: { _all: true } });
         return Object.fromEntries(rows.map((r) => [r.portfolioId, r._count._all]));
+      },
+    },
+    /*
+     * The port's narrow view of the richer table this app already has.
+     *
+     * `schema.prisma`'s `Alert` carries `timeframe`, a JSON `params` blob and
+     * an `indicator` kind that the alerts page uses and a phone cannot. The
+     * port sees only what a device can evaluate — one live price, and a level
+     * or a threshold — so `params` is read and written here rather than
+     * travelling as an opaque string through a portable interface.
+     *
+     * Indicator alerts are filtered out rather than mapped: they have no
+     * threshold to report, and inventing one would make them look evaluable.
+     */
+    alerts: {
+      async list() {
+        const rows = await client.alert.findMany({
+          where: { kind: { in: ["price_target", "pct_move"] }, symbol: { not: null } },
+          orderBy: { createdAt: "desc" },
+        });
+        return rows.map(toAlert);
+      },
+      async create(alert) {
+        const row = await client.alert.create({
+          data: {
+            kind: alert.kind,
+            symbol: alert.symbol,
+            assetType: alert.assetType,
+            timeframe: "1d",
+            enabled: alert.enabled ?? true,
+            params: JSON.stringify(
+              alert.kind === "price_target"
+                ? { direction: alert.direction ?? "above", price: alert.threshold }
+                : { threshold: alert.threshold },
+            ),
+          },
+        });
+        return toAlert(row);
+      },
+      async remove(id) {
+        await client.alert.delete({ where: { id } });
+      },
+      async setEnabled(id, enabled) {
+        return toAlert(await client.alert.update({ where: { id }, data: { enabled } }));
       },
     },
     settings: {
