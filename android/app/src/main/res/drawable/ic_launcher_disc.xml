@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The launcher icon's foreground: the mark on its disc.
+
+  The adaptive icon used to be a solid blue background with the mark on top,
+  which gave the artwork no shape of its own — every launcher masked the blue
+  to whatever it liked, and on any launcher that prefers a squircle the app
+  announced itself as a square before its own circular splash had a chance to
+  say otherwise. Nothing in the theme could fix that: the mask is the
+  launcher's, and it was being applied to a full-bleed colour.
+
+  So the disc moves into the artwork, and the background layer becomes the
+  app's ground. Now the mask crops ground rather than blue, and the mark is a
+  circle on every launcher.
+
+  Sizes are `@dimen/adaptive_disc` and `@dimen/adaptive_disc_mark`; the
+  reasoning for both is written there.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:width="@dimen/adaptive_disc"
+        android:height="@dimen/adaptive_disc"
+        android:gravity="center">
+        <shape android:shape="oval">
+            <solid android:color="@color/contour_blue" />
+        </shape>
+    </item>
+
+    <item
+        android:width="@dimen/adaptive_disc_mark"
+        android:height="@dimen/adaptive_disc_mark"
+        android:gravity="center">
+        <bitmap
+            android:src="@mipmap/ic_launcher_foreground"
+            android:gravity="center" />
+    </item>
+</layer-list>

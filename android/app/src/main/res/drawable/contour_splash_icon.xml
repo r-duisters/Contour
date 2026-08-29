@@ -20,6 +20,11 @@
   `@mipmap/ic_launcher_foreground` rather than `ic_launcher_round`: the round
   one is an `adaptive-icon` on API 26+, which is XML and not a bitmap. The
   reasoning is in `contour_splash.xml`, which now composes this file.
+
+  The mark is sized here rather than inherited from the asset. It used to carry
+  its own inset, which put it at 52% of this disc while the lock screen drew
+  the same mark at 86% of the same disc — so it grew at the handover, on the
+  one screen whose whole job is to not change.
 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item
@@ -27,13 +32,13 @@
         android:height="@dimen/contour_mark_disc"
         android:gravity="center">
         <shape android:shape="oval">
-            <solid android:color="@color/ic_launcher_background" />
+            <solid android:color="@color/contour_blue" />
         </shape>
     </item>
 
     <item
-        android:width="@dimen/contour_mark_disc"
-        android:height="@dimen/contour_mark_disc"
+        android:width="@dimen/contour_mark"
+        android:height="@dimen/contour_mark"
         android:gravity="center">
         <bitmap
             android:src="@mipmap/ic_launcher_foreground"

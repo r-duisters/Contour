@@ -6,4 +6,12 @@
       because three files have to agree on it.
     -->
     <color name="contour_ground">#0A0A0A</color>
+
+    <!--
+      The mark's disc. Named separately from `ic_launcher_background`, which it
+      used to borrow: that colour is the adaptive icon's *background layer*,
+      and that layer is now the ground rather than the blue. Two different
+      questions had been answering to one name.
+    -->
+    <color name="contour_blue">#2563EB</color>
 </resources>

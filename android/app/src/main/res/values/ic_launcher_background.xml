@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#2563EB</color>
+    <!--
+      The adaptive icon's background layer, which is what a launcher's mask is
+      cut from. It is the app's ground, not the blue: the disc now lives in the
+      foreground layer, so the mark stays a circle whatever shape the launcher
+      masks to. See `drawable/ic_launcher_disc.xml`.
+    -->
+    <color name="ic_launcher_background">@color/contour_ground</color>
 </resources>

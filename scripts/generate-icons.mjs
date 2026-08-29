@@ -55,10 +55,40 @@ const favicon = () => `
 </svg>`;
 
 /**
- * Android launcher icons are separate from the web manifest's: the adaptive
- * icon draws `foreground` on a coloured background, and its art must sit
- * inside the middle ~66% or the launcher's mask crops it.
+ * Android launcher icons are separate from the web manifest's.
+ *
+ * The adaptive icon is composed in XML rather than here — see
+ * `android/app/src/main/res/drawable/ic_launcher_disc.xml`. What this file
+ * still writes is the mark on transparency, which that drawable places on its
+ * disc, and the legacy bitmaps for API 24 and 25, which have no adaptive icon
+ * to compose.
+ *
+ * Those legacy bitmaps draw the disc themselves, for the same reason the
+ * adaptive foreground does: the icon's shape has to belong to the artwork.
+ * They also used to be identical files — `ic_launcher_round.png` was a
+ * squircle, byte for byte the same as `ic_launcher.png`, on the one surface
+ * whose whole purpose is to be round.
  */
+/** The disc's share of the icon, matching `@dimen/adaptive_disc` (72 of 108dp). */
+const DISC = 72 / 108;
+
+/**
+ * The launcher icon for API 24 and 25, which have no adaptive icon.
+ *
+ * These draw the blue to the edge, and that is not the inconsistency it looks
+ * like: the disc is inset in the adaptive icon only to survive a launcher's
+ * mask, and here there is no mask to survive. `round` is `ic_launcher_round`,
+ * which was a squircle byte-identical to `ic_launcher` — the one surface whose
+ * whole purpose is to be round.
+ *
+ * The mark is 86% of the tile, which is `MarkTile`'s rule.
+ */
+const legacyIcon = (round) => `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="${round ? 256 : 96}" fill="#2563eb"/>
+  ${mark(0.86)}
+</svg>`;
+
 const DENSITIES = [
   ["mdpi", 48], ["hdpi", 72], ["xhdpi", 96], ["xxhdpi", 144], ["xxxhdpi", 192],
 ];
@@ -73,10 +103,9 @@ async function androidIcons() {
   for (const [density, size] of DENSITIES) {
     const dir = `${root}/mipmap-${density}`;
     await mkdir(dir, { recursive: true });
-    // Square and round launcher icons keep the rounded-rect artwork.
-    await sharp(Buffer.from(icon(false))).resize(size, size).png()
+    await sharp(Buffer.from(legacyIcon(false))).resize(size, size).png()
       .toFile(`${dir}/ic_launcher.png`);
-    await sharp(Buffer.from(icon(false))).resize(size, size).png()
+    await sharp(Buffer.from(legacyIcon(true))).resize(size, size).png()
       .toFile(`${dir}/ic_launcher_round.png`);
     // The adaptive foreground is drawn at 108dp with only the centre visible,
     // and must be transparent so the background colour shows through.
@@ -87,11 +116,20 @@ async function androidIcons() {
 }
 
 /**
- * The adaptive foreground draws on the launcher's own background layer, and
- * only the middle ~66% survives the mask.
+ * The mark alone, on transparency, filling its canvas.
+ *
+ * Both `ic_launcher_disc.xml` and `contour_splash_icon.xml` place this on a
+ * disc they draw themselves, so this file must not draw one — it would be
+ * disc-on-disc. It must not carry an inset either, which it used to: at 0.52
+ * of the canvas the mark came out at 52% of whatever disc it was dropped into,
+ * while `MarkTile` — the same mark, on the same disc, one frame later on the
+ * lock screen — draws it at 86%. The mark visibly grew during the handover.
+ *
+ * Full-bleed, every drawable names the size it wants, and 86% is stated once
+ * per surface instead of hidden in this asset.
  */
 const foreground = () => `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">${mark(0.52)}</svg>`;
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">${mark(1)}</svg>`;
 
 await mkdir("apps/web/public/icons", { recursive: true });
 const targets = [

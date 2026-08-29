@@ -10,4 +10,26 @@
       cold start shows.
     -->
     <dimen name="contour_mark_disc">112dp</dimen>
+
+    <!--
+      The mark inside that disc: 86% of it, which is `MarkTile`'s rule and so
+      what the lock screen draws one frame later.
+    -->
+    <dimen name="contour_mark">96dp</dimen>
+
+    <!--
+      The disc inside an adaptive icon, and the mark inside that disc.
+
+      An adaptive icon's layers are 108dp and a launcher's mask crops them to
+      at most the central 72dp — a circle on one launcher, a squircle on the
+      next, a rounded square on a third. Drawing the disc at exactly that 72dp
+      means a circular mask is filled edge to edge, with no ring of ground
+      showing, while any other mask leaves the ground in its corners and the
+      mark still reads as a circle. The shape stops being the launcher's
+      decision, which is the whole point.
+
+      86% is `MarkTile`'s rule for the mark's share of its disc.
+    -->
+    <dimen name="adaptive_disc">72dp</dimen>
+    <dimen name="adaptive_disc_mark">62dp</dimen>
 </resources>
