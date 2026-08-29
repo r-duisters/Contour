@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      The diameter of the mark's disc, everywhere the system draws it: the
+      Android 12 splash icon, the pre-31 launch window and the recents card.
+
+      112 is the lock screen's disc in `BiometricLock.tsx` and the web splash's
+      in `providers.tsx`. One number, because the point of the entrance is that
+      nothing about the mark changes size or place between the four pictures a
+      cold start shows.
+    -->
+    <dimen name="contour_mark_disc">112dp</dimen>
+</resources>

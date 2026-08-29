@@ -109,10 +109,14 @@ export default function Providers({ children }: { children: ReactNode }) {
     );
   }
 
+  // The same disc, at the same size, in the same place as the launch window
+  // that was on screen a moment ago and the lock screen that arrives next.
+  // `glow` is what the lock draws, so the mark does not change appearance
+  // halfway through its own entrance.
   if (!ready) {
     return (
       <main className="flex-1 flex items-center justify-center p-8">
-        <MarkTile size={112} breathing />
+        <MarkTile size={112} breathing glow />
       </main>
     );
   }

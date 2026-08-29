@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The mark on its disc, with no ground behind it.
+
+  This is what Android 12's splash screen draws. `Theme.SplashScreen` composes
+  the launch window from `windowSplashScreenBackground` and
+  `windowSplashScreenAnimatedIcon`; it ignores a theme's window background
+  entirely, which is why `contour_splash.xml` — carefully hand-built so the
+  disc matched the app's own — was never reached on any modern phone. What
+  showed instead was the launcher icon on Android's default ground: the square
+  logo on the wrong colour, one frame before the app drew the circular one.
+
+  The icon is drawn into a fixed canvas and then circle-masked. Without an
+  icon background colour that canvas is 288dp with the inner 192dp visible —
+  `core-splashscreen`'s own `splashscreen_icon_size_no_background` (288dp) and
+  its 410dp mask with a 109dp stroke, which leaves 192dp. So a disc declared
+  here at `contour_mark_disc` renders at that many dp, and the 112dp the web
+  splash and the lock screen use fits inside the mask with room to spare.
+
+  `@mipmap/ic_launcher_foreground` rather than `ic_launcher_round`: the round
+  one is an `adaptive-icon` on API 26+, which is XML and not a bitmap. The
+  reasoning is in `contour_splash.xml`, which now composes this file.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:width="@dimen/contour_mark_disc"
+        android:height="@dimen/contour_mark_disc"
+        android:gravity="center">
+        <shape android:shape="oval">
+            <solid android:color="@color/ic_launcher_background" />
+        </shape>
+    </item>
+
+    <item
+        android:width="@dimen/contour_mark_disc"
+        android:height="@dimen/contour_mark_disc"
+        android:gravity="center">
+        <bitmap
+            android:src="@mipmap/ic_launcher_foreground"
+            android:gravity="center" />
+    </item>
+</layer-list>

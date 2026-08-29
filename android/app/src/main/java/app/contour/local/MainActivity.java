@@ -8,18 +8,36 @@ import android.os.Bundle;
 import android.view.WindowManager;
 import android.webkit.WebView;
 
+import android.os.SystemClock;
+
 import androidx.activity.OnBackPressedCallback;
+import androidx.core.splashscreen.SplashScreen;
 
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
+
+    /**
+     * How long the launch window may be held waiting for the WebView.
+     *
+     * The hold exists to remove a blank frame, not to become one. If the page
+     * never lays out — a corrupt asset, a WebView that will not start — the
+     * splash must still come down and let the app show whatever it can.
+     */
+    private static final long SPLASH_HOLD_CAP_MS = 1_500;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         // Before super: Capacitor builds the bridge there, and a plugin
         // registered afterwards is not in it.
         registerPlugin(BatteryOptimizationPlugin.class);
+        // Also before super, and before the first layout pass: this is what
+        // applies `postSplashScreenTheme`, and what gives us the handle needed
+        // to hold the launch window past its default single frame.
+        SplashScreen splash = SplashScreen.installSplashScreen(this);
         super.onCreate(savedInstanceState);
+
+        holdSplashUntilWebViewPaints(splash);
 
         // A WebView ignores downloads unless something is listening, and
         // Capacitor installs no listener — so "Install the latest build" did
@@ -37,6 +55,31 @@ public class MainActivity extends BridgeActivity {
         handleBackButton();
         keepPortfolioOutOfRecents();
         brandTheRecentsCard();
+    }
+
+    /**
+     * Keep the launch window up until the WebView has something to show.
+     *
+     * The system splash comes down on the activity's first draw, which happens
+     * long before the WebView has a document — so the identical picture the app
+     * draws for itself (the same disc, the same size, on the same ground) was
+     * separated from the system's by a frame of bare colour. Held, the handover
+     * is invisible: the disc never leaves the screen.
+     *
+     * `getContentHeight()` is the signal because it is the cheapest thing that
+     * means "this document has been laid out". The condition is re-evaluated on
+     * every pre-draw by the library, so nothing polls and nothing sleeps.
+     *
+     * The cap is not a fallback for a slow phone — it is the guarantee that a
+     * broken one still gets past this screen. See SPLASH_HOLD_CAP_MS.
+     */
+    private void holdSplashUntilWebViewPaints(SplashScreen splash) {
+        final long startedAt = SystemClock.uptimeMillis();
+        splash.setKeepOnScreenCondition(() -> {
+            if (SystemClock.uptimeMillis() - startedAt > SPLASH_HOLD_CAP_MS) return false;
+            WebView webView = getBridge().getWebView();
+            return webView != null && webView.getContentHeight() == 0;
+        });
     }
 
     /**

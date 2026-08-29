@@ -26,7 +26,8 @@ const ALLOWED: Record<string, string> = {
     "sitting on top of an input would read as a second control.",
   "packages/ui/src/BiometricLock.tsx":
     "The lock screen's unlock disc: already a circle, and filled rather than " +
-    "bordered because it is the entrance surface's primary action at 64px. " +
+    "bordered because it is the entrance surface's primary action at 80px, " +
+    "sitting in the lower third where a thumb is. " +
     "`MarkTile` and this share that language; a list-row button does not.",
 };
 

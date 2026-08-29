@@ -34,9 +34,35 @@
     </style>
 
 
-    <!-- The launch window, shown until the WebView paints. Same drawable as
-         the recents card, so the entrance and the card agree. -->
+    <!--
+      The launch window.
+
+      `Theme.SplashScreen` does not read a window background. It composes the
+      splash from these attributes, and with none of them set Android fell back
+      to the launcher icon on its own ground — a squircle on a colour that is
+      not this app's — one frame before the WebView drew the circular mark on
+      `contour_ground`. Three pictures of the same mark in the first second,
+      none of them agreeing.
+
+      The names carry no `android:` prefix on purpose. `core-splashscreen`
+      defines them itself and its `values-v31` theme forwards each to the
+      platform attribute, so one declaration covers both the compat splash
+      below API 31 and the real one above it.
+
+      `postSplashScreenTheme` is what finally applies `AppTheme.NoActionBar`,
+      and it only takes effect because `MainActivity` calls
+      `installSplashScreen()`. Without both, that style — which is where the
+      recents card's colour is set — was written for an activity that never
+      wore it.
+    -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
-        <item name="android:background">@drawable/contour_splash</item>
+        <item name="windowSplashScreenBackground">@color/contour_ground</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/contour_splash_icon</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
+        <!--
+          The window behind the compat splash view on API 30 and below, and the
+          same drawable the recents card uses, so nothing flashes through.
+        -->
+        <item name="android:windowBackground">@drawable/contour_splash</item>
     </style>
 </resources>

@@ -16,29 +16,19 @@
   PNG at every density and has no `anydpi` override to turn it into XML. It is
   the white mark on transparency, already inset for the adaptive icon's safe
   area, so it sits inside the disc without further padding.
+
+  This drawable is *not* what a phone on API 31 or above shows at launch —
+  `Theme.SplashScreen` composes that from `windowSplashScreenBackground` and
+  `windowSplashScreenAnimatedIcon`, and reads no window background at all. See
+  `contour_splash_icon.xml`.
 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/contour_ground" />
 
     <!--
-      112dp is the unlock disc's diameter, so the launch window, the recents
-      card and the lock screen all show the mark at the same size.
+      The disc itself lives in `contour_splash_icon.xml`, because Android 12's
+      splash screen needs it without a ground behind it and the two must not be
+      allowed to drift apart. Its diameter is `@dimen/contour_mark_disc`.
     -->
-    <item
-        android:width="112dp"
-        android:height="112dp"
-        android:gravity="center">
-        <shape android:shape="oval">
-            <solid android:color="@color/ic_launcher_background" />
-        </shape>
-    </item>
-
-    <item
-        android:width="112dp"
-        android:height="112dp"
-        android:gravity="center">
-        <bitmap
-            android:src="@mipmap/ic_launcher_foreground"
-            android:gravity="center" />
-    </item>
+    <item android:drawable="@drawable/contour_splash_icon" />
 </layer-list>

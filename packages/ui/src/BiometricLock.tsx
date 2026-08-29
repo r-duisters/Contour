@@ -19,6 +19,16 @@ const RELOCK_AFTER_MS = 60_000;
 const CLOSE_MS = 260;
 
 /**
+ * How long the mark takes to travel from the centre to its resting place.
+ *
+ * The lock used to draw the disc at 14vh outright, so the mark the launch
+ * window and the web splash had both shown dead centre teleported the moment
+ * the lock mounted. Moving it is the same picture continuing rather than a
+ * third one replacing the second.
+ */
+const SETTLE_MS = 380;
+
+/**
  * `splash` is the app's own screen, held briefly before the system sheet
  * covers it. It exists as a state of its own rather than as a delay inside
  * `checking`, because the two look different on purpose: `checking` is the
@@ -42,6 +52,11 @@ export default function BiometricLock({ children }: { children: React.ReactNode 
   const [state, setState] = useState<State>("checking");
   const [error, setError] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
+  // Whether this is the app opening rather than re-locking. The mark travels
+  // from the centre only on an entrance: coming back from another app, there
+  // was no splash behind it to travel from, and the movement would be an
+  // animation of nothing.
+  const [entrance, setEntrance] = useState(true);
   const hiddenSince = useRef<number | null>(null);
 
   const unlock = useCallback(async () => {
@@ -110,6 +125,7 @@ export default function BiometricLock({ children }: { children: React.ReactNode 
       const away = hiddenSince.current === null ? 0 : Date.now() - hiddenSince.current;
       hiddenSince.current = null;
       if (away > RELOCK_AFTER_MS && state === "open") {
+        setEntrance(false);
         setState("locked");
         unlock();
       }
@@ -126,18 +142,27 @@ export default function BiometricLock({ children }: { children: React.ReactNode 
   return (
     <>
       {children}
-      {locked && <Overlay state={state} error={error} onUnlock={unlock} closing={closing} />}
+      {locked && (
+        <Overlay
+          state={state}
+          error={error}
+          onUnlock={unlock}
+          closing={closing}
+          entrance={entrance}
+        />
+      )}
     </>
   );
 }
 
 function Overlay({
-  state, error, onUnlock, closing,
+  state, error, onUnlock, closing, entrance,
 }: {
   state: State;
   error: string | null;
   onUnlock: () => void;
   closing: boolean;
+  entrance: boolean;
 }) {
   const working = state === "checking" || state === "splash" || state === "prompting";
   return (
@@ -180,13 +205,29 @@ function Overlay({
           from { opacity: 0; transform: translateY(8px); }
           to   { opacity: 1; transform: none; }
         }
+        /*
+          The disc's journey. It starts where the splash left it — screen
+          centre — and ends where the lock wants it. 36vh is the distance
+          between the two centres: the block's top is at 14vh and the disc is
+          112px tall, so its centre rests at 14vh + 56px, against 50vh.
+
+          Eased out hard, so it looks like something settling rather than
+          something sliding.
+        */
+        @keyframes lock-settle {
+          from { transform: translateY(calc(36vh - 56px)); }
+          to   { transform: none; }
+        }
         @media (prefers-reduced-motion: reduce) {
           .lock-anim { animation: none !important; }
         }
       `}</style>
 
       <div className="relative z-10 flex flex-col items-center gap-6 text-center">
-        <div className="relative flex items-center justify-center">
+        <div
+          className="lock-anim relative flex items-center justify-center"
+          style={entrance ? { animation: `lock-settle ${SETTLE_MS}ms cubic-bezier(0.22, 1, 0.36, 1) both` } : undefined}
+        >
           {/* A ring that breathes while the prompt is up, so a slow sensor
               still looks like the app is doing something. */}
           {working && (
@@ -208,7 +249,16 @@ function Overlay({
           </span>
         </div>
 
-        <div className="lock-anim" style={{ animation: "lock-rise 400ms ease-out both" }}>
+        {/* Held back until the mark has arrived. The name appearing beside a
+            disc still in flight read as two things happening at once; waiting
+            makes the movement the sentence and the name its full stop. On a
+            re-lock there is no movement to wait for, so it simply rises. */}
+        <div
+          className="lock-anim"
+          style={entrance
+            ? { animation: `lock-fade 320ms ease-out both`, animationDelay: `${SETTLE_MS}ms` }
+            : { animation: "lock-rise 400ms ease-out both" }}
+        >
           <p className="text-2xl font-semibold tracking-wide">Contour</p>
           {/* Keyed on the text so each caption is a fresh node and fades in
               on its own; `min-h` holds the line's space, or the block below
@@ -225,22 +275,34 @@ function Overlay({
             </span>
           </p>
         </div>
-
-        {!working && (
-          <div className="lock-anim flex flex-col items-center gap-3"
-               style={{ animation: "lock-rise 400ms ease-out both" }}>
-            <button
-              onClick={onUnlock}
-              aria-label="Unlock Contour"
-              className="w-16 h-16 rounded-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white flex items-center justify-center transition-colors"
-            >
-              <Fingerprint size={28} aria-hidden />
-            </button>
-            <span className="text-xs text-neutral-500">Tap to unlock</span>
-            {error && <p className="text-sm text-red-500 max-w-xs">{error}</p>}
-          </div>
-        )}
       </div>
+
+      {/*
+        The one thing on this screen to touch, put where a thumb already is.
+
+        It used to sit directly under the caption, in the middle of the screen
+        — above the reader on a phone that has one under the glass, and above
+        the reach of a thumb on a phone that reads from the back. The lower
+        third is where both arguments point. Positioned against the overlay
+        rather than stacked in the column, so the mark's resting place does not
+        move when this appears.
+      */}
+      {!working && (
+        <div
+          className="lock-anim absolute inset-x-0 bottom-[18vh] z-10 flex flex-col items-center gap-3 px-8 text-center"
+          style={{ animation: "lock-rise 400ms ease-out both" }}
+        >
+          <button
+            onClick={onUnlock}
+            aria-label="Unlock Contour"
+            className="w-20 h-20 rounded-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white flex items-center justify-center transition-colors"
+          >
+            <Fingerprint size={32} aria-hidden />
+          </button>
+          <span className="text-xs text-neutral-500">Tap to unlock</span>
+          {error && <p className="text-sm text-red-500 max-w-xs">{error}</p>}
+        </div>
+      )}
     </div>
   );
 }
