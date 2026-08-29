@@ -593,19 +593,20 @@ export default function AssetScreen({
             any chart on a 412px phone. The common task is a glance, and a
             glance was made to scroll for it.
 
-            These two are the pair read *while looking at the chart above*:
-            what it costs now on the left, beside the axis the line just ended
-            at, and what it cost you on average on the right. The distance
-            between them is the position, and putting them side by side is the
-            cheapest way to state it.
+            "Last price" used to be the left of this pair. It moved into the
+            chart, where it rests in the readout slot that only appeared under
+            a dragging finger — so keeping a tile of it here would be the same
+            figure twice, at two sizes, six lines apart. What is left is the
+            pair about the position rather than the price: what it cost on
+            average, and what it cost in total.
 
             Unrealised has left the tiles entirely — it is the header's second
             column now, beside the day, where both readings sit together.
           */}
           {shownHolding && (
             <div className="grid grid-cols-2 gap-2 md:gap-3 text-sm mt-4">
-              <StatTile label="Last price" value={shownHolding.price !== null ? money(shownHolding.price) : "no price"} />
               <StatTile label="Average cost" value={shownHolding.quantity > 0 ? money(shownHolding.avgCost) : "—"} />
+              <StatTile label="Cost basis" value={money(shownHolding.costBasis)} />
             </div>
           )}
 
@@ -635,7 +636,7 @@ export default function AssetScreen({
                            hover:border-neutral-700 hover:text-neutral-300 transition-colors
                            focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
               >
-                Cost basis, realised, fees
+                Realised and fees
                 <ChevronDown
                   size={14}
                   aria-hidden
@@ -643,8 +644,7 @@ export default function AssetScreen({
                 />
               </button>
               {ledgerOpen && (
-                <div id={ledgerId} className="grid grid-cols-2 sm:grid-cols-3 gap-2 md:gap-3 text-sm mt-2">
-                  <StatTile label="Cost basis" value={money(shownHolding.costBasis)} />
+                <div id={ledgerId} className="grid grid-cols-2 gap-2 md:gap-3 text-sm mt-2">
                   <StatTile label="Realised" value={money(shownHolding.realizedPnl)} signed={shownHolding.realizedPnl} />
                   <StatTile label="Fees" value={money(shownHolding.fees)} />
                 </div>
@@ -827,6 +827,14 @@ function PriceChart({
    */
   const at = useChartReadout(chart, [line]);
   const reading = at && at.values[0] !== null ? { t: at.t, value: at.values[0]! } : null;
+  /**
+   * What the readout shows: the point under the finger, or — with nothing
+   * under it — the latest close, which is the line's own right-hand end.
+   */
+  const last = bars && bars.length > 0 ? bars[bars.length - 1]!.c : null;
+  const price = reading
+    ? { value: reading.value, at: reading.t }
+    : last !== null ? { value: last, at: null } : null;
 
   if (bars !== null && bars.length === 0) {
     return <EmptyState>No price history for this asset.</EmptyState>;
@@ -839,14 +847,35 @@ function PriceChart({
           same curve. `z-10` because lightweight-charts fills the container
           with its own absolutely-positioned canvases and these would otherwise
           be painted behind them: present, sized, and never on screen. */}
-      {/* Left, so it clears the high and low pinned to the right edge. */}
-      {reading && !hideValues && (
-        <div className="pointer-events-none absolute z-10 left-2 top-2 text-xs">
-          <div className="tabular-nums text-neutral-200">{fmtMoney(reading.value)}</div>
-          <div className="text-neutral-500">
-            {new Date(reading.t).toLocaleDateString(undefined, {
-              day: "numeric", month: "short", year: "numeric",
-            })}
+      {/*
+        The price, at rest and under a finger.
+        =====================================
+
+        Left, so it clears the high and low pinned to the right edge.
+
+        This slot only appeared while somebody dragged along the line, and was
+        empty the rest of the time — while what the asset costs sat below the
+        chart in a tile the same size as average cost. It is the resting state
+        of a thing that already existed, so it costs no height, and it never
+        has to win an argument with the header about which number is the
+        page's largest: it is not in that argument.
+
+        It also sits on the line whose right-hand end *is* that price, so
+        dragging reads as the same figure at a different date rather than as a
+        second control lighting up. Same position and same size in both states,
+        for that reason — only the caption under it changes.
+      */}
+      {price !== null && !hideValues && (
+        <div className="pointer-events-none absolute z-10 left-2 top-2 leading-tight">
+          <div className="text-xl font-medium tabular-nums text-neutral-100">
+            {fmtMoney(price.value)}
+          </div>
+          <div className="text-[11px] text-neutral-500">
+            {price.at === null
+              ? "now"
+              : new Date(price.at).toLocaleDateString(undefined, {
+                  day: "numeric", month: "short", year: "numeric",
+                })}
           </div>
         </div>
       )}
