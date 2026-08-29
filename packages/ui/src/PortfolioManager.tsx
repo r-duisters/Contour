@@ -11,6 +11,53 @@ import { forgetPortfolio } from "@/lib/valuation-cache";
 import { KEYS } from "@/lib/storage-keys";
 import { field } from "./field";
 import Button from "./Button";
+import SubHeading from "./SubHeading";
+
+/**
+ * A file this app can produce, and what it is for.
+ *
+ * The names alone were five identical chips in a wrapping row: nothing on the
+ * screen said that Backup is the only one Restore reads back, or what
+ * Ghostfolio is, so choosing between them meant guessing. The sentence is the
+ * point of the row, not decoration on it.
+ */
+const EXPORTS: [ExportFormat, string, string][] = [
+  ["json", "Backup (JSON)", "Everything, and the only file Restore reads back."],
+  ["csv", "Transactions (CSV)", "The ledger as rows, for a spreadsheet."],
+  ["ghostfolio", "Ghostfolio (CSV)", "For importing into Ghostfolio."],
+];
+
+/**
+ * One action, and one line saying what it does.
+ *
+ * `BRAND.md`'s list-row anatomy rather than a button: these were `text-xs`
+ * chips of the same width and colour, wrapping two-and-two-and-one down a
+ * phone, and which of them imported and which exported came down to reading a
+ * 12px icon. A row gives the label room, the sentence somewhere to go, and a
+ * tap target that is not eighteen pixels tall.
+ */
+function ActionRow({
+  icon: Icon, label, detail, onClick,
+}: {
+  icon: typeof Upload;
+  label: string;
+  detail: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="text-left w-full border border-neutral-800 rounded p-3 flex items-start gap-3
+                 hover:border-neutral-700 active:bg-neutral-900 transition-colors"
+    >
+      <Icon size={16} aria-hidden className="text-neutral-500 shrink-0 mt-0.5" />
+      <span className="min-w-0">
+        <span className="block text-sm text-neutral-200">{label}</span>
+        <span className="block text-xs text-neutral-500 mt-0.5">{detail}</span>
+      </span>
+    </button>
+  );
+}
 
 type PortfolioRow = { id: string; name: string; transactionCount: number };
 
@@ -169,8 +216,6 @@ export default function PortfolioManager() {
     }
   }
 
-  const btn = "text-xs text-neutral-300 inline-flex items-center gap-1 border border-neutral-700 rounded px-2 py-1";
-
   async function exportAs(format: ExportFormat) {
     if (!selectedId) return;
     try {
@@ -185,17 +230,24 @@ export default function PortfolioManager() {
   // chart credit moved to Settings, this became that screen's only content, so
   // the second copy read as a stutter rather than a section.
   return (
-    <section className="space-y-3">
+    <section className="space-y-6">
       {portfolios.length > 1 && (
-        <select
-          className={field()}
-          value={selectedId ?? ""}
-          onChange={(e) => setSelectedId(e.target.value || null)}
-        >
-          {portfolios.map((p) => (
-            <option key={p.id} value={p.id}>{p.name} ({p.transactionCount})</option>
-          ))}
-        </select>
+        <label className="block text-sm">
+          <span className="text-neutral-400">Portfolio</span>
+          {/* Labelled, because everything below acts on whichever one this is.
+              A bare select at the top of a screen of buttons left that
+              unsaid — and "Delete portfolio…" is not a question to answer
+              from context. */}
+          <select
+            className={`mt-1 ${field()}`}
+            value={selectedId ?? ""}
+            onChange={(e) => setSelectedId(e.target.value || null)}
+          >
+            {portfolios.map((p) => (
+              <option key={p.id} value={p.id}>{p.name} ({p.transactionCount})</option>
+            ))}
+          </select>
+        </label>
       )}
 
       {pending && (
@@ -231,56 +283,75 @@ export default function PortfolioManager() {
 
       {selectedId && (
         <>
-          <div className="flex gap-2 flex-wrap items-center">
-            <button onClick={() => csvRef.current?.click()} className={btn}>
-              <Upload size={12} aria-hidden />Import Delta CSV
-            </button>
-            <button onClick={() => backupRef.current?.click()} className={btn}>
-              <Upload size={12} aria-hidden />Restore backup…
-            </button>
+          <div>
+            <SubHeading className="mb-2">Bring data in</SubHeading>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <ActionRow
+                icon={Upload}
+                label="Import Delta CSV"
+                detail="Adds transactions from a Delta by eToro export. Rows already here are skipped."
+                onClick={() => csvRef.current?.click()}
+              />
+              <ActionRow
+                icon={Upload}
+                label="Restore backup…"
+                detail="Reads a Contour backup and replaces what this portfolio holds."
+                onClick={() => backupRef.current?.click()}
+              />
+            </div>
           </div>
 
           {/* Buttons, not `<a download>` anchors. An anchor cannot work on a
               device — there is no download the viewer can start — so the
               screen asks the client for bytes and hands them to whatever this
               app does with a file. */}
-          <div className="flex gap-2 flex-wrap items-center">
-            {([
-              ["json", "Backup (JSON)"],
-              ["csv", "Transactions (CSV)"],
-              ["ghostfolio", "Ghostfolio (CSV)"],
-            ] as [ExportFormat, string][]).map(([format, label]) => (
-              <button key={format} onClick={() => exportAs(format)} className={btn}>
-                <Download size={12} aria-hidden />{label}
-              </button>
-            ))}
+          <div>
+            <SubHeading className="mb-2">Take data out</SubHeading>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {EXPORTS.map(([format, label, detail]) => (
+                <ActionRow
+                  key={format}
+                  icon={Download}
+                  label={label}
+                  detail={detail}
+                  onClick={() => exportAs(format)}
+                />
+              ))}
+            </div>
           </div>
         </>
       )}
 
-      <div className="flex gap-2 flex-wrap items-center">
-        <input
-          className={field()}
-          placeholder="New portfolio name"
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && createPortfolio()}
-        />
-        <button onClick={createPortfolio} className={btn}>
-          <Plus size={12} aria-hidden />Create
-        </button>
-      </div>
-
-      {selectedId && (
-        <div className="flex gap-4 flex-wrap items-center pt-1">
-          <button onClick={clearImported} className="text-xs underline text-red-500 inline-flex items-center gap-1">
-            <Trash2 size={12} aria-hidden />Remove CSV-imported transactions…
-          </button>
-          <button onClick={deletePortfolio} className="text-xs underline text-red-500 inline-flex items-center gap-1">
-            <Trash2 size={12} aria-hidden />Delete portfolio…
-          </button>
+      <div>
+        <SubHeading className="mb-2">Portfolios</SubHeading>
+        <div className="flex gap-2 flex-wrap items-center">
+          <input
+            className={`${field()} flex-1 min-w-40`}
+            placeholder="New portfolio name"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && createPortfolio()}
+          />
+          <Button onClick={createPortfolio}>
+            <Plus size={14} aria-hidden />Create
+          </Button>
         </div>
-      )}
+
+        {/* Red text and a trailing ellipsis, not a red block: `BRAND.md` wants
+            these serious rather than alarming, and each says what it destroys.
+            They sit last because that is the order a person reads in, and
+            first is not where an irreversible thing belongs. */}
+        {selectedId && (
+          <div className="flex gap-4 flex-wrap items-center mt-3">
+            <button onClick={clearImported} className="text-xs underline text-red-500 inline-flex items-center gap-1">
+              <Trash2 size={12} aria-hidden />Remove CSV-imported transactions…
+            </button>
+            <button onClick={deletePortfolio} className="text-xs underline text-red-500 inline-flex items-center gap-1">
+              <Trash2 size={12} aria-hidden />Delete portfolio…
+            </button>
+          </div>
+        )}
+      </div>
 
       {msg && <p className="text-xs text-neutral-400">{msg}</p>}
     </section>
