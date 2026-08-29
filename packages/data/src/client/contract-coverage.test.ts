@@ -45,9 +45,11 @@ describe("the contract covers the interface", () => {
   });
 
   it("calls every method, or says why it cannot", () => {
-    const uncovered = methods
-      .filter((m) => !contract.includes(`.${m}(`))
-      .filter((m) => !(m in NOT_UNIVERSAL));
+    // `.method(` or `.method!(`: an optional member is called through a
+    // non-null assertion once the capability check above it has passed, and a
+    // matcher that missed that would report a covered method as uncovered.
+    const called = (m: string) => contract.includes(`.${m}(`) || contract.includes(`.${m}!(`);
+    const uncovered = methods.filter((m) => !called(m)).filter((m) => !(m in NOT_UNIVERSAL));
     expect(uncovered).toEqual([]);
   });
 

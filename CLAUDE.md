@@ -520,6 +520,14 @@ MQTT is a viable alternative (publish to `trader/signals/<symbol>`), but isn't i
 - **Bar timestamps are ms** internally; convert to seconds (`/1000`) only when handing to `lightweight-charts`.
 - **Indicator series return `NaN` during warm-up** (matching Pine's `na`). Strip with `Number.isFinite` before plotting.
 - **`BigInt` for `barTime` in Prisma**. Convert to `number` at API boundaries.
+- **An alert records how to price itself.** `Alert.assetType` is `"crypto"` or
+  `"equity"`, written when the alert is made, and the evaluator branches on it
+  — Binance for coins, `makeEquitySource` for shares. It is not inferred from
+  the ticker: `isEquityTicker` looks for an exchange suffix, and `AMD`, `NVDA`
+  and every other US listing have none, so a guess sends them to Binance as
+  `AMDUSDT` — a symbol that may answer, with an unrelated token's price.
+  `alert-pricing.ts` holds the branch and `assetTypeOf` keeps the old sniff
+  only as a fallback for rows written before the column.
 - **A stored symbol is an asset, not a pair.** `Transaction.symbol` holds `ETH`;
   `pricingPair()` in `packages/core/src/symbols.ts` builds `ETHUSDT` for a
   request and nothing stores the result. `assetOf()` goes the other way, and

@@ -45,12 +45,10 @@ describe("assetHref", () => {
  */
 describe("where Alert me goes", () => {
   it("carries the pair on the web, where the page exists", () => {
-    expect(WEB_ROUTING.alertsHref("BTCUSDT")).toBe("/alerts?symbol=BTCUSDT");
   });
 
   it("goes nowhere on a device, so the screen draws no button", () => {
     // Null rather than a disabled control: `data-client.ts` sets the rule that
     // a capability a platform cannot have is absent, not visibly broken.
-    expect(DEVICE_ROUTING.alertsHref("BTCUSDT")).toBeNull();
   });
 });

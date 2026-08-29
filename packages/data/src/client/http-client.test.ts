@@ -160,6 +160,16 @@ function seededNet(): FakeNetInstance {
         // `history` returns from its own catch, never a 404.
         ? { bars: [], range: FIXTURE.range, changePct: null, error: "no data" }
         : { bars: [{ t: FIXTURE.benchmarkFrom, c: 40_000 }], range: FIXTURE.range, changePct: 1.2 },
+    "/api/alerts": (url: string, init?: RequestInit) =>
+      init?.method === "POST"
+        ? {
+            alert: {
+              id: "alert-1", kind: "price_target", symbol: "BTCUSDT",
+              assetType: "crypto", params: { direction: "above", price: 100000 },
+              enabled: true,
+            },
+          }
+        : { alerts: [] },
     "/api/symbols/search": [
       { symbol: "ASML.AS", name: "ASML HOLDING", assetType: "equity", exchange: "Amsterdam" },
       { symbol: "AST", name: "AST", assetType: "crypto", exchange: "Binance" },
@@ -179,7 +189,10 @@ function seededNet(): FakeNetInstance {
   });
 }
 
-runDataClientContract("HttpClient", () => HttpClient(seededNet()), { testNotifications: true });
+runDataClientContract("HttpClient", () => HttpClient(seededNet()), {
+  testNotifications: true,
+  alerts: true,
+});
 
 /**
  * What the contract cannot reach, because one seeded client cannot be two

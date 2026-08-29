@@ -10,6 +10,32 @@ import type { IndexDetail, MarketBoard, MarketCategory } from "../services/marke
 
 export type { IndexDetail, MarketBoard, MarketCategory, MarketRow } from "../services/markets";
 export type { ColumnMapping as ImportColumnMapping, FormatId as ImportFormatId } from "@/core/import-formats";
+
+/** One alert, as a screen needs to read it. */
+export type AlertSummary = {
+  id: string;
+  kind: string;
+  symbol: string | null;
+  assetType: string;
+  params: Record<string, unknown>;
+  enabled: boolean;
+};
+
+/**
+ * What a screen may create, which is narrower than what the alerts page can.
+ *
+ * `price_target` only. The indicator alerts are Bitcoin-specific — the risk
+ * metric's three curves are fitted to BTC and match TradingView only for it —
+ * so offering them per-coin would invite alerts that cannot mean anything. The
+ * alerts page keeps its full form; this is the subset an asset page can offer
+ * without implying more than the maths supports.
+ */
+export type NewAlertInput = {
+  symbol: string;
+  assetType: "crypto" | "equity";
+  direction: "above" | "below";
+  price: number;
+};
 export type { AssetHit } from "../sources/search";
 
 /**
@@ -252,6 +278,29 @@ export interface DataClient {
    * the settings screen tests for it before drawing the button.
    */
   sendTestNotification?(): Promise<void>;
+
+  /* ---------------------------------------------------------------- alerts */
+
+  /**
+   * The alerts this app is watching, and adding one.
+   *
+   * **Optional, like `sendTestNotification` and for the same reason.** An
+   * alert is only worth having if something can dispatch it, and dispatch runs
+   * through Home Assistant, web-push and FCM — none of which exists inside an
+   * APK. A required method an implementation may fail cannot be checked by the
+   * contract at all: the suite either demands success, forcing the second
+   * implementation to pretend it has a capability it does not, or accepts a
+   * throw, at which point it passes for something simply broken.
+   *
+   * The bar for a second optional member is high and these clear it: a whole
+   * capability the device cannot have, not a convenience.
+   *
+   * **This does not convert the alerts routes.** They stay server-only, listed
+   * as such in `CLAUDE.md`. What it stops is the *asset page* naming one.
+   */
+  listAlerts?(): Promise<AlertSummary[]>;
+  /** @throws RequestFailedError when the alert cannot be stored. */
+  createAlert?(alert: NewAlertInput): Promise<AlertSummary>;
 
   /* --------------------------------------------------- import and restore */
 

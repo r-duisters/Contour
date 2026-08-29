@@ -22,8 +22,9 @@ import {
 import { positionChangeOverWindow } from "@/lib/change";
 import { assetName } from "@/lib/asset-names";
 import { annotateTransactions } from "@/lib/portfolio";
-import { useAlertsHref, useChartHref } from "@/components/routing";
+import { useChartHref } from "@/components/routing";
 import TransactionRow from "@/components/TransactionRow";
+import AlertForm from "@/components/AlertForm";
 import { useFitChart } from "@/components/useFitChart";
 import { shapePoints, thinKeepingExtremes } from "@/lib/chart-data";
 import { useStoredRange } from "@/components/useStoredRange";
@@ -113,6 +114,7 @@ export default function AssetScreen({
   );
   const [changePct, setChangePct] = useState<number | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [alertOpen, setAlertOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   // The id arrives in the URL when this page is opened from the portfolio, so
   // the cached holding can be on screen before any request finishes. A direct
@@ -169,8 +171,10 @@ export default function AssetScreen({
   // `pricingPair` answers ASML.ASUSDT for a share, which is not a market, and
   // an alert built on it could never be priced. Only the chart wants a pair,
   // and only because it really is a Binance market.
-  const alertsHref = useAlertsHref(symbol, resolvedType);
   const chartHref = useChartHref(pricingPair(symbol));
+  // Read once so the button and the handler cannot disagree about whether the
+  // capability is there — the same shape the settings screen uses.
+  const createAlert = client.createAlert?.bind(client);
   /** Loaded, and this portfolio does not hold it. */
   const notHeld = shownHolding === null;
   const lastClose = bars && bars.length > 0 ? bars[bars.length - 1]!.c : null;
@@ -439,13 +443,21 @@ export default function AssetScreen({
                   than growing a second, smaller alert form here — and it is
                   absent altogether where that page does not exist, rather
                   than offered and broken. */}
-              {alertsHref && (
-                <Link
-                  href={alertsHref}
+              {/*
+                Feature-detected, not asked about. `createAlert` is optional
+                because dispatch needs Home Assistant, web-push or FCM and an
+                APK has none of them — so the button is absent where the
+                capability is, exactly as the settings screen treats
+                `sendTestNotification`.
+              */}
+              {createAlert && (
+                <button
+                  onClick={() => setAlertOpen((v) => !v)}
+                  aria-expanded={alertOpen}
                   className="text-xs text-neutral-300 inline-flex items-center gap-1"
                 >
-                  <Bell size={12} aria-hidden />Alert me
-                </Link>
+                  <Bell size={12} aria-hidden />{alertOpen ? "Close" : "Alert me"}
+                </button>
               )}
               <button
                 onClick={() => setAddOpen((v) => !v)}
@@ -454,6 +466,25 @@ export default function AssetScreen({
                 <Plus size={12} aria-hidden />{addOpen ? "Close" : "Add"}
               </button>
             </div>
+            <Sheet open={alertOpen} onClose={() => setAlertOpen(false)} title={`Alert on ${symbol}`}>
+              <div className="p-3">
+                <AlertForm
+                  symbol={symbol}
+                  // `knownType`, not `resolvedType`: null means the page does
+                  // not yet know, and the form says so rather than guessing.
+                  // The fallback exists for drawing a chart, not for deciding
+                  // which venue prices an alert.
+                  assetType={knownType}
+                  livePrice={shownHolding?.price ?? null}
+                  // The sheet stays open so the form can say what it did.
+                  // Closing it on submit threw away the one confirmation there
+                  // is — the alert was created and the screen said nothing,
+                  // which is indistinguishable from the button not working.
+                  onSubmit={async (alert) => { await createAlert!(alert); }}
+                />
+              </div>
+            </Sheet>
+
             <Sheet open={addOpen} onClose={() => setAddOpen(false)} title="Add a transaction">
               <div className="p-3">
                 {/* `lastClose` and not the holding's `price`: the holding is

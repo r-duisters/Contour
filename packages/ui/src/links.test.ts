@@ -173,7 +173,6 @@ describe("every link the web app can draw", () => {
   it("resolves what the routing seam builds", () => {
     for (const href of [
       WEB_ROUTING.assetHref("BTC", "crypto"),
-      WEB_ROUTING.alertsHref("BTCUSDT"),
       WEB_ROUTING.indexHref("aex"),
     ]) {
       expect(href === null || resolves(routes, href)).toBe(true);
@@ -206,7 +205,6 @@ describe("every link the device app can draw", () => {
   it("resolves what the routing seam builds, or declines to build one", () => {
     // Null is the honest answer where a build has no such page, and the
     // screens draw nothing rather than a link into a restart.
-    expect(DEVICE_ROUTING.alertsHref("BTCUSDT")).toBeNull();
     expect(DEVICE_ROUTING.indexHref("aex")).toBeNull();
     expect(resolves(routes, DEVICE_ROUTING.assetHref("BTC", "crypto"))).toBe(true);
   });

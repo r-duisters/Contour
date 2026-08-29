@@ -1,5 +1,6 @@
 import type { ColumnMapping as ImportColumnMapping, FormatId as ImportFormatId } from "@/core/import-formats";
 import type { AssetHit } from "../sources/search";
+import type { AlertSummary, NewAlertInput } from "./data-client";
 import type { RangeKey } from "@/core/ranges";
 import type { AssetInfo } from "@/core/asset-info";
 import { NotFoundError, RequestFailedError } from "../errors";
@@ -218,6 +219,26 @@ export function HttpClient(net: Net, baseUrl = ""): DataClient {
       if (query.portfolioId !== undefined) q.push(`portfolioId=${query.portfolioId}`);
       if (query.opening !== undefined) q.push(`opening=${query.opening}`);
       return send("GET", `/api/benchmark?${q.join("&")}`);
+    },
+
+    async listAlerts(): Promise<AlertSummary[]> {
+      const d = await send<{ alerts?: AlertSummary[] }>("GET", "/api/alerts");
+      return d.alerts ?? [];
+    },
+
+    async createAlert(alert: NewAlertInput): Promise<AlertSummary> {
+      // The route's own shape, which this is the last file to know about:
+      // `kind` and a nested `params`, where the interface takes one flat
+      // object because a screen has no reason to learn an envelope.
+      const d = await send<{ alert: AlertSummary }>("POST", "/api/alerts", {
+        body: {
+          kind: "price_target",
+          symbol: alert.symbol,
+          assetType: alert.assetType,
+          params: { direction: alert.direction, price: alert.price },
+        },
+      });
+      return d.alert;
     },
 
     searchAssets(query: string): Promise<AssetHit[]> {

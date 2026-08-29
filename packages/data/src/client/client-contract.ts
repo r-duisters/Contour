@@ -164,6 +164,16 @@ export type ClientCapabilities = {
    */
   testNotifications: boolean;
   /**
+   * Whether alerts are offered at all.
+   *
+   * An alert is only worth having if something can dispatch it, and dispatch
+   * needs Home Assistant, web-push or FCM. A build with no server behind it
+   * must claim `false`, and the case below then asserts the methods are
+   * *absent* — so "this client has no alerts" is a fact the suite states
+   * rather than a test it quietly skips.
+   */
+  alerts: boolean;
+  /**
    * Whether this client's reads are *computed* rather than replayed.
    *
    * `HttpClient` is exercised through a `FakeNet` that hands `FIXTURE` back
@@ -449,6 +459,37 @@ export function runDataClientContract(
       }
       expect(typeof client.sendTestNotification).toBe("function");
       await expect(client.sendTestNotification!()).resolves.toBeUndefined();
+    });
+
+    /* ---------------------------------------------------------------- alerts */
+
+    it("offers alerts, or does not, matching what it claims", async () => {
+      const client = makeClient();
+      if (!capabilities.alerts) {
+        // Both directions, deliberately. A suite that only checked the
+        // present case would pass for a client that had quietly grown them.
+        expect(client.listAlerts).toBeUndefined();
+        expect(client.createAlert).toBeUndefined();
+        return;
+      }
+      expect(typeof client.listAlerts).toBe("function");
+      expect(typeof client.createAlert).toBe("function");
+      await expect(client.listAlerts!()).resolves.toBeInstanceOf(Array);
+    });
+
+    it("creates a price target and hands back what was stored", async () => {
+      if (!capabilities.alerts) return;
+      const made = await makeClient().createAlert!({
+        symbol: "BTCUSDT",
+        assetType: "crypto",
+        direction: "above",
+        price: 100_000,
+      });
+      expect(made.id).toBeTruthy();
+      expect(made.symbol).toBe("BTCUSDT");
+      // The kind travels: without it the evaluator prices a share through
+      // Binance and the alert never fires — see #19.
+      expect(made.assetType).toBe("crypto");
     });
 
     /* --------------------------------------------------- import and restore */
