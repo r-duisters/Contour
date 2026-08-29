@@ -124,6 +124,17 @@ export default function AssetScreen({
   );
   const [changePct, setChangePct] = useState<number | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  /**
+   * Whether the header's two columns read as amounts rather than rates.
+   *
+   * Remembered across assets: it is a way of reading rather than a question
+   * about this holding, and somebody who thinks in money thinks in money on
+   * every page. Read once at mount, because a hook for one boolean that only
+   * this screen has an opinion about would be a hook for its own sake.
+   */
+  const [headerMoney, setHeaderMoney] = useState(() => {
+    try { return localStorage.getItem(KEYS.headerShowsMoney) === "1"; } catch { return false; }
+  });
   const [alertOpen, setAlertOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   // The id arrives in the URL when this page is opened from the portfolio, so
@@ -417,17 +428,80 @@ export default function AssetScreen({
         {shownHolding && shownHolding.value !== null ? (
           <div className="text-right shrink-0">
             <div className="text-xl font-medium">{money(shownHolding.value)}</div>
-            {shownHolding.dayChange && (
+            {/*
+              Two periods side by side, rather than the day alone.
+              ==================================================
+
+              The header answered "what is it worth" and "what did it do
+              today", and left "what has it made since I bought it" four rows
+              down in a tile. Both readings a person comes here for now sit in
+              the same block, labelled, so neither is a figure you have to know
+              where to look for.
+
+              This is *narrower* than the line it replaced, which is the part
+              worth recording: that line was a rate and an amount together —
+              "-2,33% -€400,05 today" — and two short rates stacked in columns
+              take less width at 412px than a rate beside a money figure. It
+              was measured on the longest name in the ledger, Advanced Micro
+              Devices: 186px of room for the name before, 193px after, so it
+              still truncates but truncates less. (The mock-up promised 12px
+              and the built version gives 7 — BRAND.md's 11px floor for the
+              column labels costs the other five, and the floor wins.)
+
+              The amounts are one tap away rather than gone. Rates by default
+              because the tiles below already state both amounts, so the header
+              says how fast and the tiles say how much; tapping swaps the
+              header to amounts for somebody who would rather read it the other
+              way round.
+            */}
+            {shownHolding.dayChange && shownHolding.unrealizedPnl !== null ? (
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !headerMoney;
+                  setHeaderMoney(next);
+                  try { localStorage.setItem(KEYS.headerShowsMoney, next ? "1" : "0"); } catch {
+                    // Blocked storage costs the choice on the next page, not data.
+                  }
+                }}
+                aria-label={headerMoney
+                  ? "Show these as percentages"
+                  : "Show these as amounts"}
+                // Negative margin against the padding, so the tap target is
+                // taller than the text without moving anything in the row.
+                className="flex gap-3.5 justify-end -my-2 py-2 -mr-1 pr-1 rounded
+                           hover:bg-neutral-900/60 active:bg-neutral-900 transition-colors
+                           focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+              >
+                <ChangeColumn
+                  /* A coin's day is a rolling 24 hours and matches the chart's
+                     own 1D figure. A share's day is the session before this
+                     one, because its market was shut for most of the last
+                     twenty-four hours. The label follows the measurement. */
+                  label={shownHolding.assetType === "equity" ? "Today" : "24h"}
+                  value={headerMoney
+                    ? signedMoney(shownHolding.dayChange.abs)
+                    : `${shownHolding.dayChange.pct >= 0 ? "+" : ""}${shownHolding.dayChange.pct.toFixed(2)}%`}
+                  signed={headerMoney ? shownHolding.dayChange.abs : shownHolding.dayChange.pct}
+                />
+                <ChangeColumn
+                  label="Since bought"
+                  value={headerMoney
+                    ? signedMoney(shownHolding.unrealizedPnl)
+                    : pct !== null ? `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%` : "—"}
+                  signed={headerMoney ? shownHolding.unrealizedPnl : pct}
+                />
+              </button>
+            ) : shownHolding.dayChange && (
+              /* No cost basis to measure against — a position that is all
+                 realised, or one whose rows carry no price. The day stands
+                 alone rather than beside an empty column. */
               <div className={`text-xs ${shownHolding.dayChange.pct >= 0 ? "text-green-500" : "text-red-500"}`}>
                 {shownHolding.dayChange.pct >= 0 ? "+" : ""}{shownHolding.dayChange.pct.toFixed(2)}%
                 {" "}
                 <span className="tabular-nums">
                   {shownHolding.dayChange.abs >= 0 ? "+" : ""}{money(shownHolding.dayChange.abs)}
                 </span>
-                {/* A coin's day is a rolling 24 hours and matches the chart's
-                    own 1D figure. A share's day is the session before this
-                    one, because its market was shut for most of the last
-                    twenty-four hours. The label follows the measurement. */}
                 {shownHolding.assetType === "equity" ? " today" : " 24h"}
               </div>
             )}
@@ -538,6 +612,43 @@ export default function AssetScreen({
   );
 }
 
+
+/**
+ * A gain with its sign written, so the two readings of this pair agree.
+ *
+ * `money` prints a minus and nothing for a plus, which is right in a column of
+ * figures where most are positive. Here it sat beside a percentage that always
+ * carries its sign, so switching the pair to amounts silently dropped the plus
+ * from a gain and kept the minus on a loss — the same number looking like two
+ * different kinds of thing depending on which way it was being read.
+ */
+function signedMoney(n: number): string {
+  return `${n >= 0 ? "+" : ""}${money(n)}`;
+}
+
+/**
+ * One labelled figure in the header's change pair.
+ *
+ * The label sits above the value rather than beside it, which is what keeps
+ * the pair narrow: two stacked columns of six characters each are less wide
+ * than the same figures written out in a sentence.
+ */
+function ChangeColumn({
+  label, value, signed,
+}: {
+  label: string;
+  value: string;
+  /** Decides the colour. Null leaves it neutral rather than guessing a gain. */
+  signed: number | null;
+}) {
+  const tone = signed === null ? "text-neutral-400" : signed >= 0 ? "text-green-500" : "text-red-500";
+  return (
+    <span className="flex flex-col items-end leading-tight">
+      <span className="text-[11px] text-neutral-500">{label}</span>
+      <span className={`text-xs tabular-nums ${tone}`}>{value}</span>
+    </span>
+  );
+}
 
 /**
  * The time scale's own canvas, along the bottom of the container. Measured,
