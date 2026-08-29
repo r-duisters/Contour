@@ -50,13 +50,15 @@ describe("assetTypeOf", () => {
 describe("priceSymbols", () => {
   it("prices a share through the equity source, not Binance", async () => {
     const prices = await priceSymbols(net(), {}, [{ symbol: "ASML.AS", assetType: "equity" }]);
-    expect(prices["ASML.AS"]).toBe(640);
+    expect(prices["ASML.AS"]).toEqual({ price: 640, currency: "EUR" });
   });
 
   it("prices a coin by its pair, and keys the answer by the stored symbol", async () => {
     // Keyed as the caller asked, because that is what a notification names.
     const prices = await priceSymbols(net(), {}, [{ symbol: "BTC", assetType: "crypto" }]);
-    expect(prices).toEqual({ BTC: 65000 });
+    // The currency travels with the figure. Without it every notification
+    // downstream said "Now 65000" and left the reader to guess.
+    expect(prices).toEqual({ BTC: { price: 65000, currency: "USDT" } });
   });
 
   it("prices both kinds in one call", async () => {
@@ -65,7 +67,15 @@ describe("priceSymbols", () => {
       { symbol: "ASML.AS", assetType: "equity" },
       { symbol: "AMD", assetType: "equity" },
     ]);
-    expect(prices).toEqual({ BTC: 65000, "ASML.AS": 640, AMD: 150 });
+    // Three assets, three currencies, and the difference is the whole reason
+    // this carries one: AMD is quoted in dollars and ASML.AS in euros, and a
+    // notification that printed either as a bare number would be a figure
+    // somebody could act on and be wrong about.
+    expect(prices).toEqual({
+      BTC: { price: 65000, currency: "USDT" },
+      "ASML.AS": { price: 640, currency: "EUR" },
+      AMD: { price: 150, currency: "USD" },
+    });
   });
 
   it("omits what it cannot price rather than reporting zero", async () => {
@@ -82,7 +92,7 @@ describe("priceSymbols", () => {
       { symbol: "BTC", assetType: "crypto" },
       { symbol: "ASML.AS", assetType: "equity" },
     ]);
-    expect(prices.BTC).toBe(65000);
+    expect(prices.BTC).toEqual({ price: 65000, currency: "USDT" });
     expect(prices["ASML.AS"]).toBeUndefined();
   });
 });

@@ -100,6 +100,12 @@ export type Alert = {
   threshold: number;
   /** `price_target` only; `null` for a move, which fires either way. */
   direction: "above" | "below" | null;
+  /**
+   * Whether it stays armed after firing. A one-shot target disarms itself on
+   * the first crossing; a continuous one may say the same thing again
+   * tomorrow, deduped to once a day like a move rule.
+   */
+  repeat: boolean;
   enabled: boolean;
   createdAt: number;
 };
@@ -111,8 +117,8 @@ export type Alert = {
  * neither expands to nothing rather than to everything.
  */
 export type NewAlert =
-  Omit<Alert, "id" | "createdAt" | "enabled" | "symbol" | "portfolioId">
-  & { enabled?: boolean; symbol?: string | null; portfolioId?: string | null };
+  Omit<Alert, "id" | "createdAt" | "enabled" | "repeat" | "symbol" | "portfolioId">
+  & { enabled?: boolean; repeat?: boolean; symbol?: string | null; portfolioId?: string | null };
 
 export type NewTransaction =
   Omit<Transaction, "id" | "portfolioId" | "sourceSymbol"> & { sourceSymbol?: string | null };

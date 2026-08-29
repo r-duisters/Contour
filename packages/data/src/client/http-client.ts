@@ -237,12 +237,14 @@ export function HttpClient(net: Net, baseUrl = ""): DataClient {
             // evaluator expands it. Naming one here would pin the rule to
             // whatever was held on the day it was made.
             portfolioId: alert.portfolioId,
+            repeat: alert.repeat ?? true,
             params: { threshold: alert.threshold },
           }
         : {
             kind: "price_target",
             symbol: alert.symbol,
             assetType: alert.assetType,
+            repeat: alert.repeat ?? false,
             params: { direction: alert.direction, price: alert.price },
           };
       const d = await send<{ alert: AlertSummary }>("POST", "/api/alerts", { body });

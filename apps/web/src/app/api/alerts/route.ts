@@ -11,6 +11,7 @@ const Create = z.discriminatedUnion("kind", [
     symbol: z.string().min(1),
     timeframe: z.string().min(1),
     params: z.record(z.string(), z.unknown()).optional(),
+    repeat: z.boolean().optional(),
     enabled: z.boolean().optional(),
   }),
   z.object({
@@ -20,6 +21,7 @@ const Create = z.discriminatedUnion("kind", [
     // guessing from its shape sends AMD to Binance as AMDUSDT.
     assetType: z.enum(["crypto", "equity"]).default("crypto"),
     params: PriceTargetParams,
+    repeat: z.boolean().optional(),
     enabled: z.boolean().optional(),
   }),
   z.object({
@@ -28,6 +30,7 @@ const Create = z.discriminatedUnion("kind", [
     assetType: z.enum(["crypto", "equity"]).default("crypto"),
     portfolioId: z.string().min(1).optional(),
     params: PctMoveParams,
+    repeat: z.boolean().optional(),
     enabled: z.boolean().optional(),
   }).refine((v) => !!v.symbol !== !!v.portfolioId, {
     message: "pct_move needs exactly one of symbol or portfolioId",
@@ -64,6 +67,9 @@ export async function POST(req: NextRequest) {
       portfolioId: d.kind === "pct_move" ? (d.portfolioId ?? null) : null,
       timeframe: d.kind === "indicator" ? d.timeframe : "1d",
       params: JSON.stringify(d.params ?? {}),
+      // Per kind, and each default is what that kind used to do
+      // unconditionally: a target fires once and disarms, a move rule stands.
+      repeat: d.repeat ?? (d.kind === "pct_move"),
       enabled: d.enabled ?? true,
     },
   });

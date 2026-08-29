@@ -9,10 +9,24 @@ import { pricingPair } from "@/core/symbols";
  * repository does not have.
  */
 
-export type AlertDraft = { direction: "above" | "below"; price: string };
+export type AlertDraft = {
+  direction: "above" | "below";
+  price: string;
+  /**
+   * Keep watching after it fires, rather than disarming.
+   *
+   * A price target was one-shot with no say in it, which is right for "tell me
+   * when it gets there" and wrong for "tell me whenever it is there" — a level
+   * somebody watches for weeks had to be recreated after every crossing.
+   */
+  repeat: boolean;
+};
 
 export type AlertFieldsResult =
-  | { ok: true; symbol: string; assetType: "crypto" | "equity"; direction: "above" | "below"; price: number }
+  | {
+      ok: true; symbol: string; assetType: "crypto" | "equity";
+      direction: "above" | "below"; price: number; repeat: boolean;
+    }
   | { ok: false; error: string };
 
 /**
@@ -59,5 +73,6 @@ export function alertFields(
     assetType,
     direction: draft.direction,
     price,
+    repeat: draft.repeat,
   };
 }

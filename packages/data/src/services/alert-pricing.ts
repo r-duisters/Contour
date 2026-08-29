@@ -1,5 +1,5 @@
 import { pricingPair } from "@/core/symbols";
-import { isEquityTicker } from "@/core/equity";
+import { currencyForTicker, isEquityTicker } from "@/core/equity";
 import { fetchPricesSafe } from "../sources/binance";
 import { makeEquitySource } from "../sources/equity";
 import { fetchCrypto24hAgo } from "./pricing";
@@ -57,18 +57,28 @@ export type Settings = {
 };
 
 /**
- * The live price of each symbol, keyed by the symbol as it was asked for.
+ * The live price of each symbol **and the currency it is quoted in**, keyed by
+ * the symbol as it was asked for.
  *
  * Keyed by the *stored* symbol rather than the pair, because that is what the
  * caller holds and what a notification names. A symbol nothing can price is
  * absent rather than zero — the caller skips it, which is the same rule the
  * valuation follows.
+ *
+ * This answered a bare `Record<string, number>` and dropped the currency its
+ * own equity quotes carry. Every notification downstream then said "Now
+ * 512.06" — dollars for AMD, euros for ASML.AS, USDT for a coin — with nothing
+ * to say which, so the figure a person acted on could be wrong by an exchange
+ * rate. The currency was in this function's hands and thrown away one line
+ * before the caller needed it.
  */
+export type Quote = { price: number; currency: string };
+
 export async function priceSymbols(
   net: Net, settings: Settings, wanted: PricedSymbol[],
-): Promise<Record<string, number>> {
+): Promise<Record<string, Quote>> {
   const { crypto, equity } = split(wanted);
-  const out: Record<string, number> = {};
+  const out: Record<string, Quote> = {};
 
   const [coins, shares] = await Promise.all([
     crypto.length
@@ -82,11 +92,17 @@ export async function priceSymbols(
 
   for (const symbol of crypto) {
     const price = coins[pricingPair(symbol)];
-    if (typeof price === "number") out[symbol] = price;
+    // USDT rather than USD: `pricingPair` asked Binance for the USDT market,
+    // and a target typed against that market is a USDT figure.
+    if (typeof price === "number") out[symbol] = { price, currency: "USDT" };
   }
   for (const symbol of equity) {
     const quote = shares[symbol];
-    if (quote && Number.isFinite(quote.price)) out[symbol] = quote.price;
+    if (quote && Number.isFinite(quote.price)) {
+      // The provider's answer first; the exchange suffix is the fallback for a
+      // source that omits it, which is what `currencyForTicker` exists for.
+      out[symbol] = { price: quote.price, currency: quote.currency || currencyForTicker(symbol) };
+    }
   }
   return out;
 }

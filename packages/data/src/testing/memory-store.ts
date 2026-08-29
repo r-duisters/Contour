@@ -186,6 +186,7 @@ export function MemoryStore(seed?: StoreSeed): Store {
           // written reads back as null there.
           symbol: alert.symbol ?? null,
           portfolioId: alert.portfolioId ?? null,
+          repeat: alert.repeat ?? false,
           id: `alert-${++alertSeq}`,
           enabled: alert.enabled ?? true,
           createdAt: Date.now(),

@@ -7,7 +7,7 @@ import { useDataClient } from "@/data/client/context";
 import { priceCurrency, toNewTx, type NewTx, type TxMode } from "./tx-fields";
 import Segmented from "./Segmented";
 import { DISPLAY_CURRENCIES, CURRENCY_NAMES } from "@/core/currencies";
-import { priceDigits, priceFieldValue } from "@/lib/display";
+import { priceDigits, priceFieldValue } from "@/lib/price-format";
 import Button from "./Button";
 import { field } from "./field";
 

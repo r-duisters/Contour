@@ -20,10 +20,14 @@ export class WebPushNotifier implements Notifier {
   async send(payload: NotifierPayload): Promise<void> {
     const subs = await this.deps.list();
     if (subs.length === 0) throw new Error("no push subscriptions");
+    // The evaluator's sentence, with the old machine-made one as the fallback
+    // for a caller that has not been given words yet.
     const body = JSON.stringify({
-      title: `${payload.symbol} · ${payload.signal}`,
-      body: `price ${payload.price} (${payload.timeframe})`,
-      url: "/alerts",
+      title: payload.text?.title ?? `${payload.symbol} · ${payload.signal}`,
+      body: payload.text?.body ?? `price ${payload.price} (${payload.timeframe})`,
+      // The asset it is about, not the list of every alert: the notification
+      // named one thing and used to arrive at a screen listing all of them.
+      url: `/portfolio/${encodeURIComponent(payload.symbol)}`,
     });
     let delivered = 0;
     for (const s of subs) {

@@ -27,6 +27,8 @@ export type AlertSummary = {
   portfolioId: string | null;
   assetType: string;
   params: Record<string, unknown>;
+  /** Whether it stays armed after firing. See `Alert.repeat` on the port. */
+  repeat: boolean;
   enabled: boolean;
 };
 
@@ -48,6 +50,12 @@ export type NewAlertInput =
       assetType: "crypto" | "equity";
       direction: "above" | "below";
       price: number;
+      /**
+       * Keep watching after it fires. Absent means one-shot, which is what a
+       * price target has always done — "tell me when it gets there" rather
+       * than "tell me whenever it is there".
+       */
+      repeat?: boolean;
     }
   /**
    * Every holding moving more than `threshold` percent in a day.
@@ -56,7 +64,7 @@ export type NewAlertInput =
    * `expandRules` turns it into one check per holding at evaluation time, so
    * something bought tomorrow is covered without touching the rule.
    */
-  | { kind: "pct_move"; portfolioId: string; threshold: number };
+  | { kind: "pct_move"; portfolioId: string; threshold: number; repeat?: boolean };
 export type { AssetHit } from "../sources/search";
 
 /**

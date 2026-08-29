@@ -19,7 +19,9 @@ describe("WebPushNotifier", () => {
     expect(sendFn).toHaveBeenCalledTimes(2);
     const body = JSON.parse(sendFn.mock.calls[0]![1] as string);
     expect(body.title).toContain("BTCUSDT");
-    expect(body.url).toBe("/alerts");
+    // The asset it named, not the list of every alert: a notification about one
+    // thing used to arrive at a screen showing all of them.
+    expect(body.url).toBe("/portfolio/BTCUSDT");
   });
 
   it("prunes subscriptions that return 404/410 and still succeeds if one works", async () => {

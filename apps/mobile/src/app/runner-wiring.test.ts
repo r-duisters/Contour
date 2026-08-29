@@ -78,6 +78,33 @@ describe("the background runner's wiring", () => {
     expect(runner).toContain('writeJson("lastError"');
   });
 
+  it("words a notification the same way the shared module does", () => {
+    /*
+     * The runner cannot import `packages/core/src/alert-copy.ts` — that
+     * runtime has no imports at all — so the wording is duplicated by hand,
+     * as its Binance call already is. Before the shared module existed the two
+     * evaluators worded the same event differently: "up 5.2%" from the app and
+     * "up 5.2% in 24h" from the runner. Both can fire for one move, because
+     * the duplication is deliberate, so a person received two notifications
+     * that did not look like the same thing.
+     *
+     * These are the phrases a reader would notice differing. A change to
+     * either side has to be made on both, and this is what says so.
+     */
+    const shared = readFileSync(join(ROOT, "packages/core/src/alert-copy.ts"), "utf8");
+    for (const phrase of [
+      "% in 24 hours",
+      "fell below",
+      "rose above",
+      "this one-shot alert has switched itself off",
+      "still watching",
+      "From “big moves” on",
+    ]) {
+      expect(shared, `shared copy should contain ${phrase}`).toContain(phrase);
+      expect(runner, `runner copy should contain ${phrase}`).toContain(phrase);
+    }
+  });
+
   it("keeps the runner's location permissions out of the build", () => {
     /*
      * @capacitor/background-runner declares coarse, fine and background

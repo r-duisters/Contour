@@ -119,7 +119,7 @@ const DELETE_CHUNK = 500;
 function toAlert(row: {
   id: string; kind: string; symbol: string | null; portfolioId: string | null;
   assetType: string;
-  params: string; enabled: boolean; createdAt: Date;
+  params: string; repeat: boolean; enabled: boolean; createdAt: Date;
 }): Alert {
   const params = JSON.parse(row.params) as { direction?: string; price?: number; threshold?: number };
   const target = row.kind === "price_target";
@@ -135,6 +135,7 @@ function toAlert(row: {
     assetType: row.assetType === "equity" ? "equity" : "crypto",
     threshold: (target ? params.price : params.threshold) ?? 0,
     direction: target ? (params.direction === "below" ? "below" : "above") : null,
+    repeat: row.repeat,
     enabled: row.enabled,
     createdAt: row.createdAt.getTime(),
   };
@@ -241,6 +242,7 @@ export function PrismaStore(client: PrismaClient = defaultClient): Store {
             symbol: alert.symbol ?? null,
             portfolioId: alert.portfolioId ?? null,
             assetType: alert.assetType,
+            repeat: alert.repeat ?? false,
             timeframe: "1d",
             enabled: alert.enabled ?? true,
             params: JSON.stringify(

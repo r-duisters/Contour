@@ -217,11 +217,12 @@ export default function AlertsPage() {
         <div className="min-w-0 flex-1">
           <p className="text-sm truncate">{subject(a, names)}</p>
           <p className="text-xs text-neutral-500 mt-0.5">
+            {/* The mode is stated because it is a choice now. A target used
+                to be one-shot with no say in it, so the word was a fact about
+                the app; it is a fact about this alert. */}
             {a.kind === "price_target"
-              // "one-shot" and not "fired, paused": a target disables itself
-              // when it fires, and pausing by hand leaves the identical row.
-              ? `${p.direction === "below" ? "Falls below" : "Rises above"} ${p.price} · one-shot`
-              : `Moves ±${p.threshold}% in a day`}
+              ? `${p.direction === "below" ? "Falls below" : "Rises above"} ${p.price} · ${a.repeat ? "keeps watching" : "one-shot"}`
+              : `Moves ±${p.threshold}% in a day${a.repeat ? "" : " · one-shot"}`}
           </p>
         </div>
         <Switch

@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import Button from "./Button";
+import Switch from "./Switch";
 import { field } from "./field";
 import { alertFields, type AlertDraft } from "./alert-fields";
-import { priceFieldValue } from "@/lib/display";
+import { priceFieldValue } from "@/lib/price-format";
 import type { NewAlertInput } from "@/data/client/data-client";
 
 /**
@@ -35,6 +36,8 @@ export default function AlertForm({
 }) {
   const [draft, setDraft] = useState<AlertDraft>({
     direction: "above",
+    // One-shot by default, which is what a price target has always done.
+    repeat: false,
     // Rounded, because a target of 399.8797560766 is a price nobody typed and
     // nobody wants to edit around.
     price: livePrice ? priceFieldValue(livePrice) : "",
@@ -95,12 +98,41 @@ export default function AlertForm({
 
       {error && <p className="text-xs text-red-500">{error}</p>}
 
-      {/* The honest limit, in the same words the alerts screen uses. A target
-          hit and reverted while the app was shut is a target you were not
-          told about, and saying so here costs nothing. */}
+      {/*
+        One-shot or standing, said as the two things they are.
+        =====================================================
+
+        This was one-shot with no say in it, and a line of prose explaining
+        that. It is right for "tell me when it gets there" and wrong for "tell
+        me whenever it is there" — a level somebody watches for weeks had to be
+        made again after every crossing.
+
+        A switch rather than two radio buttons: it is one question with a
+        default, and the label carries the consequence rather than a noun.
+      */}
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm">Keep watching after it fires</p>
+          <p className="text-xs text-neutral-500 mt-0.5">
+            {draft.repeat
+              ? "Stays on, and can tell you again — at most once a day."
+              : "Turns itself off the first time it fires."}
+          </p>
+        </div>
+        <Switch
+          checked={draft.repeat}
+          onChange={(next) => setDraft({ ...draft, repeat: next })}
+          label="Keep watching after it fires"
+        />
+      </div>
+
+      {/* The honest limit, in the same words the alerts screen uses. A price
+          hit and reverted while the app was shut is one you were not told
+          about, and saying so here costs nothing. */}
       <p className="text-xs text-neutral-500">
-        One-shot: the alert turns itself off once it fires. A price hit and
-        reverted overnight can be missed.
+        Checked when you open the app, and every half hour in the background
+        when Android allows it. A price hit and reverted between checks can be
+        missed.
       </p>
     </div>
   );

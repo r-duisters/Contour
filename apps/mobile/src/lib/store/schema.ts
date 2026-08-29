@@ -136,6 +136,21 @@ export const MIGRATIONS: ((db: DB) => Promise<void>)[] = [
       ALTER TABLE Alert_v2 RENAME TO Alert;
     `);
   },
+
+  /**
+   * Whether an alert stays armed after it fires.
+   *
+   * A plain column add, which SQLite does support — the rebuild above was only
+   * needed because a NOT NULL had to be dropped. `0` for every existing row,
+   * which is what a price target already did and leaves a move rule's
+   * behaviour to its own evaluator, exactly as before this column existed.
+   */
+  async (db) => {
+    const cols = await db.query<{ name: string }>("PRAGMA table_info(Alert)");
+    if (cols.some((c) => c.name === "repeat")) return;
+    // Quoted: `repeat` is a keyword in some SQLite builds.
+    await db.execute(`ALTER TABLE Alert ADD COLUMN "repeat" INTEGER NOT NULL DEFAULT 0;`);
+  },
 ];
 
 /**

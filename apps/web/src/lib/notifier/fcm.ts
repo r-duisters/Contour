@@ -39,15 +39,15 @@ export class FcmNotifier implements Notifier {
 
     const message = {
       notification: {
-        title: `${payload.symbol} · ${payload.signal}`,
-        body: `price ${payload.price} (${payload.timeframe})`,
+        title: payload.text?.title ?? `${payload.symbol} · ${payload.signal}`,
+        body: payload.text?.body ?? `price ${payload.price} (${payload.timeframe})`,
       },
       android: {
         // Doze defers anything less. This is the whole point of using FCM.
         priority: "high",
         notification: { channel_id: "alerts", click_action: "OPEN_ALERTS" },
       },
-      data: { url: "/alerts", alertId: payload.alertId },
+      data: { url: `/portfolio/${encodeURIComponent(payload.symbol)}`, alertId: payload.alertId },
     };
 
     let delivered = 0;

@@ -73,6 +73,40 @@ function notify(id, title, body) {
   CapacitorNotifications.schedule([{ id, title, body }]);
 }
 
+/**
+ * The wording, copied by hand from packages/core/src/alert-copy.ts.
+ *
+ * This runtime has no imports at all — the same constraint that forces the
+ * Binance call above to be duplicated. Before the shared module existed these
+ * two evaluators worded the same event differently ("up 5.2%" here, "up 5.2%
+ * in 24h" there) and both can fire for one move, so a person received two
+ * notifications that did not look like the same thing.
+ *
+ * Change one, change the other. `runner-wiring.test.ts` compares the strings.
+ */
+function amount(value, currency) {
+  const digits = Math.abs(value) >= 1 ? 2 : 8;
+  const shown = Math.abs(value).toLocaleString("en-US", { maximumFractionDigits: digits });
+  return `${value < 0 ? "-" : ""}${shown} ${currency}`.trim();
+}
+
+function priceTargetNotice(a) {
+  return {
+    title: `${a.name} ${a.direction === "below" ? "fell below" : "rose above"} ${amount(a.target, a.currency)}`,
+    body: a.oneShot
+      ? `Now ${amount(a.price, a.currency)} · this one-shot alert has switched itself off`
+      : `Now ${amount(a.price, a.currency)} · still watching`,
+  };
+}
+
+function moveNotice(a) {
+  const prices = `${amount(a.from, a.currency)} → ${amount(a.price, a.currency)}`;
+  return {
+    title: `${a.name} ${a.direction} ${Math.abs(a.pct).toFixed(1)}% in 24 hours`,
+    body: a.portfolio ? `From “big moves” on ${a.portfolio} · ${prices}` : prices,
+  };
+}
+
 /** One notification per rule per UTC day, so a standing condition stays quiet. */
 function alreadySentToday(sent, key, day) {
   return sent[key] === day;
@@ -161,6 +195,7 @@ async function priceCrypto(symbols, needBaseline) {
 async function priceEquities(symbols) {
   const prices = {};
   const dayAgo = {};
+  const currencies = {};
   for (const symbol of symbols) {
     try {
       const res = await fetch(
@@ -172,13 +207,16 @@ async function priceEquities(symbols) {
       const price = meta && meta.regularMarketPrice;
       if (typeof price !== "number") continue;
       prices[symbol] = price;
+      // The venue's own currency, which is the half a share's notification
+      // could never state: AMD is dollars and ASML.AS is euros.
+      if (meta.currency) currencies[symbol] = meta.currency;
       const prev = meta.chartPreviousClose ?? meta.previousClose;
       if (typeof prev === "number" && prev > 0) dayAgo[symbol] = prev;
     } catch (err) {
       // One share that will not price is not a reason to skip the others.
     }
   }
-  return { prices, dayAgo };
+  return { prices, dayAgo, currencies };
 }
 
 addEventListener("alertCheck", async (resolve, reject) => {
@@ -199,6 +237,7 @@ addEventListener("alertCheck", async (resolve, reject) => {
     ]);
     const prices = { ...coin.prices, ...share.prices };
     const dayAgo = { ...coin.dayAgo, ...share.dayAgo };
+    const currencies = share.currencies || {};
 
     const sent = readJson("alertsSent", {});
     const day = Math.floor(Date.now() / DAY_MS);
@@ -210,11 +249,16 @@ addEventListener("alertCheck", async (resolve, reject) => {
       if (!price) continue;
       const name = rule.name || rule.symbol;
 
+      const currency = isEquity(rule) ? currencies[rule.symbol] || "" : "USDT";
       if (rule.kind === "price_target") {
         const hit = rule.direction === "below" ? price <= rule.price : price >= rule.price;
         const key = `t:${rule.id}`;
         if (hit && !alreadySentToday(sent, key, day)) {
-          notify(id++, `${name} ${rule.direction} ${rule.price}`, `Now ${price}`);
+          const n = priceTargetNotice({
+            name, direction: rule.direction, target: rule.price,
+            price, currency, oneShot: !rule.repeat,
+          });
+          notify(id++, n.title, n.body);
           sent[key] = day;
           notified++;
         }
@@ -224,11 +268,11 @@ addEventListener("alertCheck", async (resolve, reject) => {
         const pct = ((price - base) / base) * 100;
         const key = `m:${rule.id}:${pct >= 0 ? "up" : "down"}`;
         if (Math.abs(pct) >= rule.threshold && !alreadySentToday(sent, key, day)) {
-          notify(
-            id++,
-            `${name} ${pct >= 0 ? "up" : "down"} ${Math.abs(pct).toFixed(1)}% in 24h`,
-            `Now ${price}`,
-          );
+          const n = moveNotice({
+            name, direction: pct >= 0 ? "up" : "down", pct,
+            from: base, price, currency, portfolio: rule.portfolio || null,
+          });
+          notify(id++, n.title, n.body);
           sent[key] = day;
           notified++;
         }

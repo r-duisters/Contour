@@ -23,6 +23,14 @@ model Alert {
   portfolio     Portfolio?   @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
   timeframe     String
   params        String       // JSON-encoded params for the kind
+  /// Whether this alert stays armed after it fires.
+  ///
+  /// A price target was always one-shot: it disabled itself on the first
+  /// crossing, which is right for "tell me when it gets there" and wrong for
+  /// "tell me whenever it is there". A percentage move was always standing.
+  /// Both are now the person's choice, and the default per kind is what each
+  /// used to do unconditionally.
+  repeat        Boolean      @default(false)
   enabled       Boolean      @default(true)
   lastEvaluated DateTime?
   lastBarTime   BigInt?      // ms timestamp of the last bar we evaluated

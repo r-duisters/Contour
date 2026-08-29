@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Alert } from "@prisma/client";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
 import { prisma } from "@/lib/db";
-import { pricingPair } from "@/core/symbols";
+import { assetOf, pricingPair } from "@/core/symbols";
+import { indicatorNotice, moveNotice, priceTargetNotice, type Notice } from "@/lib/alert-copy";
 import { fetchKlines } from "@/data/sources/binance";
 import { assetTypeOf, baselines, priceSymbols, type PricedSymbol, type Settings } from "@/data/services/alert-pricing";
 import { deps } from "@/lib/deps";
@@ -57,7 +58,19 @@ export async function GET(req: NextRequest) {
 async function dispatch(
   a: Alert,
   notifiers: Notifier[],
-  ev: { barTime: number; signal: string; symbol: string; price: number; meta?: Record<string, unknown> },
+  ev: {
+    barTime: number; signal: string; symbol: string; price: number;
+    /**
+     * What a person reads. Composed here rather than in each notifier: Web
+     * Push and FCM each wrote their own from the routing payload and produced
+     * "BTCUSDT · target_above:BTCUSDT", which is the ticker twice and an
+     * internal tag. The evaluator is the only place that holds the alert, the
+     * price and the currency at once, so it is the only place that can write
+     * a sentence.
+     */
+    text: Notice;
+    meta?: Record<string, unknown>;
+  },
 ): Promise<boolean> {
   try {
     await prisma.alertEvent.create({
@@ -83,6 +96,7 @@ async function dispatch(
         signal: ev.signal,
         price: ev.price,
         time: ev.barTime,
+        text: ev.text,
         meta: ev.meta,
       });
       deliveredToAny = true;
@@ -113,6 +127,12 @@ async function evalIndicator(a: Alert, notifiers: Notifier[]): Promise<Summary> 
     if (a.lastBarTime && BigInt(s.barTime) <= a.lastBarTime) { skipped++; continue; }
     const ok = await dispatch(a, notifiers, {
       barTime: s.barTime, signal: s.kind, symbol: a.symbol, price: s.price,
+      // The indicator runs on Binance klines, so its prices are USDT — the
+      // only place in this route where the currency is known statically.
+      text: indicatorNotice({
+        name: assetOf(a.symbol), signal: s.kind, price: s.price,
+        currency: "USDT", timeframe: a.timeframe,
+      }),
     });
     if (ok) fired++; else skipped++;
   }
@@ -138,18 +158,26 @@ async function evalPriceTarget(
   const prices = await priceSymbols(deps().net, pricing, [
     { symbol: a.symbol, assetType: assetTypeOf(a) },
   ]);
-  const price = prices[a.symbol];
-  if (price === undefined) {
+  const quote = prices[a.symbol];
+  if (quote === undefined) {
     return { alertId: a.id, fired: 0, skipped: 0, error: `no price for ${a.symbol}` };
   }
 
   let fired = 0, skipped = 0;
-  if (evaluatePriceTarget(params, price)) {
+  if (evaluatePriceTarget(params, quote.price)) {
     const ok = await dispatch(a, notifiers, {
       barTime: utcDayOpen(Date.now()),
       signal: `target_${params.direction}:${a.symbol}`,
       symbol: a.symbol,
-      price,
+      price: quote.price,
+      text: priceTargetNotice({
+        name: assetOf(a.symbol),
+        direction: params.direction,
+        target: params.price,
+        price: quote.price,
+        currency: quote.currency,
+        oneShot: !a.repeat,
+      }),
       meta: { target: params.price },
     });
     if (ok) fired++; else skipped++;
@@ -157,7 +185,10 @@ async function evalPriceTarget(
 
   await prisma.alert.update({
     where: { id: a.id },
-    data: { lastEvaluated: new Date(), ...(fired ? { enabled: false } : {}) },
+    // A one-shot disarms itself; a continuous one stays on and may say the
+    // same thing tomorrow, which is what the person asked for when they chose
+    // it. The dedupe on (alertId, barTime, signal) keeps that to once a day.
+    data: { lastEvaluated: new Date(), ...(fired && !a.repeat ? { enabled: false } : {}) },
   });
   return { alertId: a.id, fired, skipped };
 }
@@ -179,6 +210,19 @@ async function evalPctMove(
   const wanted: PricedSymbol[] = a.symbol
     ? [{ symbol: a.symbol, assetType: assetTypeOf(a) }]
     : await heldSymbols(a.portfolioId);
+  /*
+   * Only for a portfolio-wide rule, and only its name.
+   *
+   * These fire on a symbol the person never chose — the setup flow's "big
+   * moves" switch is one row meaning every holding — so the notification has
+   * to say which rule chose it. Without that there is no route from the thing
+   * that woke you to the switch that turns it off.
+   */
+  const portfolioName = a.symbol || !a.portfolioId
+    ? null
+    : (await prisma.portfolio.findUnique({
+        where: { id: a.portfolioId }, select: { name: true },
+      }))?.name ?? null;
   if (wanted.length === 0) {
     await prisma.alert.update({ where: { id: a.id }, data: { lastEvaluated: new Date() } });
     return { alertId: a.id, fired: 0, skipped: 0 };
@@ -194,16 +238,27 @@ async function evalPctMove(
 
   let fired = 0, skipped = 0;
   for (const { symbol } of wanted) {
-    const price = prices[symbol];
+    const quote = prices[symbol];
     const was = base[symbol];
-    if (price === undefined || was === undefined) continue;
-    const hit = evaluatePctMove(params, was, price);
+    if (quote === undefined || was === undefined) continue;
+    const hit = evaluatePctMove(params, was, quote.price);
     if (!hit) continue;
     const ok = await dispatch(a, notifiers, {
       barTime: utcDayOpen(Date.now()),
       signal: `move_${hit.direction}:${symbol}`,
       symbol,
-      price,
+      price: quote.price,
+      text: moveNotice({
+        name: assetOf(symbol),
+        direction: hit.direction,
+        pct: hit.pct,
+        from: was,
+        price: quote.price,
+        currency: quote.currency,
+        // Only for a rule that watches everything: a notification about a
+        // symbol nobody chose has to say which rule chose it.
+        portfolio: a.symbol ? null : portfolioName,
+      }),
       meta: { pct: Number(hit.pct.toFixed(2)), dayAgo: was, threshold: params.threshold },
     });
     if (ok) fired++; else skipped++;

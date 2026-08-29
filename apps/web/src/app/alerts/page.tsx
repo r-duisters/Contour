@@ -23,6 +23,7 @@ type Alert = {
   portfolioName: string | null;
   timeframe: string;
   params: Record<string, unknown>;
+  repeat: boolean;
   enabled: boolean;
   lastEvaluated: string | null;
 };
@@ -392,7 +393,9 @@ function Alerts() {
                 true only while there was one way to get there.
               */}
               <p className="text-xs text-neutral-500 mt-0.5">
-                {a.kind === "price_target" && "One-shot · "}
+                {/* Stated per alert, because it is a choice now rather than a
+                    property of the kind. */}
+                {a.repeat ? "Keeps watching · " : "One-shot · "}
                 {a.lastEvaluated
                   ? `last checked ${new Date(a.lastEvaluated).toLocaleString()}`
                   : "never checked"}
@@ -433,7 +436,7 @@ function Alerts() {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm">{describe(a)}</p>
                   <p className="text-xs text-neutral-500 mt-0.5">
-                    {a.kind === "price_target" && "One-shot · "}
+                    {a.repeat ? "Keeps watching · " : "One-shot · "}
                     {a.lastEvaluated
                       ? `last checked ${new Date(a.lastEvaluated).toLocaleString()}`
                       : "never checked"}

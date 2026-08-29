@@ -24,6 +24,8 @@ export type AlertRule = {
   symbol: string | null;
   /** How to price it. Only meaningful when `symbol` is set. */
   assetType?: AssetKind | null;
+  /** Whether it stays armed after firing. Absent reads as one-shot. */
+  repeat?: boolean;
   portfolioId?: string | null;
   params: Record<string, unknown>;
   enabled?: boolean;
@@ -46,6 +48,10 @@ export type ExpandedRule = {
   assetType: AssetKind;
   /** The asset, for a person reading the notification. */
   name: string;
+  /** Whether the rule stays armed after firing. See `Alert.repeat`. */
+  repeat: boolean;
+  /** The portfolio a rule watched everything in, so a notice can name it. */
+  portfolioId: string | null;
   direction?: "above" | "below";
   price?: number;
   threshold?: number;
@@ -98,6 +104,8 @@ export function expandRules(alerts: AlertRule[], held: HeldAsset[]): ExpandedRul
         symbol: target.assetType === "equity" ? asset : pricingPair(target.symbol),
         assetType: target.assetType,
         name: asset,
+        repeat: a.repeat ?? false,
+        portfolioId: a.symbol ? null : a.portfolioId ?? null,
       };
 
       if (a.kind === "price_target") {

@@ -105,6 +105,7 @@ function toSummary(a: Alert): AlertSummary {
     kind: a.kind,
     symbol: a.symbol,
     portfolioId: a.portfolioId,
+    repeat: a.repeat,
     assetType: a.assetType,
     params: a.kind === "price_target"
       ? { direction: a.direction, price: a.threshold }
@@ -251,6 +252,8 @@ export function LocalClient(store: Store, net: Net): DataClient {
               assetType: "crypto",
               threshold: alert.threshold,
               direction: null,
+              // A move rule has always been standing; that is what it means.
+              repeat: alert.repeat ?? true,
             }
           : {
               kind: "price_target",
@@ -258,6 +261,7 @@ export function LocalClient(store: Store, net: Net): DataClient {
               assetType: alert.assetType,
               threshold: alert.price,
               direction: alert.direction,
+              repeat: alert.repeat ?? false,
             },
       )));
     },

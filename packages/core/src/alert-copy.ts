@@ -1,0 +1,115 @@
+import { priceDigits } from "./price-format";
+
+/**
+ * What an alert says when it reaches somebody, written in one place.
+ *
+ * Five things in this repository could send a notification — the app's
+ * foreground check, the background runner, Web Push, FCM and Home Assistant —
+ * and each composed its own sentence. Two of them already disagreed about the
+ * same event: a daily move arrived as "ETH up 5.2%" from one and "ETH up 5.2%
+ * in 24h" from the other, and both can fire for one move because the
+ * duplication is deliberate. A person could receive two notifications that did
+ * not look like the same thing.
+ *
+ * Pure, so it can be tested without a phone: the only way to see the real
+ * article is on a handset, and everything decided here is decided off one.
+ *
+ * `public/runner/alerts.js` keeps a copy by hand. That runtime has no imports
+ * at all — the same constraint that forces it to duplicate the Binance call —
+ * and `runner-wiring.test.ts` pins the strings that must match.
+ */
+
+export type Notice = { title: string; body: string };
+
+/**
+ * A figure with its currency after it, the way a quote is read aloud.
+ *
+ * Grouped, and rounded by `priceDigits` — the same rule the transaction form
+ * uses, so the number in a notification matches the number the form would
+ * offer for the same asset. Trailing zeros are dropped for the same reason:
+ * `2,388.20` and `2,388.2` are the same price, and the form types the second.
+ *
+ * Not `money()`, which formats in the *display* currency and would print a
+ * USDT price as "€2,433". These figures are in the asset's own currency,
+ * which is exactly the thing every one of these notifications failed to say.
+ */
+function amount(value: number, currency: string): string {
+  const shown = Math.abs(value).toLocaleString("en-US", {
+    maximumFractionDigits: priceDigits(value),
+  });
+  return `${value < 0 ? "-" : ""}${shown} ${currency}`.trim();
+}
+
+/**
+ * A price target that has just been reached.
+ *
+ * The body carries what the title cannot: whether this alert has just switched
+ * itself off. A one-shot that fires and vanishes is the app doing what the
+ * form promised, but silently — somebody who wanted to be told twice has no
+ * way to learn from the notification that they will not be.
+ */
+export function priceTargetNotice(a: {
+  name: string;
+  direction: "above" | "below";
+  target: number;
+  price: number;
+  currency: string;
+  /** False for a standing alert, which stays armed and may say this again. */
+  oneShot: boolean;
+}): Notice {
+  return {
+    title: `${a.name} ${a.direction === "below" ? "fell below" : "rose above"} ${amount(a.target, a.currency)}`,
+    body: a.oneShot
+      ? `Now ${amount(a.price, a.currency)} · this one-shot alert has switched itself off`
+      : `Now ${amount(a.price, a.currency)} · still watching`,
+  };
+}
+
+/**
+ * A daily move past a threshold.
+ *
+ * "in 24 hours" is in the title because a percentage without a period is not a
+ * fact. The body carries where it moved *from*, which is what makes the size
+ * of the move mean anything — it used to repeat the current price, which the
+ * title already implied.
+ *
+ * `portfolio` names the rule rather than the asset when the alert watches
+ * everything held: those fire on a symbol the person never chose, and a
+ * notification they cannot trace to a rule is one they cannot switch off.
+ */
+export function moveNotice(a: {
+  name: string;
+  direction: "up" | "down";
+  pct: number;
+  from: number;
+  price: number;
+  currency: string;
+  /** The portfolio's name, for a rule that watches every holding. */
+  portfolio?: string | null;
+}): Notice {
+  const move = `${a.name} ${a.direction} ${Math.abs(a.pct).toFixed(1)}% in 24 hours`;
+  const prices = `${amount(a.from, a.currency)} → ${amount(a.price, a.currency)}`;
+  return {
+    title: move,
+    body: a.portfolio ? `From “big moves” on ${a.portfolio} · ${prices}` : prices,
+  };
+}
+
+/**
+ * An indicator signal from the strategy, which only the server evaluates.
+ *
+ * The words are the Pine script's own — long, short, exit — and stay that way;
+ * inventing friendlier ones would describe something the backtest does not.
+ */
+export function indicatorNotice(a: {
+  name: string;
+  signal: string;
+  price: number;
+  currency: string;
+  timeframe: string;
+}): Notice {
+  return {
+    title: `${a.name} ${a.signal} signal`,
+    body: `${amount(a.price, a.currency)} on the ${a.timeframe} chart`,
+  };
+}

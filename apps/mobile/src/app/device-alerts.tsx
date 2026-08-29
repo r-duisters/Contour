@@ -5,6 +5,7 @@ import { useDataClient } from "@/data/client/context";
 import { baselines, priceSymbols } from "@/data/services/alert-pricing";
 import { evaluatePctMove, evaluatePriceTarget } from "@/lib/alerts";
 import { expandRules, forgetOldMarks, shouldNotify, type AlertRule, type HeldAsset } from "@/lib/alert-rules";
+import { moveNotice, priceTargetNotice, type Notice } from "@/lib/alert-copy";
 import type { AlertSummary, DataClient } from "@/data/client/data-client";
 import { KEYS } from "@/lib/storage-keys";
 import { CapacitorNet } from "../lib/net/capacitor-net";
@@ -64,6 +65,14 @@ export default function DeviceAlerts() {
       const rules = expandRules(alerts.flatMap(asRule), await heldAssets(client, alerts));
       if (cancelled || rules.length === 0) return;
 
+      // Only when something watches a whole portfolio: a rule that named its
+      // own symbol has no portfolio to name, and this is a request.
+      const portfolioNames: Record<string, string> = rules.some((r) => r.portfolioId)
+        ? Object.fromEntries(
+            (await client.listPortfolios().catch(() => [])).map((p) => [p.id, p.name]),
+          )
+        : {};
+
       const settings = await client.getSettings().catch(() => null);
       const net = CapacitorNet();
       const wanted = rules.map((r) => ({ symbol: r.symbol, assetType: r.assetType }));
@@ -79,42 +88,58 @@ export default function DeviceAlerts() {
       if (cancelled) return;
 
       // The runner cannot work out "every holding" — it has no imports and no
-      // valuation — so it is handed the same expansion this check uses.
-      void dispatchToRunner(rules, settings);
+      // valuation — so it is handed the same expansion this check uses, with
+      // the portfolio's name resolved: it has no way to look one up either,
+      // and a portfolio-wide notice has to be able to name the rule.
+      void dispatchToRunner(
+        rules.map((r) => ({
+          ...r,
+          portfolio: r.portfolioId ? portfolioNames[r.portfolioId] ?? null : null,
+        })),
+        settings,
+      );
 
       const sent = readJson<Record<string, number>>(KEYS.alertsSent, {});
       const day = Math.floor(Date.now() / DAY_MS);
       let id = Date.now() % 100_000;
 
       for (const rule of rules) {
-        const price = prices[rule.symbol];
-        if (price === undefined) continue;
+        const quote = prices[rule.symbol];
+        if (quote === undefined) continue;
 
         if (rule.kind === "price_target" && rule.price !== undefined) {
           const direction = rule.direction ?? "above";
-          if (!evaluatePriceTarget({ direction, price: rule.price }, price)) continue;
+          if (!evaluatePriceTarget({ direction, price: rule.price }, quote.price)) continue;
           const key = `t:${rule.id}`;
           if (!shouldNotify(sent, key, day)) continue;
-          await notify(id++, `${rule.name} ${direction} ${rule.price}`, `Now ${price}`);
+          // One-shot only when the person chose it, which is the default a
+          // price target has always had. A continuous one stays armed and the
+          // daily mark above keeps it to once a day.
+          const oneShot = !rule.repeat;
+          const notice = priceTargetNotice({
+            name: rule.name, direction, target: rule.price,
+            price: quote.price, currency: quote.currency, oneShot,
+          });
+          await notify(id++, notice, rule.name);
           sent[key] = day;
-          // One-shot, as the form promises: a target that keeps firing every
-          // time the app opens is not what "tell me when it crosses" meant.
           // Only a rule that named its own symbol is deleted — a portfolio-wide
           // rule is not one target, and one holding reaching a level is no
           // reason to stop watching the others.
-          if (!rule.id.includes(":")) await client.deleteAlert?.(rule.id).catch(() => {});
+          if (oneShot && !rule.id.includes(":")) await client.deleteAlert?.(rule.id).catch(() => {});
         } else if (rule.kind === "pct_move" && rule.threshold !== undefined) {
           const was = base[rule.symbol];
           if (was === undefined) continue;
-          const hit = evaluatePctMove({ threshold: rule.threshold }, was, price);
+          const hit = evaluatePctMove({ threshold: rule.threshold }, was, quote.price);
           if (!hit) continue;
           const key = `m:${rule.id}:${hit.direction}`;
           if (!shouldNotify(sent, key, day)) continue;
-          await notify(
-            id++,
-            `${rule.name} ${hit.direction} ${Math.abs(hit.pct).toFixed(1)}%`,
-            `Now ${price}`,
-          );
+          await notify(id++, moveNotice({
+            name: rule.name, direction: hit.direction, pct: hit.pct,
+            from: was, price: quote.price, currency: quote.currency,
+            // An expanded rule carries a suffixed id, which is how this knows
+            // it fired on a holding rather than on a symbol somebody picked.
+            portfolio: rule.portfolioId ? portfolioNames[rule.portfolioId] ?? null : null,
+          }), rule.name);
           sent[key] = day;
         }
       }
@@ -158,6 +183,7 @@ function asRule(a: AlertSummary): AlertRule[] {
     symbol: a.symbol,
     assetType: a.assetType === "equity" ? "equity" : "crypto",
     portfolioId: a.portfolioId,
+    repeat: a.repeat,
     params: a.params,
     enabled: a.enabled,
   }];
@@ -219,9 +245,18 @@ async function dispatchToRunner(
   }
 }
 
-async function notify(id: number, title: string, body: string): Promise<void> {
+/**
+ * Post one notification, with somewhere for it to go.
+ *
+ * `extra` is what a tap can read: the alert named one asset and the app opened
+ * wherever it happened to be, so the thing that woke you was two navigations
+ * from the screen about it. `device-notifications.tsx` reads this back.
+ */
+async function notify(id: number, notice: Notice, symbol: string): Promise<void> {
   const { LocalNotifications } = await import("@capacitor/local-notifications");
-  await LocalNotifications.schedule({ notifications: [{ id, title, body }] });
+  await LocalNotifications.schedule({
+    notifications: [{ id, title: notice.title, body: notice.body, extra: { symbol } }],
+  });
 }
 
 function readJson<T>(key: string, fallback: T): T {

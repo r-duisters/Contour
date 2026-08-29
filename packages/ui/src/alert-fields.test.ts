@@ -17,7 +17,7 @@ describe("alertSymbol", () => {
 });
 
 describe("alertFields", () => {
-  const draft = { direction: "above" as const, price: "100" };
+  const draft = { direction: "above" as const, price: "100", repeat: false };
 
   it("passes a coin through as a pair and a share as itself", () => {
     expect(alertFields("ETH", "crypto", draft)).toMatchObject({ ok: true, symbol: "ETHUSDT" });
@@ -44,7 +44,24 @@ describe("alertFields", () => {
   });
 
   it("carries the direction through", () => {
-    expect(alertFields("ETH", "crypto", { direction: "below", price: "1" }))
+    expect(alertFields("ETH", "crypto", { direction: "below", price: "1", repeat: false }))
       .toMatchObject({ ok: true, direction: "below" });
+  });
+});
+
+
+/**
+ * One-shot or standing is the person's choice now, and the draft is the only
+ * place that says which. A field that did not travel would silently make every
+ * alert one-shot again — the behaviour it replaced — with the switch still
+ * moving.
+ */
+describe("repeat", () => {
+  it("carries the choice through to the alert", () => {
+    const standing = alertFields("BTC", "crypto", { direction: "above", price: "70000", repeat: true });
+    expect(standing).toMatchObject({ ok: true, repeat: true });
+
+    const oneShot = alertFields("BTC", "crypto", { direction: "above", price: "70000", repeat: false });
+    expect(oneShot).toMatchObject({ ok: true, repeat: false });
   });
 });

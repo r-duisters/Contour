@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { axisMoney, money, priceFieldValue, setAmountsHidden, setDisplayCurrency } from "./display";
+import { axisMoney, money, setAmountsHidden, setDisplayCurrency } from "./display";
+import { priceFieldValue } from "./price-format";
 
 afterEach(() => { setAmountsHidden(false); setDisplayCurrency("USD"); });
 
