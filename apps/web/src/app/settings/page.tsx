@@ -22,8 +22,7 @@
 
 import { useEffect, useState } from "react";
 import {
-  BellOff, BellRing, Fingerprint, KeyRound, LogOut, Save, Send, Settings as SettingsIcon, Trash2,
-} from "lucide-react";
+  BellOff, BellRing, Fingerprint, KeyRound, LogOut, Save, Send, Settings as SettingsIcon, Trash2, Download } from "lucide-react";
 import { browserSupportsWebAuthn, startRegistration } from "@simplewebauthn/browser";
 import { useDataClient } from "@/data/client/context";
 import Button from "@/components/Button";
@@ -32,6 +31,8 @@ import EmptyState from "@/components/EmptyState";
 import PageLabel from "@/components/PageLabel";
 import { asDisplayCurrency, type DisplayCurrency } from "@/lib/currencies";
 import DisplaySettings from "@/components/DisplaySettings";
+import AboutSection from "@/components/AboutSection";
+import SubHeading from "@/components/SubHeading";
 
 export default function SettingsPage() {
   const client = useDataClient();
@@ -235,7 +236,12 @@ export default function SettingsPage() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Home Assistant</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
+          Notifications
+          <span className="ml-2 font-normal normal-case tracking-normal text-neutral-500">
+            where alerts reach you
+          </span>
+        </h2>
         <label className="block text-sm">
           <span className="text-neutral-400">HA URL</span>
           <input className={`mt-1 w-full ${field()}`}
@@ -258,9 +264,8 @@ export default function SettingsPage() {
           )}
         </div>
         {msg && <p className="text-sm text-neutral-400">{msg}</p>}
-      </section>
-      <section className="space-y-4 mt-10">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Notifications on this device</h2>
+        <div className="pt-2" />
+        <SubHeading>This device</SubHeading>
         {pushState === "unsupported" && (
           <p className="text-sm text-neutral-500">
             Web Push not supported here. On iPhone, install the app to the Home Screen first (Share → Add to Home Screen).
@@ -277,8 +282,17 @@ export default function SettingsPage() {
         )}
         <p className="text-xs text-neutral-500">“Send test” above exercises both Home Assistant and Web Push.</p>
       </section>
+
       <section className="space-y-4 mt-10">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Passkeys (fingerprint / device PIN)</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
+          Security
+          <span className="ml-2 font-normal normal-case tracking-normal text-neutral-500">
+            who may open this
+          </span>
+        </h2>
+        <SubHeading>
+          Passkeys (fingerprint / device PIN)
+        </SubHeading>
         {!passkeySupported && (
           <p className="text-sm text-neutral-500">
             Passkeys need a secure context — available on localhost or once the app runs behind HTTPS.
@@ -307,10 +321,9 @@ export default function SettingsPage() {
           )}
         </ul>
         {passkeyMsg && <p className="text-sm text-neutral-400">{passkeyMsg}</p>}
-      </section>
-
-      <section className="space-y-4 mt-10">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Account</h2>
+        <SubHeading className="pt-4">
+          Password
+        </SubHeading>
         <label className="block text-sm">
           <span className="text-neutral-400">Current password</span>
           <input type="password" className={`mt-1 w-full ${field()}`}
@@ -326,6 +339,31 @@ export default function SettingsPage() {
           <Button variant="secondary" onClick={logout}><LogOut size={14} aria-hidden />Log out</Button>
         </div>
         {pwMsg && <p className="text-sm text-neutral-400">{pwMsg}</p>}
+      </section>
+
+      <section className="mt-10">
+        <AboutSection
+          extra={
+            /*
+              The build, which is about the app rather than about a portfolio —
+              it sat on the portfolio-data screen because that page inherited
+              whatever the More menu could not hold.
+            */
+            <div className="mb-4">
+              <a
+                href="/api/app/download"
+                className="inline-flex items-center gap-2 text-sm text-blue-500"
+              >
+                <Download size={16} aria-hidden />
+                Download the Android build
+              </a>
+              <p className="text-xs text-neutral-500 mt-1 max-w-prose">
+                Only needed when the shell itself changes — icons, permissions, the lock
+                screen. Everything else updates the moment this server does.
+              </p>
+            </div>
+          }
+        />
       </section>
     </main>
   );

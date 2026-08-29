@@ -3,7 +3,6 @@
 import { Database } from "lucide-react";
 import PageLabel from "@/components/PageLabel";
 import PortfolioManager from "@/components/PortfolioManager";
-import ChartCredit from "@/components/ChartCredit";
 
 /**
  * Portfolio data, and an honest list of what this build does not do.
@@ -11,12 +10,14 @@ import ChartCredit from "@/components/ChartCredit";
  * Not the web app's More page moved: that one carries the APK download link,
  * which is a route this build has no server for. What it shares is the part
  * that matters — the portfolio manager, which is where a first run imports a
- * Delta CSV, and the chart credit, which is a licence obligation rather than a
- * courtesy.
+ * Delta CSV.
+ *
+ * The chart credit moved to Settings → About, on both builds. It is a licence
+ * obligation rather than a courtesy, and something that must stay reachable
+ * should not sit under a heading about imports.
  */
 const ABSENT = [
-  ["Alerts", "Price rules are evaluated by the server build. Nothing here fires."],
-  ["Home Assistant and push", "Both need a server to send from."],
+  ["Home Assistant and push", "Both need a server to send from. Alerts still fire — this build checks them itself and posts a notification locally."],
   ["The risk metric, backtester and analyser", "The strategy tooling stays in the server build."],
   ["Sync", "There is none, by design. This portfolio and the server's are unrelated; the bridge is an export."],
 ];
@@ -53,7 +54,6 @@ export default function MorePage() {
         Everything else runs here, with no server and no network except the price feeds.
       </p>
 
-      <ChartCredit />
     </main>
   );
 }

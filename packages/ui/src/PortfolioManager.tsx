@@ -180,10 +180,12 @@ export default function PortfolioManager() {
     }
   }
 
+  // No heading of its own. Both callers are the "Portfolio data" screen, whose
+  // PageLabel already says exactly that — and once the Android link and the
+  // chart credit moved to Settings, this became that screen's only content, so
+  // the second copy read as a stutter rather than a section.
   return (
     <section className="space-y-3">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Portfolio data</h2>
-
       {portfolios.length > 1 && (
         <select
           className={field()}

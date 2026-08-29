@@ -1,16 +1,20 @@
 import PortfolioManager from "@/components/PortfolioManager";
-import { Database, Download } from "lucide-react";
+import { Database } from "lucide-react";
 import PageLabel from "@/components/PageLabel";
-import ChartCredit from "@/components/ChartCredit";
 
 /**
  * What the More menu could not hold.
  *
  * This was the More page, and its list of destinations is now the menu behind
  * the More control in both navigations — a handful of links did not deserve a
- * screen load and a trip back. What is left is the part that needs room: the
- * portfolio manager and its import, the Android build, and the attribution
- * credit the charts depend on.
+ * screen load and a trip back.
+ *
+ * What is left is one subject, which the name already promised. The Android
+ * build and the TradingView credit moved to Settings → About: neither is
+ * portfolio data, and they were here only because this screen inherited
+ * whatever the menu could not hold. The credit in particular is a licence
+ * condition, and belongs somewhere permanent rather than under a heading about
+ * imports.
  */
 export default function MorePage() {
   return (
@@ -19,24 +23,8 @@ export default function MorePage() {
         <PageLabel icon={Database}>Portfolio data</PageLabel>
       </div>
 
-      <div className="mb-8">
-        <PortfolioManager />
-      </div>
+      <PortfolioManager />
 
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2">Android app</h2>
-      <a href="/api/app/download"
-         className="inline-flex items-center gap-2 text-sm text-blue-500 mb-2">
-        <Download size={16} aria-hidden className="text-neutral-400" />
-        Download the latest build
-      </a>
-      <p className="text-xs text-neutral-500 mb-8">
-        Only needed when the app shell itself changes — icons, permissions, the
-        lock screen. Everything else updates the moment the server does, so
-        pull to refresh is usually enough. Inside the app this hands the file
-        to your browser, which installs it.
-      </p>
-
-      <ChartCredit />
     </main>
   );
 }

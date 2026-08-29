@@ -246,12 +246,19 @@ apps/web/src/             The Next server app.
                           Off BTCUSDT the risk line is drawn but its ladder is
                           not — the curves are fitted to Bitcoin. Reached from
                           More, not from a tab.
-    more/page.tsx           "Portfolio data" — the import, the exports, the Android
-                          build, the TradingView credit. The destinations that
+    more/page.tsx           "Portfolio data" — the import and the exports, and
+                          nothing else: the Android build and the TradingView
+                          credit moved to Settings → About, which is where a
+                          person looks for them and where the credit (a licence
+                          condition) stays reachable. The destinations that
                           used to live here are `MoreMenu`, opened from either nav
                           Reached from More:
     ledger/page.tsx         Every transaction, with Delta CSV import and export
-    settings/page.tsx       Display currency, equity provider, HA URL + webhook, passkeys
+    settings/page.tsx       Four sections, one question each: Display (currency,
+                          equity provider), Notifications (Home Assistant and
+                          this device's push, merged — they answer "where do
+                          alerts reach me"), Security (passkeys and password),
+                          About (version, licence, the Android build, credits)
     alerts/page.tsx         CRUD for alerts + "Evaluate now"
     backtest/page.tsx       Run backtest, view stats and trades
     analyze/page.tsx        Library selector + analyzer + apply-fixes + save-as

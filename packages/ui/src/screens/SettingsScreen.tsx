@@ -7,6 +7,7 @@ import { asDisplayCurrency } from "@/lib/currencies";
 import PageLabel from "../PageLabel";
 import Button from "../Button";
 import DisplaySettings, { type DisplaySettingsValue } from "../DisplaySettings";
+import AboutSection from "../AboutSection";
 
 /**
  * Settings, for a build with no server behind it.
@@ -75,14 +76,36 @@ export default function SettingsScreen() {
       </div>
 
       {/*
-        Said rather than hidden. Someone who set up notifications on the
-        desktop will look for them here, and finding no section at all reads
-        as a missing feature instead of a deliberate one.
+        Said rather than hidden. Someone who set alerts up on the desktop will
+        look for them here, and finding no section reads as a missing feature
+        rather than a deliberate one.
+
+        No Security section: the device lock is the lock, and there is no
+        password to change or session to end. A capability a platform cannot
+        have is absent, not disabled.
       */}
-      <p className="text-xs text-neutral-500 mt-8 max-w-prose">
-        Notifications, passkeys and the password live on the desktop app. They need a
-        server, and this build has none — the device lock is what keeps this app shut.
-      </p>
+      <section className="mt-10">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">
+          Notifications
+        </h2>
+        <p className="text-sm text-neutral-300">
+          Alerts are checked on this phone.
+        </p>
+        <p className="text-xs text-neutral-500 mt-1 max-w-prose">
+          Every time you open the app, and sometimes in the background when Android allows.
+          There is no server behind this build, so nothing checks while it is shut — a price
+          hit and reverted overnight can be missed. Set one from an asset&rsquo;s page;
+          see them under Alerts.
+        </p>
+        <p className="text-xs text-neutral-500 mt-3 max-w-prose">
+          Home Assistant, web-push and passkeys live on the desktop app. Each needs a server,
+          and this build has none — the device lock is what keeps this app shut.
+        </p>
+      </section>
+
+      <section className="mt-10">
+        <AboutSection />
+      </section>
     </main>
   );
 }
