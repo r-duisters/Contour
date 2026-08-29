@@ -15,6 +15,15 @@ export const KEYS = {
   rangePortfolio: `${PREFIX}range:portfolio`,
   rangeAsset: `${PREFIX}range:asset`,
   /**
+   * Whether the asset page's cost-and-fees fold-out is open.
+   *
+   * Remembered rather than reset per asset, because the person it costs a tap
+   * is the one reconciling a sale across several holdings in one sitting —
+   * exactly the case where re-opening it on every page would be the annoying
+   * half of the trade. Somebody who never wants it pays nothing either way.
+   */
+  assetLedgerOpen: `${PREFIX}asset-ledger-open`,
+  /**
    * Whether the asset header's two change columns show amounts rather than
    * rates. Remembered because it is a way of reading, not a per-asset
    * question: somebody who thinks in money thinks in money on every page.

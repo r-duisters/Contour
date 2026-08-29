@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { use, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { TxSide } from "@/lib/portfolio";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -12,7 +12,7 @@ import Sheet from "@/components/Sheet";
 import { assetOf, pricingPair } from "@/core/symbols";
 import { chartTheme, directionColors, roseOverPeriod } from "@/components/chart-theme";
 import {
-  ArrowDown, ArrowLeft, ArrowUp, Bell, ChevronLeft, ChevronRight, Plus, Trash2, X,
+  ArrowDown, ArrowLeft, ArrowUp, Bell, ChevronDown, ChevronLeft, ChevronRight, Plus, Trash2, X,
 } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
 import { useDataClient } from "@/data/client/context";
@@ -132,6 +132,10 @@ export default function AssetScreen({
    * every page. Read once at mount, because a hook for one boolean that only
    * this screen has an opinion about would be a hook for its own sake.
    */
+  const [ledgerOpen, setLedgerOpen] = useState(() => {
+    try { return localStorage.getItem(KEYS.assetLedgerOpen) === "1"; } catch { return false; }
+  });
+  const ledgerId = useId();
   const [headerMoney, setHeaderMoney] = useState(() => {
     try { return localStorage.getItem(KEYS.headerShowsMoney) === "1"; } catch { return false; }
   });
@@ -520,25 +524,6 @@ export default function AssetScreen({
 
       {shownHolding === undefined && <p className="text-sm text-neutral-500">Loading…</p>}
       <StaleNote at={stale} />
-      {shownHolding && (
-        <>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 md:gap-3 text-sm mb-6">
-            <StatTile label="Average cost" value={shownHolding.quantity > 0 ? money(shownHolding.avgCost) : "—"} />
-            <StatTile label="Last price" value={shownHolding.price !== null ? money(shownHolding.price) : "no price"} />
-            <StatTile label="Cost basis" value={money(shownHolding.costBasis)} />
-            <StatTile
-              label="Unrealised"
-              value={shownHolding.unrealizedPnl !== null
-                ? `${money(shownHolding.unrealizedPnl)}${pct !== null ? ` (${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%)` : ""}`
-                : "—"}
-              signed={shownHolding.unrealizedPnl ?? undefined}
-            />
-            <StatTile label="Realised" value={money(shownHolding.realizedPnl)} signed={shownHolding.realizedPnl} />
-            <StatTile label="Fees" value={money(shownHolding.fees)} />
-          </div>
-        </>
-      )}
-
       {/*
         Everything from here down is about the asset, not about your position
         in it, so it renders whether or not you hold any. It used to sit inside
@@ -584,6 +569,74 @@ export default function AssetScreen({
       ) : (
         <PriceChart bars={bars} txs={txs} hideValues={hideAmounts} />
       )}
+
+          {/*
+            Two figures under the chart, not six above it.
+            ============================================
+
+            Six equal tiles opened this page — average cost, last price, cost
+            basis, unrealised, realised, fees — roughly 380px of numbers before
+            any chart on a 412px phone. The common task is a glance, and a
+            glance was made to scroll for it.
+
+            These two are the pair read *while looking at the chart above*:
+            what it costs now on the left, beside the axis the line just ended
+            at, and what it cost you on average on the right. The distance
+            between them is the position, and putting them side by side is the
+            cheapest way to state it.
+
+            Unrealised has left the tiles entirely — it is the header's second
+            column now, beside the day, where both readings sit together.
+          */}
+          {shownHolding && (
+            <div className="grid grid-cols-2 gap-2 md:gap-3 text-sm mt-4">
+              <StatTile label="Last price" value={shownHolding.price !== null ? money(shownHolding.price) : "no price"} />
+              <StatTile label="Average cost" value={shownHolding.quantity > 0 ? money(shownHolding.avgCost) : "—"} />
+            </div>
+          )}
+
+          {/*
+            The rest folds out rather than being deleted. "Cost basis and
+            realised are the point of a portfolio tool versus watching a candle
+            on TradingView" — they are wanted, just not on every glance, and
+            the cost of demoting them is one tap for somebody reconciling.
+            Which is why the fold is remembered: that person is reading several
+            holdings in one sitting, and re-opening it on each would be the
+            annoying half of the trade.
+          */}
+          {shownHolding && (
+            <>
+              <button
+                onClick={() => {
+                  const next = !ledgerOpen;
+                  setLedgerOpen(next);
+                  try { localStorage.setItem(KEYS.assetLedgerOpen, next ? "1" : "0"); } catch {
+                    // Blocked storage costs a tap on the next asset, not data.
+                  }
+                }}
+                aria-expanded={ledgerOpen}
+                aria-controls={ledgerId}
+                className="mt-2 w-full min-h-11 flex items-center justify-center gap-1.5 rounded
+                           border border-dashed border-neutral-800 text-xs text-neutral-400
+                           hover:border-neutral-700 hover:text-neutral-300 transition-colors
+                           focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+              >
+                Cost basis, realised, fees
+                <ChevronDown
+                  size={14}
+                  aria-hidden
+                  className={`transition-transform ${ledgerOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+              {ledgerOpen && (
+                <div id={ledgerId} className="grid grid-cols-2 sm:grid-cols-3 gap-2 md:gap-3 text-sm mt-2">
+                  <StatTile label="Cost basis" value={money(shownHolding.costBasis)} />
+                  <StatTile label="Realised" value={money(shownHolding.realizedPnl)} signed={shownHolding.realizedPnl} />
+                  <StatTile label="Fees" value={money(shownHolding.fees)} />
+                </div>
+              )}
+            </>
+          )}
 
           {/* Waits for the kind rather than asking about the wrong asset:
               a background panel fetched as an equity describes a listed
