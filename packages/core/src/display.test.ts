@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { axisMoney, money, setAmountsHidden, setDisplayCurrency } from "./display";
+import { axisMoney, money, priceFieldValue, setAmountsHidden, setDisplayCurrency } from "./display";
 
 afterEach(() => { setAmountsHidden(false); setDisplayCurrency("USD"); });
 
@@ -102,5 +102,31 @@ describe("money beyond the dollar and the euro", () => {
   it("carries the sign outside the symbol", () => {
     setDisplayCurrency("SEK");
     expect(money(-5)).toBe("-kr 5,00");
+  });
+});
+
+describe("priceFieldValue", () => {
+  it("rounds a share-sized price to the two decimals its label shows", () => {
+    // The live figure behind AMD's "Use 399.88". The button filled the box
+    // with all of this, so it did not do what it said.
+    expect(priceFieldValue(399.8797560766)).toBe("399.88");
+  });
+
+  it("keeps eight decimals below a cent, where two would round to nothing", () => {
+    expect(priceFieldValue(0.00000812)).toBe("0.00000812");
+  });
+
+  it("drops trailing zeros rather than typing them into the field", () => {
+    // A person edits this value. "400" invites a keystroke; "400.00" invites
+    // deleting two characters first.
+    expect(priceFieldValue(400)).toBe("400");
+    expect(priceFieldValue(1489.80004883)).toBe("1489.8");
+  });
+
+  it("never groups, whatever the display currency is", () => {
+    // A form field is parsed, not read. "1.489,8" is a number to a European
+    // reader and NaN to `Number`.
+    setDisplayCurrency("EUR");
+    expect(priceFieldValue(1489.80004883)).toBe("1489.8");
   });
 });

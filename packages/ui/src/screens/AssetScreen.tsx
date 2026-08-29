@@ -12,7 +12,7 @@ import Sheet from "@/components/Sheet";
 import { assetOf, pricingPair } from "@/core/symbols";
 import { chartTheme, directionColors, roseOverPeriod } from "@/components/chart-theme";
 import {
-  ArrowDown, ArrowLeft, ArrowUp, Bell, ChevronLeft, ChevronRight, Plus, Trash2,
+  ArrowDown, ArrowLeft, ArrowUp, Bell, ChevronLeft, ChevronRight, Plus, Trash2, X,
 } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
 import { useDataClient } from "@/data/client/context";
@@ -27,6 +27,7 @@ import TransactionRow from "@/components/TransactionRow";
 import AlertForm from "@/components/AlertForm";
 import { useFitChart } from "@/components/useFitChart";
 import { shapePoints, thinKeepingExtremes } from "@/lib/chart-data";
+import { iconButton } from "@/components/icon-button";
 import { useStoredRange } from "@/components/useStoredRange";
 import { KEYS } from "@/lib/storage-keys";
 import { useCachedValuation, useLastPortfolio } from "@/components/useCachedValuation";
@@ -303,9 +304,81 @@ export default function AssetScreen({
 
   return (
     <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-3 py-4 md:p-8 max-w-4xl mx-auto">
-      <Link href="/portfolio" className="text-xs text-neutral-400 inline-flex items-center gap-1 mb-4">
-        <ArrowLeft size={14} aria-hidden />Portfolio
-      </Link>
+      {/*
+        This page's top bar. `BRAND.md` gives every screen a label on the left
+        and circular icon buttons on the right; here the back link is the
+        label, because an asset page is somewhere you arrived from somewhere
+        else.
+
+        The two actions were text buttons in the "Transactions" heading, which
+        put them below a chart and a background panel — a scroll away on a
+        phone, and on the half of the page about the *holding* rather than the
+        asset. They are the two things a person opens this page to do, so they
+        are where the thumb already is. Both sheets moved up with them: a
+        trigger that outlives its sheet is a button that does nothing while the
+        page is still resolving what it holds.
+      */}
+      <div className="flex items-center gap-2 mb-4">
+        <Link href="/portfolio" className="text-xs text-neutral-400 inline-flex items-center gap-1">
+          <ArrowLeft size={14} aria-hidden />Portfolio
+        </Link>
+        <span className="flex-1" />
+        {/*
+          Feature-detected, not asked about. `createAlert` is optional because
+          dispatch needs Home Assistant, web-push or FCM and an APK has none of
+          them — so the button is absent where the capability is, exactly as
+          the settings screen treats `sendTestNotification`.
+        */}
+        {createAlert && (
+          <button
+            onClick={() => setAlertOpen((v) => !v)}
+            aria-label={alertOpen ? "Close alert" : `Alert on ${symbol}`}
+            aria-expanded={alertOpen}
+            className={iconButton()}
+          >
+            {alertOpen ? <X size={16} aria-hidden /> : <Bell size={16} aria-hidden />}
+          </button>
+        )}
+        <button
+          onClick={() => setAddOpen((v) => !v)}
+          aria-label={addOpen ? "Close add transaction" : "Add transaction"}
+          aria-expanded={addOpen}
+          className={iconButton()}
+        >
+          {addOpen ? <X size={16} aria-hidden /> : <Plus size={16} aria-hidden />}
+        </button>
+      </div>
+
+      <Sheet open={alertOpen} onClose={() => setAlertOpen(false)} title={`Alert on ${symbol}`}>
+        <div className="p-3">
+          <AlertForm
+            symbol={symbol}
+            // `knownType`, not `resolvedType`: null means the page does
+            // not yet know, and the form says so rather than guessing.
+            // The fallback exists for drawing a chart, not for deciding
+            // which venue prices an alert.
+            assetType={knownType}
+            livePrice={shownHolding?.price ?? null}
+            // The sheet stays open so the form can say what it did.
+            // Closing it on submit threw away the one confirmation there
+            // is — the alert was created and the screen said nothing,
+            // which is indistinguishable from the button not working.
+            onSubmit={async (alert) => { await createAlert!(alert); }}
+          />
+        </div>
+      </Sheet>
+
+      <Sheet open={addOpen} onClose={() => setAddOpen(false)} title="Add a transaction">
+        <div className="p-3">
+          {/* `lastClose` and not the holding's `price`: the holding is
+              valued in the *display* currency and this field is in the
+              asset's own. Measured on the live ledger, AMD reads 457.58
+              from the series and €389.13 on the holding — the same asset,
+              differing by the exchange rate. */}
+          <TxForm onSubmit={addTransaction} error={formError} lockedSymbol={symbol}
+                  assetType={resolvedType} livePrice={lastClose} />
+        </div>
+      </Sheet>
 
       <div className="flex items-center gap-3 mb-6">
         {shownHolding === undefined
@@ -437,70 +510,13 @@ export default function AssetScreen({
                 {notHeld ? "Start a position" : "Transactions"}
               </h2>
               {!notHeld && <span className="text-xs text-neutral-500">{txs.length}</span>}
-              <span className="flex-1" />
-              {/* Alerts live on their own page and their routes are
-                  server-only by design, so this hands the ticker over rather
-                  than growing a second, smaller alert form here — and it is
-                  absent altogether where that page does not exist, rather
-                  than offered and broken. */}
-              {/*
-                Feature-detected, not asked about. `createAlert` is optional
-                because dispatch needs Home Assistant, web-push or FCM and an
-                APK has none of them — so the button is absent where the
-                capability is, exactly as the settings screen treats
-                `sendTestNotification`.
-              */}
-              {createAlert && (
-                <button
-                  onClick={() => setAlertOpen((v) => !v)}
-                  aria-expanded={alertOpen}
-                  className="text-xs text-neutral-300 inline-flex items-center gap-1"
-                >
-                  <Bell size={12} aria-hidden />{alertOpen ? "Close" : "Alert me"}
-                </button>
-              )}
-              <button
-                onClick={() => setAddOpen((v) => !v)}
-                className="text-xs text-neutral-300 inline-flex items-center gap-1"
-              >
-                <Plus size={12} aria-hidden />{addOpen ? "Close" : "Add"}
-              </button>
             </div>
-            <Sheet open={alertOpen} onClose={() => setAlertOpen(false)} title={`Alert on ${symbol}`}>
-              <div className="p-3">
-                <AlertForm
-                  symbol={symbol}
-                  // `knownType`, not `resolvedType`: null means the page does
-                  // not yet know, and the form says so rather than guessing.
-                  // The fallback exists for drawing a chart, not for deciding
-                  // which venue prices an alert.
-                  assetType={knownType}
-                  livePrice={shownHolding?.price ?? null}
-                  // The sheet stays open so the form can say what it did.
-                  // Closing it on submit threw away the one confirmation there
-                  // is — the alert was created and the screen said nothing,
-                  // which is indistinguishable from the button not working.
-                  onSubmit={async (alert) => { await createAlert!(alert); }}
-                />
-              </div>
-            </Sheet>
-
-            <Sheet open={addOpen} onClose={() => setAddOpen(false)} title="Add a transaction">
-              <div className="p-3">
-                {/* `lastClose` and not the holding's `price`: the holding is
-                    valued in the *display* currency and this field is in the
-                    asset's own. Measured on the live ledger, AMD reads 457.58
-                    from the series and €389.13 on the holding — the same asset,
-                    differing by the exchange rate. */}
-                <TxForm onSubmit={addTransaction} error={formError} lockedSymbol={symbol}
-                        assetType={resolvedType} livePrice={lastClose} />
-              </div>
-            </Sheet>
             {/* The empty state no longer hides while the form is open: an
                 inline form pushed it down the page, and a sheet covers it. */}
             {notHeld
               ? <EmptyState>
-                  You hold none of this. Add a transaction to start tracking it here.
+                  You hold none of this. Add a transaction with + at the top to
+                  start tracking it here.
                 </EmptyState>
               : <TransactionTable txs={txs} onDelete={deleteTx} />}
           </section>

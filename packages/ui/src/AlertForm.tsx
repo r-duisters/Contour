@@ -4,6 +4,7 @@ import { useState } from "react";
 import Button from "./Button";
 import { field } from "./field";
 import { alertFields, type AlertDraft } from "./alert-fields";
+import { priceFieldValue } from "@/lib/display";
 import type { NewAlertInput } from "@/data/client/data-client";
 
 /**
@@ -34,7 +35,9 @@ export default function AlertForm({
 }) {
   const [draft, setDraft] = useState<AlertDraft>({
     direction: "above",
-    price: livePrice ? String(livePrice) : "",
+    // Rounded, because a target of 399.8797560766 is a price nobody typed and
+    // nobody wants to edit around.
+    price: livePrice ? priceFieldValue(livePrice) : "",
   });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);

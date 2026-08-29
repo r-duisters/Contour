@@ -7,6 +7,7 @@ import { useDataClient } from "@/data/client/context";
 import { priceCurrency, toNewTx, type NewTx, type TxMode } from "./tx-fields";
 import Segmented from "./Segmented";
 import { DISPLAY_CURRENCIES, CURRENCY_NAMES } from "@/core/currencies";
+import { priceDigits, priceFieldValue } from "@/lib/display";
 import Button from "./Button";
 import { field } from "./field";
 
@@ -177,14 +178,11 @@ export default function TxForm({
         {!isCash && livePrice != null && livePrice > 0 && (
           <button
             type="button"
-            onClick={() => setPrice(String(livePrice))}
+            onClick={() => setPrice(priceFieldValue(livePrice))}
             className="text-[11px] text-neutral-400 underline underline-offset-2"
           >
             Use {livePrice.toLocaleString("en-US", {
-              // Two decimals for anything priced like a share, more for a coin
-              // that trades below a cent — 1,489.80004883 is float noise, and
-              // 0.00 would be a useless offer for PEPE.
-              maximumFractionDigits: livePrice >= 1 ? 2 : 8,
+              maximumFractionDigits: priceDigits(livePrice),
             })}
           </button>
         )}
