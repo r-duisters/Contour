@@ -74,7 +74,8 @@ describe("the entrance's geometry", () => {
     expect(SETTLE_SCALE).toBeCloseTo(SPLASH_DISC_PX / LOCK_DISC_PX, 10);
   });
 
-  it("starts larger than it ends, which is the direction the system forces", () => {
-    expect(SPLASH_DISC_PX).toBeGreaterThan(LOCK_DISC_PX);
+  it("has nothing left to shrink, because every picture is one size", () => {
+    expect(SPLASH_DISC_PX).toBe(LOCK_DISC_PX);
+    expect(SETTLE_SCALE).toBe(1);
   });
 });

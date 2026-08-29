@@ -2,9 +2,13 @@
 <resources>
     <!--
       The adaptive icon's background layer, which is what a launcher's mask is
-      cut from. It is the app's ground, not the blue: the disc now lives in the
-      foreground layer, so the mark stays a circle whatever shape the launcher
-      masks to. See `drawable/ic_launcher_disc.xml`.
+      cut from — so this colour is the whole tile, in whatever shape the
+      launcher prefers.
+
+      It was the app's ground for a few builds, with the disc in the foreground,
+      so that the mark stayed a circle under any mask. On One UI that put dark
+      corners around the blue and the tile read worse for it. Filled blue is the
+      call; the shape belongs to the launcher.
     -->
-    <color name="ic_launcher_background">@color/contour_ground</color>
+    <color name="ic_launcher_background">@color/contour_blue</color>
 </resources>

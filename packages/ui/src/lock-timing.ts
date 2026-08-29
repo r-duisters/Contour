@@ -23,45 +23,43 @@
  */
 
 /**
- * The disc's diameter while the system splash is up, in CSS pixels.
+ * The canvas Android renders its splash icon at, in CSS pixels.
  *
- * Not a choice, and derived rather than picked. Android 12 always shows a
- * splash screen — an app chooses what is on it, never whether it appears — and
- * it draws the icon at its own canvas size. Measured off a screen recording on
- * a Galaxy S24 at 564 of 1080 device pixels, which is 188 CSS pixels at that
- * screen's 3x, back when the disc filled the icon it was drawn from.
+ * Measured off a screen recording on a Galaxy S24: 564 of 1080 device pixels
+ * at that screen's 3x. Not a choice — Android 12 always shows a splash screen,
+ * an app picks only what is on it, and it scales that drawable's visible
+ * content to fill this canvas. A disc drawn at 89% of its viewport came out at
+ * exactly the same size as one drawn at 100%.
  *
- * It is the canvas size and not a fraction of it, because Android scales the
- * splash drawable's visible content to fill that canvas — a disc drawn at 89%
- * of its viewport rendered at exactly the same 188dp as one drawn at 100%,
- * measured from a diagnostic build. Trying to make this smaller by shrinking
- * the disc inside the drawable does nothing at all, which is a thing I got
- * wrong twice before measuring it.
- *
- * So the app's own splash draws the mark at this size rather than at
- * `LOCK_DISC_PX`, and the difference is spent during the travel instead of
- * jumped at the handover.
+ * It is still here because `contour_splash_icon.xml` defeats that
+ * normalisation deliberately, and this is the number it works against: an
+ * invisible ground circle fills the viewport so the visible content is the
+ * whole file, and the blue disc is then 112 of these 188.
  */
 export const SPLASH_CANVAS_PX = 188;
-
-/**
- * The disc's share of any icon it is drawn inside: 64 of the 72dp a launcher's
- * mask crops an adaptive icon to.
- *
- * One number for the whole chain. It is 64 rather than 72 because a disc of
- * exactly 72 is one whose edge no mask can reveal — it filled a Galaxy S24's
- * squircle corner to corner and the icon read as a square. See
- * `scripts/generate-icons.mjs`, which draws both Android icons to this
- * fraction, and `scripts/icon-artwork.test.ts`, which checks they still do.
- */
-export const ICON_DISC_FRACTION = 64 / 72;
-
-export const SPLASH_DISC_PX = SPLASH_CANVAS_PX;
 
 /** The disc's diameter at rest, which is `BRAND.md`'s size and `MarkTile`'s. */
 export const LOCK_DISC_PX = 112;
 
-/** What the mark has to shrink by on its way to its resting place. */
+/**
+ * The disc the app's own splash draws — the same one, at the same size, as the
+ * lock screen's.
+ *
+ * The launch used to show the mark at `SPLASH_CANVAS_PX` and then shrink it by
+ * two fifths on arrival, because that was the only size the system splash
+ * could be persuaded to draw. It can be persuaded now, so there is nothing
+ * left to shrink: the launch window, this screen and the fingerprint prompt
+ * all draw one disc at one size, and the entrance is only a movement.
+ */
+export const SPLASH_DISC_PX = LOCK_DISC_PX;
+
+/**
+ * What the mark has to shrink by on its way to its resting place — nothing,
+ * now that every picture in the launch is the same size. Kept as an expression
+ * rather than deleted: it is what the settle animates, and if the two sizes
+ * ever diverge again the movement absorbs the difference instead of the
+ * handover jumping.
+ */
 export const SETTLE_SCALE = SPLASH_DISC_PX / LOCK_DISC_PX;
 
 /** A moment held still first, so the splash reads as a splash and not as a start gun. */

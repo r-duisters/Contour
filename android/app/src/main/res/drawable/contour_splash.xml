@@ -11,17 +11,18 @@
   fact that cost this app a square logo at every launch for months, because the
   disc drawn here was only ever reached below 31.
 
-  The mark comes from `contour_splash_icon`, which is a vector sized to its own
-  canvas. So the size is declared here, on the item: without it the vector
-  would be stretched to the whole window, which on a recents card is a disc the
-  size of the screen.
+  The mark comes from `contour_splash_icon`. The size is declared here, on the
+  item, or the vector would be stretched to the whole window — a disc the size
+  of the screen on a recents card. `@dimen/splash_icon_box` is 188 rather than
+  112 because that vector holds an invisible ground circle; the reasoning is
+  written there.
 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/contour_ground" />
 
     <item
-        android:width="@dimen/contour_mark_disc"
-        android:height="@dimen/contour_mark_disc"
+        android:width="@dimen/splash_icon_box"
+        android:height="@dimen/splash_icon_box"
         android:gravity="center"
         android:drawable="@drawable/contour_splash_icon" />
 </layer-list>

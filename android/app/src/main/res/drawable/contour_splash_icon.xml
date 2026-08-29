@@ -9,13 +9,16 @@
     android:viewportWidth="192"
     android:viewportHeight="192">
     <path
-        android:fillColor="#2563EB"
+        android:fillColor="#0A0A0A"
         android:pathData="M0,96 a96,96 0 1,0 192,0 a96,96 0 1,0 -192,0" />
+    <path
+        android:fillColor="#2563EB"
+        android:pathData="M39,96 a57,57 0 1,0 114,0 a57,57 0 1,0 -114,0" />
     <group
         android:pivotX="256"
         android:pivotY="256"
-        android:scaleX="0.348354"
-        android:scaleY="0.348354"
+        android:scaleX="0.206835"
+        android:scaleY="0.206835"
         android:translateX="-160.000"
         android:translateY="-160.000">
         <path
