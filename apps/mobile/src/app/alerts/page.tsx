@@ -9,6 +9,7 @@ import EmptyState from "@/components/EmptyState";
 import LastChecked from "@/components/LastChecked";
 import SubHeading from "@/components/SubHeading";
 import Switch from "@/components/Switch";
+import { deleteButton } from "@/components/icon-button";
 import { KEYS, readKey } from "@/lib/storage-keys";
 
 /**
@@ -71,7 +72,13 @@ export default function AlertsPage() {
     }
   }
 
-  async function remove(id: string) {
+  async function remove(alert: AlertSummary) {
+    // Asked for, as the ellipsis in the button's name promises — and because
+    // this sits a thumb's width from the switch, where the two outcomes are
+    // "quiet for a while" and "gone".
+    const what = subject(alert, names);
+    if (!window.confirm(`Delete the alert on ${what}?`)) return;
+    const id = alert.id;
     setBusy(id);
     try {
       await client.deleteAlert?.(id);
@@ -150,12 +157,12 @@ export default function AlertsPage() {
           label={`${a.enabled ? "Pause" : "Resume"} ${subject(a, names)}`}
         />
         <button
-          onClick={() => void remove(a.id)}
+          onClick={() => void remove(a)}
           disabled={busy === a.id}
-          aria-label={`Delete alert on ${subject(a, names)}`}
-          className="shrink-0 mt-0.5 text-neutral-700 hover:text-red-500 disabled:opacity-50 transition-colors"
+          aria-label={`Delete alert on ${subject(a, names)}…`}
+          className={`${deleteButton()} mt-0.5`}
         >
-          <Trash2 size={14} aria-hidden />
+          <Trash2 size={16} aria-hidden />
         </button>
       </li>
     );

@@ -12,6 +12,7 @@ import PageLabel from "@/components/PageLabel";
 import LastChecked from "@/components/LastChecked";
 import Switch from "@/components/Switch";
 import SubHeading from "@/components/SubHeading";
+import { deleteButton } from "@/components/icon-button";
 import { KEYS, readKey } from "@/lib/storage-keys";
 
 type Alert = {
@@ -187,7 +188,7 @@ function Alerts() {
   }
 
   async function remove(a: Alert) {
-    // The trailing ellipsis on the button promises this.
+    // The ellipsis in the button's accessible name promises this.
     if (!window.confirm(`Delete the alert “${describe(a)}”?`)) return;
     await fetch(`/api/alerts/${a.id}`, { method: "DELETE" });
     await load();
@@ -399,10 +400,14 @@ function Alerts() {
             />
             <button
               onClick={() => remove(a)}
-              aria-label={`Delete alert: ${describe(a)}`}
-              className="shrink-0 mt-0.5 text-neutral-700 hover:text-red-500 transition-colors"
+              // The ellipsis moved here when the label became an icon. It is
+              // the app's promise that a confirmation follows, and it is
+              // carried by the accessible name now that there is no text.
+              aria-label={`Delete alert: ${describe(a)}…`}
+              title="Delete alert…"
+              className={`${deleteButton()} mt-0.5`}
             >
-              <Trash2 size={14} aria-hidden />
+              <Trash2 size={16} aria-hidden />
             </button>
           </li>
         ))}
@@ -436,10 +441,11 @@ function Alerts() {
                 />
                 <button
                   onClick={() => remove(a)}
-                  aria-label={`Delete alert: ${describe(a)}`}
-                  className="shrink-0 mt-0.5 text-neutral-700 hover:text-red-500 transition-colors"
+                  aria-label={`Delete alert: ${describe(a)}…`}
+                  title="Delete alert…"
+                  className={`${deleteButton()} mt-0.5`}
                 >
-                  <Trash2 size={14} aria-hidden />
+                  <Trash2 size={16} aria-hidden />
                 </button>
               </li>
             ))}
