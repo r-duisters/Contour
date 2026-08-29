@@ -37,7 +37,7 @@ export type Routing = {
    * platform cannot have is *absent*, not throwing and not visibly broken.
    * This is the same rule, for a destination instead of a method.
    */
-  alertsHref(pair: string): string | null;
+  alertsHref(symbol: string, assetType?: string | null): string | null;
   /**
    * One exchange's own page, or `null` where this build has none.
    *
@@ -71,7 +71,7 @@ function withQuery(path: string, params: Record<string, string | null | undefine
 export const WEB_ROUTING: Routing = {
   assetHref: (symbol, assetType, extra) =>
     withQuery(`/portfolio/${encodeURIComponent(symbol)}`, { type: assetType, ...extra }),
-  alertsHref: (pair) => withQuery("/alerts", { symbol: pair }),
+  alertsHref: (symbol, assetType) => withQuery("/alerts", { symbol, type: assetType }),
   indexHref: (slug) => `/markets/${encodeURIComponent(slug)}`,
   chartHref: (pair) => withQuery("/chart", { symbol: pair }),
 };
@@ -105,8 +105,8 @@ export function useAssetHref(): Routing["assetHref"] {
 }
 
 /** Null where this build has no alerts screen — the caller draws nothing. */
-export function useAlertsHref(pair: string): string | null {
-  return useContext(RoutingContext).alertsHref(pair);
+export function useAlertsHref(symbol: string, assetType?: string | null): string | null {
+  return useContext(RoutingContext).alertsHref(symbol, assetType);
 }
 
 /** Null where this build has no page for one exchange — the card is not a link. */

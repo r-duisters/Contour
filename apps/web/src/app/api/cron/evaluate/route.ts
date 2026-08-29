@@ -3,8 +3,8 @@ import type { Alert } from "@prisma/client";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { pricingPair } from "@/core/symbols";
-import { fetchKlines, fetchPricesSafe } from "@/data/sources/binance";
-import { fetchCrypto24hAgo } from "@/data/services/pricing";
+import { fetchKlines } from "@/data/sources/binance";
+import { assetTypeOf, baselines, priceSymbols, type PricedSymbol, type Settings } from "@/lib/alert-pricing";
 import { deps } from "@/lib/deps";
 import { run } from "@/lib/indicator";
 import {
@@ -32,13 +32,15 @@ export async function GET(req: NextRequest) {
   }
   const settings = await prisma.settings.findUnique({ where: { id: 1 } });
   const notifiers = makeNotifiers(settings);
+  // Which provider prices shares, for the alerts that are about shares.
+  const pricing = { equityProvider: settings?.equityProvider, equityApiKey: settings?.equityApiKey };
   const alerts = await prisma.alert.findMany({ where: { enabled: true } });
   const summary: Summary[] = [];
 
   for (const a of alerts) {
     try {
-      if (a.kind === "price_target") summary.push(await evalPriceTarget(a, notifiers));
-      else if (a.kind === "pct_move") summary.push(await evalPctMove(a, notifiers));
+      if (a.kind === "price_target") summary.push(await evalPriceTarget(a, notifiers, pricing));
+      else if (a.kind === "pct_move") summary.push(await evalPctMove(a, notifiers, pricing));
       else summary.push(await evalIndicator(a, notifiers));
     } catch (e) {
       summary.push({ alertId: a.id, fired: 0, skipped: 0, error: (e as Error).message });
@@ -126,10 +128,17 @@ async function evalIndicator(a: Alert, notifiers: Notifier[]): Promise<Summary> 
 }
 
 /** One-shot: checks the live ticker price and disables the alert after it fires. */
-async function evalPriceTarget(a: Alert, notifiers: Notifier[]): Promise<Summary> {
+async function evalPriceTarget(
+  a: Alert, notifiers: Notifier[], pricing: Settings,
+): Promise<Summary> {
   if (!a.symbol) return { alertId: a.id, fired: 0, skipped: 0, error: "price_target alert has no symbol" };
   const params = PriceTargetParams.parse(JSON.parse(a.params));
-  const price = (await fetchPricesSafe(deps().net, [a.symbol]))[a.symbol];
+  // Priced through the venue that lists it. This asked Binance for everything,
+  // so an ASML.AS target was never evaluated and never said so.
+  const prices = await priceSymbols(deps().net, pricing, [
+    { symbol: a.symbol, assetType: assetTypeOf(a) },
+  ]);
+  const price = prices[a.symbol];
   if (price === undefined) {
     return { alertId: a.id, fired: 0, skipped: 0, error: `no price for ${a.symbol}` };
   }
@@ -163,38 +172,39 @@ async function evalPriceTarget(a: Alert, notifiers: Notifier[]): Promise<Summary
  * alert and the figure it was about could disagree by a percentage point.
  * Both now come from `fetchCrypto24hAgo`.
  */
-async function evalPctMove(a: Alert, notifiers: Notifier[]): Promise<Summary> {
+async function evalPctMove(
+  a: Alert, notifiers: Notifier[], pricing: Settings,
+): Promise<Summary> {
   const params = PctMoveParams.parse(JSON.parse(a.params));
-  const symbols = a.symbol ? [a.symbol] : await heldSymbols(a.portfolioId);
-  if (symbols.length === 0) {
+  const wanted: PricedSymbol[] = a.symbol
+    ? [{ symbol: a.symbol, assetType: assetTypeOf(a) }]
+    : await heldSymbols(a.portfolioId);
+  if (wanted.length === 0) {
     await prisma.alert.update({ where: { id: a.id }, data: { lastEvaluated: new Date() } });
     return { alertId: a.id, fired: 0, skipped: 0 };
   }
 
-  // Binance prices pairs; a held symbol names the asset. Before the symbols
-  // were renamed these happened to coincide for coins, and this line asked for
-  // the stored spelling directly — which then became ETH, ADA, BTC, none of
-  // which Binance lists. `fetchPricesSafe` omits what it cannot price, so
-  // every portfolio-scoped alert quietly stopped firing rather than erroring.
-  const pairOf = new Map(symbols.map((s) => [s, pricingPair(s)]));
-  const [prices, dayAgo] = await Promise.all([
-    fetchPricesSafe(deps().net, [...pairOf.values()]),
-    fetchCrypto24hAgo(deps().net, [...pairOf.values()]),
+  // Both halves keyed by the stored symbol, so a share and a coin are compared
+  // the same way here even though the two venues were asked different things:
+  // Binance a rolling day, an equity provider the previous close.
+  const [prices, base] = await Promise.all([
+    priceSymbols(deps().net, pricing, wanted),
+    baselines(deps().net, pricing, wanted),
   ]);
+
   let fired = 0, skipped = 0;
-  for (const symbol of symbols) {
-    const pair = pairOf.get(symbol)!;
-    const price = prices[pair];
-    const base = dayAgo[pair];
-    if (price === undefined || base === undefined) continue;
-    const hit = evaluatePctMove(params, base, price);
+  for (const { symbol } of wanted) {
+    const price = prices[symbol];
+    const was = base[symbol];
+    if (price === undefined || was === undefined) continue;
+    const hit = evaluatePctMove(params, was, price);
     if (!hit) continue;
     const ok = await dispatch(a, notifiers, {
       barTime: utcDayOpen(Date.now()),
       signal: `move_${hit.direction}:${symbol}`,
       symbol,
       price,
-      meta: { pct: Number(hit.pct.toFixed(2)), dayAgo: base, threshold: params.threshold },
+      meta: { pct: Number(hit.pct.toFixed(2)), dayAgo: was, threshold: params.threshold },
     });
     if (ok) fired++; else skipped++;
   }
@@ -216,7 +226,7 @@ async function evalPctMove(a: Alert, notifiers: Notifier[]): Promise<Summary> {
  * dropped by the price lookup instead. Silently — which is #19, and why an
  * equity alert cannot fire today.
  */
-async function heldSymbols(portfolioId: string | null): Promise<string[]> {
+async function heldSymbols(portfolioId: string | null): Promise<PricedSymbol[]> {
   if (!portfolioId) return [];
   const rows = await prisma.transaction.findMany({
     where: { portfolioId, assetType: { not: "cash" } },
@@ -229,7 +239,15 @@ async function heldSymbols(portfolioId: string | null): Promise<string[]> {
     fee: t.fee,
     time: Number(t.time),
   }));
-  return computeHoldings(txs).filter((h) => h.quantity > 0).map((h) => h.symbol);
+  // The ledger already records what each holding is, so the kind comes from
+  // the rows rather than from the shape of the ticker.
+  const kindOf = new Map(rows.map((t) => [t.symbol, t.assetType]));
+  return computeHoldings(txs)
+    .filter((h) => h.quantity > 0)
+    .map((h) => ({
+      symbol: h.symbol,
+      assetType: kindOf.get(h.symbol) === "equity" ? "equity" as const : "crypto" as const,
+    }));
 }
 
 /**

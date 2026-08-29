@@ -103,9 +103,6 @@ export default function AssetScreen({
   const symbol = assetOf(raw);
 
   const client = useDataClient();
-  // Both null in the device build, which has neither screen to link at.
-  const alertsHref = useAlertsHref(pricingPair(symbol));
-  const chartHref = useChartHref(pricingPair(symbol));
   const [holding, setHolding] = useState<Holding | null | undefined>(undefined);
   const [txs, setTxs] = useState<Tx[]>([]);
   const [bars, setBars] = useState<{ t: number; c: number }[] | null>(null);
@@ -165,6 +162,15 @@ export default function AssetScreen({
    */
   const resolvedType: "crypto" | "equity" =
     knownType ?? (symbol.includes(".") ? "equity" : "crypto");
+
+  // Both null in the device build, which has neither screen to link at.
+  //
+  // The alert gets the asset's own spelling and its kind, not a Binance pair:
+  // `pricingPair` answers ASML.ASUSDT for a share, which is not a market, and
+  // an alert built on it could never be priced. Only the chart wants a pair,
+  // and only because it really is a Binance market.
+  const alertsHref = useAlertsHref(symbol, resolvedType);
+  const chartHref = useChartHref(pricingPair(symbol));
   /** Loaded, and this portfolio does not hold it. */
   const notHeld = shownHolding === null;
   const lastClose = bars && bars.length > 0 ? bars[bars.length - 1]!.c : null;

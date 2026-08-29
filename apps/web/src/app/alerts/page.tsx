@@ -62,9 +62,24 @@ function Alerts() {
    * the full form rather than a reduced copy of it that would drift.
    */
   const asked = useSearchParams().get("symbol");
+  /**
+   * What the asset page said this is, when it sent us here.
+   *
+   * The alert has to record its own kind: a US ticker carries no exchange
+   * suffix, so `AMD` cannot be told from a coin by looking at it, and guessing
+   * sends it to Binance as `AMDUSDT` — a symbol that may answer with an
+   * unrelated token's price. Firing on the wrong number is worse than not
+   * firing. Absent (someone typed a ticker here), a dot is the only signal
+   * left, and it is right for the European listings that have one.
+   */
+  const askedType = useSearchParams().get("type");
   const [portfolios, setPortfolios] = useState<PortfolioRow[]>([]);
   const [kind, setKind] = useState<Alert["kind"]>(asked ? "price_target" : "indicator");
   const [symbol, setSymbol] = useState(asked?.toUpperCase() || "BTCUSDT");
+  const [assetType, setAssetType] = useState<"crypto" | "equity">(
+    askedType === "equity" ? "equity" : askedType === "crypto" ? "crypto"
+      : (asked ?? "").includes(".") ? "equity" : "crypto",
+  );
   const [timeframe, setTimeframe] = useState("1h");
   const [direction, setDirection] = useState<"above" | "below">("above");
   const [targetPrice, setTargetPrice] = useState("");
@@ -113,14 +128,14 @@ function Alerts() {
     } else if (kind === "price_target") {
       const price = Number(targetPrice);
       if (!Number.isFinite(price) || price <= 0) { setError("Enter a target price."); return; }
-      body = { kind, symbol, params: { direction, price } };
+      body = { kind, symbol, assetType, params: { direction, price } };
     } else {
       const t = Number(threshold);
       if (!Number.isFinite(t) || t <= 0) { setError("Enter a % threshold."); return; }
       body = {
         kind,
         params: { threshold: t },
-        ...(scope === "symbol" ? { symbol } : { portfolioId }),
+        ...(scope === "symbol" ? { symbol, assetType } : { portfolioId }),
       };
       if (scope === "portfolio" && !portfolioId) { setError("Pick a portfolio."); return; }
     }
@@ -233,6 +248,24 @@ function Alerts() {
 
         {(kind !== "pct_move" || scope === "symbol") && (
           <SymbolPicker className={`${input} uppercase w-28`} value={symbol} onChange={setSymbol} />
+        )}
+        {/*
+          Which venue prices it. Shown for the two kinds that read a live
+          price; an indicator alert is Binance klines by definition.
+
+          Asked rather than inferred, because a US ticker gives nothing away:
+          AMD and ADA look alike and only one of them is a coin.
+        */}
+        {kind !== "indicator" && (kind !== "pct_move" || scope === "symbol") && (
+          <select
+            aria-label="Asset type"
+            className={input}
+            value={assetType}
+            onChange={(e) => setAssetType(e.target.value as "crypto" | "equity")}
+          >
+            <option value="crypto">Crypto</option>
+            <option value="equity">Stock / ETF</option>
+          </select>
         )}
         {kind === "pct_move" && scope === "portfolio" && (
           <select className={input} value={portfolioId} onChange={(e) => setPortfolioId(e.target.value)}>

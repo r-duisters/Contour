@@ -11,6 +11,14 @@ model Alert {
   id            String       @id @default(cuid())
   kind          String       @default("indicator") // "indicator" | "price_target" | "pct_move"
   symbol        String? // null for portfolio-scoped alerts
+  /// How to price this alert's symbol: "crypto" | "equity".
+  ///
+  /// Recorded rather than sniffed. A ticker cannot answer the question —
+  /// `isEquityTicker` needs a dot, and AMD, NVDA and every other US listing
+  /// have none, so they would be sent to Binance as AMDUSDT. That symbol may
+  /// well exist and answer with an unrelated token's price, and firing on the
+  /// wrong number is worse than not firing at all.
+  assetType     String       @default("crypto")
   portfolioId   String? // pct_move only: evaluate every held symbol in this portfolio
   portfolio     Portfolio?   @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
   timeframe     String

@@ -16,12 +16,16 @@ const Create = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("price_target"),
     symbol: z.string().min(1),
+    // Recorded, not sniffed: a US ticker carries no exchange suffix, so
+    // guessing from its shape sends AMD to Binance as AMDUSDT.
+    assetType: z.enum(["crypto", "equity"]).default("crypto"),
     params: PriceTargetParams,
     enabled: z.boolean().optional(),
   }),
   z.object({
     kind: z.literal("pct_move"),
     symbol: z.string().min(1).optional(),
+    assetType: z.enum(["crypto", "equity"]).default("crypto"),
     portfolioId: z.string().min(1).optional(),
     params: PctMoveParams,
     enabled: z.boolean().optional(),
@@ -55,6 +59,8 @@ export async function POST(req: NextRequest) {
     data: {
       kind: d.kind,
       symbol: "symbol" in d && d.symbol ? d.symbol.toUpperCase() : null,
+      // Portfolio-scoped rules read the kind per holding, so theirs is unused.
+      assetType: "assetType" in d ? d.assetType : "crypto",
       portfolioId: d.kind === "pct_move" ? (d.portfolioId ?? null) : null,
       timeframe: d.kind === "indicator" ? d.timeframe : "1d",
       params: JSON.stringify(d.params ?? {}),
