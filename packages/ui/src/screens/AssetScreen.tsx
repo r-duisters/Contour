@@ -546,22 +546,25 @@ export default function AssetScreen({
           <div className="flex justify-center mb-2">
             <RangePicker value={range} onChange={setRange} />
           </div>
-          <div className="mb-2">
-        {changePct !== null && (
-          <span className={`text-sm ${changePct >= 0 ? "text-green-500" : "text-red-500"}`}>
-            {changePct >= 0 ? "+" : ""}{changePct.toFixed(2)}%
-            {/* What that price move is worth on the position. Absent when
-                nothing is held here — this page renders for assets reached
-                from Markets, where there is no quantity to apply it to. */}
-            {rangeMoney !== null && (
-              <> <span className="tabular-nums">
-                {rangeMoney >= 0 ? "+" : ""}{money(rangeMoney)}
-              </span></>
+          {/* Centred under the picker it belongs to: it states what the
+              selected period did, so it reads as that control's answer rather
+              than as a caption on the chart below it. */}
+          <div className="mb-2 text-center">
+            {changePct !== null && (
+              <span className={`text-sm ${changePct >= 0 ? "text-green-500" : "text-red-500"}`}>
+                {changePct >= 0 ? "+" : ""}{changePct.toFixed(2)}%
+                {/* What that price move is worth on the position. Absent when
+                    nothing is held here — this page renders for assets reached
+                    from Markets, where there is no quantity to apply it to. */}
+                {rangeMoney !== null && (
+                  <> <span className="tabular-nums">
+                    {rangeMoney >= 0 ? "+" : ""}{money(rangeMoney)}
+                  </span></>
+                )}
+                <span className="text-neutral-500 text-xs"> price, {changeWindowLabel(range)}</span>
+              </span>
             )}
-            <span className="text-neutral-500 text-xs"> price, {changeWindowLabel(range)}</span>
-          </span>
-        )}
-      </div>
+          </div>
       {/* Crypto only, and only where the chart page exists. It is fed by
           /api/candles, which is Binance, so an equity would open an empty pane
           — and a tap that leads nowhere is worse than no tap. In the device
