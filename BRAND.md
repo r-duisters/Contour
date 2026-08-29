@@ -413,6 +413,25 @@ differences before it was extracted.
   title here, a subtitle there, an icon at two sizes in two greys, and no
   identity at all on the chart. The icon comes from the nav's mapping in
   `TabBar`/`TopNav`, never a second list.
+- **An icon-only button is a bordered circle** — `iconButton()`, or
+  `deleteButton()` for a destructive one. Two sizes and no more: 44px in a
+  page header, 36px inside a list row. A 16px glyph goes in either.
+
+  Not decoration. A glyph with padding has no edge, so it sits wherever its
+  own box puts it and reads as floating beside the content rather than
+  belonging to the row; put one next to a control that *does* have a shape — a
+  switch, a select — and the two stop looking like controls of the same kind.
+  The border is also what makes the target visible: a 16px icon in a 44px
+  button looks like a 44px button, and an icon alone looks like 16px of
+  nothing much. The alerts list shipped a bare bin in `text-neutral-700` whose
+  only signal that it destroyed anything was a hover state, which a phone does
+  not have.
+
+  An icon *beside a word* is a labelled button and takes the button styles.
+  The exceptions are the ones already inside another control — the chevron in
+  a `SymbolPicker` field, which is what a `<select>` draws in its own box —
+  and the entrance surfaces' filled discs. `icon-buttons.test.ts` fails on a
+  fourth spelling, and on an exception with no written reason.
 - **Top bar** — `PageLabel` on the left, circular icon buttons on the right.
   The page label is subordinate to the value beneath it. The row is each
   page's own: the portfolio hangs a picker and an add button off it, the chart

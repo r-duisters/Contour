@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef } from "react";
 import { X } from "lucide-react";
+import { iconButton } from "./icon-button";
 
 /**
  * A panel that rises from the bottom of the screen.
@@ -77,13 +78,16 @@ export default function Sheet({
           <h2 id={titleId} className="text-sm font-semibold uppercase tracking-widest text-neutral-500">
             {title}
           </h2>
+          {/* The row's own control, so it takes the row's shape. A bare
+              glyph here sat at whatever height its padding put it, beside a
+              heading that had a baseline. */}
           <button
             type="button"
             onClick={onClose}
             aria-label={`Close ${title}`}
-            className="p-1 -mr-1 text-neutral-500"
+            className={`${iconButton("sm")} -mr-1`}
           >
-            <X size={18} aria-hidden />
+            <X size={16} aria-hidden />
           </button>
         </div>
         {/* No padding of its own: `MoreMenu` brings a padded list that its
