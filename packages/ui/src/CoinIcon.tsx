@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, type ReactNode } from "react";
+import { DISCLESS_LOGOS } from "@/lib/logo-discs";
 import { NO_ICONS, type IconSource } from "./icon-source";
 
 const QUOTE_ASSETS = ["USDT", "FDUSD", "BUSD", "USDC", "TUSD", "BTC", "ETH", "BNB", "EUR", "TRY"];
@@ -89,25 +90,30 @@ export default function CoinIcon({
   }
 
   /*
-   * Every logo sits on a white disc, coins included.
+   * Most logos sit on a white disc; a measured few sit on nothing.
    *
-   * Equities had this and coins did not, and the difference was invisible for
-   * as long as coin artwork came from a set drawn to one house style. It stops
-   * being invisible when the source becomes each project's own mark: CoinGecko
-   * serves Immutable X as pure black on transparent, so on this app's
-   * `#0a0a0a` ground it rendered as a hole where a logo should be. APT, NMR
+   * The white disc exists because a logo can be a hole otherwise: CoinGecko
+   * serves Immutable X as pure black on transparent, which on this app's
+   * `#0a0a0a` ground rendered as an absence where a mark should be. APT, NMR
    * and ZRX were barely better.
    *
-   * Measured before changing it, because the obvious risk is the mirror image
-   * — a white-on-transparent mark would vanish the other way. Of the 97 coin
-   * logos shipped, the worst contrast against white is 69 out of 255, so
-   * nothing is close. And an opaque logo covers the disc completely, which is
-   * why the 93 that were already fine look no different.
+   * But a single colour cannot serve both ends. Of the 274 logos bundled, the
+   * disc is only visible on 35 — the rest fill the circle with their own
+   * artwork, and `rounded-full` crops the corners where it would otherwise
+   * show. Of those 35, white is the wrong answer for 23: GAS covers 83% of its
+   * disc and meets white at 1.6:1, and THETA, HOT and NEO are no better.
+   *
+   * So the choice is per logo, taken from the artwork rather than by eye —
+   * `scripts/logo-disc.mjs` measures the ink at each mark's rim against both
+   * grounds and writes the list. Worst contrast after the split is 4.5:1,
+   * against 1.6:1 before it. A discless logo sits on whatever surface is
+   * behind it, which is the page ground or a card; it was checked against both.
    */
+  const disc = DISCLESS_LOGOS.has(base) ? "" : "bg-white";
   return (
     <span
       aria-hidden
-      className="inline-flex items-center justify-center rounded-full overflow-hidden shrink-0 bg-white"
+      className={`inline-flex items-center justify-center rounded-full overflow-hidden shrink-0 ${disc}`}
       style={{ width: size, height: size }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}

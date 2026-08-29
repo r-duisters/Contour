@@ -378,6 +378,14 @@ because a canvas cannot read `var(--font-geist-sans)`.
 
 ## Icons
 
+**An asset's logo sits on a white disc, unless it is measured not to.** Most
+logos fill the circle with their own artwork and never show the disc at all;
+of those that do, some are pale marks that wash out on white and some are
+black-on-transparent marks that vanish without it. Neither ground serves both,
+so the choice is per logo and computed from the artwork —
+`scripts/logo-disc.mjs` writes the list and `CoinIcon` reads it. Do not set a
+disc colour by hand: run the script.
+
 Lucide. `size={12}` inline with small text · `size={14}` in buttons ·
 `size={16}` in circular icon buttons and lists · `size={18–20}` beside a page
 label. Always `aria-hidden`; the label carries the meaning.

@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import sharp from "sharp";
+import { writeManifest } from "./logo-disc.mjs";
 
 /**
  * Build the logo bundle the device app ships.
@@ -133,5 +134,12 @@ for (const [kind, tickers] of [["crypto", list.crypto], ["equity", list.equity]]
 // What shipped, so `bundledIconSource` can answer without a request per miss.
 await writeFile(join(OUT, "..", "index.json"), JSON.stringify(have.sort(), null, 0) + "\n");
 
+// Which of them need a white disc behind them and which do not, decided from
+// the artwork that was just written. Here rather than left to a separate step:
+// a refreshed bundle with a stale manifest would draw the wrong ground behind
+// whichever logos changed, and nothing would say so.
+const discless = await writeManifest();
+
 console.log(`bundled ${have.length} logos, ${missing.length} unavailable`);
+console.log(`  ${discless.length} of them drawn with no disc behind them`);
 if (missing.length) console.log("  no logo upstream:", missing.join(" "));
