@@ -151,37 +151,47 @@ const vectorFile = (canvas, body) => `<?xml version="1.0" encoding="utf-8"?>
 const launcherForeground = () => vectorFile(108, markGroup(108, 62));
 
 /**
- * The splash icon, drawn to come out the size of the lock screen's disc.
+ * The canvas Android scales a splash icon's visible content to fill, in dp,
+ * and the inner circle it then masks that canvas to.
  *
- * Two things a diagnostic build established. One UI honours
- * `windowSplashScreenAnimatedIcon` — coloured green, the splash came up green
- * — so this file is what gets drawn. And Android scales the drawable's
- * *visible content* to fill its icon canvas: a disc at 89% of the viewport
- * rendered at exactly the same 188dp as one at 100%, so a fraction declared
- * inside the drawable is discarded.
- *
- * Hence the ground circle. It is the app's own background colour, on a splash
- * whose background is that same colour, so it is invisible — but it is opaque,
- * and it makes the visible content the whole viewport. The blue disc is then
- * the fraction of that viewport it claims to be, and 112 of 188 comes out at
- * the 112dp the lock screen draws. One disc, one size, from the launch window
- * to the fingerprint prompt.
+ * Derived from three measured builds rather than from documentation. A disc
+ * filling its viewport rendered at 188dp; the same disc at 89% of its viewport
+ * also rendered at 188dp; and a disc at 59% behind an opaque circle filling the
+ * viewport rendered at 172dp. One rule fits all three: the *visible content* is
+ * scaled to fill 288dp, and the result is masked to the inner 192dp. The first
+ * two cases have the disc itself as the content, so it fills 288 and the mask
+ * shows 192 of it — which is why declaring a smaller disc changed nothing.
  */
-const splashIcon = () => {
-  // 188 is the canvas Android renders this at, measured on a Galaxy S24.
-  const canvas = 192;
-  const size = Math.round((canvas * 112) / 188);
-  return vectorFile(
-    canvas,
+const SPLASH_CANVAS_DP = 288;
+
+/** The disc's diameter everywhere: `MarkTile`'s size, and the lock screen's. */
+const DISC_DP = 112;
+
+/**
+ * The splash icon: the lock screen's disc, at the lock screen's size.
+ *
+ * A diagnostic build established that One UI honours
+ * `windowSplashScreenAnimatedIcon` — coloured green, the splash came up green
+ * — so this file is what gets drawn, and the only question was ever its size.
+ *
+ * The ground circle is what makes the size ours. It is the app's own
+ * background colour on a splash whose background is that same colour, so it is
+ * invisible; but it is opaque, so it is what Android measures, and the blue
+ * disc keeps the fraction of it that this file declares. The viewport is the
+ * canvas itself, so the disc's units are dp and there is no arithmetic to get
+ * wrong: 112 of 288 renders at 112dp.
+ */
+const splashIcon = () =>
+  vectorFile(
+    SPLASH_CANVAS_DP,
     `
     <path
         android:fillColor="#0A0A0A"
-        android:pathData="${disc(canvas / 2, canvas / 2, canvas / 2)}" />
+        android:pathData="${disc(SPLASH_CANVAS_DP / 2, SPLASH_CANVAS_DP / 2, SPLASH_CANVAS_DP / 2)}" />
     <path
         android:fillColor="#2563EB"
-        android:pathData="${disc(canvas / 2, canvas / 2, size / 2)}" />${markGroup(canvas, size * 0.86)}`,
+        android:pathData="${disc(SPLASH_CANVAS_DP / 2, SPLASH_CANVAS_DP / 2, DISC_DP / 2)}" />${markGroup(SPLASH_CANVAS_DP, DISC_DP * 0.86)}`,
   );
-};
 
 async function androidIcons() {
   const root = "android/app/src/main/res";

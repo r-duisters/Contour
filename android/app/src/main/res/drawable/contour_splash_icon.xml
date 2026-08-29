@@ -4,23 +4,23 @@
   generator and run it, or the two disagree silently.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="192dp"
-    android:height="192dp"
-    android:viewportWidth="192"
-    android:viewportHeight="192">
+    android:width="288dp"
+    android:height="288dp"
+    android:viewportWidth="288"
+    android:viewportHeight="288">
     <path
         android:fillColor="#0A0A0A"
-        android:pathData="M0,96 a96,96 0 1,0 192,0 a96,96 0 1,0 -192,0" />
+        android:pathData="M0,144 a144,144 0 1,0 288,0 a144,144 0 1,0 -288,0" />
     <path
         android:fillColor="#2563EB"
-        android:pathData="M39,96 a57,57 0 1,0 114,0 a57,57 0 1,0 -114,0" />
+        android:pathData="M88,144 a56,56 0 1,0 112,0 a56,56 0 1,0 -112,0" />
     <group
         android:pivotX="256"
         android:pivotY="256"
-        android:scaleX="0.206835"
-        android:scaleY="0.206835"
-        android:translateX="-160.000"
-        android:translateY="-160.000">
+        android:scaleX="0.203207"
+        android:scaleY="0.203207"
+        android:translateX="-112.000"
+        android:translateY="-112.000">
         <path
             android:strokeColor="#FFFFFF"
             android:strokeWidth="12"

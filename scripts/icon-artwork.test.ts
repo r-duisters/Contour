@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { LOCK_DISC_PX, SPLASH_CANVAS_PX, SPLASH_DISC_PX } from "../packages/ui/src/lock-timing";
+import { LOCK_DISC_PX, SPLASH_DISC_PX, SPLASH_ICON_CANVAS_DP } from "../packages/ui/src/lock-timing";
 
 /**
  * The launcher icon is one filled tile, and the mark inside it is the mark.
@@ -91,7 +91,9 @@ describe("the launch draws one disc at one size", () => {
   it("draws its blue disc at the lock screen's size", () => {
     const xml = splash();
     const viewport = Number(/android:viewportWidth="([\d.]+)"/.exec(xml)?.[1]);
-    const rendered = (radii(xml)[1] * 2 * SPLASH_CANVAS_PX) / viewport;
+    // Content fills the canvas, so the disc's share of the viewport is its
+    // share of those 288dp.
+    const rendered = (radii(xml)[1] * 2 * SPLASH_ICON_CANVAS_DP) / viewport;
     expect(rendered).toBeCloseTo(LOCK_DISC_PX, 0);
   });
 

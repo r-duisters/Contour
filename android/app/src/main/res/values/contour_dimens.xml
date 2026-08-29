@@ -23,10 +23,12 @@
       The box `contour_splash.xml` draws the splash vector in.
 
       Not 112, even though the disc that comes out of it is. That vector carries
-      an invisible ground circle filling its viewport — the trick that makes
-      Android render its blue disc at 112dp rather than at the full icon canvas
-      — so the disc is 112 of the 188 the file is drawn at. Ask for 112 here and
-      a 67dp disc arrives.
+      an invisible ground circle filling its viewport, which is the trick that
+      makes the disc's size ours to choose at all — so the file is 288 wide to
+      yield a 112 disc, and asking for 112 here would produce a 44dp one.
+
+      288 is Android's own splash icon canvas, which the vector's viewport
+      matches so that its units are dp. See `scripts/generate-icons.mjs`.
     -->
-    <dimen name="splash_icon_box">188dp</dimen>
+    <dimen name="splash_icon_box">288dp</dimen>
 </resources>

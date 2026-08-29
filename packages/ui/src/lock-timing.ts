@@ -23,20 +23,20 @@
  */
 
 /**
- * The canvas Android renders its splash icon at, in CSS pixels.
+ * The canvas Android scales a splash icon's visible content to fill, in dp.
  *
- * Measured off a screen recording on a Galaxy S24: 564 of 1080 device pixels
- * at that screen's 3x. Not a choice — Android 12 always shows a splash screen,
- * an app picks only what is on it, and it scales that drawable's visible
- * content to fill this canvas. A disc drawn at 89% of its viewport came out at
- * exactly the same size as one drawn at 100%.
+ * Derived from three measured builds, not from documentation: a disc filling
+ * its viewport rendered at 188dp, the same disc at 89% of its viewport also
+ * rendered at 188dp, and a disc at 59% behind an opaque circle filling the
+ * viewport rendered at 172dp. One rule fits all three — the visible content is
+ * scaled to fill 288dp and then masked to the inner 192.
  *
- * It is still here because `contour_splash_icon.xml` defeats that
- * normalisation deliberately, and this is the number it works against: an
- * invisible ground circle fills the viewport so the visible content is the
- * whole file, and the blue disc is then 112 of these 188.
+ * Which is why `contour_splash_icon.xml` carries an invisible ground circle:
+ * it makes the visible content the whole file, so the disc keeps the fraction
+ * it declares. Without it the disc is its own content, fills 288, and no
+ * declared size has any effect at all.
  */
-export const SPLASH_CANVAS_PX = 188;
+export const SPLASH_ICON_CANVAS_DP = 288;
 
 /** The disc's diameter at rest, which is `BRAND.md`'s size and `MarkTile`'s. */
 export const LOCK_DISC_PX = 112;
@@ -45,9 +45,9 @@ export const LOCK_DISC_PX = 112;
  * The disc the app's own splash draws — the same one, at the same size, as the
  * lock screen's.
  *
- * The launch used to show the mark at `SPLASH_CANVAS_PX` and then shrink it by
- * two fifths on arrival, because that was the only size the system splash
- * could be persuaded to draw. It can be persuaded now, so there is nothing
+ * The launch used to show the mark at 188dp and then shrink it by two fifths
+ * on arrival, because that was the only size the system splash could be
+ * persuaded to draw. It can be persuaded now, so there is nothing
  * left to shrink: the launch window, this screen and the fingerprint prompt
  * all draw one disc at one size, and the entrance is only a movement.
  */
