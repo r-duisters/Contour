@@ -31,11 +31,12 @@
  * a Galaxy S24 at 564 of 1080 device pixels, which is 188 CSS pixels at that
  * screen's 3x, back when the disc filled the icon it was drawn from.
  *
- * It no longer fills it. The launcher icon's disc is 64 of the 72dp a mask
- * crops to, so every icon in the chain draws its disc at 64/72 of the space it
- * is given, and 188 becomes 167. The chain has to agree end to end: the
- * launcher morphs its icon into the splash, and the splash hands over to this
- * screen. Any two of them disagreeing is a visible switch.
+ * It is the canvas size and not a fraction of it, because Android scales the
+ * splash drawable's visible content to fill that canvas — a disc drawn at 89%
+ * of its viewport rendered at exactly the same 188dp as one drawn at 100%,
+ * measured from a diagnostic build. Trying to make this smaller by shrinking
+ * the disc inside the drawable does nothing at all, which is a thing I got
+ * wrong twice before measuring it.
  *
  * So the app's own splash draws the mark at this size rather than at
  * `LOCK_DISC_PX`, and the difference is spent during the travel instead of
@@ -55,7 +56,7 @@ export const SPLASH_CANVAS_PX = 188;
  */
 export const ICON_DISC_FRACTION = 64 / 72;
 
-export const SPLASH_DISC_PX = Math.round(SPLASH_CANVAS_PX * ICON_DISC_FRACTION);
+export const SPLASH_DISC_PX = SPLASH_CANVAS_PX;
 
 /** The disc's diameter at rest, which is `BRAND.md`'s size and `MarkTile`'s. */
 export const LOCK_DISC_PX = 112;

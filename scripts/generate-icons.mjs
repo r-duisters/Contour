@@ -193,23 +193,24 @@ async function androidIcons() {
    */
   await writeFile(`${drawables}/ic_launcher_disc.xml`, vectorIcon(108, 64));
   /*
-   * The splash icon, sized to be *the same picture* as the launcher icon.
+   * The splash icon. Its disc fills the drawable, because Android renders it
+   * that way whatever we write.
    *
-   * Android 12 cannot be told not to show a splash screen; the only thing an
-   * app chooses is what is on it. And the launcher morphs its own icon into
-   * that splash — so if the two differ, the difference is a visible switch
-   * partway through the animation, which is what "it flashes the app icon and
-   * then swaps to the real one" describes.
+   * A diagnostic build settled two things a lot of guessing had not. One UI
+   * *does* honour `windowSplashScreenAnimatedIcon` — colour this green and the
+   * splash comes up green — so the icon is ours to choose. But its size is
+   * not: shipped at 171 of a 192 viewport, it rendered at 565 of 1080 device
+   * pixels, which is the same 188dp it rendered at when the disc filled the
+   * viewport entirely. Android scales the drawable's visible content to fill
+   * its icon canvas, so a fraction declared inside the drawable is discarded.
+   * Two earlier attempts to shrink this disc failed for that reason and not,
+   * as I concluded at the time, because the drawable was being ignored.
    *
-   * A launcher's mask crops the adaptive icon to 72 of its 108dp and scales
-   * that to fill; a 64dp disc therefore covers 64/72 of the icon it draws. So
-   * this disc covers 64/72 of its own canvas — 171 of 192 — and the two agree
-   * whichever of them One UI happens to draw.
+   * So the disc fills the viewport: that is what gets drawn, and writing it
+   * any other way would be a fiction the file tells about itself.
+   * `SPLASH_DISC_PX` carries the 188 the app's own splash has to match.
    */
-  await writeFile(
-    `${drawables}/contour_splash_icon.xml`,
-    vectorIcon(192, Math.round((192 * 64) / 72)),
-  );
+  await writeFile(`${drawables}/contour_splash_icon.xml`, vectorIcon(192, 192));
   console.log("wrote", drawables);
 
   for (const [density, size] of DENSITIES) {

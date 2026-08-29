@@ -119,11 +119,20 @@ describe("the launch draws one disc at one size", () => {
     expect(ofLayer * (LAYER_DP / MASK_DP)).toBeCloseTo(ICON_DISC_FRACTION, 2);
   });
 
-  it("the splash icon's disc covers the same share of its canvas", () => {
-    expect(discFraction("contour_splash_icon.xml")).toBeCloseTo(ICON_DISC_FRACTION, 2);
+  /**
+   * The splash icon is the exception, and deliberately so.
+   *
+   * Android scales this drawable's visible content to fill its icon canvas, so
+   * a disc drawn at 89% of the viewport came out at exactly the same 188dp as
+   * one drawn at 100% — measured from a diagnostic build. The fraction here is
+   * discarded, so the file states the truth: the disc fills it, and the app's
+   * own splash matches the canvas rather than a share of it.
+   */
+  it("the splash icon's disc fills its viewport, which is what gets drawn", () => {
+    expect(discFraction("contour_splash_icon.xml")).toBeCloseTo(1, 2);
   });
 
-  it("the app's own splash draws the mark at that share too", () => {
-    expect(SPLASH_DISC_PX / SPLASH_CANVAS_PX).toBeCloseTo(ICON_DISC_FRACTION, 2);
+  it("the app's own splash matches the canvas the system renders", () => {
+    expect(SPLASH_DISC_PX).toBe(SPLASH_CANVAS_PX);
   });
 });
