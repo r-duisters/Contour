@@ -141,7 +141,10 @@ export function detachCacheStore(): void {
  * close that window; so can a test that wants to read what it just wrote.
  */
 export function flushCache(): void {
-  scheduled = false;
+  if (scheduled !== null) {
+    clearTimeout(scheduled);
+    scheduled = null;
+  }
   persistNow();
 }
 
@@ -178,20 +181,27 @@ function reviver(_key: string, value: unknown): unknown {
  * and worse on a phone's UI thread, growing with the square of the cache. One
  * write after the burst says exactly the same thing.
  *
+ * **The delay is what keeps it off the interaction.** It was a zero-timeout,
+ * which lands on the very next tick — inside the same frame budget as the
+ * render that caused it. Changing the timeframe on a chart writes a history
+ * entry, so the store was re-serialised while the chart was still drawing, and
+ * the app went sluggish for exactly as long as that took. A couple of seconds
+ * later, the interaction is over and nothing is competing.
+ *
  * A process killed before the timer fires loses the last write, which costs a
- * refetch and never data — the same trade the cache makes everywhere else.
+ * refetch and never data — the same trade the cache makes everywhere else, and
+ * `flushCache()` on the way to the background is what makes the window small.
  */
-let scheduled = false;
+const PERSIST_DELAY_MS = 2_000;
+let scheduled: ReturnType<typeof setTimeout> | null = null;
 
 function persist(): void {
-  if (!persistent || scheduled) return;
-  scheduled = true;
-  if (typeof setTimeout === "function") {
-    setTimeout(() => { scheduled = false; persistNow(); }, 0);
+  if (!persistent || scheduled !== null) return;
+  if (typeof setTimeout !== "function") {
+    persistNow();
     return;
   }
-  scheduled = false;
-  persistNow();
+  scheduled = setTimeout(() => { scheduled = null; persistNow(); }, PERSIST_DELAY_MS);
 }
 
 function persistNow(): void {
@@ -205,16 +215,28 @@ function persistNow(): void {
      * the one that would still have been answering questions tomorrow.
      */
     const ordered = [...store_.entries()].sort((a, b) => b[1].expires - a[1].expires);
-    const out: Record<string, Entry> = {};
+    /*
+     * Each entry is serialised once and the blob is assembled from those
+     * pieces.
+     *
+     * This stringified every entry to measure it, dropped the string, and then
+     * stringified the whole object again — two full passes over everything to
+     * produce one. At the 3 MB the budget allows that is 6 MB of work per
+     * write, and it happened after every `set`.
+     */
+    const parts: string[] = [];
     let total = 0;
     for (const [key, entry] of ordered) {
-      const size = JSON.stringify(entry.value, replacer).length;
-      if (size > MAX_PERSISTED_BYTES) continue;
-      if (total + size > TOTAL_BUDGET_CHARS) continue;
-      out[key] = entry;
-      total += size;
+      const value = JSON.stringify(entry.value, replacer);
+      if (value.length > MAX_PERSISTED_BYTES) continue;
+      if (total + value.length > TOTAL_BUDGET_CHARS) continue;
+      parts.push(`${JSON.stringify(key)}:{"value":${value},"expires":${entry.expires}}`);
+      total += value.length;
     }
-    persistent.setItem(PERSIST_KEY, JSON.stringify({ version: PERSIST_VERSION, entries: out }, replacer));
+    persistent.setItem(
+      PERSIST_KEY,
+      `{"version":${PERSIST_VERSION},"entries":{${parts.join(",")}}}`,
+    );
   } catch {
     // Over quota despite the budget, or storage blocked outright. Drop what is
     // there rather than leaving a half-written blob behind: a stale entry that

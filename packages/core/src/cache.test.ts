@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { attachCacheStore, cacheSize, cached, detachCacheStore, flushCache, invalidate } from "./cache";
+import { describe, expect, it, vi } from "vitest";
+import { attachCacheStore, cacheSize, cached, detachCacheStore, flushCache, invalidate, put } from "./cache";
 
 describe("cached, on a process that does not restart", () => {
   it("stays bounded as time-bucketed keys accumulate", async () => {
@@ -324,5 +324,65 @@ describe("reopening the app later", () => {
     expect(writes).toBe(1);
     detachCacheStore();
     invalidate();
+  });
+});
+
+
+/**
+ * When the write happens matters as much as how long it takes.
+ *
+ * It was scheduled on a zero timeout, which lands on the next tick — inside
+ * the same frame as the render that caused it. Changing a chart's timeframe
+ * writes a history entry, so the whole store was re-serialised while the chart
+ * was still drawing, and the app went sluggish for exactly that long.
+ */
+describe("when the cache writes", () => {
+  it("does not write during the interaction that filled it", () => {
+    vi.useFakeTimers();
+    try {
+      invalidate();
+      const writes: number[] = [];
+      attachCacheStore({
+        getItem: () => null,
+        setItem: (_k, v) => writes.push(v.length),
+        removeItem: () => {},
+      });
+
+      put("a", { n: 1 }, 60_000);
+      put("b", { n: 2 }, 60_000);
+      vi.advanceTimersByTime(50);
+      expect(writes, "a write on the next tick is a write inside the frame").toEqual([]);
+
+      vi.advanceTimersByTime(2_000);
+      // One write for the burst, not one per entry.
+      expect(writes).toHaveLength(1);
+    } finally {
+      detachCacheStore();
+      vi.useRealTimers();
+    }
+  });
+
+  it("still writes at once when asked to, since that is the last chance", () => {
+    vi.useFakeTimers();
+    try {
+      invalidate();
+      const writes: string[] = [];
+      attachCacheStore({
+        getItem: () => null,
+        setItem: (_k, v) => writes.push(v),
+        removeItem: () => {},
+      });
+      put("a", { n: 1 }, 60_000);
+      // Android is about to take the process; the timer will never fire.
+      flushCache();
+      expect(writes).toHaveLength(1);
+
+      // And the pending timer must not then write a second time.
+      vi.advanceTimersByTime(5_000);
+      expect(writes).toHaveLength(1);
+    } finally {
+      detachCacheStore();
+      vi.useRealTimers();
+    }
   });
 });
