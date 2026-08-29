@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 const COIN_CDN = "https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color";
 const STOCK_LOGOS = "https://assets.parqet.com/logos/symbol";
+const GECKO = "https://api.coingecko.com/api/v3/coins/markets";
 // Repository-level so the already-warmed cache survives the app's move into
 // apps/web, and so a second app can share it later.
 const CACHE_DIR = fromRepoRoot(".icon-cache");
@@ -19,6 +20,55 @@ const Query = z.object({
   symbol: z.string().min(1).max(30).regex(/^[A-Za-z0-9._-]+$/),
   type: z.enum(["crypto", "equity"]).default("crypto"),
 });
+
+/**
+ * A coin's logo, from the source that is still being updated.
+ *
+ * `spothq/cryptocurrency-icons` last shipped a commit on 2022-08-22, so every
+ * coin listed since is a 404 — SHIB, PEPE, NEAR, ARB, OP, SUI among them. It
+ * stays as the fallback, because it still has older coins outside CoinGecko's
+ * top 500, but it can no longer be the only answer.
+ *
+ * The ranking is one request for 250 coins and is already what the markets
+ * board reads, so this adds no upstream the app did not have. Held for an hour
+ * in the process, which is the same window `fetchTopByMarketCap` uses; the
+ * icons themselves are cached on disk for far longer by the route below, so
+ * this list is consulted once per coin and not once per render.
+ *
+ * `scripts/bundle-icons.mjs` resolves logos the same way and in the same
+ * order. Change one, change the other, or the two builds show different logos
+ * for the same coin.
+ */
+let geckoAt = 0;
+let geckoBySymbol: Map<string, string> | null = null;
+
+async function geckoLogo(symbol: string): Promise<string | null> {
+  if (!geckoBySymbol || Date.now() - geckoAt > 3_600_000) {
+    const next = new Map<string, string>();
+    try {
+      const res = await fetch(
+        `${GECKO}?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false`,
+        { headers: { "User-Agent": "Contour/1.0 (+self-hosted portfolio tracker)" } },
+      );
+      if (res.ok) {
+        for (const row of (await res.json()) as { symbol?: string; image?: string }[]) {
+          // The higher cap wins a shared ticker, which is the order the list
+          // already arrives in.
+          if (row.symbol && row.image && !next.has(row.symbol.toUpperCase())) {
+            next.set(row.symbol.toUpperCase(), row.image);
+          }
+        }
+      }
+    } catch {
+      // Unreachable: fall through to the CDN below rather than failing the icon.
+    }
+    // Kept even when empty, so a rate-limited minute does not become a request
+    // per icon for the next hour.
+    geckoBySymbol = next;
+    geckoAt = Date.now();
+  }
+  return geckoBySymbol.get(symbol.toUpperCase()) ?? null;
+}
 
 /**
  * Serves asset icons from a local cache, fetching from upstream once.
@@ -39,7 +89,7 @@ export async function GET(req: NextRequest) {
 
   const upstream = type === "equity"
     ? `${STOCK_LOGOS}/${encodeURIComponent(symbol.toUpperCase())}`
-    : `${COIN_CDN}/${symbol.toLowerCase()}.svg`;
+    : (await geckoLogo(symbol)) ?? `${COIN_CDN}/${symbol.toLowerCase()}.svg`;
 
   const key = createHash("sha1").update(`${type}:${symbol.toUpperCase()}`).digest("hex");
   const file = path.join(CACHE_DIR, `${key}.svg`);
