@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { use, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { TxSide } from "@/lib/portfolio";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -12,7 +12,7 @@ import Sheet from "@/components/Sheet";
 import { assetOf, pricingPair } from "@/core/symbols";
 import { chartTheme, directionColors, roseOverPeriod } from "@/components/chart-theme";
 import {
-  ArrowDown, ArrowLeft, ArrowUp, Bell, ChevronLeft, ChevronRight, Plus, Trash2, X,
+  ArrowDown, ArrowLeft, ArrowUp, Bell, ChevronDown, ChevronLeft, ChevronRight, Plus, Trash2, X,
 } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
 import { useDataClient } from "@/data/client/context";
@@ -124,6 +124,17 @@ export default function AssetScreen({
   );
   const [changePct, setChangePct] = useState<number | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  /**
+   * The accounting disclosure, remembered across assets.
+   *
+   * Read once at mount rather than through a hook: `useStoredRange` exists for
+   * a value the URL and two screens share, and this is one boolean that only
+   * this screen has an opinion about.
+   */
+  const [ledgerOpen, setLedgerOpen] = useState(() => {
+    try { return localStorage.getItem(KEYS.assetLedgerOpen) === "1"; } catch { return false; }
+  });
+  const ledgerId = useId();
   const [alertOpen, setAlertOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   // The id arrives in the URL when this page is opened from the portfolio, so
@@ -446,23 +457,33 @@ export default function AssetScreen({
 
       {shownHolding === undefined && <p className="text-sm text-neutral-500">Loading…</p>}
       <StaleNote at={stale} />
-      {shownHolding && (
-        <>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 md:gap-3 text-sm mb-6">
-            <StatTile label="Average cost" value={shownHolding.quantity > 0 ? money(shownHolding.avgCost) : "—"} />
-            <StatTile label="Last price" value={shownHolding.price !== null ? money(shownHolding.price) : "no price"} />
-            <StatTile label="Cost basis" value={money(shownHolding.costBasis)} />
-            <StatTile
-              label="Unrealised"
-              value={shownHolding.unrealizedPnl !== null
-                ? `${money(shownHolding.unrealizedPnl)}${pct !== null ? ` (${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%)` : ""}`
-                : "—"}
-              signed={shownHolding.unrealizedPnl ?? undefined}
-            />
-            <StatTile label="Realised" value={money(shownHolding.realizedPnl)} signed={shownHolding.realizedPnl} />
-            <StatTile label="Fees" value={money(shownHolding.fees)} />
-          </div>
-        </>
+
+      {/*
+        What the holding has made, on one line, above the chart.
+        =======================================================
+
+        This page opened with six equal tiles — average cost, last price, cost
+        basis, unrealised, realised, fees — roughly 380px of figures before any
+        chart on a 412px phone. Two investors and a usability pass were asked
+        about it and none of them defended that order: the common task is a
+        glance, and a glance was made to scroll.
+
+        What the two investors disagreed about is what comes first. One wanted
+        the chart straight under the header; the other said the money should be
+        answered before anything moves, and that the header does not answer it
+        — it carries the position's *value* and *today's* change, never what
+        the holding has made since it was bought. He was right about that, and
+        it is one line rather than a tile, so both readings get what they came
+        for and the chart still sits high.
+      */}
+      {shownHolding && shownHolding.unrealizedPnl !== null && (
+        <p className={`text-base font-medium mb-4 ${shownHolding.unrealizedPnl >= 0 ? "text-green-500" : "text-red-500"}`}>
+          {shownHolding.unrealizedPnl >= 0 ? "+" : ""}{money(shownHolding.unrealizedPnl)}
+          {pct !== null && (
+            <span className="text-sm"> {pct >= 0 ? "+" : ""}{pct.toFixed(1)}%</span>
+          )}
+          <span className="text-xs text-neutral-500 font-normal"> since you bought</span>
+        </p>
       )}
 
       {/*
@@ -510,6 +531,66 @@ export default function AssetScreen({
       ) : (
         <PriceChart bars={bars} txs={txs} hideValues={hideAmounts} />
       )}
+
+          {/*
+            Two figures, not six. These are the ones a person reads while
+            looking at the chart above them: what it costs now, and what they
+            paid on average — the pair that answers "is this a good place to
+            add". The other four are accounting, and they are one tap away
+            rather than four rows up.
+          */}
+          {shownHolding && (
+            <div className="grid grid-cols-2 gap-2 md:gap-3 text-sm mt-4">
+              <StatTile label="Last price" value={shownHolding.price !== null ? money(shownHolding.price) : "no price"} />
+              <StatTile label="Average cost" value={shownHolding.quantity > 0 ? money(shownHolding.avgCost) : "—"} />
+            </div>
+          )}
+
+          {/*
+            A disclosure rather than a tab or a second screen. All three
+            reviewers chose this mechanism independently and gave the same
+            reason: a tab implies two ways of using the page, and this is one
+            continuous story — the position, then the fuller accounting of the
+            same position.
+
+            Nothing is deleted. "Cost basis and realised are the point of a
+            portfolio tool versus watching a candle on TradingView" — the cost
+            of demoting them is one tap for somebody reconciling, which is why
+            the choice is remembered rather than reset on every asset.
+          */}
+          {shownHolding && (
+            <>
+              <button
+                onClick={() => {
+                  const next = !ledgerOpen;
+                  setLedgerOpen(next);
+                  try { localStorage.setItem(KEYS.assetLedgerOpen, next ? "1" : "0"); } catch {
+                    // Blocked storage costs a tap on the next asset, not data.
+                  }
+                }}
+                aria-expanded={ledgerOpen}
+                aria-controls={ledgerId}
+                className="mt-2 w-full min-h-11 flex items-center justify-center gap-1.5 rounded
+                           border border-dashed border-neutral-800 text-xs text-neutral-400
+                           hover:border-neutral-700 hover:text-neutral-300 transition-colors
+                           focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+              >
+                Cost basis, realised, fees
+                <ChevronDown
+                  size={14}
+                  aria-hidden
+                  className={`transition-transform ${ledgerOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+              {ledgerOpen && (
+                <div id={ledgerId} className="grid grid-cols-2 sm:grid-cols-3 gap-2 md:gap-3 text-sm mt-2">
+                  <StatTile label="Cost basis" value={money(shownHolding.costBasis)} />
+                  <StatTile label="Realised" value={money(shownHolding.realizedPnl)} signed={shownHolding.realizedPnl} />
+                  <StatTile label="Fees" value={money(shownHolding.fees)} />
+                </div>
+              )}
+            </>
+          )}
 
           {/* Waits for the kind rather than asking about the wrong asset:
               a background panel fetched as an equity describes a listed

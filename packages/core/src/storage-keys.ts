@@ -15,6 +15,15 @@ export const KEYS = {
   rangePortfolio: `${PREFIX}range:portfolio`,
   rangeAsset: `${PREFIX}range:asset`,
   /**
+   * Whether the asset page's cost-and-fees disclosure is open.
+   *
+   * Remembered rather than reset per asset, because the person it costs a tap
+   * is the one reconciling a sale across several holdings in one sitting —
+   * exactly the case where re-opening it on every page would be the annoying
+   * half of the trade. Somebody who never wants it pays nothing either way.
+   */
+  assetLedgerOpen: `${PREFIX}asset-ledger-open`,
+  /**
    * The portfolio a screen last resolved.
    *
    * The ledger learns which portfolio it is showing from the network, so
