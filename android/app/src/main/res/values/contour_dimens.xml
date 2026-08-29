@@ -12,6 +12,26 @@
     <dimen name="contour_mark_disc">112dp</dimen>
 
     <!--
+      The canvas `contour_splash_icon` declares, and the reason it declares one
+      at all.
+
+      Android 12 does not draw a splash icon at the size its drawable asks for.
+      It scales the drawable's *intrinsic* size to fill the icon canvas — the
+      inner 192dp of the 288dp box `core-splashscreen` names as
+      `splashscreen_icon_size_no_background`. The disc used to be the largest
+      thing in that drawable, so the drawable's intrinsic size was the disc,
+      and it was scaled to fill the canvas: measured off a screen recording at
+      564 of 1080 device pixels on a 3x screen, which is 188dp where 112 was
+      intended. The mark then shrank by two fifths at the handover to the web
+      splash, which is the one moment it must not change.
+
+      So the drawable declares this canvas with a transparent layer, and the
+      disc is 112 of it. Scaling becomes near-identity and the disc arrives at
+      the size every other surface draws it.
+    -->
+    <dimen name="splash_icon_canvas">192dp</dimen>
+
+    <!--
       The mark inside that disc: 86% of it, which is `MarkTile`'s rule and so
       what the lock screen draws one frame later.
     -->

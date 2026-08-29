@@ -24,7 +24,18 @@ public class MainActivity extends BridgeActivity {
      * never lays out — a corrupt asset, a WebView that will not start — the
      * splash must still come down and let the app show whatever it can.
      */
-    private static final long SPLASH_HOLD_CAP_MS = 1_500;
+    private static final long SPLASH_HOLD_CAP_MS = 2_500;
+
+    /**
+     * Frames to keep the splash after the page reports itself loaded.
+     *
+     * A WebView paints its background colour before it composites content, so
+     * "loaded" and "on screen" are not the same frame. Without this the splash
+     * came down onto a screen of bare ground and the mark was missing for about
+     * a tenth of a second — measured at 1.50s to 1.62s in a recording, every
+     * pixel of it #0a0a0a.
+     */
+    private static final int SPLASH_SETTLE_FRAMES = 2;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -75,10 +86,17 @@ public class MainActivity extends BridgeActivity {
      */
     private void holdSplashUntilWebViewPaints(SplashScreen splash) {
         final long startedAt = SystemClock.uptimeMillis();
+        final int[] settled = { 0 };
         splash.setKeepOnScreenCondition(() -> {
             if (SystemClock.uptimeMillis() - startedAt > SPLASH_HOLD_CAP_MS) return false;
             WebView webView = getBridge().getWebView();
-            return webView != null && webView.getContentHeight() == 0;
+            if (webView == null) return true;
+            // getContentHeight() alone was the first attempt, and it is true at
+            // the document's first layout — long before anything is drawn.
+            if (webView.getProgress() < 100 || webView.getContentHeight() == 0) return true;
+            // The condition is re-evaluated on every pre-draw, so counting them
+            // is counting frames. Nothing polls and nothing sleeps.
+            return ++settled[0] <= SPLASH_SETTLE_FRAMES;
         });
     }
 

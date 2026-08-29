@@ -73,20 +73,30 @@ const favicon = () => `
 const DISC = 72 / 108;
 
 /**
- * The launcher icon for API 24 and 25, which have no adaptive icon.
+ * The launcher icon for API 24 and 25, which have no adaptive icon to mask.
  *
- * These draw the blue to the edge, and that is not the inconsistency it looks
- * like: the disc is inset in the adaptive icon only to survive a launcher's
- * mask, and here there is no mask to survive. `round` is `ic_launcher_round`,
- * which was a squircle byte-identical to `ic_launcher` — the one surface whose
- * whole purpose is to be round.
+ * Each is what the adaptive icon *looks like* under the corresponding mask, so
+ * the package contains one picture rather than two. Under a circular mask the
+ * 72dp disc fills the visible 72dp exactly, which is a plain blue circle;
+ * under a squircle it leaves the ground in the corners.
  *
- * The mark is 86% of the tile, which is `MarkTile`'s rule.
+ * They were drawn full-bleed blue for one build, on the reasoning that the
+ * inset exists only to survive a mask and here there is none. That was true
+ * and beside the point: it left the only blue square in the package, on a
+ * launch that is still flashing one. Whatever surface is drawing it, it can no
+ * longer be something we shipped.
  */
-const legacyIcon = (round) => `
+const legacyIcon = (round) => round
+  ? `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="${round ? 256 : 96}" fill="#2563eb"/>
+  <circle cx="256" cy="256" r="256" fill="#2563eb"/>
   ${mark(0.86)}
+</svg>`
+  : `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0a0a0a"/>
+  <circle cx="256" cy="256" r="${256 * DISC}" fill="#2563eb"/>
+  ${mark(DISC * 0.86)}
 </svg>`;
 
 const DENSITIES = [
