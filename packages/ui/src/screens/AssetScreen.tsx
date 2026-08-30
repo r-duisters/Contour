@@ -325,6 +325,18 @@ export default function AssetScreen({
     windowStart: bars && bars.length > 0 ? bars[0]!.t : null,
   });
 
+  /*
+   * What to call the window, in the header.
+   *
+   * `changeWindowLabel` says "24h" for a day, which is right for a coin and
+   * wrong for a share: an equity's 1D window is the last *session*, because
+   * its market was shut for most of the last twenty-four hours. The label
+   * follows the measurement.
+   */
+  const windowWord = range === "1d" && shownHolding?.assetType === "equity"
+    ? "today"
+    : changeWindowLabel(range);
+
   return (
     <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-3 py-4 md:p-8 max-w-4xl mx-auto">
       {/*
@@ -445,19 +457,27 @@ export default function AssetScreen({
         printing both units in both columns would be four numbers saying two
         things. This replaces a tap that swapped every column between rates and
         amounts, which existed because the header had only rates to offer.
+
+        Both follow the range picker, so the figures describe the picture
+        underneath them. They used to be fixed at 24 hours while the chart drew
+        a year, and the page then repeated itself in a sentence below the chart
+        to say what the year had done — a third place to read a number that the
+        header should have been answering. Both bounds come from the drawn bars
+        rather than a duration table, so the header cannot disagree with the
+        line about what window it is describing.
+
+        The lines are absent until the bars arrive, which is a beat on a cold
+        load. The alternative is printing the day's move under a label that
+        says 1Y, and a figure that is wrong for a moment is worse than one that
+        is late.
       */}
       <div className="grid grid-cols-2 gap-4 mb-6">
         <HeadFigure
           label="Price"
           value={priceNow !== null ? marketPrice(priceNow) : "—"}
-          change={
-            shownHolding?.dayChange
-              ? { text: percent(shownHolding.dayChange.pct), signed: shownHolding.dayChange.pct,
-                  word: shownHolding.assetType === "equity" ? "today" : "24h" }
-              : changePct !== null
-                ? { text: percent(changePct), signed: changePct, word: changeWindowLabel(range) }
-                : null
-          }
+          change={changePct !== null
+            ? { text: percent(changePct), signed: changePct, word: windowWord }
+            : null}
         />
         {/* Absent rather than empty when nothing is held. A labelled dash would
             be a column saying it has nothing to say, next to one that does. */}
@@ -465,12 +485,12 @@ export default function AssetScreen({
           <HeadFigure
             label="Holding"
             value={money(shownHolding.value)}
-            change={
-              shownHolding.dayChange
-                ? { text: signedMoney(shownHolding.dayChange.abs), signed: shownHolding.dayChange.abs,
-                    word: shownHolding.assetType === "equity" ? "today" : "24h" }
-                : null
-            }
+            /* Null when the position opened after the window did — the
+               figure would otherwise describe money that was never at stake.
+               `positionChangeOverWindow` decides that, not this. */
+            change={rangeMoney !== null
+              ? { text: signedMoney(rangeMoney), signed: rangeMoney, word: windowWord }
+              : null}
           />
         )}
       </div>
@@ -519,38 +539,15 @@ export default function AssetScreen({
       )}
 
           {/*
-            The period's change, after the thing it describes.
-            ==================================================
+            The change under the chart is gone, not moved.
 
-            It sat above the chart, where a summary is announced before there
-            is anything to summarise. Under it, it reads as what was just
-            drawn.
-
-            It is still two quantities: the percentage is what the *price* did
-            over the selected period, and the money beside it is what that move
-            was worth to *your position* — a different subject, computed from
-            your quantity, and absent for an asset you hold none of. The words
-            say which is which now, rather than a trailing "price, 1Y" that
-            named only the first.
+            It read "+31,88% over 1M · +€26.721,84 to you" — the rate the chart
+            drew and what that came to for the holder. Both figures are in the
+            header now, above the chart rather than below it, each under the
+            column it belongs to and each following the same range picker. The
+            sentence was the page saying a third time what it had already said
+            twice, in a different unit and a different place.
           */}
-          {changePct !== null && (
-            <div className="mt-2 text-center text-sm">
-              <span className={changePct >= 0 ? "text-green-500" : "text-red-500"}>
-                {changePct >= 0 ? "+" : ""}{changePct.toFixed(2)}%
-              </span>
-              <span className="text-neutral-500 text-xs"> over {changeWindowLabel(range)}</span>
-              {rangeMoney !== null && (
-                <>
-                  <span className="text-neutral-600"> · </span>
-                  <span className={`tabular-nums ${rangeMoney >= 0 ? "text-green-500" : "text-red-500"}`}>
-                    {rangeMoney >= 0 ? "+" : ""}{money(rangeMoney)}
-                  </span>
-                  <span className="text-neutral-500 text-xs"> to you</span>
-                </>
-              )}
-            </div>
-          )}
-
           {/*
             Every figure folds away, and the page is the chart by default.
             ============================================
