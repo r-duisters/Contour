@@ -120,7 +120,7 @@ committed in the public repo at a path the submodule shadows.
 
 *For:* no registry, no publishing step, works with a private GitHub repo today.
 *Against:* submodules confuse contributors, and shadowing a tracked path with a
-submodule is a arrangement git makes awkward.
+submodule is an arrangement git makes awkward.
 
 **Recommendation: A.** The loader it requires is a dozen lines and it makes
 "absent" explicit in the type system, which is what stops the public build
