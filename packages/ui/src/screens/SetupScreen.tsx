@@ -45,7 +45,7 @@ const STEPS: Step[] = ["currency", "name", "import", "alerts"];
  * half-finished.
  *
  * **The notifications step comes last because it needs the others.** "Tell me
- * about big moves" is one rule meaning *every holding*, so it has to name a
+ * daily move rule is one rule meaning *every holding*, so it has to name a
  * portfolio, and there is no portfolio until data has arrived. Someone who
  * skips the import skips this too: an app with nothing in it has nothing to
  * report, and asking for notification permission then is asking for something
@@ -263,7 +263,7 @@ export default function SetupScreen({ onDone }: { onDone: () => void }) {
                 <div className="space-y-3">
                   <div className="flex items-start gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm">Tell me about big moves</p>
+                      <p className="text-sm">Daily move</p>
                       <p className="text-xs text-neutral-500 mt-0.5">
                         A notification when anything you own rises or falls more than{" "}
                         {DEFAULT_MOVE_THRESHOLD}% in a day. Coins and shares both. Change
@@ -273,7 +273,7 @@ export default function SetupScreen({ onDone }: { onDone: () => void }) {
                     <Switch
                       checked={bigMoves}
                       onChange={setBigMoves}
-                      label="Tell me about big moves"
+                      label="Daily move"
                     />
                   </div>
 

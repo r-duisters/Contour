@@ -103,7 +103,7 @@ function moveNotice(a) {
   const prices = `${amount(a.from, a.currency)} → ${amount(a.price, a.currency)}`;
   return {
     title: `${a.name} ${a.direction} ${Math.abs(a.pct).toFixed(1)}% in 24 hours`,
-    body: a.portfolio ? `From “big moves” on ${a.portfolio} · ${prices}` : prices,
+    body: a.portfolio ? `From your daily move rule on ${a.portfolio} · ${prices}` : prices,
   };
 }
 

@@ -8,7 +8,13 @@ import { DEFAULT_MOVE_THRESHOLD } from "./move-threshold";
 import { requestNotifications } from "./device-notifications";
 
 /**
- * The switch the setup flow promised could be changed here.
+ * The daily move rule: tell me when anything I hold moves more than N% in a day.
+ *
+ * It was called "big moves", which is how somebody describes the feature to a
+ * friend rather than what a tool calls it. The app already has one alert kind
+ * with a proper name — a price target — and this is the other one, so it takes
+ * a name of the same register. "Daily move" also says the two things the old
+ * label left out: what is measured (a move) and over what (a day).
  *
  * One stored rule: a `pct_move` alert naming a portfolio and no symbol, which
  * `expandRules` turns into one check per holding at evaluation time. That
@@ -25,7 +31,7 @@ import { requestNotifications } from "./device-notifications";
  * are all optional on `DataClient`, so a build without them draws nothing
  * rather than a control that cannot work.
  */
-export default function BigMoveSetting() {
+export default function DailyMoveSetting() {
   const client = useDataClient();
   const [ruleId, setRuleId] = useState<string | null>(null);
   const [threshold, setThreshold] = useState(String(DEFAULT_MOVE_THRESHOLD));
@@ -103,16 +109,17 @@ export default function BigMoveSetting() {
     <div className="mt-4">
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-sm">Tell me about big moves</p>
+          <p className="text-sm">Daily move</p>
           <p className="text-xs text-neutral-500 mt-0.5">
-            One notification a day per holding, when it rises or falls by more than
-            the figure below. Coins and shares both.
+            Watches every holding, coins and shares. One notification a day per
+            holding that rises or falls by more than the figure below — including
+            anything bought after this was set.
           </p>
         </div>
         <Switch
           checked={ruleId !== null}
           onChange={(next) => void (next ? turnOn(valid ? parsed : DEFAULT_MOVE_THRESHOLD) : turnOff())}
-          label="Tell me about big moves"
+          label="Daily move"
         />
       </div>
 

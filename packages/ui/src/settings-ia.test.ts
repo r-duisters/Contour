@@ -15,6 +15,18 @@ import { describe, expect, it } from "vitest";
  */
 
 const ui = (name: string) => readFileSync(new URL(`./${name}`, import.meta.url).pathname, "utf8");
+
+/**
+ * The file with its block comments removed.
+ *
+ * The vocabulary check below is about what a person reads on screen, and this
+ * codebase keeps its reasoning in block comments — including, in
+ * `DailyMoveSetting`, a note explaining what the old name was and why it
+ * changed. Grepping the raw text finds that note and fails for the reason the
+ * file was written well. Line comments are left alone: stripping them would
+ * also eat the `//` in a URL.
+ */
+const copyOf = (name: string) => ui(name).replace(/\/\*[\s\S]*?\*\//g, "");
 const alertsPage = () =>
   readFileSync(new URL("../../../apps/mobile/src/app/alerts/page.tsx", import.meta.url).pathname, "utf8");
 
@@ -25,9 +37,42 @@ describe("what belongs where", () => {
    * switch off. A control whose effect is a row in a list belongs beside the
    * list — it was in Settings only because the setup flow put it there.
    */
-  it("keeps the big-moves rule on the alerts page, not in settings", () => {
-    expect(alertsPage()).toContain("BigMoveSetting");
-    expect(ui("screens/SettingsScreen.tsx")).not.toContain("BigMoveSetting");
+  it("keeps the daily-move rule on the alerts page, not in settings", () => {
+    expect(alertsPage()).toContain("DailyMoveSetting");
+    expect(ui("screens/SettingsScreen.tsx")).not.toContain("DailyMoveSetting");
+  });
+
+  /**
+   * The daily-move rule is a stored alert, so it arrived in the list as well
+   * as in its own switch — one rule shown twice, and the two disagreed: the
+   * switch said "on" while the row said "Every holding · 5%", and pausing the
+   * row left the switch still reading as on.
+   */
+  it("shows the daily-move rule once, not in the list as well", () => {
+    expect(alertsPage()).toContain("const isDailyMove");
+    expect(alertsPage()).toContain("filter((a) => !isDailyMove(a))");
+  });
+
+  /**
+   * "Big moves" is how somebody describes the feature to a friend. The app has
+   * one alert kind with a proper name already — a price target — and this is
+   * the other one.
+   */
+  it("uses the app's own vocabulary for the two alert kinds", () => {
+    for (const file of ["DailyMoveSetting.tsx", "screens/SetupScreen.tsx"]) {
+      expect(copyOf(file), `${file} still says "big moves"`).not.toMatch(/big moves/i);
+    }
+    expect(alertsPage().replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(/big moves/i);
+    /*
+     * And the notification body, which is copy a person reads and the one
+     * place a rename does not reach: nobody re-opens the string that a phone
+     * shows at 6am to check it still matches a switch on a settings screen.
+     * It kept saying “big moves” for exactly that reason.
+     */
+    const copy = readFileSync(
+      new URL("../../core/src/alert-copy.ts", import.meta.url).pathname, "utf8",
+    ).replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(copy, "the notification still says \"big moves\"").not.toMatch(/big moves/i);
   });
 
   /**
@@ -37,7 +82,7 @@ describe("what belongs where", () => {
   it("leaves the notifications section answering only whether alerts arrive", () => {
     const screen = ui("screens/SettingsScreen.tsx");
     expect(screen).toContain("NotificationAccess");
-    for (const rule of ["BigMoveSetting", "threshold", "pct_move"]) {
+    for (const rule of ["DailyMoveSetting", "threshold", "pct_move"]) {
       expect(screen, `SettingsScreen mentions ${rule}, which is an alert rule`).not.toContain(rule);
     }
   });
@@ -49,6 +94,11 @@ describe("what belongs where", () => {
    */
   it("files the privacy switches under privacy, not display", () => {
     expect(ui("DisplaySettings.tsx")).not.toContain("privateCoinPrices");
+    // And the price sources are not a display question either: which currency
+    // to show is, where the number came from is not.
+    expect(ui("DisplaySettings.tsx")).not.toContain("equityProvider");
+    expect(ui("PriceSourceSettings.tsx")).toContain("equityProvider");
+    expect(ui("PriceSourceSettings.tsx")).toContain("Coin price source");
     expect(ui("PrivacySettings.tsx")).toContain("privateCoinPrices");
     expect(ui("PrivacySettings.tsx")).toContain("BackupToggle");
   });

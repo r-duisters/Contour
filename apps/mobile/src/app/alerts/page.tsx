@@ -8,7 +8,7 @@ import PageLabel from "@/components/PageLabel";
 import EmptyState from "@/components/EmptyState";
 import LastChecked from "@/components/LastChecked";
 import SubHeading from "@/components/SubHeading";
-import BigMoveSetting from "@/components/BigMoveSetting";
+import DailyMoveSetting from "@/components/DailyMoveSetting";
 import Switch from "@/components/Switch";
 import Button from "@/components/Button";
 import { isBatteryExempt, requestBatteryExemption } from "@/components/device-notifications";
@@ -111,7 +111,23 @@ export default function AlertsPage() {
     }
   }
 
-  const rows = alerts ?? [];
+  /*
+   * The daily-move rule is not in this list, because it is above it.
+   * =============================================================
+   *
+   * It is a stored alert like any other — kind `pct_move`, no symbol — so it
+   * arrived in "Watching" as well as in its own switch, and the page showed
+   * one rule twice. Worse, the two disagreed on what they were: the switch
+   * said "on", the row said "Every holding · 5%", and pausing the row left a
+   * switch still reading as on.
+   *
+   * Identified by shape rather than by id, because the shape is what makes it
+   * special: a percentage rule that names no symbol means every holding, and
+   * `expandRules` is what turns it into checks. Anything else — including a
+   * per-asset rule — belongs in the list.
+   */
+  const isDailyMove = (a: AlertSummary) => a.kind === "pct_move" && !a.symbol;
+  const rows = (alerts ?? []).filter((a) => !isDailyMove(a));
   const watching = rows.filter((a) => a.enabled);
   const paused = rows.filter((a) => !a.enabled);
 
@@ -121,7 +137,58 @@ export default function AlertsPage() {
         <PageLabel icon={Bell}>Alerts</PageLabel>
       </div>
 
-      <div className="mb-6">
+      {/*
+        The page in the order the two kinds of rule deserve.
+        ==================================================
+
+        This opened with the machinery — when the check last ran, whether
+        Android is throttling it — and buried what is actually being watched
+        below it. Reassurance about delivery matters, but it is the answer to a
+        question somebody asks second. What they came for is the list.
+
+        So: the two alert kinds, each under its own heading, and the checking
+        machinery after them.
+      */}
+      <section className="mb-8">
+        <SubHeading className="mb-1">Daily move</SubHeading>
+        {/*
+          It has a section rather than a row because it cannot be made
+          anywhere else. Every other rule is created from the asset it watches;
+          this one names no asset on purpose, so there is no page to make it
+          from.
+        */}
+        <DailyMoveSetting />
+      </section>
+
+      <section className="mb-8">
+        <SubHeading className="mb-1">Price targets</SubHeading>
+        {alerts === null ? null : rows.length === 0 ? (
+          <EmptyState>
+            None yet — open an asset and choose &ldquo;Alert me&rdquo;.
+          </EmptyState>
+        ) : (
+          <div className="space-y-6 mt-2">
+            {/*
+              Split, because the two groups are read differently: the first is
+              "what will reach me", the second is "what I have switched off and
+              might want back". Mixed together, a paused row is just a row that
+              looks slightly wrong.
+            */}
+            <Group title="Watching" alerts={watching} empty="Everything is paused.">
+              {(a) => row(a)}
+            </Group>
+            {paused.length > 0 && (
+              <Group title="Paused" alerts={paused} empty="">
+                {(a) => row(a)}
+              </Group>
+            )}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <SubHeading className="mb-2">Checks</SubHeading>
+        <div>
         <LastChecked
           at={checked}
           note="Checked when you open the app, and every half hour in the background."
@@ -174,49 +241,7 @@ export default function AlertsPage() {
           </div>
         )}
       </div>
-
-      {/*
-        The one rule that is not about a single asset, and so has nowhere to be
-        made from.
-        ======================================================================
-
-        It lived in Settings, which is where the setup flow left it. But it is
-        not a setting: it writes a `pct_move` row with no symbol, which is an
-        alert — it appears in the list below, it can be paused there, and
-        deleting it there turns this switch off. A control whose effect is a
-        row in a list belongs beside the list.
-
-        Every other rule is made from the asset it watches. This one names no
-        asset on purpose, so there is no page to make it from, which is why it
-        needs a home of its own here.
-      */}
-      <div className="mb-6 rounded-lg border border-neutral-800 p-3">
-        <BigMoveSetting />
-      </div>
-
-      {alerts === null ? null : rows.length === 0 ? (
-        <EmptyState>
-          Nothing watched yet — open an asset and choose &ldquo;Alert me&rdquo;, or turn on
-          big moves above.
-        </EmptyState>
-      ) : (
-        <div className="space-y-8">
-          {/*
-            Split, because the two groups are read differently: the first is
-            "what will reach me", the second is "what I have switched off and
-            might want back". Mixed together, a paused row is just a row that
-            looks slightly wrong.
-          */}
-          <Group title="Watching" alerts={watching} empty="Everything is paused.">
-            {(a) => row(a)}
-          </Group>
-          {paused.length > 0 && (
-            <Group title="Paused" alerts={paused} empty="">
-              {(a) => row(a)}
-            </Group>
-          )}
-        </div>
-      )}
+      </section>
 
       <p className="text-xs text-neutral-500 mt-10 max-w-prose">
         Android treats the half-hourly schedule as a target rather than a promise, so a

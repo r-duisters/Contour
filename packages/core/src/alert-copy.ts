@@ -91,7 +91,13 @@ export function moveNotice(a: {
   const prices = `${amount(a.from, a.currency)} → ${amount(a.price, a.currency)}`;
   return {
     title: move,
-    body: a.portfolio ? `From “big moves” on ${a.portfolio} · ${prices}` : prices,
+    /*
+      The rule's own name, so a notification and the screen that made it agree.
+      It carried the old label long after the control stopped using it — a
+      notification is the one piece of copy nobody re-reads when renaming
+      something, because it is read at 6am on a phone and never in the editor.
+    */
+    body: a.portfolio ? `From your daily move rule on ${a.portfolio} · ${prices}` : prices,
   };
 }
 

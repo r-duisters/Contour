@@ -7,6 +7,7 @@ import { asDisplayCurrency } from "@/lib/currencies";
 import PageLabel from "../PageLabel";
 import Button from "../Button";
 import DisplaySettings, { type DisplaySettingsValue } from "../DisplaySettings";
+import PriceSourceSettings, { type PriceSourceValue } from "../PriceSourceSettings";
 import { useLastPortfolio } from "../useCachedValuation";
 
 /**
@@ -15,7 +16,7 @@ import { useLastPortfolio } from "../useCachedValuation";
  * `privateCoinPrices` when it moved to its own section, and the screen still
  * saves both in one request — so the state stays one object.
  */
-type SettingsValue = DisplaySettingsValue & { privateCoinPrices: boolean };
+type SettingsValue = DisplaySettingsValue & PriceSourceValue & { privateCoinPrices: boolean };
 import AboutSection from "../AboutSection";
 import NotificationAccess from "../NotificationAccess";
 import PrivacySettings from "../PrivacySettings";
@@ -86,6 +87,23 @@ export default function SettingsScreen() {
       <section className="space-y-4 mb-6">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Display</h2>
         <DisplaySettings value={value} onChange={(next) => setValue({ ...value, ...next })} />
+      </section>
+
+      {/*
+        Where the numbers come from, which is not how they are shown.
+        ============================================================
+
+        These sat under Display next to the currency, and the difference
+        matters to the person this screen is for: one decides how a figure is
+        presented, the others decide who is asked for it. Somebody wondering
+        which companies this app talks to was being answered under a heading
+        about presentation.
+      */}
+      <section className="space-y-4 mb-6">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
+          Price sources
+        </h2>
+        <PriceSourceSettings value={value} onChange={(next) => setValue({ ...value, ...next })} />
       </section>
 
       <div className="flex items-center gap-3">

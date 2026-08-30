@@ -98,7 +98,7 @@ describe("the background runner's wiring", () => {
       "rose above",
       "this one-shot alert has switched itself off",
       "still watching",
-      "From “big moves” on",
+      "From your daily move rule on",
     ]) {
       expect(shared, `shared copy should contain ${phrase}`).toContain(phrase);
       expect(runner, `runner copy should contain ${phrase}`).toContain(phrase);

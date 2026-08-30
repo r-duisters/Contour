@@ -59,7 +59,7 @@ describe("moveNotice", () => {
       name: "SHIB", direction: "up", pct: 12.4, from: 0.0000214, price: 0.0000241,
       currency: "USDT", portfolio: "Main",
     });
-    expect(n.body).toContain("From “big moves” on Main");
+    expect(n.body).toContain("From your daily move rule on Main");
   });
 
   it("reports a fall as a fall, with the size unsigned", () => {
