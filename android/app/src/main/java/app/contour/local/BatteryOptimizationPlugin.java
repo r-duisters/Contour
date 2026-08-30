@@ -2,7 +2,6 @@ package app.contour.local;
 
 import android.content.Context;
 import android.content.Intent;
-import android.net.Uri;
 import android.os.Build;
 import android.os.PowerManager;
 import android.provider.Settings;
@@ -24,20 +23,22 @@ import com.getcapacitor.annotation.CapacitorPlugin;
  * that never arrives, which is indistinguishable from a market that did not
  * move.
  *
- * So the exemption is worth asking for, and it is worth asking for *plainly*,
- * as one system dialog during setup rather than a support page months later.
- * The person can say no; the app still checks every time it is opened.
+ * So the exemption is worth surfacing, plainly, during setup rather than in a
+ * support page months later. The person can say no; the app still checks every
+ * time it is opened.
  *
  * No Capacitor plugin ships this. It is about sixty lines of platform API, and
  * the alternative was a dependency for two calls.
  *
- * ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS shows the system's own
- * allow/deny dialog and needs the matching permission. Google Play restricts
- * apps that declare it to a short list of categories; this app is not
- * distributed there — it is built from source and sideloaded — so the direct
- * dialog is both allowed and much kinder than sending someone into Settings to
- * find the app in a list. Where the intent cannot be resolved, the battery
- * settings screen is the fallback rather than an error.
+ * **This deliberately does not use the one-tap dialog.**
+ * ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS shows Android's own allow/deny
+ * prompt, and it needs REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, which Google Play
+ * prohibits outside a short list of categories — calling apps, safety apps,
+ * task automation, peripheral companions. A price-alert tracker is on none of
+ * them. So this opens ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS instead: the
+ * same destination, no permission, one tap further away because the person has
+ * to find Contour in a list. Reading the current state needs no permission
+ * either, so the screen still knows whether to offer this at all.
  */
 @CapacitorPlugin(name = "BatteryOptimization")
 public class BatteryOptimizationPlugin extends Plugin {
@@ -56,11 +57,14 @@ public class BatteryOptimizationPlugin extends Plugin {
     }
 
     /**
-     * Show the system dialog, then answer with what it left in place.
+     * Open the battery-optimisation list, then answer with what it left in
+     * place.
      *
      * The result is read after the activity returns rather than trusted from
-     * the intent: the dialog reports no result of its own, and a person can
-     * dismiss it without choosing.
+     * the intent: the screen reports no result of its own, and a person can
+     * back out without changing anything — which, since they have to find this
+     * app in a list first, is a likelier outcome here than it was with the
+     * one-tap dialog this replaced.
      */
     @PluginMethod
     public void request(PluginCall call) {
@@ -71,13 +75,8 @@ public class BatteryOptimizationPlugin extends Plugin {
             return;
         }
 
-        Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-        intent.setData(Uri.parse("package:" + getContext().getPackageName()));
-        if (intent.resolveActivity(getContext().getPackageManager()) == null) {
-            // Some builds hide the direct request. The list is worse but real.
-            intent = new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
-        }
-        startActivityForResult(call, intent, "afterRequest");
+        startActivityForResult(
+            call, new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS), "afterRequest");
     }
 
     @com.getcapacitor.annotation.ActivityCallback

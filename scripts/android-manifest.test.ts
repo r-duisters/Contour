@@ -103,6 +103,16 @@ describe("what may be handed to another app", () => {
   });
 });
 
+/**
+ * A `<uses-permission>` for `name` that is not a removal.
+ *
+ * The negative lookahead is the whole point: `tools:node="remove"` uses the
+ * same element to mean the opposite thing, and a test that just greps for the
+ * permission name would read a removal as a declaration.
+ */
+const declaring = (name: string) =>
+  new RegExp(`<uses-permission[^>]*android:name="android.permission.${name}"(?![^>]*tools:node="remove")`);
+
 describe("what the app asks the phone for", () => {
   /**
    * `@capacitor/background-runner` declares three location permissions in its
@@ -112,8 +122,48 @@ describe("what the app asks the phone for", () => {
    */
   it("declares no location permission", () => {
     for (const p of ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION", "ACCESS_BACKGROUND_LOCATION"]) {
-      const declared = new RegExp(`<uses-permission[^>]*android:name="android.permission.${p}"(?![^>]*tools:node="remove")`);
-      expect(manifest(), `${p} is declared without tools:node="remove"`).not.toMatch(declared);
+      expect(manifest(), `${p} is declared without tools:node="remove"`).not.toMatch(declaring(p));
     }
+  });
+
+  /**
+   * The two Google Play forbids this app, and the reason it can afford to lose
+   * both.
+   *
+   * `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` buys Android's one-tap "let this run
+   * in the background" dialog. Play permits it only where doze breaks the core
+   * function — calling apps, safety apps, task automation, peripheral
+   * companions — and a price-alert tracker is on none of those lists. Without
+   * it `BatteryOptimizationPlugin` opens the battery-optimisation *list*
+   * instead: same destination, no permission, one tap further away.
+   *
+   * `SCHEDULE_EXACT_ALARM` arrives from `@capacitor/local-notifications` and
+   * `@capacitor/background-runner`, both of which *can* schedule a notification
+   * for a time. This app never does — every `LocalNotifications.schedule` call
+   * omits the `schedule` field, which posts immediately and sets no alarm — so
+   * removing it removes nothing that runs. Play treats it as restricted and
+   * expects a declaration naming an alarm-clock or calendar use case this app
+   * does not have.
+   *
+   * Both are one line to add back, and neither would fail anything else here:
+   * the app would build, install and run, and the rejection would arrive weeks
+   * later from a review queue.
+   */
+  it("declares no permission Google Play restricts", () => {
+    for (const p of ["REQUEST_IGNORE_BATTERY_OPTIMIZATIONS", "SCHEDULE_EXACT_ALARM"]) {
+      expect(manifest(), `${p} is declared, and Play rejects this app for it`)
+        .not.toMatch(declaring(p));
+    }
+  });
+
+  /**
+   * A dependency declares `SCHEDULE_EXACT_ALARM`, so leaving it out of our own
+   * manifest is not enough — the merger folds it back in. Only the explicit
+   * removal keeps it out of the built APK, and the test above passes either
+   * way, which is why this one exists beside it.
+   */
+  it("removes the exact-alarm permission its dependencies declare", () => {
+    expect(manifest())
+      .toContain('<uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" tools:node="remove" />');
   });
 });

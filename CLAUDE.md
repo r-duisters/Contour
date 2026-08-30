@@ -555,7 +555,10 @@ MQTT is a viable alternative (publish to `trader/signals/<symbol>`), but isn't i
   Capacitor's background runtime. The foreground pass is the one that is
   guaranteed; the runner is the fallback, because Android treats a periodic
   job as a target and a battery-optimised phone may defer it forever — which
-  is why the setup flow offers the exemption (`BatteryOptimizationPlugin`).
+  is why the setup flow offers a way to lift it
+  (`BatteryOptimizationPlugin`, which opens Android's
+  battery-optimisation list — the one-tap dialog needs a permission
+  Google Play forbids this app; see `docs/play-release.md`).
   Both write dedupe marks in the same shape to different stores, so one
   condition can notify once from each: a duplicate is a cheaper failure than
   silence. That is why `alert-rules.ts` is pure and `alert-pricing.ts` is a

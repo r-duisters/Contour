@@ -19,7 +19,8 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p apps/web && tsc --noEmit -p apps/mobile",
     "android:sync": "npx cap sync android",
     "android:build": "cd android && ./gradlew assembleDebug",
-    "android:release": "cd android && ./gradlew assembleRelease"
+    "android:release": "cd android && ./gradlew assembleRelease",
+    "android:bundle": "cd android && ./gradlew bundleRelease"
   },
   "dependencies": {
     "@aparajita/capacitor-biometric-auth": "^10.0.0",

@@ -58,17 +58,33 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!--
-      Lets the app show the system's own "allow this app to run in the
-      background" dialog, which the setup flow offers once. Without the
-      exemption Android may defer the scheduled alert check indefinitely, and
-      the only symptom is a notification that never arrives.
+      Two permissions removed for Google Play, and neither costs a feature.
 
-      Play restricts apps that declare this to a few categories. Contour is
-      built from source and sideloaded rather than distributed there, so the
-      direct dialog is available — and it is far kinder than sending someone
-      into Settings to find this app in a list.
+      REQUEST_IGNORE_BATTERY_OPTIMIZATIONS used to be declared here so the app
+      could show Android's own one-tap "let this run in the background"
+      dialog. Play prohibits that permission unless doze breaks the core
+      function of the app, and the acceptable list is short and specific —
+      calling apps, safety apps, task automation, peripheral companions. A
+      price-alert tracker is not on it, and arguing that it is would be
+      arguing in bad faith: the app checks alerts every time it is opened, so
+      doze delays them rather than breaking them.
+
+      What is left is the same destination one tap further away.
+      `BatteryOptimizationPlugin` opens the battery-optimisation *list*, which
+      needs no permission at all, and reading the current state
+      (`isIgnoringBatteryOptimizations`) never needed one either. So the
+      screen still knows whether Android is holding the check back, and still
+      offers a way out; it just cannot grant it in one tap.
+
+      SCHEDULE_EXACT_ALARM arrives from @capacitor/local-notifications and
+      @capacitor/background-runner, both of which support scheduling a
+      notification for a *time*. This app never does: every call to
+      `LocalNotifications.schedule` omits the `schedule` field, which posts
+      immediately and sets no alarm. Play treats the permission as restricted
+      and expects a declaration naming an alarm-clock or calendar use case
+      this app does not have. Removing it removes nothing that runs.
     -->
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" tools:node="remove" />
 
     <!--
       Location, removed.

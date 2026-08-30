@@ -153,8 +153,10 @@ export default function SetupScreen({ onDone }: { onDone: () => void }) {
 
   async function allowBackground() {
     setBusy("Waiting for Android…");
-    // The answer is not checked: a refusal is a real choice, and the app still
-    // checks every time it is opened. Either way the flow is over.
+    // The answer is not checked: a refusal is a real choice — and since this
+    // now opens a list the person has to find Contour in, backing out without
+    // changing anything is the likelier one. The app still checks every time
+    // it is opened. Either way the flow is over.
     await requestBatteryExemption().catch(() => null);
     finish();
   }
@@ -309,16 +311,16 @@ export default function SetupScreen({ onDone }: { onDone: () => void }) {
                   : step === "import" ? createEmpty
                   // Two presses at most, and only where Android asks for two:
                   // the switch arms the rule, and if the phone then says the
-                  // scheduled check is throttled, the same button becomes that
-                  // request rather than stacking a second system dialog on
-                  // top of the first.
+                  // scheduled check is throttled, the same button becomes the
+                  // trip into Android's battery list rather than stacking a
+                  // second system screen on top of the first.
                   : armed && batteryExempt === false ? allowBackground
                   : arm
                 }
               >
                 {step === "import" ? "Start empty"
                   : step !== "alerts" ? "Continue"
-                  : armed && batteryExempt === false ? "Allow background checks"
+                  : armed && batteryExempt === false ? "Open battery settings"
                   : bigMoves ? "Turn on notifications"
                   : "Finish"}
               </Button>

@@ -59,7 +59,16 @@ export async function isBatteryExempt(): Promise<boolean | null> {
   }
 }
 
-/** Show the system's allow/deny dialog, and answer with where it left things. */
+/**
+ * Open Android's battery-optimisation list, and answer with where it left
+ * things.
+ *
+ * Not the one-tap allow/deny dialog: that needs
+ * REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, which Google Play prohibits for an app
+ * of this kind. The destination is the same and the person has to find Contour
+ * in a list to reach it, so a `false` here means "did not do it" far more often
+ * than it means "chose not to".
+ */
 export async function requestBatteryExemption(): Promise<boolean | null> {
   if (!(await native())) return null;
   try {

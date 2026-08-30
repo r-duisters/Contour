@@ -119,13 +119,14 @@ export default function NotificationAccess() {
         <div className="flex items-start gap-2 flex-wrap">
           <p className="text-xs text-amber-500 flex-1 min-w-40">
             Android is holding background checks back to save battery, so the half-hourly
-            check may be delayed for hours or skipped.
+            check may be delayed for hours or skipped. Lifting it means finding Contour
+            in Android&rsquo;s own battery list.
           </p>
           <Button
             variant="secondary"
             onClick={() => void (async () => { setExempt(await requestBatteryExemption()); })()}
           >
-            Allow background checks
+            Open battery settings
           </Button>
         </div>
       )}
