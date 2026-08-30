@@ -50,6 +50,38 @@ RUN npx prisma generate
 ENV CONTOUR_STANDALONE=1 NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
+# Prune here, not in the runtime stage.
+#
+# Layers are additive: deleting a file after `COPY` writes a whiteout and
+# leaves the bytes in the layer underneath, so the image does not shrink by a
+# single byte. The removal has to happen before the directory is copied out —
+# which is this stage.
+#
+# What goes, and why each cannot execute in the final image:
+#
+# * `@prisma/client/runtime` is 58 MB, nearly all of it base64-encoded
+#   WebAssembly query engines, one pair per database provider at ~6 MB each.
+#   Contour's datasource is SQLite; the native engine in `.prisma/client`
+#   answers every query, and these are selected by provider name — a name that
+#   is never `postgresql`, `cockroachdb`, `mysql` or `sqlserver` here.
+# * sharp ships a prebuilt libvips per platform. The `linuxmusl` builds are
+#   compiled against a different libc and cannot load on Debian at all, and
+#   `sharp-wasm32` is the fallback for when no native binding loads — which is
+#   not this image's situation.
+#
+# `find -delete` rather than a brace expansion: RUN uses `/bin/sh`, where
+# `{a,b}` is a literal and `rm -f` on a name that does not exist succeeds
+# silently. That combination deletes nothing and reports success, which is how
+# a prune can look like it worked for a whole build.
+RUN cd apps/web/.next/standalone/node_modules \
+ && find @prisma/client/runtime -name 'query_engine_bg.postgresql.*' -delete \
+ && find @prisma/client/runtime -name 'query_engine_bg.cockroachdb.*' -delete \
+ && find @prisma/client/runtime -name 'query_engine_bg.mysql.*' -delete \
+ && find @prisma/client/runtime -name 'query_engine_bg.sqlserver.*' -delete \
+ && rm -rf @img/sharp-wasm32 @img/sharp-libvips-linuxmusl-x64 @img/sharp-linuxmusl-x64 \
+           next/node_modules/@img/sharp-libvips-linuxmusl-x64 \
+           next/node_modules/@img/sharp-linuxmusl-x64
+
 # ── migrator ──────────────────────────────────────────────────────────────────
 # The Prisma CLI, installed on its own.
 #
@@ -78,7 +110,8 @@ RUN apt-get update \
 WORKDIR /cli
 RUN npm init -y >/dev/null 2>&1 \
  && npm i --no-audit --no-fund --omit=dev prisma@^6.19.3 \
- && rm -rf /root/.npm
+ && rm -rf /root/.npm \
+ && find node_modules/@prisma/engines -name 'libquery_engine-*' -delete
 
 # ── runtime ───────────────────────────────────────────────────────────────────
 FROM node:22-bookworm-slim AS runtime
@@ -94,9 +127,9 @@ RUN apt-get update \
 
 # The traced server, and the two things tracing does not carry: the static
 # chunks and `public/`. Next documents both as manual copies.
-COPY --from=build /repo/apps/web/.next/standalone ./
-COPY --from=build /repo/apps/web/.next/static     ./apps/web/.next/static
-COPY --from=build /repo/apps/web/public           ./apps/web/public
+COPY --from=build --chown=node:node /repo/apps/web/.next/standalone ./
+COPY --from=build --chown=node:node /repo/apps/web/.next/static ./apps/web/.next/static
+COPY --from=build --chown=node:node /repo/apps/web/public ./apps/web/public
 
 # The repository root marker.
 #
@@ -106,26 +139,31 @@ COPY --from=build /repo/apps/web/public           ./apps/web/public
 # startup — deliberately, rather than silently serving an empty script list and
 # a 404 for the APK. The root manifest has no `type` field, so dropping it here
 # cannot change how `server.js` is parsed.
-COPY package.json ./package.json
+COPY --chown=node:node package.json ./package.json
 
 # Read at runtime, from the repository root: the bundled PineScripts, and the
 # icon cache's directory. `samples/` is small and `.icon-cache/` fills itself.
-COPY samples ./samples
-RUN mkdir -p .icon-cache
+COPY --chown=node:node samples ./samples
+RUN mkdir -p .icon-cache && chown node:node .icon-cache
 
 # Prisma's migration path, from the `migrator` stage rather than by copying
 # packages out of the build. The schema and the migrations come from the app's
 # own tree.
-COPY --from=migrator /cli/node_modules ./migrator/node_modules
-COPY --from=build /repo/apps/web/prisma ./apps/web/prisma
+COPY --from=migrator --chown=node:node /cli/node_modules ./migrator/node_modules
+COPY --from=build --chown=node:node /repo/apps/web/prisma ./apps/web/prisma
 
 COPY docker/web/entrypoint.sh /usr/local/bin/contour-entrypoint
 RUN chmod +x /usr/local/bin/contour-entrypoint
 
 # `node` exists in the base image as uid 1000. The database lives on a volume,
-# so the directory has to be owned before the volume is mounted over it — and
-# the compose file mounts it at this path.
-RUN mkdir -p /data && chown -R node:node /data /app
+# so the directory has to be owned before the volume is mounted over it.
+#
+# Ownership is set by `--chown` on each COPY above rather than by a `chown -R`
+# here, and the difference is 292 MB. A recursive chown touches the metadata of
+# every file it walks, and a layer records a whole copy of anything it touches
+# — so one tidy-up line stored the entire application a second time. `chown`
+# here is one empty directory.
+RUN mkdir -p /data && chown node:node /data
 USER node
 
 ENV PORT=3000 HOSTNAME=0.0.0.0 DATABASE_URL=file:/data/contour.db
