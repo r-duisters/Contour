@@ -11,6 +11,50 @@ and answers every screen from it, with the network off.
 **AGPL-3.0-or-later.** Self-hosted, single-user, and built for one person who
 wanted to stop paying a subscription to look at their own numbers.
 
+## Why it exists
+
+Delta was free. Then it was a subscription, and the numbers you had spent years
+typing in were behind it.
+
+That is the pattern, and it is not Delta's alone: a tracker is free while it is
+gathering users, and priced once leaving has become expensive. What makes
+leaving expensive is never the software. It is that your transaction history —
+every buy, every fee, every date — lives in someone else's database, exportable
+on their terms, in their format, for as long as they care to support it.
+
+Contour is the other arrangement. Your ledger is a file on your own machine. The
+app reads it; nothing else does.
+
+- **Bring your history with you.** Import a Delta-by-eToro CSV export and your
+  positions, cost bases and dates come across intact.
+- **Take it away again, whenever.** Export the whole ledger to CSV or JSON in
+  one click. Not a support ticket, not a GDPR request, not a scraper — a button,
+  and a file you can read in a text editor.
+- **No account, so nothing to lock.** There is no sign-up, no server of ours to
+  go down or go paid, and no version of this where a feature you use is moved
+  behind a tier.
+- **Private by design, not by policy.** A privacy policy is a promise about what
+  someone chooses to do with your data. Keeping the data on your device is a
+  fact about what they *can* do with it. `docs/security-review-2026-08-30.md`
+  lists every request the app makes, including the ones that are unavoidable.
+
+If Contour stops suiting you, export and go. A tool you can leave without
+losing anything is the only kind worth trusting with a decade of records.
+
+## What it looks like
+
+| Portfolio | An asset | Markets | Ledger |
+|---|---|---|---|
+| ![Portfolio](docs/screenshots/portfolio.png) | ![Ethereum](docs/screenshots/asset.png) | ![Markets](docs/screenshots/markets.png) | ![Ledger](docs/screenshots/ledger.png) |
+
+Benchmarks, on a wider screen — your actual value against the same deposits made
+on the same days, put into an index instead:
+
+![Insights](docs/screenshots/insights.png)
+
+*The holdings above are made up. Prices and market data are live; the
+transactions behind them are an illustrative ledger, not anybody's positions.*
+
 ## What it does
 
 - **Portfolio** — holdings, valuation, day change, and a history chart over any
