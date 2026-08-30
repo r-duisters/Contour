@@ -284,7 +284,29 @@ async function dispatchToRunner(
 async function notify(id: number, notice: Notice, symbol: string): Promise<void> {
   const { LocalNotifications } = await import("@capacitor/local-notifications");
   await LocalNotifications.schedule({
-    notifications: [{ id, title: notice.title, body: notice.body, extra: { symbol } }],
+    /*
+     * `isExactNotification: false` is not optional here, and it is not about
+     * timing.
+     *
+     * These notifications carry no `schedule`, so they post immediately and no
+     * alarm is involved at all. But the option defaults to *true*, and the
+     * plugin checks it before it looks at whether anything is scheduled: on
+     * Android 12 and above, if any notification in the batch wants an exact
+     * alarm and `canScheduleExactAlarms()` is false, `schedule()` opens the
+     * system's "Alarms & reminders" settings screen instead of posting
+     * anything.
+     *
+     * `canScheduleExactAlarms()` is false for this app by construction —
+     * SCHEDULE_EXACT_ALARM is removed in the manifest because Google Play
+     * restricts it and nothing here schedules for a time. So without this line
+     * every alert on Android 12+ would push a settings screen at the person
+     * rather than telling them their asset moved, and the notification they
+     * were owed would never arrive.
+     */
+    notifications: [{
+      id, title: notice.title, body: notice.body, extra: { symbol },
+      isExactNotification: false,
+    }],
   });
 }
 

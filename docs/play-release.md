@@ -208,9 +208,26 @@ copy says so.
 `@capacitor/background-runner` both declare it, because both can schedule a
 notification for a time, and the manifest merger folds it in silently. This app
 never schedules for a time — every `LocalNotifications.schedule` call omits the
-`schedule` field, which posts immediately and sets no alarm — so `tools:node="remove"`
-removes nothing that runs. Play treats it as restricted and expects a
-declaration naming an alarm-clock or calendar use case this app does not have.
+`schedule` field, which posts immediately and sets no alarm. Play treats it as
+restricted and expects a declaration naming an alarm-clock or calendar use case
+this app does not have.
+
+Removing it was **not** free, and the cost was nearly invisible.
+`isExactNotification` defaults to `true` in `@capacitor/local-notifications`,
+and the plugin tests that flag *before* it looks at whether a notification is
+scheduled at all: with `canScheduleExactAlarms()` false, `schedule()` opens
+Android's "Alarms & reminders" settings screen and posts nothing. So on Android
+12 and above every alert would have become a settings screen. The fix is one
+option on the call — `isExactNotification: false` — and
+`scripts/exact-alarm.test.ts` pins it to every `schedule()` call, because
+nothing else can catch it: it type-checks, builds and passes every other test,
+and misbehaves only on a real phone at the moment an alert fires.
+
+The half-hourly background check is unaffected either way.
+`@capacitor/background-runner` schedules it with a WorkManager
+`PeriodicWorkRequest`, which uses no alarm at all; the runner's own notification
+path touches `AlarmManager` only for a notification with a `scheduleAt`, and
+already falls back to `setAndAllowWhileIdle` when the permission is absent.
 
 Both would have built, installed and run perfectly. The rejection would have
 arrived weeks later from a review queue, which is why
