@@ -8,6 +8,7 @@ import PageLabel from "@/components/PageLabel";
 import EmptyState from "@/components/EmptyState";
 import LastChecked from "@/components/LastChecked";
 import SubHeading from "@/components/SubHeading";
+import BigMoveSetting from "@/components/BigMoveSetting";
 import Switch from "@/components/Switch";
 import Button from "@/components/Button";
 import { isBatteryExempt, requestBatteryExemption } from "@/components/device-notifications";
@@ -174,10 +175,29 @@ export default function AlertsPage() {
         )}
       </div>
 
+      {/*
+        The one rule that is not about a single asset, and so has nowhere to be
+        made from.
+        ======================================================================
+
+        It lived in Settings, which is where the setup flow left it. But it is
+        not a setting: it writes a `pct_move` row with no symbol, which is an
+        alert — it appears in the list below, it can be paused there, and
+        deleting it there turns this switch off. A control whose effect is a
+        row in a list belongs beside the list.
+
+        Every other rule is made from the asset it watches. This one names no
+        asset on purpose, so there is no page to make it from, which is why it
+        needs a home of its own here.
+      */}
+      <div className="mb-6 rounded-lg border border-neutral-800 p-3">
+        <BigMoveSetting />
+      </div>
+
       {alerts === null ? null : rows.length === 0 ? (
         <EmptyState>
           Nothing watched yet — open an asset and choose &ldquo;Alert me&rdquo;, or turn on
-          big moves in Settings.
+          big moves above.
         </EmptyState>
       ) : (
         <div className="space-y-8">

@@ -33,6 +33,7 @@ import { asDisplayCurrency, type DisplayCurrency } from "@/lib/currencies";
 import DisplaySettings from "@/components/DisplaySettings";
 import AboutSection from "@/components/AboutSection";
 import SubHeading from "@/components/SubHeading";
+import PrivacySettings from "@/components/PrivacySettings";
 
 export default function SettingsPage() {
   const client = useDataClient();
@@ -229,13 +230,33 @@ export default function SettingsPage() {
           rendered from both rather than copied into each.
         */}
         <DisplaySettings
-          value={{ displayCurrency, equityProvider, equityApiKey, privateCoinPrices }}
+          value={{ displayCurrency, equityProvider, equityApiKey }}
           onChange={(v) => {
             setDisplayCurrency(v.displayCurrency);
             setEquityProvider(v.equityProvider);
             setEquityApiKey(v.equityApiKey);
-            setPrivateCoinPrices(v.privateCoinPrices);
           }}
+        />
+      </section>
+
+      {/*
+        Privacy, shared with the device build for the same reason Display is:
+        the question is identical on both and a second copy would drift.
+        `BackupToggle` inside it draws nothing here — a browser has no Android
+        backup to opt into — so this section shows one switch on the web and
+        two on a phone, which is the honest difference rather than a hidden one.
+      */}
+      <section className="space-y-4 mb-10">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
+          Privacy
+          <span className="ml-2 font-normal normal-case tracking-normal text-neutral-500">
+            what leaves this machine
+          </span>
+        </h2>
+        <PrivacySettings
+          privateCoinPrices={privateCoinPrices}
+          onPrivateCoinPrices={setPrivateCoinPrices}
+          portfolioId={null}
         />
       </section>
 

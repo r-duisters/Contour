@@ -7,8 +7,18 @@ import { asDisplayCurrency } from "@/lib/currencies";
 import PageLabel from "../PageLabel";
 import Button from "../Button";
 import DisplaySettings, { type DisplaySettingsValue } from "../DisplaySettings";
+import { useLastPortfolio } from "../useCachedValuation";
+
+/**
+ * What this screen edits: the shared display fields plus the privacy switch
+ * that no longer travels with them. `DisplaySettings` stopped carrying
+ * `privateCoinPrices` when it moved to its own section, and the screen still
+ * saves both in one request — so the state stays one object.
+ */
+type SettingsValue = DisplaySettingsValue & { privateCoinPrices: boolean };
 import AboutSection from "../AboutSection";
-import BigMoveSetting from "../BigMoveSetting";
+import NotificationAccess from "../NotificationAccess";
+import PrivacySettings from "../PrivacySettings";
 
 /**
  * Settings, for a build with no server behind it.
@@ -22,13 +32,16 @@ import BigMoveSetting from "../BigMoveSetting";
  */
 export default function SettingsScreen() {
   const client = useDataClient();
-  const [value, setValue] = useState<DisplaySettingsValue>({
+  const [value, setValue] = useState<SettingsValue>({
     displayCurrency: asDisplayCurrency("USD"),
     equityProvider: "yahoo",
     equityApiKey: "",
     privateCoinPrices: false,
   });
   const [msg, setMsg] = useState<string | null>(null);
+  // Which portfolio a backup copy would be of. The device build has one in
+  // practice; this is the same id every other screen falls back to.
+  const portfolioId = useLastPortfolio();
 
   useEffect(() => {
     // `null` is a virgin install, not a failure: the fields stay on their
@@ -72,7 +85,7 @@ export default function SettingsScreen() {
 
       <section className="space-y-4 mb-6">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Display</h2>
-        <DisplaySettings value={value} onChange={setValue} />
+        <DisplaySettings value={value} onChange={(next) => setValue({ ...value, ...next })} />
       </section>
 
       <div className="flex items-center gap-3">
@@ -81,9 +94,34 @@ export default function SettingsScreen() {
       </div>
 
       {/*
+        Privacy, and its own section rather than a line in Display.
+        ==========================================================
+
+        Both of these change what leaves the phone and neither changes what is
+        shown. "Ask for every coin price" spent one build under Display because
+        it sits beside the price fields, which is proximity mistaken for
+        meaning. Somebody wondering what this app tells the outside world will
+        look under Privacy, and there was nowhere for them to look.
+      */}
+      <section className="mt-10 space-y-5">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Privacy</h2>
+        <PrivacySettings
+          privateCoinPrices={value.privateCoinPrices}
+          onPrivateCoinPrices={(next) => setValue({ ...value, privateCoinPrices: next })}
+          portfolioId={portfolioId}
+        />
+      </section>
+
+      {/*
         Said rather than hidden. Someone who set alerts up on the desktop will
         look for them here, and finding no section reads as a missing feature
         rather than a deliberate one.
+
+        What this section is *not* is what changed. It held the schedule, the
+        permission and the "tell me about big moves" switch — and that switch
+        writes an alert row, which belongs with the alerts. What a settings
+        screen should answer about notifications is whether they can reach you,
+        and that is now all it answers.
 
         No Security section: the device lock is the lock, and there is no
         password to change or session to end. A capability a platform cannot
@@ -93,20 +131,11 @@ export default function SettingsScreen() {
         <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">
           Notifications
         </h2>
-        <p className="text-sm text-neutral-300">
-          Alerts are checked on this phone.
-        </p>
-        <p className="text-xs text-neutral-500 mt-1 max-w-prose">
-          Every time you open the app, and every half hour in the background when Android
-          allows it — it treats that schedule as a target rather than a promise, and a
-          battery-optimised phone may defer it. Set an alert from an asset&rsquo;s page;
-          see them under Alerts.
-        </p>
-
-        <BigMoveSetting />
+        <NotificationAccess />
         <p className="text-xs text-neutral-500 mt-3 max-w-prose">
-          Home Assistant, web-push and passkeys live on the desktop app. Each needs a server,
-          and this build has none — the device lock is what keeps this app shut.
+          What you are alerted about lives under Alerts. Home Assistant, web-push and
+          passkeys live on the desktop app — each needs a server, and this build has
+          none.
         </p>
       </section>
 

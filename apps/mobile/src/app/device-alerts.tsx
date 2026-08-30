@@ -148,11 +148,40 @@ export default function DeviceAlerts() {
       writeJson(KEYS.alertsLastChecked, Date.now());
     }
 
-    const run = () => void check().catch(() => {
-      // A failed check is silence, which is what this feature exists to
-      // prevent — but the last-checked line makes the gap visible, and the
-      // next foreground tries again.
-    });
+    /*
+     * Keep the Google-backup copy current, if there is one.
+     *
+     * It rides along here rather than getting its own effect because it wants
+     * exactly the same moment — the app coming to the front — and a second
+     * visibility listener for one file write would be a second thing to
+     * remember exists.
+     *
+     * `refresh` never *creates* the file. Writing one for somebody who never
+     * turned the switch on would opt them into Google backup silently, which
+     * is the precise failure the whole arrangement exists to prevent, so it
+     * reads first and does nothing when the directory is empty.
+     */
+    async function refreshBackup() {
+      const { deviceBackup } = await import("@/components/device-backup");
+      if (cancelled) return;
+      await deviceBackup.refresh(async () => {
+        const id = (await client.listPortfolios())[0]?.id;
+        if (!id) throw new Error("nothing to back up");
+        return (await client.exportFile(id, "json")).body;
+      });
+    }
+
+    const run = () => {
+      void check().catch(() => {
+        // A failed check is silence, which is what this feature exists to
+        // prevent — but the last-checked line makes the gap visible, and the
+        // next foreground tries again.
+      });
+      void refreshBackup().catch(() => {
+        // A stale copy is better than none and far better than a crash on
+        // launch. The switch's own date says how stale.
+      });
+    };
 
     run();
     const onVisible = () => { if (document.visibilityState === "visible") run(); };
