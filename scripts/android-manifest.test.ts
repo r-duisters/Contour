@@ -42,13 +42,25 @@ describe("what Android Auto Backup may take", () => {
     expect(manifest()).toContain('android:fullBackupContent="@xml/backup_rules"');
   });
 
-  it("excludes the database from every transfer, in both files", () => {
+  /**
+   * Naming an `<include>` at all is what excludes the rest: from that point
+   * Android backs up only the listed paths.
+   *
+   * These files used to spell the exclusions out as well, five `<exclude>`
+   * lines per file, added as belt and braces. They were inert, and the first
+   * release build ever attempted refused them — `lintVitalRelease` reports "`.`
+   * is not in an included path", because an exclude outside the included set
+   * can never apply. So the assertion is the opposite of what it was: an
+   * exclude here is a sign somebody has misread how the file works, and it
+   * will stop the release build.
+   */
+  it("limits the backup by including one path, and excludes nothing", () => {
     for (const name of ["backup_rules.xml", "data_extraction_rules.xml"]) {
       const rules = xml(name);
-      for (const domain of ["root", "database", "sharedpref", "file", "external"]) {
-        expect(rules, `${name} does not exclude domain="${domain}"`)
-          .toContain(`<exclude domain="${domain}" path="." />`);
-      }
+      expect(rules, `${name} has no include, so the whole app data dir is backed up`)
+        .toContain('<include domain="file" path="backup/" />');
+      expect(rules, `${name} has an <exclude>, which lintVitalRelease rejects`)
+        .not.toContain("<exclude");
     }
   });
 
@@ -57,17 +69,17 @@ describe("what Android Auto Backup may take", () => {
    * it is the more defensible of the two — which is exactly why it is worth a
    * test. It would be an easy thing to leave open by omission.
    */
-  it("refuses the device-to-device transfer as well as the cloud one", () => {
+  it("limits the device-to-device transfer as well as the cloud one", () => {
     const rules = xml("data_extraction_rules.xml");
     const transfer = rules.slice(rules.indexOf("<device-transfer>"));
-    expect(transfer).toContain('<exclude domain="database" path="." />');
+    expect(transfer).toContain('<include domain="file" path="backup/" />');
   });
 
   /**
    * One included directory, empty until somebody opts in. Backup is not turned
    * off — it is turned down to nothing and given a way back up.
    */
-  it("leaves a way in for the opt-in that issue #60 will build", () => {
+  it("leaves a way in for the opt-in", () => {
     for (const name of ["backup_rules.xml", "data_extraction_rules.xml"]) {
       expect(xml(name)).toContain('<include domain="file" path="backup/" />');
     }

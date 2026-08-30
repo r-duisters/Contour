@@ -78,3 +78,9 @@ android/app/src/main/assets/public/
 # 2026-08-23 and remains in the history; this stops any new one joining it.
 backup-*.json
 *-backup.json
+
+# Release signing. Never in the tree — see `contourSigning` in
+# android/app/build.gradle, which reads from here or from the environment.
+keystore.properties
+*.jks
+*.keystore

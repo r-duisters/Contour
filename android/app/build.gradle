@@ -43,6 +43,44 @@ def contourAppName = isWrapper ? "Contour LAN" : "Contour"
  */
 def contourBuildNumber = (System.currentTimeMillis().intdiv(60000L) - 29453760L).intValue()
 
+/**
+ * Where the release signing key comes from.
+ *
+ * A debug build is signed with the conventional Android debug key, which is
+ * fine for something you install on your own phone by hand and unusable for
+ * anything you hand to somebody else: the key is not yours, and the key that
+ * signs the first version has to sign every version after it. Losing it means
+ * nobody can install an update over what they already have.
+ *
+ * Two ways in, and neither of them is a file in this repository.
+ * `android/keystore.properties` for a person at a desk, environment variables
+ * for CI. `.gitignore` covers the properties file and every keystore
+ * extension, but the real protection is that this reads from outside the tree
+ * and there is nothing here to accidentally commit.
+ *
+ * Absent both, `assembleRelease` produces an unsigned APK rather than falling
+ * back to the debug key. A release quietly signed with a key anybody has is
+ * worse than a build that stops and says what is missing.
+ */
+def contourSigning = [:]
+def contourKeystoreProps = rootProject.file("keystore.properties")
+if (contourKeystoreProps.exists()) {
+    def props = new Properties()
+    contourKeystoreProps.withInputStream { props.load(it) }
+    contourSigning = [
+        storeFile: props["storeFile"], storePassword: props["storePassword"],
+        keyAlias: props["keyAlias"], keyPassword: props["keyPassword"],
+    ]
+} else if (System.getenv("CONTOUR_KEYSTORE")) {
+    contourSigning = [
+        storeFile: System.getenv("CONTOUR_KEYSTORE"),
+        storePassword: System.getenv("CONTOUR_KEYSTORE_PASSWORD"),
+        keyAlias: System.getenv("CONTOUR_KEY_ALIAS"),
+        keyPassword: System.getenv("CONTOUR_KEY_PASSWORD"),
+    ]
+}
+def contourSigned = contourSigning.storeFile != null
+
 android {
     namespace = "app.contour.local"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -80,8 +118,21 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (contourSigned) {
+                storeFile file(contourSigning.storeFile)
+                storePassword contourSigning.storePassword
+                keyAlias contourSigning.keyAlias
+                keyPassword contourSigning.keyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // Null rather than the debug config: see `contourSigning` above.
+            signingConfig contourSigned ? signingConfigs.release : null
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

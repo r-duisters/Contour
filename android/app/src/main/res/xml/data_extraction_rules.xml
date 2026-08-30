@@ -1,29 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  The API 31+ half of the same decision; see `backup_rules.xml` for why.
+  The API 31+ half of the same decision; see `backup_rules.xml` for why one
+  `<include>` is the whole of it.
 
-  Two transfers, and both are refused the same things. `cloud-backup` is Auto
+  Two transfers, and both are told the same thing. `cloud-backup` is Auto
   Backup to Google Drive. `device-transfer` is the phone-to-phone copy, which
-  never leaves the owner's hands and is the more defensible of the two — but it
-  is refused as well, because the app's own export is a better answer to
-  "I have a new phone" than a database file whose schema the new install may
-  not recognise.
+  never leaves the owner's hands and is the more defensible of the two — it is
+  limited as well, because the app's own export is a better answer to "I have a
+  new phone" than a database file whose schema the new install may not know.
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <exclude domain="root" path="." />
-        <exclude domain="database" path="." />
-        <exclude domain="sharedpref" path="." />
-        <exclude domain="file" path="." />
-        <exclude domain="external" path="." />
         <include domain="file" path="backup/" />
     </cloud-backup>
     <device-transfer>
-        <exclude domain="root" path="." />
-        <exclude domain="database" path="." />
-        <exclude domain="sharedpref" path="." />
-        <exclude domain="file" path="." />
-        <exclude domain="external" path="." />
         <include domain="file" path="backup/" />
     </device-transfer>
 </data-extraction-rules>
