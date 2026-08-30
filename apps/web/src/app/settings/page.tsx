@@ -194,7 +194,7 @@ export default function SettingsPage() {
     setMsg(null);
     try {
       await sendTest();
-      setMsg("Test signal sent. Check Home Assistant.");
+      setMsg("Test signal sent. Check whatever is on the other end.");
     } catch (e) {
       setMsg(`Error: ${(e as Error).message}`);
     }
@@ -281,19 +281,33 @@ export default function SettingsPage() {
             where alerts reach you
           </span>
         </h2>
+        <SubHeading>Webhook</SubHeading>
+        <p className="text-xs text-neutral-500 max-w-prose">
+          Every alert is POSTed to this address as JSON — the symbol, the signal,
+          the price and the time. Point it at a trading bot, an automation flow,
+          a chat relay or a script of your own; anything that accepts a JSON
+          request will do.
+        </p>
         <label className="block text-sm">
-          <span className="text-neutral-400">HA URL</span>
+          <span className="text-neutral-400">Webhook URL</span>
           <input className={`mt-1 w-full ${field()}`}
-                 placeholder="http://homeassistant.local:8123"
+                 placeholder="https://bot.example.com/hooks/contour"
                  value={haUrl} onChange={(e) => setHaUrl(e.target.value)} />
         </label>
         <label className="block text-sm">
-          <span className="text-neutral-400">Webhook ID</span>
+          <span className="text-neutral-400">Home Assistant webhook ID</span>
           <input className={`mt-1 w-full ${field()}`}
-                 placeholder="trader_signal"
+                 placeholder="optional"
                  value={haWebhookId} onChange={(e) => setHaWebhookId(e.target.value)} />
+          {/*
+            Only Home Assistant needs this. Its webhooks live at a fixed path,
+            so giving an id here appends `/api/webhook/<id>` to the URL above
+            and the field can hold the bare HA address. Left empty, the URL is
+            posted to exactly as typed — which is what everything else expects.
+          */}
           <span className="text-xs text-neutral-500">
-            Configured in an HA automation with a webhook trigger.
+            Only for Home Assistant, whose webhooks sit at a fixed path. Leave it
+            empty and the URL above is used exactly as typed.
           </span>
         </label>
         <div className="flex gap-2">
@@ -319,7 +333,7 @@ export default function SettingsPage() {
             {pushState === "on" ? "Disable notifications" : "Enable notifications"}
           </Button>
         )}
-        <p className="text-xs text-neutral-500">“Send test” above exercises both Home Assistant and Web Push.</p>
+        <p className="text-xs text-neutral-500">“Send test” above exercises the webhook and this device’s notifications together.</p>
       </section>
 
       <section className="space-y-4 mt-10">

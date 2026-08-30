@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { HomeAssistantNotifier } from "@/lib/notifier/home-assistant";
+import { WebhookNotifier, webhookUrl } from "@/lib/notifier/webhook";
 import type { Notifier } from "@/lib/notifier";
 import { makeWebPushNotifier } from "@/lib/notifier/web-push";
 import { deps } from "@/lib/deps";
@@ -62,8 +62,11 @@ export async function PUT(req: NextRequest) {
 export async function POST() {
   const s = await prisma.settings.findUnique({ where: { id: 1 } });
   const notifiers: { name: string; n: Notifier }[] = [];
-  if (s?.haUrl && s?.haWebhookId) {
-    notifiers.push({ name: "home-assistant", n: new HomeAssistantNotifier(s.haUrl, s.haWebhookId) });
+  // A webhook id is no longer required: a URL on its own is posted to
+  // verbatim, which is what a trading tool or a bot expects.
+  const hook = webhookUrl(s?.haUrl, s?.haWebhookId);
+  if (hook) {
+    notifiers.push({ name: "webhook", n: new WebhookNotifier(hook) });
   }
   const wp = makeWebPushNotifier();
   if (wp) notifiers.push({ name: "web-push", n: wp });

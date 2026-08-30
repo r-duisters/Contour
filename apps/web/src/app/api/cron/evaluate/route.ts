@@ -13,7 +13,7 @@ import {
   evaluatePctMove, evaluatePriceTarget, PctMoveParams, PriceTargetParams, utcDayOpen,
 } from "@/lib/alerts";
 import { computeHoldings, type Tx, type TxSide } from "@/lib/portfolio";
-import { HomeAssistantNotifier } from "@/lib/notifier/home-assistant";
+import { WebhookNotifier, webhookUrl } from "@/lib/notifier/webhook";
 import { makeWebPushNotifier } from "@/lib/notifier/web-push";
 import { makeFcmNotifier } from "@/lib/notifier/fcm";
 import type { Notifier } from "@/lib/notifier";
@@ -319,7 +319,8 @@ async function heldSymbols(portfolioId: string | null): Promise<PricedSymbol[]> 
  */
 function makeNotifiers(s: { haUrl: string | null; haWebhookId: string | null } | null): Notifier[] {
   const out: Notifier[] = [];
-  if (s?.haUrl && s?.haWebhookId) out.push(new HomeAssistantNotifier(s.haUrl, s.haWebhookId));
+  const hook = webhookUrl(s?.haUrl, s?.haWebhookId);
+  if (hook) out.push(new WebhookNotifier(hook));
   const wp = makeWebPushNotifier();
   if (wp) out.push(wp);
   const fcm = makeFcmNotifier();

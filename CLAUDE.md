@@ -43,8 +43,9 @@ password-locked, installs as a PWA, and pushes notifications.
 
 Alongside that it keeps the tool it grew out of: a port of **one specific PineScript**, this project's
 own "Risk Metric Strategy" for Bitcoin (`samples/risk-metric.pine`; lineage in NOTICE), with a live candlestick chart and risk-metric pane, historical
-backtesting, a PineScript analyzer, and alerts that fire into **Home Assistant** via a webhook (HA
-fans out — mobile push, Telegram, etc.). That part is one section of the app now, not the whole of it.
+backtesting, a PineScript analyzer, and alerts that POST to **a webhook you choose** — a
+trading bot, an automation flow, a chat relay, or Home Assistant, which fans out
+to mobile push, Telegram and the rest. That part is one section of the app now, not the whole of it.
 
 Market data: **Binance** public REST + WebSocket for crypto (no API key required), Yahoo /
 Twelve Data / Alpha Vantage for equities, and Frankfurter/ECB for fiat rates.
@@ -316,7 +317,12 @@ apps/web/src/             The Next server app.
                           repository root. Any new root-relative path must go through it.
     notifier/
       index.ts                 Notifier interface + NotifierPayload
-      home-assistant.ts        HomeAssistantNotifier — POSTs to ${HA_URL}/api/webhook/{id}
+      webhook.ts               WebhookNotifier — POSTs the alert as JSON to a URL
+                          somebody chose, plus `webhookUrl()`, which turns the
+                          two stored fields into that URL. A Home Assistant
+                          webhook id still appends HA's fixed path, so existing
+                          setups keep firing; without one the URL is used as
+                          typed, which is what a bot or an automation expects.
     pinescript/
       library.ts               List/read/write samples/*.pine (filesystem-backed)
 
@@ -527,18 +533,42 @@ unclosed bar leads to flickering signals.
 Wire this route to a real schedule — Vercel Cron, a systemd timer hitting the URL, or a
 Home Assistant `rest_command` automation. The route itself is stateless and idempotent.
 
-## Home Assistant integration
+## Webhooks
 
-The app speaks one-way to HA via a **webhook trigger** automation:
+An alert is a JSON POST to an address the owner sets in Settings → Notifications.
+The receiver decides what it means: a trading bot can act on it, an automation
+flow can branch on it, a chat relay can post it. Contour decides *when*, and
+nothing more.
+
+`WebhookNotifier.send()` POSTs `{ alertId, symbol, timeframe, signal, price,
+time, text?, meta? }` to that URL. `text` is a title and body the evaluator has
+already composed, for receivers that just want to show something; ignore it and
+compose your own from the fields.
+
+`webhookUrl()` resolves the two stored fields — still named `haUrl` and
+`haWebhookId`, because they are columns in two databases and a rename is a
+migration. With an id, HA's fixed `/api/webhook/{id}` path is appended and an
+existing automation keeps firing. Without one, the URL is posted to verbatim.
+Anything that is not absolute http(s) resolves to null and no notifier is added,
+so a relative path cannot post alerts back to Contour itself.
+
+**Keep the endpoint on a trusted network, or authenticate it at the receiver.**
+The POST carries no secret — a webhook that anybody can call is the receiver's
+problem to solve, and most of them offer a token in the path or a header.
+
+### Home Assistant, as one destination
+
+The original integration, and still the easiest fan-out to mobile push,
+Telegram and the rest:
 
 1. In HA, create an automation: trigger = Webhook (ID e.g. `trader_signal`), action = `notify.<device>`
    templating `{{ trigger.json.symbol }}`, `{{ trigger.json.signal }}`, etc.
 2. In the app's Settings page, set `HA URL` and the webhook ID, then **Send test** to verify the
    automation trace fires and the notification reaches the device.
 
-`HomeAssistantNotifier.send()` POSTs JSON `{ alertId, symbol, timeframe, signal, price, time, meta? }`
-to `${HA_URL}/api/webhook/${webhookId}`. No long-lived HA token is needed — webhook endpoints are
-unauthenticated by design, so keep `HA_URL` on a trusted network.
+Set the HA base URL and the webhook id in Settings and the id is appended to
+HA's path for you. No long-lived HA token is needed — webhook endpoints are
+unauthenticated by design, which is the reason for the warning above.
 
 MQTT is a viable alternative (publish to `trader/signals/<symbol>`), but isn't implemented yet.
 

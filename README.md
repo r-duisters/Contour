@@ -66,8 +66,10 @@ transactions behind them are an illustrative ledger, not anybody's positions.*
   actually made the money, and how concentrated you are.
 - **Markets** — an index strip, a ranked table, the day's winners and losers.
 - **Alerts** — price targets and percentage moves, evaluated on the device and
-  posted as ordinary Android notifications. On the desktop they can also fire
-  into Home Assistant, which fans out to whatever you already use.
+  posted as ordinary Android notifications.
+- **Webhooks** — every alert can also be POSTed as JSON to an address you
+  choose: a trading bot, an automation flow, a chat relay, a script of your
+  own. Contour decides *when*; what happens next is yours.
 - **The tool it grew out of** — a port of a Bitcoin risk-metric strategy, with a
   live candlestick chart, historical backtesting and a PineScript analyzer.
   One section of the app now, rather than the whole of it.
@@ -100,6 +102,19 @@ export of your transactions rather than the database.
 **This rules things out:** no telemetry, no analytics, no crash reporting that
 ships a payload, and no feature whose only implementation needs a service this
 project runs. A server may be added; it may never be required.
+
+**And what a server is actually for.** The phone checks alerts whenever you open
+the app and every half hour in the background — but that half hour is Android's
+to grant, and a battery-optimised phone can defer it for hours or skip it
+entirely. A missed alert is indistinguishable from a market that did not move,
+which is the worst way for a feature to fail.
+
+Running Contour on something that stays awake fixes that. A machine you already
+leave on evaluates alerts on a schedule you set, and dispatches them to your
+webhook and to your devices. It is the same code and the same ledger; the
+difference is that a server is not asleep. **Optional, and that is the point** —
+the phone is complete on its own, and adding a server makes alerts more reliable
+without making anything a requirement.
 
 ## Running it
 
@@ -144,7 +159,8 @@ On first run you are redirected to `/setup` to set the app password.
    }
    ```
 
-4. Evaluate alerts on a schedule:
+4. Evaluate alerts on a schedule — this is what makes them reliable, since a
+   machine that stays awake is not subject to a phone's battery rules:
 
    ```
    */5 * * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
