@@ -338,7 +338,7 @@ export default function AssetScreen({
     : changeWindowLabel(range);
 
   return (
-    <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-3 py-4 md:p-8 max-w-4xl mx-auto">
+    <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-3 py-4 md:p-8 max-w-5xl mx-auto">
       {/*
         This page's top bar. `BRAND.md` gives every screen a label on the left
         and circular icon buttons on the right; here the back link is the

@@ -43,7 +43,7 @@ export default function IndexPage({ params }: { params: Promise<{ index: string 
   }, [client, slug]);
 
   return (
-    <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-4 py-5 md:p-8 max-w-3xl mx-auto">
+    <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-4 py-5 md:p-8 max-w-5xl mx-auto">
       <Link href="/markets" className="text-xs text-neutral-400 inline-flex items-center gap-1 mb-4">
         <ArrowLeft size={14} aria-hidden />Markets
       </Link>
