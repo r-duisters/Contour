@@ -47,6 +47,31 @@ export default function DisplaySettings({
         onChange={(c) => set("displayCurrency", c)}
         hint="Save to apply."
       />
+      {/*
+        A selector with one option, on purpose.
+        ======================================
+
+        Coins are priced by Binance and always have been, and the app never
+        said so anywhere a person would look. The currency field above ends
+        "Prices come from Binance in USDT", which answers it in passing while
+        talking about something else; the field below offers three sources for
+        shares, which quietly implies coins have a choice too.
+
+        So: the same shape as its neighbour, disabled, saying the one thing it
+        has to say. A disabled control that states a fact reads as a fact. The
+        absence of a control leaves a person guessing, and guessing here means
+        wondering which exchange has been asked about their holdings — which
+        is exactly the question the Privacy section then answers.
+      */}
+      <label className="block text-sm">
+        <span className="text-neutral-400">Coin price source</span>
+        <select className={`mt-1 w-full ${field()} opacity-70`} value="binance" disabled>
+          <option value="binance">Binance (no key needed)</option>
+        </select>
+        <p className="text-xs text-neutral-500 mt-1">
+          The only source for coins. Public prices, no account.
+        </p>
+      </label>
       <label className="block text-sm">
         <span className="text-neutral-400">Stock / ETF price source</span>
         <select

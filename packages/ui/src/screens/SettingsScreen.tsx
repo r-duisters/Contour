@@ -105,6 +105,31 @@ export default function SettingsScreen() {
       */}
       <section className="mt-10 space-y-5">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Privacy</h2>
+        {/*
+          The headline, before the switches.
+          =================================
+
+          Both switches below are adjustments to something a person has to be
+          told first: this app keeps the portfolio on the phone. There is no
+          account, no server of ours, and nothing syncing. Somebody arriving at
+          a "Privacy" heading is asking that question, and answering it with
+          two toggles about price requests would be answering a smaller one.
+
+          It also sets the size of what follows. Knowing the ledger never
+          leaves, an exchange being able to work out which coins are held is a
+          proportionate worry rather than an alarming one.
+
+          (Said without quoting the exchange's name after a double quote:
+          `import-surfaces.test.ts` greps every screen for a re-typed import
+          format label, and Binance is one. The guard is right to be blunt —
+          the cost is a sentence rephrased, and the thing it catches is two
+          lists of formats drifting apart.)
+        */}
+        <p className="text-xs text-neutral-500 max-w-prose">
+          Your portfolio is stored on this phone and nowhere else. There is no account
+          and no cloud — Contour has no server to send it to. What follows is about the
+          little that does leave: the price requests it has to make.
+        </p>
         <PrivacySettings
           privateCoinPrices={value.privateCoinPrices}
           onPrivateCoinPrices={(next) => setValue({ ...value, privateCoinPrices: next })}
@@ -132,10 +157,24 @@ export default function SettingsScreen() {
           Notifications
         </h2>
         <NotificationAccess />
+        {/*
+          No naming of what this build does not have.
+          =========================================
+
+          This said that Home Assistant, web-push and passkeys "live on the
+          desktop app". Every word was true and none of it belonged: this app
+          has no server, so a person reading it can neither use those things
+          nor act on being told about them — it is a list of features that
+          exist somewhere else, on a screen about this phone. Worse, it points
+          at a system most people reading it have never heard of, and invites
+          the question "should I be setting that up?" when the answer is that
+          there is nothing to set up.
+
+          What is left is the sentence that helps: where the rest of the
+          answer lives.
+        */}
         <p className="text-xs text-neutral-500 mt-3 max-w-prose">
-          What you are alerted about lives under Alerts. Home Assistant, web-push and
-          passkeys live on the desktop app — each needs a server, and this build has
-          none.
+          What you are alerted about lives under Alerts.
         </p>
       </section>
 
