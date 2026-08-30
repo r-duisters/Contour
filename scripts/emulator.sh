@@ -44,19 +44,30 @@ AVD="${CONTOUR_AVD:-contour}"
 APK="android/app/build/outputs/apk/debug/app-debug.apk"
 PKG="app.contour.standalone"
 
+# `usermod -aG kvm` only reaches sessions that start after it, so a shell
+# opened before the group was granted still cannot use KVM — including every
+# shell an agent or an editor spawns from that session. `sg` runs one command
+# with the group applied and needs no re-login, which turns "log out and back
+# in" from a prerequisite into a tidiness.
+KVM=""
 if ! "$SDK/emulator/emulator" -accel-check >/dev/null 2>&1; then
-  echo "No KVM access. Run:  sudo usermod -aG kvm $USER   then log out and back in." >&2
-  "$SDK/emulator/emulator" -accel-check 2>&1 | head -3 >&2
-  exit 1
+  if id -nG "$USER" | tr ' ' '\n' | grep -qx kvm && sg kvm -c "$SDK/emulator/emulator -accel-check" >/dev/null 2>&1; then
+    KVM="sg kvm -c"
+  else
+    echo "No KVM access. Run:  sudo usermod -aG kvm $USER" >&2
+    "$SDK/emulator/emulator" -accel-check 2>&1 | head -3 >&2
+    exit 1
+  fi
 fi
 
 if ! "$ADB" devices | grep -q emulator; then
   echo "Booting $AVD…"
   # swiftshader_indirect because this runs headless over ssh as often as not,
   # and a host GPU is not something to assume.
-  "$SDK/emulator/emulator" -avd "$AVD" -no-window -no-audio -no-boot-anim \
-    -gpu swiftshader_indirect -netdelay none -netspeed full \
-    > /tmp/contour-emulator.log 2>&1 &
+  BOOT="$SDK/emulator/emulator -avd $AVD -no-window -no-audio -no-boot-anim \
+    -gpu swiftshader_indirect -netdelay none -netspeed full"
+  if [ -n "$KVM" ]; then $KVM "$BOOT > /tmp/contour-emulator.log 2>&1 &"
+  else $BOOT > /tmp/contour-emulator.log 2>&1 & fi
   "$ADB" wait-for-device
   until [ "$("$ADB" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; do
     sleep 2
@@ -79,10 +90,20 @@ cat <<'NEXT'
 
 What this machine is for, from the review's open questions:
 
-  Backup (issue #60) — what Auto Backup actually takes:
-    adb shell bmgr enable true
-    adb shell bmgr backupnow app.contour.standalone
-    adb shell dumpsys backup | sed -n '/app.contour.standalone/,+8p'
+  Backup (issue #60) — ANSWERED on 2026-08-30, and the method matters because
+    three earlier attempts each failed for their own reason:
+
+      adb shell bmgr enable true
+      adb shell bmgr transport com.android.localtransport/.LocalTransport
+      # launch the app and let it settle ~25s; do NOT force-stop it, since
+      # Android skips stopped packages, and do not back up immediately after
+      # launching, since the agent times out while the WebView is still busy
+      adb shell bmgr fullbackup app.contour.standalone
+      adb shell su 0 ls -la /data/data/com.android.localtransport/files/1/_full
+
+    Without the rules: a 4.45 MB blob containing db/contourSQLite.db and the
+    WebView's Local Storage. With them: no blob, and PFTBT logs "Transport
+    rejected backup ... skipping".
 
   Egress (issue #62) — what leaves when prices refresh. Boot with
     -http-proxy http://10.0.2.2:8080 and point it at a TLS-terminating proxy;

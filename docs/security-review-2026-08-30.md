@@ -58,8 +58,22 @@ transport-encrypted and tied to the user's account, so this is not an exposure
 to strangers; it is an exposure to exactly the party the product says is not
 involved.
 
-**Fix:** `android:allowBackup="false"`, or a `dataExtractionRules` that
-excludes the database. The first is more honest about the product's claim; it
+**Fixed and verified on an emulator**, 2026-08-30. Both rules files now exclude
+every domain and include one empty directory for the opt-in of issue #60. The
+verification was a controlled pair, because an empty backup proves nothing on
+its own — a backup that never ran is also empty:
+
+| build | on-device database | backup result |
+|---|---|---|
+| rules removed | `contourSQLite.db`, 45,056 B | **4.45 MB blob** containing `db/contourSQLite.db` *and* the WebView's Local Storage |
+| rules in place | the same file | no blob; `PFTBT: Transport rejected backup … skipping` |
+
+The blob is what would have reached Google Drive, and it carried more than the
+database: the WebView's Local Storage holds the app's price and valuation
+cache.
+
+**Original fix, for the record:** `android:allowBackup="false"`, or a
+`dataExtractionRules` that excludes the database. The first is more honest about the product's claim; it
 also means a phone-to-phone migration must go through the app's own export,
 which is the mechanism the design already provides.
 
@@ -67,6 +81,10 @@ which is the mechanism the design already provides.
 
 `aapt2 dump xmltree` reports `android:debuggable=true`, and `apksigner
 --print-certs` reports `CN=Android Debug, O=Android, C=US`.
+
+**Confirmed on the emulator**, 2026-08-30: `adb shell run-as
+app.contour.standalone ls -la databases/` lists `contourSQLite.db` and its
+size, without root. That is the whole of it — one command, no exploit.
 
 Two consequences. `debuggable` lets `adb shell run-as app.contour.standalone`
 read the app's private data — including the unencrypted database — on any
@@ -161,14 +179,14 @@ completeness rather than as something to fix now.
 
 ## Not tested
 
-- **Nothing here is a runtime observation of the APK.** Traffic was derived
-  from the code and from strings in the shipped bundle, not from a capture, so
-  anything reached by a dependency rather than by this code would not appear.
+- **The traffic was not captured.** The egress list is derived from the code
+  and from strings in the shipped bundle, so anything reached by a dependency
+  rather than by this code would not appear in it. The emulator can now answer
+  this — boot it with `-http-proxy` — and has not been asked yet.
 
-  An emulator now exists for the follow-up — `scripts/emulator.sh`, an Android
-  16 image at the S24's 1080×2340 at 3x — but it is one `sudo usermod -aG kvm`
-  away from running, so it has still observed nothing. The script lists the
-  three questions it is meant to answer.
+  H1 and H2 *were* since observed on it. `scripts/emulator.sh` runs an Android
+  16 image at the S24's 1080×2340 at 3x; it uses `sg kvm` so it works in a
+  shell that started before the group was granted.
 - **No dependency vulnerability scan.** `npm audit` and a Gradle equivalent are
   worth running separately; they answer a different question from this review.
 - **The web app was reviewed second and less deeply.** It is designed for a
