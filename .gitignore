@@ -32,6 +32,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# The template is the opposite of a secret: it names the variables and holds
+# none of their values, and a compose file that fails without it is useless
+# without something to copy.
+!.env.example
 
 # vercel
 .vercel

@@ -1,0 +1,45 @@
+# What must never reach a build context, and why.
+#
+# Docker copies the context to the daemon before the first instruction runs, so
+# an exclusion here is the only thing standing between a secret and an image
+# layer. The two lines that matter most are the database and the env files:
+# `apps/web/prisma/dev.db` is a real portfolio, and `apps/web/.env` holds
+# SESSION_SECRET, CRON_SECRET and the VAPID private key. Neither is in git —
+# which is exactly why nothing in git would have caught them being baked into
+# an image and pushed to a registry.
+
+# Secrets and state
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+**/*.db
+**/*.db-journal
+**/*.sqlite*
+backup-*.json
+android/keystore.properties
+**/*.jks
+**/*.keystore
+
+# Build output and caches — the image builds its own
+node_modules
+**/node_modules
+.next
+**/.next
+**/out
+android/app/build
+android/build
+android/.gradle
+.icon-cache
+*.tsbuildinfo
+
+# Not needed to run the server
+.git
+.github
+.gitignore
+docs
+samples/*.fixes*.pine
+.superpowers
+**/*.test.ts
+**/*.test.tsx

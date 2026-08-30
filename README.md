@@ -228,6 +228,32 @@ npm run dev              # http://localhost:3000
 
 On first run you are redirected to `/setup` to set the app password.
 
+### With Docker
+
+```bash
+cp .env.example .env          # fill in SESSION_SECRET and CRON_SECRET
+docker compose up -d
+```
+
+Then open <http://localhost:3000>, which sends you to `/setup` to choose a
+password. The image builds the app, applies the database migrations on every
+start, and creates the database from nothing on a fresh volume — there is no
+setup step beyond the two secrets.
+
+Your data lives in the `contour-data` volume, not in the image. Rebuilding,
+upgrading or deleting the container does not touch it:
+
+```bash
+docker compose pull && docker compose up -d --build   # upgrade
+docker compose logs -f                                # what it is doing
+docker run --rm -v contour-data:/data -v "$PWD":/out alpine \
+  cp /data/contour.db /out/contour-backup.db          # take a copy
+```
+
+The alert scheduler is separate — `docker-compose.alerts.yml`, documented in
+`docs/alerts-scheduler.md`. It stays separate on purpose: the process holding a
+year of transactions should not be restarted to change a timer.
+
 <details>
 <summary><b>Serving it on a domain, with push notifications</b></summary>
 

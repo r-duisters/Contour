@@ -11,6 +11,29 @@ const r = (p: string) => fileURLToPath(new URL(p, import.meta.url));
  * runner.
  */
 export default defineConfig({
+  test: {
+    /*
+     * Vitest's defaults exclude `node_modules` and `dist`, not `.next`.
+     *
+     * That was harmless until the Docker image needed `output: "standalone"`,
+     * which copies `apps/web/src` — test files and all — into
+     * `apps/web/.next/standalone/`. The runner then collected every suite
+     * twice: once from source and once from a copy whose relative imports
+     * resolve to nothing. Nine files failed to load while every test that did
+     * load passed, which is a confusing shape of red.
+     *
+     * Excluded by path rather than fixed in the build, because a build output
+     * that mirrors the source tree is normal and the runner should not be
+     * looking in build output at all.
+     */
+    exclude: [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/.next/**",
+      "**/out/**",
+      "**/android/app/build/**",
+    ],
+  },
   resolve: {
     alias: {
       "@/data": r("./packages/data/src"),
