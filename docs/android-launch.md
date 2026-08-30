@@ -82,8 +82,14 @@ for 112 there and a 44dp disc arrives.
 
 The 288/192 rule was derived from three data points on one phone. It matches
 `core-splashscreen`'s own `splashscreen_icon_size_no_background` (288dp) and its
-410dp mask with a 109dp stroke (leaving 192dp), which is good corroboration, but
-it has not been checked on a second device.
+410dp mask with a 109dp stroke (leaving 192dp).
+
+**Confirmed on a second device, 2026-08-30.** An Android 16 emulator at the same
+1080×2340 and 480dpi, which is AOSP rather than One UI: the splash disc measured
+336×336 device pixels, centred at (539.5, 1169.5) of 1080×2340 — **exactly
+112.0dp at 3x**, and exactly centred. So the rule is Android's, not Samsung's,
+and the ground-circle trick that defeats the content normalisation works on
+both.
 
 ## Why the launcher icon looked stale for a dozen installs
 
