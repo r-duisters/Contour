@@ -46,6 +46,15 @@ type State = "checking" | "splash" | "unavailable" | "locked" | "prompting" | "o
  *
  * In a plain browser there is no native prompt, so the lock stays out of the
  * way entirely rather than pretending to protect something.
+ *
+ * **It guards the screen, not the file.** This is an overlay over a page that
+ * has already rendered, and the database behind it is unencrypted; anyone who
+ * gets at the file has the portfolio whatever this component is doing. That is
+ * not a gap to fix here — it is what `docs/security-review-2026-08-30.md`
+ * tracks as M2, and the paths that lead to the file are the backup rules and
+ * the build's `debuggable` flag rather than anything on this screen. Worth
+ * stating so the lock is not mistaken for data protection by someone deciding
+ * whether the rest of it matters.
  */
 export default function BiometricLock({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<State>("checking");
