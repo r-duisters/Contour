@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import type { Alert } from "@prisma/client";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
@@ -326,10 +327,30 @@ function makeNotifiers(s: { haUrl: string | null; haWebhookId: string | null } |
   return out;
 }
 
+/**
+ * Constant-time string comparison.
+ *
+ * `timingSafeEqual` throws on a length mismatch rather than returning false,
+ * which is itself a signal — so the lengths are compared first and the
+ * comparison still runs, against the value itself, so a wrong-length guess
+ * costs the same as a right-length one.
+ */
+function secretsMatch(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  const same = ab.length === bb.length;
+  return timingSafeEqual(same ? ab : bb, bb) && same;
+}
+
 async function authorized(req: NextRequest): Promise<boolean> {
   const cronSecret = process.env.CRON_SECRET;
   const header = req.headers.get("authorization");
-  if (cronSecret && header === `Bearer ${cronSecret}`) return true;
+  // `===` on a bearer token compares byte by byte and returns at the first
+  // difference. Not practically exploitable across a network against a
+  // JavaScript comparison, and the route is on a trusted network by design —
+  // but `auth.ts` already reaches for `timingSafeEqual` on the password path,
+  // so this was the one place doing it the other way.
+  if (cronSecret && header && secretsMatch(header, `Bearer ${cronSecret}`)) return true;
   const sessionSecret = process.env.SESSION_SECRET;
   const token = req.cookies.get(SESSION_COOKIE)?.value;
   return !!(sessionSecret && token && (await verifySessionToken(token, sessionSecret)));

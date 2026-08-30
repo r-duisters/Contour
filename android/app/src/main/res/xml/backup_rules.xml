@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What Android Auto Backup is allowed to take, on API 30 and below.
+  `data_extraction_rules.xml` is the same decision for API 31 and above; both
+  are named from the manifest and both have to agree.
+
+  Nothing, by default — and "by default" is the whole point. Left unset, this
+  file does not exist and Android's default applies, which is the entire app
+  data directory: the unencrypted portfolio database uploaded to the owner's
+  Google Drive without anyone asking for it. In an app whose premise is that
+  the portfolio stays on the phone, that is not a default to inherit.
+
+  `files/backup/` is included and is empty. It is where the opt-in of issue #60
+  will write the app's own export when somebody turns backup on, and deleting
+  from it is how they turn it off. Backing up an export rather than the
+  database is deliberate: a raw SQLite file from an older schema is a migration
+  problem on restore, and the export format is the one thing this app already
+  knows how to read from any version of itself.
+-->
+<full-backup-content>
+    <exclude domain="root" path="." />
+    <exclude domain="database" path="." />
+    <exclude domain="sharedpref" path="." />
+    <exclude domain="file" path="." />
+    <exclude domain="external" path="." />
+    <include domain="file" path="backup/" />
+</full-backup-content>

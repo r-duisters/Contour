@@ -1,5 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  What the app may hand another app a `content://` URI for.
+
+  One directory, because the app writes to one. `save-file.ts` is the only
+  caller: it writes an export into `Directory.Cache` and passes the URI to the
+  share sheet, which is what "export" means on a device with no downloads
+  folder to speak of.
+
+  This was Capacitor's template — `<external-path path="."/>` and
+  `<cache-path path="."/>`, the whole of external storage and the whole cache.
+  Neither was exposure on its own: the provider is not exported and every grant
+  is per-URI and momentary. It was surface, and surface on the one component
+  whose entire job is handing file access to other applications is the wrong
+  place to keep spare capacity.
+-->
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <external-path name="my_images" path="." />
-    <cache-path name="my_cache_images" path="." />
+    <cache-path name="exports" path="." />
 </paths>

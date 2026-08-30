@@ -61,10 +61,17 @@ shipped the device build. The plan is
 design question below resolves against it.
 
 - **The app is complete without a server.** The device build holds its own SQLite database and
-  answers every screen from it; prices come from public endpoints that need no account. Nothing
-  about the portfolio leaves the phone. That is why logos are bundled rather than proxied — asking
-  a CDN for a coin's icon tells it what is held — and why `Net` is injected rather than reached
-  for, so what talks to the outside is countable.
+  answers every screen from it; prices come from public endpoints that need no account.
+  **Values, quantities, cost bases and history never leave the phone. The tickers do** —
+  pricing a portfolio means naming it: Binance receives the whole coin set in one
+  `ticker/price?symbols=[…]`, Yahoo one request per equity, and the background runner
+  repeats both every half hour with the app closed. That cannot be otherwise without a
+  proxy the owner runs, and it is written here rather than glossed because the stronger
+  claim — that nothing about the portfolio leaves — was made for months and was not true.
+  What *is* avoidable is avoided: logos are bundled rather than proxied, since asking a CDN
+  for a coin's icon tells it what is held, and `Net` is injected rather than reached for, so
+  what talks to the outside is countable. `docs/security-review-2026-08-30.md` has the full
+  egress list.
 - **A server may be added; it may never be required.** Alerting and sync are the two things a
   server would genuinely earn, and both must arrive as *capabilities that can be absent*, the way
   `sendTestNotification` already is: optional on the interface, feature-detected by the screen,

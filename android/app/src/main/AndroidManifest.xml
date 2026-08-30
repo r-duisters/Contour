@@ -2,8 +2,25 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!--
+      `allowBackup` stays true and the rules files decide what that means.
+
+      Turning it off outright would have been the smaller change, and it would
+      also have closed the door on the thing worth having: a person who *wants*
+      their portfolio backed up, and says so. What was wrong was never that
+      backup existed — it was that it happened to everybody, silently, with the
+      unencrypted database in it. So: backup is on, and the rules exclude
+      everything except a directory that is empty until somebody opts in. See
+      `res/xml/backup_rules.xml`.
+
+      Both files are named because they cover different Android versions and
+      neither is a fallback for the other: `dataExtractionRules` is read on API
+      31 and above, `fullBackupContent` below it, and minSdk here is 24.
+    -->
     <application
         android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
