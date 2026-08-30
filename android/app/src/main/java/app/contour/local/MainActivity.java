@@ -6,6 +6,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.WindowManager;
+import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebView;
 
 import android.os.SystemClock;
@@ -15,6 +16,7 @@ import androidx.core.splashscreen.SplashScreen;
 import androidx.core.splashscreen.SplashScreenViewProvider;
 
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.WebViewListener;
 
 public class MainActivity extends BridgeActivity {
 
@@ -70,10 +72,63 @@ public class MainActivity extends BridgeActivity {
             }
         );
 
+        recoverFromRendererDeath();
         handleBackButton();
         keepPortfolioOutOfRecents();
         brandTheRecentsCard();
     }
+
+    /**
+     * Come back from the WebView's renderer being killed.
+     *
+     * Android runs the WebView's renderer in its own process and kills it under
+     * memory pressure. `BridgeWebViewClient.onRenderProcessGone` returns false
+     * unless some listener claims the event, and false means "the app did not
+     * handle this" — after which the framework kills the app. Registering
+     * nothing was therefore a choice, just not one anybody made.
+     *
+     * Observed on an emulator: the renderer died, the app process survived, and
+     * the screen went white and stayed white. Either outcome is what a person
+     * meets on opening a portfolio tracker that sat in the background while
+     * something hungrier ran in front of it.
+     *
+     * `recreate()` rather than `view.reload()`. A WebView whose renderer has
+     * gone is documented as no longer usable, so reloading it asks a dead
+     * object to fetch a page; recreating the activity builds a new one, and
+     * Capacitor's `BridgeActivity` tears the old bridge down on the way out.
+     * The device build can afford that because its state is in SQLite and not
+     * in the page — a person loses the screen they were on and nothing else.
+     *
+     * The guard is the part worth having. A renderer that dies once is a
+     * memory spike; one that dies immediately after being rebuilt is a
+     * condition recreating cannot fix, and looping on it would spin the
+     * process. Twice inside RENDERER_RETRY_WINDOW_MS and this stops trying and
+     * returns true anyway, which leaves a blank screen — a screen the person
+     * can back out of, rather than a restart loop they cannot.
+     */
+    private void recoverFromRendererDeath() {
+        getBridge().addWebViewListener(new WebViewListener() {
+            @Override
+            public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                final long now = SystemClock.uptimeMillis();
+                final boolean recent = now - lastRendererDeathAt < RENDERER_RETRY_WINDOW_MS;
+                lastRendererDeathAt = now;
+                // True either way: the alternative is the framework killing the
+                // process, which is strictly worse than what follows.
+                if (recent) return true;
+                // Off the callback, since this destroys the view it was
+                // delivered to.
+                view.post(MainActivity.this::recreate);
+                return true;
+            }
+        });
+    }
+
+    /** When the renderer last died, so a second death in quick succession does not loop. */
+    private long lastRendererDeathAt = 0;
+
+    /** Long enough that a rebuilt renderer dying again means the cause has not passed. */
+    private static final long RENDERER_RETRY_WINDOW_MS = 30_000;
 
     /**
      * Keep the launch window up until the WebView has something to show.
