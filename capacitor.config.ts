@@ -26,10 +26,16 @@ import type { CapacitorConfig } from "@capacitor/cli";
  *
  * Set `CONTOUR_URL` to build the wrapper instead. The two are **different
  * applications and install side by side**: `app.contour.standalone` /
- * "Contour Standalone" against `app.contour.local` / "Contour". Sharing one
- * id would mean each install replaced the other, and replacing the wrapper
- * leaves the phone showing an empty portfolio, since the standalone build's
- * database is its own and starts empty.
+ * "Contour" against `app.contour.local` / "Contour LAN". Sharing one id would
+ * mean each install replaced the other, and replacing the device build leaves
+ * the phone showing an empty portfolio, since its database is its own and
+ * starts empty.
+ *
+ * The device build carries the plain name and the wrapper takes the qualifier,
+ * which is the right way round: the wrapper exists to compare against. The ids
+ * did not move when the names did — `app.contour.standalone` is what Android
+ * installs by, and renaming that would orphan the database rather than rename
+ * anything.
  *
  * `android/app/build.gradle` reads the same variable and must agree with this;
  * it is the half Android actually installs by, and it also names the launcher
@@ -39,7 +45,7 @@ const url = process.env.CONTOUR_URL?.trim() || undefined;
 
 const config: CapacitorConfig = {
   appId: url ? "app.contour.local" : "app.contour.standalone",
-  appName: url ? "Contour" : "Contour Standalone",
+  appName: url ? "Contour LAN" : "Contour",
   // The wrapper serves its UI from the running app, so its bundle is the web
   // app's public directory — which is also where `runner/alerts.js` lives.
   webDir: url ? "apps/web/public" : "apps/mobile/out",

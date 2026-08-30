@@ -118,7 +118,7 @@ than replacing one another:
 |---|---|---|
 | Built by | the commands above | `CONTOUR_URL=http://…` set first |
 | Application id | `app.contour.standalone` | `app.contour.local` |
-| Launcher name | Contour Standalone | Contour |
+| Launcher name | Contour | Contour LAN |
 | Data | its own, on the device | the server's |
 | Works offline | yes, without prices | no |
 | Alerts | no | yes, foreground and background |

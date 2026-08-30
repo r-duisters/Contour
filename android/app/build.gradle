@@ -20,7 +20,18 @@ apply plugin: 'com.android.application'
 def contourUrl = System.getenv("CONTOUR_URL")
 def isWrapper = contourUrl != null && !contourUrl.trim().isEmpty()
 def contourAppId = isWrapper ? "app.contour.local" : "app.contour.standalone"
-def contourAppName = isWrapper ? "Contour" : "Contour Standalone"
+/*
+ * The device build is Contour. The wrapper is the one that needs a qualifier
+ * now, which is the right way round: it exists to compare against, and the app
+ * a person installs is this one.
+ *
+ * The *ids* deliberately do not move with the names. `app.contour.standalone`
+ * is what Android identifies the installed app by, so changing it would not
+ * rename anything — it would install a second app beside the first and leave
+ * the portfolio in the database of the one nobody opens any more. A rename is
+ * a label; an id is an identity.
+ */
+def contourAppName = isWrapper ? "Contour LAN" : "Contour"
 
 /**
  * Minutes since 2026-01-01T00:00Z, as an int.

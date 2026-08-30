@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 
 /**
  * One question: does a failed open leave anything behind that stops the next
@@ -40,6 +40,24 @@ vi.mock("@capacitor-community/sqlite", () => ({
 }));
 
 describe("client()", () => {
+  /*
+   * Pay for the import before anything is timed.
+   *
+   * `./deps` pulls in the store, the client and the whole service layer behind
+   * them, and each test imports it again because `resetModules` is what gives
+   * them a fresh memo. The *transform* is cached across those re-imports; the
+   * first one is not, and under a loaded suite it was overrunning the 5s
+   * default — roughly one full run in ten.
+   *
+   * What made that worth chasing rather than retrying: the timed-out test's
+   * `client()` call kept running, and incremented `opens` after the next
+   * test's `beforeEach` had reset it. So the failure surfaced on the *second*
+   * test, as "expected 2 to be 1", which is exactly what a real memo bug would
+   * look like. A flake that impersonates the bug the file exists to catch is
+   * worse than no test.
+   */
+  beforeAll(async () => { await import("./deps"); }, 30_000);
+
   beforeEach(() => {
     opens = 0;
     failNext = true;
