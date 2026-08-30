@@ -161,11 +161,14 @@ completeness rather than as something to fix now.
 
 ## Not tested
 
-- **No device and no emulator** were available (no KVM access on this machine),
-  so nothing here is a runtime observation of the APK. Traffic was derived from
-  the code and from strings in the shipped bundle, not from a capture. A proxy
-  run against a real handset would confirm the egress list and, more usefully,
-  catch anything reached by a dependency rather than by this code.
+- **Nothing here is a runtime observation of the APK.** Traffic was derived
+  from the code and from strings in the shipped bundle, not from a capture, so
+  anything reached by a dependency rather than by this code would not appear.
+
+  An emulator now exists for the follow-up — `scripts/emulator.sh`, an Android
+  16 image at the S24's 1080×2340 at 3x — but it is one `sudo usermod -aG kvm`
+  away from running, so it has still observed nothing. The script lists the
+  three questions it is meant to answer.
 - **No dependency vulnerability scan.** `npm audit` and a Gradle equivalent are
   worth running separately; they answer a different question from this review.
 - **The web app was reviewed second and less deeply.** It is designed for a
