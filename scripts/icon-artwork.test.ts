@@ -101,3 +101,28 @@ describe("the launch draws one disc at one size", () => {
     expect(SPLASH_DISC_PX).toBe(LOCK_DISC_PX);
   });
 });
+
+describe("the mark outside the two apps", () => {
+  /**
+   * The README's logo is generated, not drawn.
+   *
+   * `apps/web/src/app/favicon.ico` was made by hand once and then sat through
+   * two redesigns of the mark while nothing noticed. A README logo is the same
+   * shape of mistake with a wider audience — it is the first thing anyone sees
+   * of this project, and the one asset nobody opens again after adding it.
+   *
+   * So it is asserted against the generator's own geometry rather than eyeballed:
+   * the brand blue, the ring at r=160, and the rising line's exact path.
+   */
+  it("carries the blue tile and the current geometry", () => {
+    const svg = readFileSync(
+      new URL("../docs/brand/contour-mark.svg", import.meta.url).pathname, "utf8",
+    );
+    expect(svg, "the tile is the brand blue — BRAND.md puts the colour on the container").toContain('fill="#2563eb"');
+    expect(svg, "the ring is the level curve the name means").toContain('r="160"');
+    expect(svg, "the line rises; a redrawn mark must regenerate this file")
+      .toContain("M172,302 L228,244 L280,276 L348,190");
+    // White on blue, and only white: BRAND.md forbids gain/loss colour in the mark.
+    expect(svg).not.toMatch(/#(?!ffffff|2563eb)[0-9a-f]{6}/i);
+  });
+});

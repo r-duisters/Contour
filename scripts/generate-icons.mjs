@@ -238,6 +238,27 @@ async function androidIcons() {
 const foreground = () => `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">${mark(1)}</svg>`;
 
+/**
+ * The mark for the README, and for anywhere else outside the two apps.
+ *
+ * SVG rather than a PNG: GitHub renders it from a relative path, it stays
+ * sharp on a retina screen at any size the markup asks for, and it is 300
+ * bytes instead of a bitmap somebody would have to remember to regenerate at
+ * two densities.
+ *
+ * It carries the rounded blue tile — `icon(false)` — because BRAND.md is
+ * explicit that the blue belongs to the container and the mark is white on it.
+ * A transparent version would vanish into GitHub's dark theme and reverse the
+ * one rule the mark has.
+ *
+ * Written here rather than drawn by hand for the reason the rest of this file
+ * exists: `apps/web/src/app/favicon.ico` was hand-made once and then sat
+ * through two redesigns of the mark, and nothing caught it.
+ */
+await mkdir("docs/brand", { recursive: true });
+await writeFile("docs/brand/contour-mark.svg", icon(false).trim() + "\n");
+console.log("wrote docs/brand/contour-mark.svg");
+
 await mkdir("apps/web/public/icons", { recursive: true });
 const targets = [
   ["apps/web/public/icons/icon-192.png", 192, false],

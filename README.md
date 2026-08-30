@@ -1,3 +1,5 @@
+<img src="docs/brand/contour-mark.svg" alt="" width="84">
+
 # Contour
 
 A portfolio tracker for crypto and equities that runs on your own machine, or
