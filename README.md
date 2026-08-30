@@ -72,9 +72,19 @@ transactions behind them are an illustrative ledger, not anybody's positions.*
 - **Webhooks** — every alert can also be POSTed as JSON to an address you
   choose: a trading bot, an automation flow, a chat relay, a script of your
   own. Contour decides *when*; what happens next is yours.
+  **Web app only** — the Android build posts to its own screen and dispatches
+  nothing.
 - **The tool it grew out of** — a port of a Bitcoin risk-metric strategy, with a
   live candlestick chart, historical backtesting and a PineScript analyzer.
   One section of the app now, rather than the whole of it.
+  **Web app only**, and not a limitation waiting to be lifted: it needs a
+  server-side price proxy and a filesystem, and the indicator needs 1,460 daily
+  bars of warm-up before it means anything.
+
+The last two are the only entries on this list the Android app does not have.
+Everything above them — the portfolio, the ledger, insights, markets and price
+alerts — works on the phone with no server at all. There is a full comparison
+below.
 
 ## The app and the server
 
@@ -94,12 +104,12 @@ filesystem can do. Run either, or both.
 | Delta CSV import, CSV/JSON export | ✅ | ✅ |
 | Multi-currency, converted at the trade's date | ✅ | ✅ |
 | Price-target and percentage-move alerts | ✅ | ✅ |
-| Risk-metric (indicator) alerts | — | ✅ |
 | **How alerts reach you** | Android notifications | webhook + Web Push |
 | **When alerts are checked** | on open, and every ~30 min *if Android allows* | on a schedule you set |
-| Candlestick chart with the risk metric | — | ✅ |
-| Backtester | — | ✅ |
-| PineScript analyzer and script library | — | ✅ |
+| Candlestick chart with the risk metric | — | ✅ web only |
+| Backtester | — | ✅ web only |
+| PineScript analyzer and script library | — | ✅ web only |
+| Indicator (risk-metric) alerts | — | ✅ web only |
 | Full equity background panel | partial | ✅ |
 | Lock | the device lock, and its biometrics | password and passkeys |
 | Opt in to Android's Google Drive backup | ✅ | — |
@@ -286,6 +296,12 @@ unsigned artefact is the correct default when no key is configured.
 Every change needs a new APK; nothing is served live any more. That is the price
 of it working with the network off. Settings → About → *Download the Android
 build* streams the latest one from a running desktop instance.
+
+**The strategy tooling is not in this build, and will not be.** No candlestick
+chart, no risk metric, no backtester, no PineScript analyzer, no indicator
+alerts — those live in the web app. If you installed the APK expecting them,
+that is the thing to know first: the phone is a portfolio tracker with price
+alerts, and the strategy workbench runs on a server.
 
 ### Two apps, side by side
 
