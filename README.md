@@ -103,17 +103,40 @@ filesystem can do. Run either, or both.
 | Opt in to Android's Google Drive backup | ✅ | — |
 | Install as a PWA, iPhone included | — | ✅ |
 
-**The gaps are deliberate, and each has a reason.**
+### What running a server adds
 
-*The strategy tooling* — chart, backtester, analyzer, indicator alerts — needs a
-server-side price proxy and a filesystem, and the indicator needs 1,460 daily
-bars of warm-up before it means anything. That is not work for a phone.
+**Alerts checked as often as you like, and actually checked.** The phone checks
+whenever you open it — guaranteed — and every half hour in the background, which
+is not: Android treats a periodic job as a suggestion, and a battery-optimised
+phone can defer it for hours or skip it entirely. A missed alert looks exactly
+like a market that did not move. A server is not asleep and is not asking
+permission: you set the interval in cron, every five minutes if you want it, and
+it runs.
 
-*Alert timing* is the difference that matters most. The phone checks whenever you
-open it, which is guaranteed, and every half hour in the background, which is
-not: Android treats a periodic job as a suggestion, and a battery-optimised
-phone can defer it for hours or skip it. A server is simply not asleep. If alerts
-need to be dependable, that is the reason to run one.
+**Somewhere for an alert to go.** Every alert can be POSTed as JSON to an address
+you choose — a trading bot that acts on it, an automation flow that branches on
+it, a chat relay, a script of your own. The phone posts notifications to its own
+screen; the server can reach anything that accepts an HTTP request.
+
+**The strategy tooling.** A candlestick chart with the risk metric drawn under
+it, a backtester that replays the strategy over any Binance market and date range
+and records the trades and statistics, indicator alerts that fire from the same
+code, and a PineScript workbench: a rule-based analyzer with 14 checks that reads
+a script, explains what it finds, applies the fixes you accept and saves the
+result as a new version alongside the original.
+
+Two honest limits on that last part. The analyzer **reads and rewrites**
+PineScript; nothing here executes it — the strategy that actually runs is the
+TypeScript port in `packages/core/src/indicator/`, and adding a different one
+means porting it too. And the ported strategy takes no parameters: its thresholds
+and sizing are fixed, so a backtest varies the market and the dates, not the
+rules.
+
+None of it belongs on a phone anyway. It needs a server-side price proxy and a
+filesystem, and the indicator needs 1,460 daily bars of warm-up before it means
+anything at all.
+
+### The gaps on the phone, and why
 
 *There is no sync.* The phone's ledger and the server's are separate, and a
 portfolio moves between them as an export file. Two ledgers that can disagree is
