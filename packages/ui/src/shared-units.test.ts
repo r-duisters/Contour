@@ -24,13 +24,13 @@ const ALLOWED = {
     "packages/ui/src/BiometricLock.tsx",
     // The mark's tile (Direction A, #49): the blue surface the white ring and
     // rise sit on. It is the brand colour as a container, not as a button.
-    // `MarkTile` is where new call sites get it; the four below predate it and
-    // each still spells its own radius. Folding them in is worth doing and is
-    // not this change.
+    // `MarkTile` is where every call site gets it.
     "packages/ui/src/MarkTile.tsx",
+    // The one that has not been folded in. A 24px nav mark is not an entrance
+    // picture, and it draws its mark at a different fraction of the tile than
+    // `MarkTile`'s 86% — so folding it in is a visual change to the top bar
+    // rather than a tidy-up, and wants deciding rather than assuming.
     "packages/ui/src/TopNav.tsx",
-    "apps/web/src/app/login/page.tsx",
-    "apps/web/src/app/setup/page.tsx",
     // The on/off switch. `BRAND.md` gives the accent to the on state, and this
     // is a track rather than a button: no padding, no radius of its own, no
     // disabled dimming. Rendering it as a `Button` would mean overriding every

@@ -8,10 +8,15 @@ import ContourMark from "./ContourMark";
  * mark centred in it. That had been re-typed at six call sites, each free to
  * drift on the shade, the radius or the mark's share of the tile.
  *
- * `round` picks the shape: a disc for the lock, the splash and setup, a
- * squircle for the launcher-like tiles on login and the web's setup. The mark
- * is 86% of the tile, which is `ContourMark`'s own 70% viewBox fill at this
- * size.
+ * `round` picks the shape, and `full` is the default because the disc is what
+ * the app actually shows: the lock, the splash, the device's setup, and — since
+ * they were folded in here — the web's login and setup. `docs/android-launch.md`
+ * calls the entrance one picture that moves rather than four that replace each
+ * other, and a squircle on two of them broke that.
+ *
+ * `squircle` and `tile` remain for surfaces that are deliberately
+ * launcher-shaped or nav-sized. The mark is 86% of the tile whichever is
+ * chosen, which is `ContourMark`'s own 70% viewBox fill at this size.
  *
  * `glow` and `ring` are what the entrance surfaces add. The glow is the lock
  * screen's blue bloom; the ring turns while the app is busy with something a
