@@ -56,9 +56,15 @@ export const MORE_GROUPS: { title: string | null; items: MoreItem[] }[] = [
 /**
  * What the device build puts behind More.
  *
- * No alerts, no chart, no backtest, no analyzer: all four are server-only and
- * `apps/mobile` has no route for them, so listing them would offer a link to
+ * No chart, no backtest, no analyzer: the strategy tooling is server-only and
+ * `apps/mobile` has no route for it, so listing it would offer a link to
  * nowhere.
+ *
+ * Alerts *are* here, and the hint differs. The device evaluates its own price
+ * and percentage-move rules; the indicator kind is the one it cannot offer,
+ * which is a difference inside that screen rather than a missing destination.
+ * This comment said "no alerts" for a while after that stopped being true, with
+ * `/alerts` listed four lines below it.
  *
  * Settings *is* here, with a different hint, because the device screen is a
  * subset rather than the same page: the currency and the price source are

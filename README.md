@@ -74,6 +74,55 @@ transactions behind them are an illustrative ledger, not anybody's positions.*
   live candlestick chart, historical backtesting and a PineScript analyzer.
   One section of the app now, rather than the whole of it.
 
+## The app and the server
+
+They are two applications, not one thing in two places. The phone build is
+complete on its own; the server adds what a machine that stays awake and keeps a
+filesystem can do. Run either, or both.
+
+| | Android app | Server (web) |
+|---|---|---|
+| **Where your data lives** | on the phone, its own database | on your machine |
+| **Works with no network** | yes, prices absent and said so | no |
+| Portfolio, valuation, history | ✅ | ✅ |
+| Ledger, cost basis, realised profit | ✅ | ✅ |
+| Insights — benchmarks, contributors, concentration | ✅ | ✅ |
+| Markets board | ✅ | ✅ |
+| One exchange's members and range | — | ✅ |
+| Delta CSV import, CSV/JSON export | ✅ | ✅ |
+| Multi-currency, converted at the trade's date | ✅ | ✅ |
+| Price-target and percentage-move alerts | ✅ | ✅ |
+| Risk-metric (indicator) alerts | — | ✅ |
+| **How alerts reach you** | Android notifications | webhook + Web Push |
+| **When alerts are checked** | on open, and every ~30 min *if Android allows* | on a schedule you set |
+| Candlestick chart with the risk metric | — | ✅ |
+| Backtester | — | ✅ |
+| PineScript analyzer and script library | — | ✅ |
+| Full equity background panel | partial | ✅ |
+| Lock | the device lock, and its biometrics | password and passkeys |
+| Opt in to Android's Google Drive backup | ✅ | — |
+| Install as a PWA, iPhone included | — | ✅ |
+
+**The gaps are deliberate, and each has a reason.**
+
+*The strategy tooling* — chart, backtester, analyzer, indicator alerts — needs a
+server-side price proxy and a filesystem, and the indicator needs 1,460 daily
+bars of warm-up before it means anything. That is not work for a phone.
+
+*Alert timing* is the difference that matters most. The phone checks whenever you
+open it, which is guaranteed, and every half hour in the background, which is
+not: Android treats a periodic job as a suggestion, and a battery-optimised
+phone can defer it for hours or skip it. A server is simply not asleep. If alerts
+need to be dependable, that is the reason to run one.
+
+*There is no sync.* The phone's ledger and the server's are separate, and a
+portfolio moves between them as an export file. Two ledgers that can disagree is
+the largest open question in the project, and it is honest to say so rather than
+imply a pairing that does not exist.
+
+*No login on the phone.* No session, no `SESSION_SECRET` — the device lock is the
+lock. An app whose lock it cannot itself reset is the point.
+
 ## Local first, and what that rules out
 
 Decided deliberately, and every design question resolves against it.
@@ -196,26 +245,6 @@ unsigned artefact is the correct default when no key is configured.
 Every change needs a new APK; nothing is served live any more. That is the price
 of it working with the network off. Settings → About → *Download the Android
 build* streams the latest one from a running desktop instance.
-
-### What the phone app does differently
-
-Deliberate gaps, not unfinished ones:
-
-- **Its data is its own.** The device database starts empty and a portfolio
-  arrives as a backup file through import. Changes on the phone stay on the
-  phone. **There is no sync** — two ledgers that can disagree is the largest
-  open question in the project.
-- **Alerts are its own too.** Price and percentage-move rules are checked on
-  every foreground and every half hour in the background, and posted locally.
-  No Firebase, no server to push from. Indicator alerts stay on the desktop —
-  1,460 daily bars of warm-up is not work for a phone.
-- **No login.** There is no session and no `SESSION_SECRET`; the device lock is
-  the lock. An app whose lock it cannot itself reset is the point.
-- **No strategy tooling.** The chart, backtester and PineScript analyzer need a
-  filesystem or a server-side proxy.
-- **Equity background is thin.** Yahoo's cookie-and-crumb handshake needs a
-  response header the portable network layer does not expose, so the panel
-  states its absence rather than showing an empty box.
 
 ### Two apps, side by side
 
