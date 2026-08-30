@@ -26,6 +26,8 @@ export type DisplayContext = {
   displayUsd: number;
   equityProvider: string;
   equityApiKey: string | null;
+  /** See `Settings.privateCoinPrices`. Carried here so the pricing calls can read it. */
+  privateCoinPrices: boolean;
 };
 
 /**
@@ -38,12 +40,14 @@ async function settingsPart(store: Store): Promise<{
   currency: DisplayCurrency;
   equityProvider: string;
   equityApiKey: string | null;
+  privateCoinPrices: boolean;
 }> {
   const settings = await store.settings.get();
   return {
     currency: settings.displayCurrency,
     equityProvider: settings.equityProvider,
     equityApiKey: settings.equityApiKey,
+    privateCoinPrices: settings.privateCoinPrices,
   };
 }
 
@@ -58,11 +62,11 @@ async function settingsPart(store: Store): Promise<{
  * when `displayUsd` is 0 — exactly what the routes being converted already do.
  */
 export async function displayContext(store: Store, net: Net): Promise<DisplayContext> {
-  const { currency, equityProvider, equityApiKey } = await settingsPart(store);
+  const { currency, equityProvider, equityApiKey, privateCoinPrices } = await settingsPart(store);
   const displayUsd = (await fetchLatestUsdPer(net, currency)) ?? 0;
   const toDisplay = displayUsd > 0 ? 1 / displayUsd : 1;
 
-  return { currency, toDisplay, displayUsd, equityProvider, equityApiKey };
+  return { currency, toDisplay, displayUsd, equityProvider, equityApiKey, privateCoinPrices };
 }
 
 /**
@@ -210,8 +214,9 @@ export async function fetchEquityPricesUsd(
 export async function fetchCrypto24hAgo(
   net: Net,
   symbols: string[],
+  everything = false,
 ): Promise<Record<string, number>> {
-  const stats = await fetchDailyStats(net, symbols);
+  const stats = await fetchDailyStats(net, symbols, everything);
   return Object.fromEntries(Object.entries(stats).map(([pair, s]) => [pair, s.open24h]));
 }
 

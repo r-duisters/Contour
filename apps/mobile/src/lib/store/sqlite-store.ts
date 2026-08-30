@@ -339,10 +339,16 @@ export function SqliteStore(db: DB): Store {
         const rows = await db.query<Record<string, unknown>>("SELECT * FROM Settings WHERE id = 1");
         const row = rows[0];
         if (!row) return { ...DEFAULT_SETTINGS };
-        return {
+        const merged = {
           ...DEFAULT_SETTINGS,
           ...Object.fromEntries(Object.entries(row).filter(([k]) => k !== "id")),
         } as Settings;
+        // SQLite has no boolean and answers the column as 0 or 1. Every other
+        // field here is a string or null and survives the spread untouched;
+        // this one would reach a screen as a number, where `false` and `0`
+        // differ to a `===` and to React. Being the last place a storage type
+        // exists is this file's whole job.
+        return { ...merged, privateCoinPrices: !!merged.privateCoinPrices };
       },
 
       async save(patch) {
@@ -355,7 +361,13 @@ export function SqliteStore(db: DB): Store {
         await db.run(
           `INSERT INTO Settings (id, ${keys.join(", ")}) VALUES (1, ${keys.map(() => "?").join(", ")})
            ON CONFLICT(id) DO UPDATE SET ${keys.map((k) => `${k} = excluded.${k}`).join(", ")}`,
-          keys.map((k) => (next as Record<string, unknown>)[k] ?? null),
+          // ...and the same conversion going out, since the plugin binds a
+          // JavaScript boolean inconsistently across platforms.
+          keys.map((k) => {
+            const v = (next as Record<string, unknown>)[k];
+            if (typeof v === "boolean") return v ? 1 : 0;
+            return v ?? null;
+          }),
         );
         return next;
       },

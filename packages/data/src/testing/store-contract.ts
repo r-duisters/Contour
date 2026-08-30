@@ -314,6 +314,10 @@ export function runStoreContract(name: string, makeStore: () => Promise<Store>):
         haWebhookId: null,
         mqttBrokerUrl: null,
         mqttTopicPrefix: null,
+        // Off, and asserted rather than spread from DEFAULT_SETTINGS: this is
+        // the field whose default is a privacy decision, and a store that
+        // quietly answered `true` would spend a person's data without asking.
+        privateCoinPrices: false,
       });
     });
 

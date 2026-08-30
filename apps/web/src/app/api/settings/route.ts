@@ -16,6 +16,7 @@ const Body = z.object({
   displayCurrency: z.enum(DISPLAY_CURRENCIES).optional(),
   equityProvider: z.enum(["yahoo", "twelvedata", "alphavantage"]).optional(),
   equityApiKey: z.string().max(200).nullable().optional(),
+  privateCoinPrices: z.boolean().optional(),
 });
 
 // The row id is always 1 — a hard-coded singleton, never a stored field on

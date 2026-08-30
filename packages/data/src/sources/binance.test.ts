@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { invalidate } from "@/core/cache";
 import { QUOTE_ASSETS } from "@/core/symbols";
 import { FakeNet, respondWith } from "../testing/fake-net";
-import { fetchDailyStats, fetchQuotesFor, fetchKlinesRange } from "./binance";
+import { fetchDailyStats, fetchPricesSafe, fetchQuotesFor, fetchKlinesRange } from "./binance";
+import type { Net } from "../ports/net";
 
 /**
  * `exchangeInfo` is memoised for an hour under a key this module shares with
@@ -229,5 +230,63 @@ describe("paging a long range", () => {
     const times = bars.map((b) => b.t);
     expect(times).toEqual([...times].sort((a, b) => a - b));
     expect(new Set(times).size).toBe(times.length);
+  });
+});
+
+/**
+ * The whole point of `privateCoinPrices` is the *request*, not the response.
+ *
+ * A test that only checked the prices came back would pass just as happily
+ * with the held symbols in the query string, which is the one thing this
+ * feature exists to remove. So these assert the URL.
+ */
+describe("asking for everything", () => {
+  /** Every URL the fake was asked for. */
+  function recorder(body: unknown) {
+    const urls: string[] = [];
+    const net: Net = {
+      async json(url: string) { urls.push(url); return body as never; },
+      async request(url: string) {
+        urls.push(url);
+        return { ok: true, status: 200, json: async () => body, text: async () => "" } as never;
+      },
+      async text(url: string) { urls.push(url); return ""; },
+    };
+    return { net, urls };
+  }
+
+  it("names no symbol in the price request, and still answers the ones asked for", async () => {
+    const { net, urls } = recorder([
+      { symbol: "BTCUSDT", price: "67000" },
+      { symbol: "ETHUSDT", price: "2100" },
+      { symbol: "DOGEUSDT", price: "0.1" },
+    ]);
+
+    const got = await fetchPricesSafe(net, ["ETHUSDT", "BTCUSDT"], true);
+
+    expect(got).toEqual({ ETHUSDT: 2100, BTCUSDT: 67000 });
+    expect(urls).toHaveLength(1);
+    expect(urls[0]).toBe("https://api.binance.com/api/v3/ticker/price");
+    // The assertion the feature is for: not "no symbols parameter", but no
+    // held ticker anywhere in the URL at all.
+    expect(urls[0]).not.toMatch(/ETH|BTC|symbols/);
+  });
+
+  it("still names them when the setting is off, which is the default", async () => {
+    const { net, urls } = recorder([{ symbol: "ETHUSDT", price: "2100" }]);
+    await fetchPricesSafe(net, ["ETHUSDT"]);
+    expect(urls[0]).toContain("ETHUSDT");
+  });
+
+  it("shares one whole-board answer between callers wanting different coins", async () => {
+    const { net, urls } = recorder([
+      { symbol: "BTCUSDT", price: "67000" },
+      { symbol: "ETHUSDT", price: "2100" },
+    ]);
+    // 26 KB is affordable once per window and not once per screen; the keyed
+    // cache it replaces could not do this, since these two sets do not match.
+    await fetchPricesSafe(net, ["ETHUSDT"], true);
+    await fetchPricesSafe(net, ["BTCUSDT"], true);
+    expect(urls).toHaveLength(1);
   });
 });

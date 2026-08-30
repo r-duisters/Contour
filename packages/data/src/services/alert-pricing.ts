@@ -54,6 +54,14 @@ function split(wanted: PricedSymbol[]): { crypto: string[]; equity: string[] } {
 export type Settings = {
   equityProvider?: string | null;
   equityApiKey?: string | null;
+  /**
+   * Optional like its neighbours, and for the same reason: this type is
+   * structural so that both the port's `Settings` and the server's Prisma row
+   * satisfy it without either importing the other. Absent means off, which is
+   * also the default — a caller that has not heard of the setting gets the
+   * behaviour of one that has it switched off.
+   */
+  privateCoinPrices?: boolean | null;
 };
 
 /**
@@ -82,7 +90,8 @@ export async function priceSymbols(
 
   const [coins, shares] = await Promise.all([
     crypto.length
-      ? fetchPricesSafe(net, crypto.map(pricingPair)).catch((): Record<string, number> => ({}))
+      ? fetchPricesSafe(net, crypto.map(pricingPair), !!settings.privateCoinPrices)
+          .catch((): Record<string, number> => ({}))
       : Promise.resolve<Record<string, number>>({}),
     equity.length
       ? makeEquitySource(net, settings.equityProvider, settings.equityApiKey)

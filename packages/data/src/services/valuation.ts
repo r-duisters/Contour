@@ -105,7 +105,7 @@ export type Valuation = {
  */
 export async function valuation(store: Store, net: Net, id: string): Promise<Valuation> {
   const portfolio = await getPortfolio(store, id);
-  const { currency, toDisplay, displayUsd, equityProvider, equityApiKey } =
+  const { currency, toDisplay, displayUsd, equityProvider, equityApiKey, privateCoinPrices } =
     await displayContext(store, net);
 
   const assetRows = portfolio.transactions.filter((t) => t.assetType !== "cash");
@@ -138,9 +138,13 @@ export async function valuation(store: Store, net: Net, id: string): Promise<Val
   const pairOf = new Map(cryptoSymbols.map((s) => [s, pricingPair(s)]));
 
   const [cryptoPrices, equityPrices, cryptoDayAgo] = await Promise.all([
-    fetchPricesSafe(net, [...pairOf.values()]),
+    // `privateCoinPrices` asks Binance for the whole board instead of for
+    // these pairs, so the request names no portfolio. Off by default; see
+    // `Settings.privateCoinPrices`. The equity call has no equivalent — Yahoo
+    // publishes no endpoint that returns every share.
+    fetchPricesSafe(net, [...pairOf.values()], privateCoinPrices),
     fetchEquityPricesUsd(net, heldEquities, equityProvider, equityApiKey),
-    fetchCrypto24hAgo(net, [...pairOf.values()]),
+    fetchCrypto24hAgo(net, [...pairOf.values()], privateCoinPrices),
   ]);
   const prices: Record<string, number> = {};
   const prevCloses: Record<string, number> = {};

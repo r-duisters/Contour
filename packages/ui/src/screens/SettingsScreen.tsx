@@ -26,6 +26,7 @@ export default function SettingsScreen() {
     displayCurrency: asDisplayCurrency("USD"),
     equityProvider: "yahoo",
     equityApiKey: "",
+    privateCoinPrices: false,
   });
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -39,6 +40,9 @@ export default function SettingsScreen() {
           displayCurrency: asDisplayCurrency(s.displayCurrency),
           equityProvider: s.equityProvider ?? "yahoo",
           equityApiKey: s.equityApiKey ?? "",
+          // `?? false` rather than a cast: a settings row written before this
+          // column existed answers undefined, and the default is off.
+          privateCoinPrices: s.privateCoinPrices ?? false,
         });
       })
       .catch(() => {});

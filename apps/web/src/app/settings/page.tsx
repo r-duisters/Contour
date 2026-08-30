@@ -41,6 +41,7 @@ export default function SettingsPage() {
   const [displayCurrency, setDisplayCurrency] = useState<DisplayCurrency>("USD");
   const [equityProvider, setEquityProvider] = useState("yahoo");
   const [equityApiKey, setEquityApiKey] = useState("");
+  const [privateCoinPrices, setPrivateCoinPrices] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [curPw, setCurPw] = useState("");
   const [newPw, setNewPw] = useState("");
@@ -96,6 +97,7 @@ export default function SettingsPage() {
         setDisplayCurrency(asDisplayCurrency(s.displayCurrency));
         setEquityProvider(s.equityProvider ?? "yahoo");
         setEquityApiKey(s.equityApiKey ?? "");
+        setPrivateCoinPrices(s.privateCoinPrices ?? false);
       })
       // Unreachable server leaves the defaults standing, as before — the bare
       // fetch had no handler at all, so it did the same thing by rejecting.
@@ -172,6 +174,7 @@ export default function SettingsPage() {
         displayCurrency,
         equityProvider,
         equityApiKey: equityApiKey || null,
+        privateCoinPrices,
       });
       setMsg("Saved.");
     } catch (e) {
@@ -226,11 +229,12 @@ export default function SettingsPage() {
           rendered from both rather than copied into each.
         */}
         <DisplaySettings
-          value={{ displayCurrency, equityProvider, equityApiKey }}
+          value={{ displayCurrency, equityProvider, equityApiKey, privateCoinPrices }}
           onChange={(v) => {
             setDisplayCurrency(v.displayCurrency);
             setEquityProvider(v.equityProvider);
             setEquityApiKey(v.equityApiKey);
+            setPrivateCoinPrices(v.privateCoinPrices);
           }}
         />
       </section>

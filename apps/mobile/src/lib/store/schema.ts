@@ -151,6 +151,21 @@ export const MIGRATIONS: ((db: DB) => Promise<void>)[] = [
     // Quoted: `repeat` is a keyword in some SQLite builds.
     await db.execute(`ALTER TABLE Alert ADD COLUMN "repeat" INTEGER NOT NULL DEFAULT 0;`);
   },
+
+  /*
+   * Whether to ask a price feed for everything rather than for what is held.
+   *
+   * INTEGER because SQLite has no boolean, and `0` because the default is off
+   * — a person who has never seen the setting must not silently start spending
+   * 26 KB a refresh. The guard reads `table_info` rather than catching a
+   * duplicate-column error: a migration that has to fail to know where it is
+   * cannot be re-run safely, which is the rule the whole array follows.
+   */
+  async (db) => {
+    const cols = await db.query<{ name: string }>("PRAGMA table_info(Settings)");
+    if (cols.some((c) => c.name === "privateCoinPrices")) return;
+    await db.execute(`ALTER TABLE Settings ADD COLUMN privateCoinPrices INTEGER NOT NULL DEFAULT 0;`);
+  },
 ];
 
 /**

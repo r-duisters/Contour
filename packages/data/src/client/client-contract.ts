@@ -113,6 +113,7 @@ export const FIXTURE = {
     haWebhookId: "contour",
     mqttBrokerUrl: null,
     mqttTopicPrefix: null,
+    privateCoinPrices: true,
   },
   /**
    * The whole row, written in one go. It used to be `{ displayCurrency: "USD" }`
@@ -130,6 +131,17 @@ export const FIXTURE = {
     haWebhookId: "contour",
     mqttBrokerUrl: null,
     mqttTopicPrefix: null,
+    /*
+     * `true`, and not `false`, for a reason worth keeping.
+     *
+     * The default is `false`. A patch written as `false` round-trips
+     * identically whether it was saved or silently dropped — and it *was*
+     * dropped: `settings.ts` trims a patch to an allowlist of keys, and a new
+     * field that is not on the list never reaches the store. This assertion
+     * passed anyway, and the live PUT saved nothing. A fixture whose value
+     * equals the default cannot test that it was written.
+     */
+    privateCoinPrices: true,
   },
   csv: "Date,Type,Base amount\n",
   importReport: { imported: 3, duplicates: 1, skipped: [], warnings: [], audit: [] },

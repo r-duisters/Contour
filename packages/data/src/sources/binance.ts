@@ -219,12 +219,56 @@ export async function fetchPrices(net: Net, symbols: string[]): Promise<Record<s
   return Object.fromEntries(raw.map((r) => [r.symbol, Number(r.price)]));
 }
 
-/** Like fetchPrices, but tolerant: one bad symbol 400s the whole batch, so fall back to per-symbol lookups. */
-export function fetchPricesSafe(net: Net, symbols: string[]): Promise<Record<string, number>> {
+/**
+ * Every spot price Binance publishes, in one request that asks for nothing in
+ * particular.
+ *
+ * The point is the request, not the response. `ticker/price?symbols=[…]` names
+ * the exact set of coins somebody holds, to a company that keeps the log; this
+ * one names none of them, because it names nothing. Measured on 2026-08-30:
+ * 26 KB gzipped against 150 bytes for a portfolio of eight, and the same
+ * latency to the millisecond — the cost is bytes, not waiting.
+ *
+ * One cache key for the whole board, so a valuation, an alert check and a
+ * second screen inside the window share the one answer rather than each
+ * paying 26 KB. The keyed-by-symbols cache below cannot do that: two callers
+ * wanting overlapping sets miss each other entirely.
+ */
+export function fetchAllPrices(net: Net): Promise<Record<string, number>> {
+  return cached("prices:all", 30_000, async () => {
+    const raw = await net.json<{ symbol: string; price: string }[]>(`${REST}/api/v3/ticker/price`);
+    return Object.fromEntries(raw.map((r) => [r.symbol, Number(r.price)]));
+  });
+}
+
+/**
+ * Like fetchPrices, but tolerant: one bad symbol 400s the whole batch, so fall
+ * back to per-symbol lookups.
+ *
+ * `everything` asks for the whole board instead and picks the answer out of
+ * it — same result, 26 KB, and Binance learns nothing. It is a parameter
+ * rather than a mode because the two paths must be able to run in one process:
+ * the setting is per install, and this module is shared with a server that has
+ * many.
+ */
+export function fetchPricesSafe(
+  net: Net, symbols: string[], everything = false,
+): Promise<Record<string, number>> {
   if (symbols.length === 0) return Promise.resolve({});
+  if (everything) return fetchAllPrices(net).then((all) => pick(all, symbols));
   return cached(`prices:${[...symbols].sort().join(",")}`, 30_000, () =>
     fetchPricesSafeUncached(net, symbols),
   );
+}
+
+/** The requested symbols, out of a whole-board answer. Unknown ones stay absent. */
+function pick<T>(all: Record<string, T>, symbols: string[]): Record<string, T> {
+  const out: Record<string, T> = {};
+  for (const s of symbols) {
+    const v = all[s.toUpperCase()];
+    if (v !== undefined) out[s.toUpperCase()] = v;
+  }
+  return out;
 }
 
 async function fetchPricesSafeUncached(net: Net, symbols: string[]): Promise<Record<string, number>> {
@@ -265,14 +309,47 @@ export type DailyStat = { last: number; open24h: number };
  * Cached for five minutes, matching the basis it replaces: the figure moves
  * slowly and every screen that shows a day change asks for it.
  */
-export function fetchDailyStats(net: Net, pairs: string[]): Promise<Record<string, DailyStat>> {
+export function fetchDailyStats(
+  net: Net, pairs: string[], everything = false,
+): Promise<Record<string, DailyStat>> {
   if (pairs.length === 0) return Promise.resolve({});
   const symbols = pairs.map((s) => s.toUpperCase());
+  // The whole board, for the same reason as `fetchPricesSafe` — and here it is
+  // the request the app already makes for the movers page, so an install with
+  // the setting on and Markets open pays for it once.
+  if (everything) return fetchAllDailyStats(net).then((all) => pick(all, symbols));
   return cached(
     `daily:${[...symbols].sort().join(",")}:${Math.floor(Date.now() / 300_000)}`,
     300_000,
     () => fetchDailyStatsTolerant(net, symbols),
   );
+}
+
+/**
+ * The 24-hour open and last for every pair, in one request that names none.
+ *
+ * Its own function rather than a mapping over `fetch24hTicker`, which returns
+ * `lastPrice` and `priceChangePercent` and no open at all. The open could be
+ * recovered from those two — `last / (1 + pct/100)` — and that is arithmetic
+ * standing in for a number the endpoint already reports. This asks for the
+ * reported one.
+ *
+ * Five minutes, matching `fetchDailyStats`, and one key for everybody.
+ */
+export function fetchAllDailyStats(net: Net): Promise<Record<string, DailyStat>> {
+  return cached("daily:all", 300_000, async () => {
+    const raw = await net.json<{ symbol: string; openPrice: string; lastPrice: string }[]>(
+      `${REST}/api/v3/ticker/24hr`,
+    );
+    const out: Record<string, DailyStat> = {};
+    for (const r of raw) {
+      const open24h = Number(r.openPrice);
+      const last = Number(r.lastPrice);
+      if (!(open24h > 0) || !Number.isFinite(last)) continue;
+      out[r.symbol] = { last, open24h };
+    }
+    return out;
+  });
 }
 
 /**

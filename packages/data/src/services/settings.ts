@@ -19,6 +19,7 @@ const PATCHABLE_KEYS = [
   "haWebhookId",
   "mqttBrokerUrl",
   "mqttTopicPrefix",
+  "privateCoinPrices",
 ] as const satisfies readonly (keyof Settings)[];
 
 function trim(patch: SettingsPatch): SettingsPatch {

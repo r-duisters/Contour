@@ -121,6 +121,9 @@ model Settings {
   haWebhookId     String?
   mqttBrokerUrl   String?
   mqttTopicPrefix String?
+  // Ask Binance for every price rather than the held ones, so the request
+  // names no portfolio. See Settings.privateCoinPrices in packages/data.
+  privateCoinPrices Boolean @default(false)
 }
 
 /// A device registered for Firebase Cloud Messaging.

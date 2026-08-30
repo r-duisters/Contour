@@ -73,6 +73,22 @@ export type Settings = {
   haWebhookId: string | null;
   mqttBrokerUrl: string | null;
   mqttTopicPrefix: string | null;
+  /**
+   * Ask a price feed for everything, so it cannot learn what is held.
+   *
+   * `ticker/price?symbols=[…]` names the exact set of coins in a portfolio to
+   * a company that keeps the log. Asking for the whole board names nothing —
+   * 26 KB gzipped against 150 bytes, and the same latency, measured
+   * 2026-08-30.
+   *
+   * Off by default, which is a deliberate exception to this project's
+   * privacy-first leaning: 26 KB every refresh is roughly 1.2 MB a day once
+   * the half-hourly alert check is counted, and metered data is a real cost to
+   * impose on somebody who has not asked. It covers coins only — Yahoo has no
+   * endpoint that returns every share, so a held equity is named whatever this
+   * says.
+   */
+  privateCoinPrices: boolean;
 };
 
 /**
@@ -215,4 +231,5 @@ export const DEFAULT_SETTINGS: Settings = {
   haWebhookId: null,
   mqttBrokerUrl: null,
   mqttTopicPrefix: null,
+  privateCoinPrices: false,
 };

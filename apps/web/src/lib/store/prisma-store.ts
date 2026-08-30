@@ -94,6 +94,7 @@ function toSettings(row: {
   haWebhookId: string | null;
   mqttBrokerUrl: string | null;
   mqttTopicPrefix: string | null;
+  privateCoinPrices: boolean;
 } | null): Settings {
   if (!row) return { ...DEFAULT_SETTINGS };
   return {
@@ -102,6 +103,7 @@ function toSettings(row: {
     equityApiKey: row.equityApiKey,
     haUrl: row.haUrl,
     haWebhookId: row.haWebhookId,
+    privateCoinPrices: row.privateCoinPrices,
     mqttBrokerUrl: row.mqttBrokerUrl,
     mqttTopicPrefix: row.mqttTopicPrefix,
   };
