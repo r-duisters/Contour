@@ -11,19 +11,30 @@ the text to host.
 
 ## The two things that will actually delay this
 
-**1. Twelve testers for fourteen days.** A personal Play developer account
-created after 13 November 2023 has no production access until it has run a
-closed test of the app with at least **12 testers opted in continuously for 14
-days**, then applied for production access and been granted it. Twelve real
-Google accounts, each of which has to open the opt-in link, press *Become a
-tester*, and install from the Play Store — and stay opted in for the whole
-fortnight, because dropping out resets the count. An **organisation** account is
-not subject to this, but it requires a D-U-N-S number and verification of the
-organisation, which is its own delay.
+**1. The developer account's identity — now the critical path.** #68, and it is
+blocked on a register change.
 
-This is the single largest cost of choosing Play over a direct download, and it
-is unrelated to anything in the code. Start the account and the closed test
-first; everything below can proceed in parallel.
+A **personal** account created after 13 November 2023 has no production access
+until it has run a closed test with at least **12 testers opted in continuously
+for 14 days**: twelve real Google accounts, each of which has to open the opt-in
+link, press *Become a tester*, install from the Play Store, and stay opted in
+for the whole fortnight. Google then asks how you recruited them and what
+feedback you got, so a headcount alone does not pass.
+
+An **organisation** account is exempt from all of that, and is the route taken
+here. It needs a D-U-N-S number — already issued, **473999192**, so no request
+and none of the up-to-30-day wait Google warns about — plus a register extract
+and photo ID.
+
+The cost that replaces the testers is an identity that cannot be edited
+afterwards, and one trap worth stating twice: **hiding an address in the
+national register does not hide it on Google Play.** Google displays the legal
+address from the verified payments profile to satisfy EU trader-transparency
+rules, regardless of what the register shows publicly. Only registering a
+*different* address changes what Play publishes. And three records have to
+agree — register extract, D&B profile, payments profile — while D&B does not
+follow a register change on its own, so budget for a second correction with
+Altares after the first. #68 carries the checklist.
 
 **2. The source obligation.** Contour is AGPL-3.0. Distributing the binary
 obliges you to offer the corresponding source to whoever receives it. The
@@ -55,11 +66,12 @@ the source it corresponds to is reachable.
 
 ## What a person has to do
 
-### 1. The account
+### 1. The account — #68
 
 <https://play.google.com/console> — a one-off US$25 registration fee, and
-identity verification that takes a few days. Choose **personal** or
-**organisation** with the tester requirement above in mind.
+identity verification. **Organisation**, for the reason above. Do this last: it
+is the only step that locks something in, and every other item on this page is
+independent of it.
 
 ### 2. The upload key
 
@@ -238,8 +250,11 @@ leaving it to be rediscovered.
 
 ## Still open
 
-- The closed test: 12 testers, 14 days, before production access exists at all.
+- The account identity (#68), blocked on a register change. Everything else on
+  this page is independent of it and can proceed now.
 - The source offer: publish the offline subset, or resolve #53.
+- Instructions for lifting the background restriction per manufacturer (#67) —
+  the user-facing cost of losing the one-tap battery dialog.
 - `/api/app/download` still serves whatever the last build produced (#61's last
   loose end). Once Play is the channel, decide whether it serves the release
   build or stops advertising itself.
