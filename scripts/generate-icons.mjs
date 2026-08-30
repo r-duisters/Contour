@@ -246,17 +246,32 @@ const foreground = () => `
  * bytes instead of a bitmap somebody would have to remember to regenerate at
  * two densities.
  *
- * It carries the rounded blue tile — `icon(false)` — because BRAND.md is
- * explicit that the blue belongs to the container and the mark is white on it.
- * A transparent version would vanish into GitHub's dark theme and reverse the
- * one rule the mark has.
+ * A **circle**, not the rounded tile the launcher gets. Nothing masks this one:
+ * on Android the tile exists because the launcher crops it to whatever shape it
+ * likes, and shipping a square lets the mask decide. Off a phone there is no
+ * mask, so the shape is ours to choose, and the disc is the one the app itself
+ * draws — the unlock disc in `BiometricLock`, the splash, `MarkTile`.
+ *
+ * The mark sits at **86%** of it, which is `MarkTile`'s rule and the number
+ * `docs/android-launch.md` spent a week arriving at. Full-bleed inside a circle
+ * would put the ring's stroke on the edge, where the two curves fight.
+ *
+ * Blue disc, white mark: BRAND.md is explicit that the blue belongs to the
+ * container. A transparent version would vanish into GitHub's dark theme and
+ * reverse the one rule the mark has.
  *
  * Written here rather than drawn by hand for the reason the rest of this file
  * exists: `apps/web/src/app/favicon.ico` was hand-made once and then sat
  * through two redesigns of the mark, and nothing caught it.
  */
+const roundMark = () => `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <circle cx="256" cy="256" r="256" fill="#2563eb"/>
+  ${mark(0.86)}
+</svg>`;
+
 await mkdir("docs/brand", { recursive: true });
-await writeFile("docs/brand/contour-mark.svg", icon(false).trim() + "\n");
+await writeFile("docs/brand/contour-mark.svg", roundMark().trim() + "\n");
 console.log("wrote docs/brand/contour-mark.svg");
 
 await mkdir("apps/web/public/icons", { recursive: true });

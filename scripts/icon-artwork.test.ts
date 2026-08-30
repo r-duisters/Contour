@@ -114,6 +114,25 @@ describe("the mark outside the two apps", () => {
    * So it is asserted against the generator's own geometry rather than eyeballed:
    * the brand blue, the ring at r=160, and the rising line's exact path.
    */
+  it("is a disc, not the launcher's tile", () => {
+    const svg = readFileSync(
+      new URL("../docs/brand/contour-mark.svg", import.meta.url).pathname, "utf8",
+    );
+    // The tile exists so a launcher's mask can crop it. Nothing masks this one,
+    // so it is the disc the app itself draws — BiometricLock, the splash,
+    // MarkTile — rather than a square waiting to be cut.
+    expect(svg, "the README mark should be a circle").toContain('<circle cx="256" cy="256" r="256"');
+    expect(svg, "a rounded rect here means the launcher tile leaked out of Android").not.toContain("<rect");
+    // 86% of the disc, MarkTile's rule. Full-bleed would put the ring's stroke
+    // on the disc's edge, where the two curves fight.
+    // 0.86 of the disc, grown by 512/474 because the mark's own viewBox windows
+    // 474 of the 512 units it is drawn in. Asserting the product rather than a
+    // range: a full-bleed mark scales to ~1.08 and would sail past a loose bound.
+    const scale = Number(/scale\(([0-9.]+)\)/.exec(svg)?.[1]);
+    expect(scale, "the mark should be inset to 86% of the disc, not full-bleed")
+      .toBeCloseTo(0.86 * (512 / 474), 5);
+  });
+
   it("carries the blue tile and the current geometry", () => {
     const svg = readFileSync(
       new URL("../docs/brand/contour-mark.svg", import.meta.url).pathname, "utf8",
