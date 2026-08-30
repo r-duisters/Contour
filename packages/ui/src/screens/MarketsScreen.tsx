@@ -115,7 +115,7 @@ export default function MarketsScreen() {
   const ranked = board ? sortRows(board.largest, sortKey) : [];
 
   return (
-    <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-4 py-5 md:p-8 max-w-3xl mx-auto">
+    <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-4 py-5 md:p-8 max-w-5xl mx-auto">
       <div className="flex items-center justify-between gap-3 mb-3">
         <PageLabel icon={TrendingUp}>Markets</PageLabel>
         <span className="flex-1" />

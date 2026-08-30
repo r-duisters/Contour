@@ -157,7 +157,18 @@ export default function LedgerScreen() {
 
   return (
     <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-4 py-5 md:p-8 max-w-5xl mx-auto">
-      <Link href="/more" className="text-xs text-neutral-400 inline-flex items-center gap-1 mb-4">
+      {/*
+        Mobile only, because the parent differs by platform. On a phone the
+        Ledger sits behind the More menu and this is the way back. On a desktop
+        `TopNav` lists Ledger itself, so a "back to More" link points at a
+        screen the reader did not come from and sat above the page label as the
+        first thing on it.
+
+        `AssetScreen` and the index page keep theirs on both, and correctly: an
+        asset is always reached from the portfolio and an index from Markets,
+        whatever the width.
+      */}
+      <Link href="/more" className="md:hidden text-xs text-neutral-400 inline-flex items-center gap-1 mb-4">
         <ArrowLeft size={14} aria-hidden />More
       </Link>
 
