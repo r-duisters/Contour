@@ -167,3 +167,55 @@ describe("what the app asks the phone for", () => {
       .toContain('<uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" tools:node="remove" />');
   });
 });
+
+describe("what the Android build is allowed to depend on", () => {
+  const gradle = (p: string) =>
+    readFileSync(new URL(`../android/${p}`, import.meta.url).pathname, "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+
+  /**
+   * Nothing proprietary, and the reason is not purity.
+   *
+   * F-Droid builds from source using free dependencies only, and
+   * `com.google.gms:google-services` was on the buildscript classpath because
+   * Capacitor's template puts it there. A classpath entry is fetched whether
+   * or not the plugin is ever applied, so every build pulled a proprietary
+   * artifact from Google's Maven — for Firebase, which this app does not have
+   * and, by the direction in CLAUDE.md, cannot have: push needs Google, an
+   * account and a server to push from.
+   *
+   * Comments are stripped before the check because the file now explains at
+   * length why the dependency is absent, and a test that greps raw text would
+   * read that explanation as the thing it forbids.
+   */
+  it("pulls no proprietary Google artifact", () => {
+    for (const f of ["build.gradle", "app/build.gradle"]) {
+      expect(gradle(f), `${f} references a proprietary Google plugin`)
+        .not.toMatch(/com\.google\.(gms|firebase)/);
+    }
+  });
+
+  /**
+   * The one prebuilt binary in the build, named so it stays visible.
+   *
+   * `@capacitor/background-runner` ships `android-js-engine-release.aar` — 2.4
+   * MB, compiled elsewhere, no source in the package — and the `flatDir` below
+   * is what puts it on the classpath. It runs the half-hourly alert check, so
+   * it is not removable without losing that.
+   *
+   * This asserts the situation rather than forbidding it: F-Droid rejects
+   * prebuilt binaries, so anyone reading this should know the blocker exists
+   * and where it lives before wondering why the app is not listed.
+   */
+  it("has exactly one prebuilt binary on the classpath, and it is the JS engine", () => {
+    const app = gradle("app/build.gradle");
+    expect(app).toContain("@capacitor/background-runner/android/src/main/libs");
+    const flatDirs = [...app.matchAll(/dirs\s+'([^']+)'/g)].map((m) => m[1]);
+    expect(flatDirs, "a new flatDir means a new prebuilt binary — see F-Droid conformance")
+      .toEqual([
+        "../capacitor-cordova-android-plugins/src/main/libs",
+        "../../node_modules/@capacitor/background-runner/android/src/main/libs",
+      ]);
+  });
+});

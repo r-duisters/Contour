@@ -8,10 +8,24 @@ buildscript {
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:8.13.0'
-        classpath 'com.google.gms:google-services:4.4.4'
 
-        // NOTE: Do not place your application dependencies here; they belong
-        // in the individual module build.gradle files
+        /*
+         * No `com.google.gms:google-services` here, and that is a decision.
+         *
+         * Capacitor's template puts it on the classpath so Firebase works if
+         * you add it. This app has no Firebase: push needs Google, a server to
+         * push from, and an account, which the project's direction rules out —
+         * device alerts are evaluated locally and posted by Android itself.
+         *
+         * A classpath entry is fetched whether or not the plugin is applied, so
+         * leaving it meant every build pulled a proprietary artifact from
+         * Google's Maven for a feature that does not exist. F-Droid builds only
+         * from free dependencies, and this was the one thing in the tree that
+         * was not.
+         *
+         * NOTE: Do not place your application dependencies here; they belong
+         * in the individual module build.gradle files
+         */
     }
 }
 
