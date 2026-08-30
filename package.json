@@ -20,7 +20,8 @@
     "android:sync": "npx cap sync android",
     "android:build": "cd android && ./gradlew assembleDebug",
     "android:release": "cd android && ./gradlew assembleRelease",
-    "android:bundle": "cd android && ./gradlew bundleRelease"
+    "android:bundle": "cd android && ./gradlew bundleRelease",
+    "offline-tree": "node scripts/offline-tree.mjs"
   },
   "dependencies": {
     "@aparajita/capacitor-biometric-auth": "^10.0.0",
