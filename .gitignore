@@ -63,12 +63,6 @@ android/capacitor-cordova-android-plugins/
 android/app/src/main/assets/public/
 .icon-cache/
 
-# Superdesign scratch: repo-analysis context and extracted site DNA are
-# regenerable. The design system itself is a real document and stays tracked.
-.superdesign/init/
-.superdesign/website/
-.superdesign/tmp/
-
 # Parity baselines: captured route bodies, containing the owner's real holdings.
 # Regenerate with `node scripts/parity.mjs capture .parity-baseline.json <path...>`.
 # A task that needs paths the phase baseline does not cover captures its own

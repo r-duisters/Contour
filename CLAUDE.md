@@ -28,10 +28,8 @@ removed once. Read it before writing UI or copy.
 
 BRAND.md is the single authority for design: name, voice, colour, type,
 numbers, charts, the established components, timeframes, privacy mode and the
-anti-patterns already removed once. `.superdesign/design-system.md` defers to
-it and adds only what a design agent needs (product context, per-screen
-questions, canvas working notes) — pass both as `--context-file` on every
-Superdesign command.
+anti-patterns already removed once. There is no second design document, and
+there should not be — two files restating the same values is how they drift.
 
 ## What this is
 
