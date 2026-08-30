@@ -132,9 +132,25 @@ means porting it too. And the ported strategy takes no parameters: its threshold
 and sizing are fixed, so a backtest varies the market and the dates, not the
 rules.
 
+Both are on the roadmap rather than accepted as permanent — running a script
+instead of hand-porting it is
+[issue #18](https://github.com/r-duisters/contour/issues/18), and the parameters
+are [#17](https://github.com/r-duisters/contour/issues/17). More of the pieces
+exist than it looks: Pine's `ta.*` built-ins are already implemented as
+primitives, `request.security` on a coarser timeframe is already solved
+lookahead-safe, and the simulator already understands partial entries and exits.
+What is missing is the parser and the evaluator between them.
+
 None of it belongs on a phone anyway. It needs a server-side price proxy and a
 filesystem, and the indicator needs 1,460 daily bars of warm-up before it means
 anything at all.
+
+**Contour does not call TradingView.** Prices come from Binance; the strategy runs
+here. TradingView is where the script was written and where you can check the
+signals by eye — the parity procedure is in `CLAUDE.md` — and its
+[Lightweight Charts](https://www.tradingview.com/lightweight-charts/) library
+draws the charts, which is why the app carries their attribution. No account, no
+API, nothing of yours sent there.
 
 ### The gaps on the phone, and why
 
