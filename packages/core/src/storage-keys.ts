@@ -24,12 +24,6 @@ export const KEYS = {
    */
   assetLedgerOpen: `${PREFIX}asset-ledger-open`,
   /**
-   * Whether the asset header's two change columns show amounts rather than
-   * rates. Remembered because it is a way of reading, not a per-asset
-   * question: somebody who thinks in money thinks in money on every page.
-   */
-  headerShowsMoney: `${PREFIX}header-money`,
-  /**
    * The portfolio a screen last resolved.
    *
    * The ledger learns which portfolio it is showing from the network, so

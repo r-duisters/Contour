@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { axisMoney, money, setAmountsHidden, setDisplayCurrency } from "./display";
+import { axisMoney, marketMoney, marketPrice, money, setAmountsHidden, setDisplayCurrency } from "./display";
 import { priceFieldValue } from "./price-format";
 
 afterEach(() => { setAmountsHidden(false); setDisplayCurrency("USD"); });
@@ -57,6 +57,40 @@ describe("money", () => {
   it("masks under privacy mode", () => {
     setAmountsHidden(true);
     expect(money(1)).not.toMatch(/\d/);
+  });
+});
+
+/**
+ * The asset page prints a price beside a holding, and the two are the same
+ * money. The first build of that header used `marketMoney` and produced
+ * "$2,104.54" next to "€110.304,04" — a dollar sign on a figure that had
+ * already been converted, inviting the reader to divide one by the other.
+ *
+ * These pin the difference between the three, because nothing in a type
+ * signature does: they all take a number and return a string.
+ */
+describe("marketPrice, against its two neighbours", () => {
+  it("prints in the display currency, unlike marketMoney", () => {
+    setDisplayCurrency("EUR");
+    expect(marketPrice(2_104.54)).toBe("€2.104,54");
+    // The unconverted one stays in dollars, which is what it is for.
+    expect(marketMoney(2_104.54)).toBe("$2,104.54");
+  });
+
+  it("stays visible under privacy mode, unlike money", () => {
+    setDisplayCurrency("EUR");
+    setAmountsHidden(true);
+    expect(marketPrice(2_104.54)).toBe("€2.104,54");
+    expect(money(2_104.54)).not.toMatch(/\d/);
+  });
+
+  it("gives a small price the digits it needs, on the same rule marketMoney uses", () => {
+    setDisplayCurrency("EUR");
+    // Above a cent: four places. IOTA, as actually held.
+    expect(marketPrice(0.0338400755818947)).toBe("€0,0338");
+    // Below a cent: eight, or the figure would round to nothing.
+    expect(marketPrice(0.0000234)).toBe("€0,0000234");
+    expect(marketPrice(2_104.54)).toBe("€2.104,54");
   });
 });
 

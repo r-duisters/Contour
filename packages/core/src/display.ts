@@ -130,6 +130,16 @@ function minorUnitsFor(c: string): number {
  */
 export function money(n: number, maximumFractionDigits?: number): string {
   if (hidden) return MASK;
+  return inCurrency(n, maximumFractionDigits);
+}
+
+/**
+ * The formatting alone, with no opinion about privacy.
+ *
+ * Separated so `marketPrice` can reach it: a price is in the display currency
+ * like everything else on the page, and is not the owner's money.
+ */
+function inCurrency(n: number, maximumFractionDigits?: number): string {
   // Absent an explicit request, the currency decides: two decimals for a
   // dollar, none for a yen. A caller that asks for more — a coin priced in
   // millionths — still gets them, and still gets the currency's own minimum.
@@ -140,6 +150,24 @@ export function money(n: number, maximumFractionDigits?: number): string {
     maximumFractionDigits: max,
   });
   return `${n < 0 ? "-" : ""}${symbolFor(currency)}${abs}`;
+}
+
+/**
+ * What one unit of an asset costs, on a page that has already converted.
+ *
+ * The gap between the two functions either side of it. `money` would mask it,
+ * and a public quote is not the owner's figure. `marketMoney` would print it
+ * in dollars, and this one has been converted — the asset page's price sits
+ * beside a holding in the display currency and was computed from the same
+ * rate. Printing "$2,104.54" next to "€110.304,04" states a conversion nobody
+ * performed and invites the reader to divide one by the other.
+ *
+ * The digits come from `marketMoney`'s rule, because a coin worth fractions of
+ * a cent needs them wherever it is shown.
+ */
+export function marketPrice(n: number): string {
+  const abs = Math.abs(n);
+  return inCurrency(n, abs >= 1 ? 2 : abs >= 0.01 ? 4 : 8);
 }
 
 /** A holding's size, which reveals as much as its value does. */
@@ -171,7 +199,10 @@ export function axisMoney(n: number): string {
 }
 
 /**
- * A market price, always visible and always in dollars.
+ * A market price in *its own* currency, always visible and always in dollars.
+ *
+ * For a figure that has been converted into the display currency — an asset
+ * page's price, beside a holding — use `marketPrice` instead.
  *
  * Two departures from `money`, both deliberate.
  *

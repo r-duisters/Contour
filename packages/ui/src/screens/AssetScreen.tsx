@@ -11,13 +11,11 @@ import {
 import Sheet from "@/components/Sheet";
 import { assetOf, pricingPair } from "@/core/symbols";
 import { chartTheme, directionColors, roseOverPeriod } from "@/components/chart-theme";
-import {
-  ArrowDown, ArrowLeft, ArrowUp, Bell, ChevronDown, ChevronLeft, ChevronRight, Plus, Trash2, X,
-} from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Bell, ChevronDown, ChevronLeft, ChevronRight, Plus, Trash2, TrendingDown, TrendingUp, X } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
 import { useDataClient } from "@/data/client/context";
 import {
-  marketMoney, money as fmtMoney, percent, quantity, setDisplayCurrency,
+  marketMoney, marketPrice, money as fmtMoney, percent, quantity, setDisplayCurrency,
 } from "@/lib/display";
 import { positionChangeOverWindow } from "@/lib/change";
 import { assetName } from "@/lib/asset-names";
@@ -124,21 +122,10 @@ export default function AssetScreen({
   );
   const [changePct, setChangePct] = useState<number | null>(null);
   const [addOpen, setAddOpen] = useState(false);
-  /**
-   * Whether the header's two columns read as amounts rather than rates.
-   *
-   * Remembered across assets: it is a way of reading rather than a question
-   * about this holding, and somebody who thinks in money thinks in money on
-   * every page. Read once at mount, because a hook for one boolean that only
-   * this screen has an opinion about would be a hook for its own sake.
-   */
   const [ledgerOpen, setLedgerOpen] = useState(() => {
     try { return localStorage.getItem(KEYS.assetLedgerOpen) === "1"; } catch { return false; }
   });
   const ledgerId = useId();
-  const [headerMoney, setHeaderMoney] = useState(() => {
-    try { return localStorage.getItem(KEYS.headerShowsMoney) === "1"; } catch { return false; }
-  });
   const [alertOpen, setAlertOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   // The id arrives in the URL when this page is opened from the portfolio, so
@@ -309,6 +296,15 @@ export default function AssetScreen({
     await reload();
   }
 
+  /*
+   * The price the header prints.
+   *
+   * The holding's own figure when there is one, because it is the price the
+   * value beside it was computed from and the two must not disagree by a tick.
+   * The last bar otherwise, which is the only price an unheld asset has.
+   */
+  const priceNow = shownHolding?.price ?? lastClose;
+
   const pct = shownHolding && shownHolding.costBasis > 0 && shownHolding.unrealizedPnl !== null
     ? (shownHolding.unrealizedPnl / shownHolding.costBasis) * 100
     : null;
@@ -425,101 +421,58 @@ export default function AssetScreen({
               : notHeld && <>{" · "}not in this portfolio</>}
           </p>
         </div>
-        <span className="flex-1" />
-        {/* What it is worth to you, or — when you hold none — simply what it
-            costs. The second is a market price and not the owner's money, so
-            it is not masked and says which period it moved over. */}
-        {shownHolding && shownHolding.value !== null ? (
-          <div className="text-right shrink-0">
-            <div className="text-xl font-medium">{money(shownHolding.value)}</div>
-            {/*
-              Two periods side by side, rather than the day alone.
-              ==================================================
+      </div>
 
-              The header answered "what is it worth" and "what did it do
-              today", and left "what has it made since I bought it" four rows
-              down in a tile. Both readings a person comes here for now sit in
-              the same block, labelled, so neither is a figure you have to know
-              where to look for.
+      {/*
+        Price on the left, your holding on the right.
+        =============================================
 
-              This is *narrower* than the line it replaced, which is the part
-              worth recording: that line was a rate and an amount together —
-              "-2,33% -€400,05 today" — and two short rates stacked in columns
-              take less width at 412px than a rate beside a money figure. It
-              was measured on the longest name in the ledger, Advanced Micro
-              Devices: 186px of room for the name before, 193px after, so it
-              still truncates but truncates less. (The mock-up promised 12px
-              and the built version gives 7 — BRAND.md's 11px floor for the
-              column labels costs the other five, and the floor wins.)
+        Two figures of equal weight, under the name rather than crammed beside
+        it. The header used to carry the holding alone, at 20px, sharing a row
+        with a name that truncated to make room — and the asset's own price was
+        not on the page at all except as an annotation drawn over the chart
+        line.
 
-              The amounts are one tap away rather than gone. Rates by default
-              because the tiles below already state both amounts, so the header
-              says how fast and the tiles say how much; tapping swaps the
-              header to amounts for somebody who would rather read it the other
-              way round.
-            */}
-            {shownHolding.dayChange && shownHolding.unrealizedPnl !== null ? (
-              <button
-                type="button"
-                onClick={() => {
-                  const next = !headerMoney;
-                  setHeaderMoney(next);
-                  try { localStorage.setItem(KEYS.headerShowsMoney, next ? "1" : "0"); } catch {
-                    // Blocked storage costs the choice on the next page, not data.
-                  }
-                }}
-                aria-label={headerMoney
-                  ? "Show these as percentages"
-                  : "Show these as amounts"}
-                // Negative margin against the padding, so the tap target is
-                // taller than the text without moving anything in the row.
-                className="flex gap-3.5 justify-end -my-2 py-2 -mr-1 pr-1 rounded
-                           hover:bg-neutral-900/60 active:bg-neutral-900 transition-colors
-                           focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
-              >
-                <ChangeColumn
-                  /* A coin's day is a rolling 24 hours and matches the chart's
-                     own 1D figure. A share's day is the session before this
-                     one, because its market was shut for most of the last
-                     twenty-four hours. The label follows the measurement. */
-                  label={shownHolding.assetType === "equity" ? "Today" : "24h"}
-                  value={headerMoney
-                    ? signedMoney(shownHolding.dayChange.abs)
-                    : `${shownHolding.dayChange.pct >= 0 ? "+" : ""}${shownHolding.dayChange.pct.toFixed(2)}%`}
-                  signed={headerMoney ? shownHolding.dayChange.abs : shownHolding.dayChange.pct}
-                />
-                <ChangeColumn
-                  label="Since bought"
-                  value={headerMoney
-                    ? signedMoney(shownHolding.unrealizedPnl)
-                    : pct !== null ? `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%` : "—"}
-                  signed={headerMoney ? shownHolding.unrealizedPnl : pct}
-                />
-              </button>
-            ) : shownHolding.dayChange && (
-              /* No cost basis to measure against — a position that is all
-                 realised, or one whose rows carry no price. The day stands
-                 alone rather than beside an empty column. */
-              <div className={`text-xs ${shownHolding.dayChange.pct >= 0 ? "text-green-500" : "text-red-500"}`}>
-                {shownHolding.dayChange.pct >= 0 ? "+" : ""}{shownHolding.dayChange.pct.toFixed(2)}%
-                {" "}
-                <span className="tabular-nums">
-                  {shownHolding.dayChange.abs >= 0 ? "+" : ""}{money(shownHolding.dayChange.abs)}
-                </span>
-                {shownHolding.assetType === "equity" ? " today" : " 24h"}
-              </div>
-            )}
-          </div>
-        ) : lastClose !== null ? (
-          <div className="text-right shrink-0">
-            <div className="text-xl font-medium tabular-nums">{marketMoney(lastClose)}</div>
-            {changePct !== null && (
-              <div className={`text-xs ${changePct >= 0 ? "text-green-500" : "text-red-500"}`}>
-                {percent(changePct)} <span className="text-neutral-500">{changeWindowLabel(range)}</span>
-              </div>
-            )}
-          </div>
-        ) : null}
+        Price is the left column and not the right, which is the whole reason
+        the pair is a grid rather than a flex row: an asset reached from
+        Markets has no holding, and the column that survives has to be the one
+        that does not move. Reversed, every unheld page would draw its only
+        figure somewhere the held pages never put one.
+
+        Each column says what it means in the unit that suits it. A price moved
+        by a percentage; your money moved by an amount. They are the same
+        movement twice over — the figures differ, the rate does not — so
+        printing both units in both columns would be four numbers saying two
+        things. This replaces a tap that swapped every column between rates and
+        amounts, which existed because the header had only rates to offer.
+      */}
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        <HeadFigure
+          label="Price"
+          value={priceNow !== null ? marketPrice(priceNow) : "—"}
+          change={
+            shownHolding?.dayChange
+              ? { text: percent(shownHolding.dayChange.pct), signed: shownHolding.dayChange.pct,
+                  word: shownHolding.assetType === "equity" ? "today" : "24h" }
+              : changePct !== null
+                ? { text: percent(changePct), signed: changePct, word: changeWindowLabel(range) }
+                : null
+          }
+        />
+        {/* Absent rather than empty when nothing is held. A labelled dash would
+            be a column saying it has nothing to say, next to one that does. */}
+        {shownHolding && shownHolding.value !== null && (
+          <HeadFigure
+            label="Holding"
+            value={money(shownHolding.value)}
+            change={
+              shownHolding.dayChange
+                ? { text: signedMoney(shownHolding.dayChange.abs), signed: shownHolding.dayChange.abs,
+                    word: shownHolding.assetType === "equity" ? "today" : "24h" }
+                : null
+            }
+          />
+        )}
       </div>
 
       {shownHolding === undefined && <p className="text-sm text-neutral-500">Loading…</p>}
@@ -653,7 +606,17 @@ export default function AssetScreen({
               </button>
               {ledgerOpen && (
                 <div id={ledgerId} className="grid grid-cols-2 sm:grid-cols-3 gap-2 md:gap-3 text-sm mt-2">
-                  <StatTile label="Last price" value={shownHolding.price !== null ? money(shownHolding.price) : "no price"} />
+                  {/* "Last price" used to lead this grid and is the header's
+                      left column now. What took its place is the figure the
+                      header lost when the toggle went: the position's whole
+                      gain, which is the second thing anyone opens this page
+                      for and was not a tile before. */}
+                  <StatTile
+                    label="Since bought"
+                    value={shownHolding.unrealizedPnl !== null ? signedMoney(shownHolding.unrealizedPnl) : "—"}
+                    signed={shownHolding.unrealizedPnl ?? undefined}
+                    sub={pct !== null ? `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}% on cost` : undefined}
+                  />
                   <StatTile label="Average cost" value={shownHolding.quantity > 0 ? money(shownHolding.avgCost) : "—"} />
                   <StatTile label="Cost basis" value={money(shownHolding.costBasis)} />
                   <StatTile label="Realised" value={money(shownHolding.realizedPnl)} signed={shownHolding.realizedPnl} />
@@ -705,26 +668,43 @@ function signedMoney(n: number): string {
 }
 
 /**
- * One labelled figure in the header's change pair.
+ * One of the header's two figures: a label, the number, and what it did.
  *
- * The label sits above the value rather than beside it, which is what keeps
- * the pair narrow: two stacked columns of six characters each are less wide
- * than the same figures written out in a sentence.
+ * It replaces a pair of stacked mini-columns that lived at the end of the name
+ * row, at 11px over 12px, sized to fit a gap rather than to be read. These are
+ * the page's headline now, so they take the portfolio page's shape — value
+ * first, movement beneath it, the period named — at the size two of them fit
+ * in on a 412px screen.
+ *
+ * `change` is null when there is nothing to say, and the row simply ends. It
+ * used to print a bare percentage in that case, which read as zero rather than
+ * as unknown.
  */
-function ChangeColumn({
-  label, value, signed,
+function HeadFigure({
+  label, value, change,
 }: {
   label: string;
   value: string;
-  /** Decides the colour. Null leaves it neutral rather than guessing a gain. */
-  signed: number | null;
+  change: { text: string; signed: number; word: string } | null;
 }) {
-  const tone = signed === null ? "text-neutral-400" : signed >= 0 ? "text-green-500" : "text-red-500";
   return (
-    <span className="flex flex-col items-end leading-tight">
-      <span className="text-[11px] text-neutral-500">{label}</span>
-      <span className={`text-xs tabular-nums ${tone}`}>{value}</span>
-    </span>
+    <div className="min-w-0">
+      <div className="text-[11px] text-neutral-500">{label}</div>
+      <div className="text-[22px] font-semibold tracking-tight tabular-nums truncate">{value}</div>
+      {change && (
+        <div className="flex items-baseline gap-1.5 text-xs mt-0.5">
+          <span className={`font-medium tabular-nums inline-flex items-center gap-1 ${
+            change.signed >= 0 ? "text-green-500" : "text-red-500"
+          }`}>
+            {change.signed >= 0
+              ? <TrendingUp size={12} aria-hidden />
+              : <TrendingDown size={12} aria-hidden />}
+            {change.text}
+          </span>
+          <span className="text-neutral-500">{change.word}</span>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -864,19 +844,19 @@ function PriceChart({
 
         Left, so it clears the high and low pinned to the right edge.
 
-        This slot only appeared while somebody dragged along the line, and was
-        empty the rest of the time — while what the asset costs sat below the
-        chart in a tile the same size as average cost. It is the resting state
-        of a thing that already existed, so it costs no height, and it never
-        has to win an argument with the header about which number is the
-        page's largest: it is not in that argument.
+        Only while a finger is on it. This slot was given a resting state when
+        the price had nowhere else to live — the header carried the holding
+        alone and what the asset cost was a tile below the chart. The header
+        carries the price now, at 22px, so a resting readout would be the same
+        figure printed twice on one screen. Dragging is a different question
+        ("what was it worth then"), and that is what it answers again.
 
         It also sits on the line whose right-hand end *is* that price, so
         dragging reads as the same figure at a different date rather than as a
         second control lighting up. Same position and same size in both states,
         for that reason — only the caption under it changes.
       */}
-      {price !== null && !hideValues && (
+      {price !== null && price.at !== null && !hideValues && (
         <div className="pointer-events-none absolute z-10 left-2 top-2 leading-tight">
           <div className="text-xl font-medium tabular-nums text-neutral-100">
             {fmtMoney(price.value)}
