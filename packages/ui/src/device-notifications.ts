@@ -27,6 +27,23 @@ async function native(): Promise<boolean> {
   }
 }
 
+/**
+ * Whether this is running inside the APK rather than a browser.
+ *
+ * The other functions here answer "not available" and let a screen draw
+ * nothing, which is the right shape when the question is a capability. This
+ * one exists for the case where both platforms *can* do the thing and the
+ * honest description of it differs — the setup flow tells somebody where their
+ * prices are checked from, and "on this phone, while the app is shut" is true
+ * of one build and not the other.
+ *
+ * Prefer a feature check to this wherever a feature is what you mean. Asking
+ * which platform you are on is how two code paths start.
+ */
+export async function isDevicePlatform(): Promise<boolean> {
+  return native();
+}
+
 /** Ask for permission to post notifications. Idempotent once granted. */
 export async function requestNotifications(): Promise<NotificationPermission> {
   if (!(await native())) return "unavailable";

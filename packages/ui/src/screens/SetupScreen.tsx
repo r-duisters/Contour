@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useDataClient } from "@/data/client/context";
 import { asDisplayCurrency, type DisplayCurrency } from "@/lib/currencies";
 import { KEYS } from "@/lib/storage-keys";
@@ -13,7 +13,7 @@ import { field } from "../field";
 import { importKindOf } from "../setup-steps";
 import Switch from "../Switch";
 import { DEFAULT_MOVE_THRESHOLD } from "../move-threshold";
-import { isBatteryExempt, requestBatteryExemption, requestNotifications } from "../device-notifications";
+import { isBatteryExempt, isDevicePlatform, requestBatteryExemption, requestNotifications } from "../device-notifications";
 import type { FormatId } from "@/lib/import-formats";
 
 type Step = "currency" | "name" | "import" | "alerts";
@@ -67,6 +67,22 @@ export default function SetupScreen({ onDone }: { onDone: () => void }) {
   /** Set once data has landed somewhere; what a portfolio-wide rule names. */
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
   const [bigMoves, setBigMoves] = useState(true);
+  /** Which build this is, for the one paragraph whose truth differs. */
+  const [onDevice, setOnDevice] = useState(false);
+  /*
+   * Assumed false until answered, so a browser never flashes the phone's
+   * wording. `isDevicePlatform` imports Capacitor lazily and cannot settle in
+   * the same tick as the render, hence the cancel flag: the step can be left
+   * before the answer arrives.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const device = await isDevicePlatform();
+      if (!cancelled) setOnDevice(device);
+    })();
+    return () => { cancelled = true; };
+  }, []);
   /**
    * Null until the permission has been asked for. Once true, the remaining
    * question is whether Android will actually run the scheduled check, which
@@ -292,10 +308,20 @@ export default function SetupScreen({ onDone }: { onDone: () => void }) {
                     </p>
                   )}
 
+                  {/*
+                    The same fact, told truthfully on each build. On a phone the
+                    checking happens on the phone, including while the app is
+                    shut; on the web it happens wherever the reader is running
+                    Contour, which is a server they chose. Saying "on this
+                    phone" in a browser would be the app describing somebody
+                    else's setup.
+                  */}
                   <p className="text-xs text-neutral-500">
-                    Prices are checked on this phone, and nothing about your portfolio
-                    leaves it. Shares are checked through Yahoo while the app is shut,
-                    whichever provider you pick in Settings.
+                    {onDevice
+                      ? "Prices are checked on this phone, including while the app is shut. Shares go through Yahoo, whichever provider you pick in Settings."
+                      : "Prices are checked by the Contour you are running, on whatever schedule you have given it. Shares go through Yahoo, whichever provider you pick in Settings."}{" "}
+                    A price request names the tickers you hold and nothing else about
+                    them; Settings → Privacy can hide even that for coins.
                   </p>
                 </div>
               )}

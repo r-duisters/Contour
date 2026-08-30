@@ -10,9 +10,9 @@ import Button from "@/components/Button";
 // else (absolute URLs, protocol-relative "//host" paths, backslash variants
 // like "/\host" that URL parsing normalizes to "//host") falls back to the
 // default destination to prevent an open redirect via ?next=.
-function safeNextPath(next: string | null): string {
+function safeNextPath(next: string | null, fallback = "/portfolio"): string {
   if (next && next.startsWith("/") && !next.startsWith("//") && !next.includes("\\")) return next;
-  return "/portfolio";
+  return fallback;
 }
 
 export default function LoginForm({ mode }: { mode: "login" | "setup" }) {
@@ -78,7 +78,17 @@ export default function LoginForm({ mode }: { mode: "login" | "setup" }) {
       setError(typeof d.error === "string" ? d.error : "Failed. Try again.");
       return;
     }
-    router.replace(safeNextPath(params.get("next")));
+    /*
+      Choosing a password is the first half of setting up, not the whole of
+      it. `/api/setup` signs the session in, so sending a first run to
+      `/setup` lands on the flow itself — currency, a portfolio, your data,
+      alerts — which is what the phone does and what the web previously
+      skipped entirely by going straight to an empty portfolio.
+
+      A `?next=` still wins, so following a link into a protected page and
+      being asked to set up first still returns you to where you were going.
+    */
+    router.replace(safeNextPath(params.get("next"), mode === "setup" ? "/setup" : "/portfolio"));
     router.refresh();
   }
 
