@@ -1,47 +1,81 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Contour
 
-## Getting Started
+A portfolio tracker for crypto and equities that runs on your own machine, or
+on your own phone, and asks nobody's permission to do it.
 
-First, run the development server:
+There is no account, no sign-up and no Contour server. Your holdings, what you
+paid, and what you have done with them are a file on hardware you control. The
+Android build is complete without a server at all: it keeps its own database
+and answers every screen from it, with the network off.
+
+**AGPL-3.0-or-later.** Self-hosted, single-user, and built for one person who
+wanted to stop paying a subscription to look at their own numbers.
+
+## What it does
+
+- **Portfolio** — holdings, valuation, day change, and a history chart over any
+  timeframe. Multi-currency, converted at the rate on the *trade's* date rather
+  than today's, so a cost basis stays put.
+- **Ledger** — every transaction, typed in or imported from a Delta-by-eToro
+  CSV export, and exported back out again.
+- **Insights** — benchmarks against what you could have bought instead, what
+  actually made the money, and how concentrated you are.
+- **Markets** — an index strip, a ranked table, the day's winners and losers.
+- **Alerts** — price targets and percentage moves, evaluated on the device and
+  posted as ordinary Android notifications. On the desktop they can also fire
+  into Home Assistant, which fans out to whatever you already use.
+- **The tool it grew out of** — a port of a Bitcoin risk-metric strategy, with a
+  live candlestick chart, historical backtesting and a PineScript analyzer.
+  One section of the app now, rather than the whole of it.
+
+## Local first, and what that rules out
+
+Decided deliberately, and every design question resolves against it.
+
+**Values, quantities, cost bases and history never leave the device.** There is
+nowhere for them to go.
+
+**The tickers do, and that is worth saying plainly.** Pricing a portfolio means
+naming it: Binance receives the whole coin set in one request, Yahoo one request
+per equity, and the background alert check repeats both every half hour with the
+app closed. That cannot be otherwise without a proxy you run yourself. Settings
+→ Privacy has a switch that asks Binance for the *whole market* and picks yours
+out on the device, so the request says nothing about you — it costs about 26 KB
+a refresh instead of a few hundred bytes. Shares have no equivalent; no provider
+publishes every listing at once.
+
+What is avoidable is avoided. Asset logos are bundled in the APK rather than
+fetched, because asking a CDN for a coin's icon tells it what you hold. Network
+access is injected rather than reached for, so what talks to the outside is
+countable — `docs/security-review-2026-08-30.md` counts it.
+
+**Android backup is off unless you ask.** One directory is eligible and it is
+empty until you switch it on in Settings → Privacy, and even then it holds an
+export of your transactions rather than the database.
+
+**This rules things out:** no telemetry, no analytics, no crash reporting that
+ships a payload, and no feature whose only implementation needs a service this
+project runs. A server may be added; it may never be required.
+
+## Running it
+
+Needs Node 22 and, for the Android build, JDK 21 and the Android SDK.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npx prisma generate      # once on a fresh clone, before the app will start
+npm run dev              # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+On first run you are redirected to `/setup` to set the app password.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+<details>
+<summary><b>Serving it on a domain, with push notifications</b></summary>
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-
-## Deployment (public domain + PWA)
-
-1. **Env**: copy `apps/web/.env.example` to `apps/web/.env`, fill `SESSION_SECRET`/`CRON_SECRET`
-   (`openssl rand -hex 32`) and VAPID keys (`npx web-push generate-vapid-keys`).
-2. **Install & generate**: `npm install`, then `npx prisma generate` (needed once on a fresh
-   clone, before the app will run).
-3. **Build & run**: `npm run build && npm run start` (port 3000). Example systemd unit:
+1. Copy `apps/web/.env.example` to `apps/web/.env`. Fill `SESSION_SECRET` and
+   `CRON_SECRET` (`openssl rand -hex 32`) and VAPID keys
+   (`npx web-push generate-vapid-keys`).
+2. `npm run build && npm run start` — port 3000.
 
    ```ini
    [Unit]
@@ -49,16 +83,16 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
    After=network.target
 
    [Service]
-   WorkingDirectory=/home/roy/Trader
+   WorkingDirectory=/path/to/contour
    ExecStart=/usr/bin/npm run start
    Restart=on-failure
-   User=roy
+   User=you
 
    [Install]
    WantedBy=multi-user.target
    ```
 
-4. **Reverse proxy (Caddy)** — automatic Let's Encrypt:
+3. Reverse proxy — Caddy gets you Let's Encrypt for free:
 
    ```
    contour.example.com {
@@ -66,53 +100,66 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
    }
    ```
 
-5. **First run**: open the domain → you're redirected to `/setup` → set the app password.
-6. **Cron** (alert evaluation every 5 minutes):
+4. Evaluate alerts on a schedule:
 
    ```
-   */5 * * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://contour.example.com/api/cron/evaluate
+   */5 * * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
+       https://contour.example.com/api/cron/evaluate
    ```
 
-7. **Install on iPhone**: open the site in Safari → Share → *Add to Home Screen*.
-   Then Settings → *Enable notifications* (Web Push needs the installed app, iOS 16.4+).
-   Home Assistant keeps working as a second notification path.
+5. **On iPhone**: open the site in Safari → Share → *Add to Home Screen*, then
+   Settings → *Enable notifications*. Web Push needs the installed app, iOS
+   16.4+.
 
-## Android app
+</details>
 
-The app runs on the phone with no server behind it. The same services that
-answer an HTTP request on the desktop run against a SQLite database on the
-device, so the portfolio, the ledger, insights and markets all work with the
-network off — prices are simply absent, and say so.
+## The Android app
+
+The same screens, with no server behind them. The services that answer an HTTP
+request on the desktop run against a SQLite database on the device instead, so
+the portfolio, ledger, insights and markets all work with the network off —
+prices are simply absent, and say so.
 
 ```bash
 npm run build --workspace @contour/mobile
-npx cap sync android
+npm run android:sync
 npm run android:build     # android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-### What the phone app does not do
+`adb install -r android/app/build/outputs/apk/debug/app-debug.apk`, or copy it
+to the phone and open it. Point Gradle at your SDK with
+`android/local.properties` (`sdk.dir=/path/to/Sdk`) and set `JAVA_HOME`.
+`npm run android:release` and `npm run android:bundle` produce the signed
+release APK and the Play bundle — see `docs/play-release.md`, including why an
+unsigned artefact is the correct default when no key is configured.
 
-It is a different application from the desktop one, not a window onto it, and
-the gaps are deliberate rather than unfinished:
+Every change needs a new APK; nothing is served live any more. That is the price
+of it working with the network off. Settings → About → *Download the Android
+build* streams the latest one from a running desktop instance.
 
-- **Its data is its own.** The device database starts empty. A portfolio
-  arrives as a backup file through More → import; it is not read from the
-  server, and changes made on the phone stay on the phone. There is no sync.
-- **No alerts.** They need the alerts routes, Home Assistant, web-push and
-  FCM — all server-side. Alerts remain a desktop feature.
-- **No login or passkey.** There is no session and no `SESSION_SECRET`; the
-  device lock is the lock, falling back to the PIN. An app whose lock it
-  cannot itself reset is the point.
-- **No strategy tooling.** The chart, backtester, PineScript analyzer and
-  script library need the filesystem or a server-side Binance proxy.
+### What the phone app does differently
+
+Deliberate gaps, not unfinished ones:
+
+- **Its data is its own.** The device database starts empty and a portfolio
+  arrives as a backup file through import. Changes on the phone stay on the
+  phone. **There is no sync** — two ledgers that can disagree is the largest
+  open question in the project.
+- **Alerts are its own too.** Price and percentage-move rules are checked on
+  every foreground and every half hour in the background, and posted locally.
+  No Firebase, no server to push from. Indicator alerts stay on the desktop —
+  1,460 daily bars of warm-up is not work for a phone.
+- **No login.** There is no session and no `SESSION_SECRET`; the device lock is
+  the lock. An app whose lock it cannot itself reset is the point.
+- **No strategy tooling.** The chart, backtester and PineScript analyzer need a
+  filesystem or a server-side proxy.
 - **Equity background is thin.** Yahoo's cookie-and-crumb handshake needs a
-  response header the portable `Net` does not expose, so an equity's
-  information panel states its absence rather than showing an empty box.
+  response header the portable network layer does not expose, so the panel
+  states its absence rather than showing an empty box.
 
 ### Two apps, side by side
 
-The wrapper did not go away, and the two install alongside each other rather
-than replacing one another:
+The LAN wrapper did not go away, and the two install alongside each other.
 
 | | Standalone | Wrapper |
 |---|---|---|
@@ -121,66 +168,60 @@ than replacing one another:
 | Launcher name | Contour | Contour LAN |
 | Data | its own, on the device | the server's |
 | Works offline | yes, without prices | no |
-| Alerts | no | yes, foreground and background |
 
-They carry different application ids deliberately. With one id each install
-would replace the other, and replacing the wrapper leaves the phone showing an
-empty portfolio — the standalone database is its own and starts empty. Having
-both on the phone is also the only way to compare them.
+Different application ids deliberately: with one id each install would replace
+the other, and replacing the wrapper leaves you looking at an empty portfolio.
+`android/app/build.gradle` reads `CONTOUR_URL` to pick the id, the launcher
+name and the deep-link scheme, so the two cannot drift apart. Both write to
+`app-debug.apk` — copy one aside before building the other.
 
-```bash
-# the wrapper, exactly as it behaved before Phase 4
-export CONTOUR_URL="http://192.168.2.5:3001"
-npx cap sync android && npm run android:build
+## Layout
+
+```
+packages/core     Pure logic. No I/O, no framework. Browser, server and APK.
+packages/data     The ports (Store, Net), the services over them, and the
+                  DataClient every screen talks to. One contract suite runs
+                  against every implementation.
+packages/ui       Shared React components. No screen names a URL.
+apps/web          The Next server app: pages, API routes, Prisma, auth.
+apps/mobile       The device build. Static export, SQLite, no server.
 ```
 
-`android/app/build.gradle` reads the same variable to pick the id, the launcher
-name, the recents-card label and the deep-link scheme, so the two halves cannot
-drift apart. Both write to `app-debug.apk`, so copy one aside before building
-the other.
-
-Building needs a JDK 21 and the Android SDK (platform 35+, build-tools 35).
-Point Gradle at them with `android/local.properties` (`sdk.dir=/path/to/Sdk`)
-and `JAVA_HOME`.
-
-Install the APK by copying it to the phone and opening it (allow installs from
-unknown sources), or over USB with `adb install -r app-debug.apk`.
-
-`cleartext` is enabled automatically while `CONTOUR_URL` is plain http, which
-is what makes a LAN address work in that mode.
-
-### Installing a new build on the phone
-
-Every change now needs a new APK: the app is bundled, so nothing is live from
-the server any more. That is the cost of it working with the network off.
+The seam is the point: a service takes its outside world as arguments, so the
+same code answers an HTTP request on a desktop and a method call inside an APK.
+Tests fail the build if a package reaches for Prisma, the filesystem or a global
+`fetch`.
 
 ```bash
-npm run android:build          # writes android/app/build/outputs/apk/debug/
+npx vitest            # 1,046 tests
+npm run typecheck
 ```
 
-Then on the phone, open **More → Install the latest build**, which streams that
-APK from the running server. Android asks once for permission to install from
-the browser. The build keeps the same app id, so it upgrades in place and
-nothing is lost.
+## Documentation
 
-Over USB instead: `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`
+`CLAUDE.md` is the map — architecture, conventions, and why each of them is
+what it is. `BRAND.md` governs anything user-facing. `docs/` holds the rest,
+including `carried-forward.md` (what is known and not done),
+`android-launch.md` (what a cold start actually draws, measured off screen
+recordings), `asset-logos.md`, `security-review-2026-08-30.md` and
+`play-release.md`.
 
 ## Licence
 
-**AGPL-3.0-or-later.** The full text is in [LICENSE](LICENSE); [NOTICE](NOTICE)
-carries the copyright line and the exceptions.
+**AGPL-3.0-or-later** — full text in [LICENSE](LICENSE), copyright line and
+exceptions in [NOTICE](NOTICE).
 
-Two things worth knowing before you copy anything out of here:
+**Section 13 is why AGPL and not GPL.** Modify this and let other people use it
+over a network, and you owe those users your source. Running it unmodified, or
+running it for yourself, asks nothing of you.
 
-- **`samples/risk-metric.pine` is not mine to license.** It is Oakley Wood's
-  "Risk Metric Strategy", bundled for reference, and it carries no licence of
-  its own. `packages/core/src/indicator/` is a port of it — the sub-metrics and
-  their time curves are transcribed verbatim, which is the only reason the
-  figures match TradingView. NOTICE says so in full.
-- **Section 13 is why AGPL and not GPL.** Modify this and let other people use
-  it over a network, and you owe those users your source. Running it unmodified,
-  or running it for yourself, asks nothing of you.
+The risk metric in `samples/risk-metric.pine` and `packages/core/src/indicator/`
+is this project's own work and covered by that grant. Its lineage is recorded in
+NOTICE: metric 1 follows the idea in Oakley Wood's "Risk Metric" indicator with
+refitted coefficients, and metrics 2 and 3 follow ideas of Ben Cowen's and of
+the TradingView user "wugamlo". Acknowledged because it is the right thing to
+do, not because anything was transcribed.
 
-The TradingView attribution rendered on the More page satisfies Lightweight
-Charts' Apache-2.0 terms, and is why every chart sets `attributionLogo: false`.
-It is not decoration; removing it without replacing it is a breach.
+The TradingView attribution rendered in the app satisfies Lightweight Charts'
+Apache-2.0 terms, and is why every chart sets `attributionLogo: false`. It is
+not decoration; removing it without replacing it is a breach.
