@@ -3,9 +3,18 @@
  * What an offline-only repository would contain.
  *
  * The standalone Android build is a strict subset of this repository, and the
- * subset is worth knowing exactly: it decides whether a public repo carries
- * the PineScript port, which is the one thing in here that is not ours to
- * relicense (see NOTICE, and decision 1 in docs/carried-forward.md).
+ * subset is worth knowing exactly.
+ *
+ * This was written to answer a licence question — whether a public repo would
+ * carry a port believed to be someone else's work. That belief was wrong (see
+ * NOTICE, and decision 1 in docs/carried-forward.md, both corrected
+ * 2026-08-30), so nothing here is load-bearing for licensing any more.
+ *
+ * What it still checks is an architectural boundary worth keeping: the device
+ * build answers every screen from its own database and reaches none of the
+ * strategy tooling. 1,460 daily bars of warm-up is not work for a phone, and
+ * an import that quietly dragged the indicator into the mobile bundle would
+ * be a regression whether or not anybody could relicense it.
  *
  * This walks the real import graph from `apps/mobile/src` rather than guessing
  * from directory names, so the answer stays true as the code moves. It prints
@@ -81,10 +90,9 @@ for (const f of rel) {
 }
 
 /*
- * The whole point of the exercise. `packages/core` holds the port of Oakley
- * Wood's PineScript alongside the portfolio maths; a split that carried it
- * along would inherit the one licensing question this repository cannot
- * settle on its own.
+ * `packages/core` holds the risk metric alongside the portfolio maths, and
+ * only the portfolio maths belongs on a phone. This is the assertion that the
+ * two have not become entangled.
  */
 const PINE = rel.filter((f) => /indicator|pinescript|backtest/.test(f));
 
@@ -102,7 +110,7 @@ if (dropped.length > 12) console.log(`    … and ${dropped.length - 12} more`);
 console.log(`\nPineScript-derived files reachable: ${PINE.length}`);
 if (PINE.length > 0) {
   console.log("  " + PINE.join("\n  "));
-  console.log("\nREFUSED: the split would carry the port, and with it the licence question.");
+  console.log("\nREFUSED: the device build now reaches the strategy tooling.");
   process.exit(1);
 }
-console.log("  none — the split sheds the one thing this repository cannot relicense.");
+console.log("  none — the device build stays clear of the strategy tooling.");

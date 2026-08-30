@@ -1,5 +1,15 @@
 //@version=5
-// Oakley Wood
+// Risk Metric Strategy — Roy Duisters.
+//
+// Builds on the idea in Oakley Wood's "Risk Metric" indicator (© Oakley Wood
+// 2021), which plots (close - 1460d SMA) / 1460d stdev against a hard-coded
+// function of time. That is METRIC 1 below, with its own refitted
+// coefficients. Metrics 2 and 3, the way the three are combined, and the
+// whole strategy layer — latched entries, tiered exits, sizing, the trading
+// window — are not in it. Inspirations are credited inline.
+//
+// The bare attribution this header used to carry was read, reasonably, as
+// saying the whole file was his. It is not.
 
 strategy(title='Risk Metric Strategy', shorttitle='Risk Metric', overlay=false, default_qty_value=20, precision=2, pyramiding=5, default_qty_type=strategy.cash, currency=currency.USD)
 

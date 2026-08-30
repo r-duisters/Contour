@@ -41,8 +41,8 @@ user on their own machine. The screens are portfolio (holdings, valuation, histo
 import from a Delta-by-eToro CSV export and export back out again. It is passkey- or
 password-locked, installs as a PWA, and pushes notifications.
 
-Alongside that it keeps the tool it grew out of: a port of **one specific PineScript**, Oakley Wood's
-"Risk Metric Strategy" for Bitcoin, with a live candlestick chart and risk-metric pane, historical
+Alongside that it keeps the tool it grew out of: a port of **one specific PineScript**, this project's
+own "Risk Metric Strategy" for Bitcoin (`samples/risk-metric.pine`; lineage in NOTICE), with a live candlestick chart and risk-metric pane, historical
 backtesting, a PineScript analyzer, and alerts that fire into **Home Assistant** via a webhook (HA
 fans out — mobile push, Telegram, etc.). That part is one section of the app now, not the whole of it.
 

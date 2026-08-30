@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 
 /**
- * The licence claim, checked by a machine.
+ * The boundary between the phone's half and the strategy tooling.
  *
  * `offline-tree.mjs` walks the real import graph from `apps/mobile/src` and
  * reports whether anything PineScript-derived is reachable. The answer has to

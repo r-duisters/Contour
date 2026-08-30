@@ -16,27 +16,37 @@ with this program.  If not, see <https://www.gnu.org/licenses/>.
 The full licence text is in LICENSE, unmodified, as the licence requires.
 
 
-NOT COVERED BY THAT GRANT
--------------------------
+LINEAGE OF THE RISK METRIC
+--------------------------
 
-samples/risk-metric.pine
+`samples/risk-metric.pine` and `packages/core/src/indicator/` are this
+project's own work and are covered by the grant above. Where the idea came
+from is worth stating anyway, because it did not come from nowhere.
 
-    "Risk Metric Strategy", by Oakley Wood. Included for reference, because the
-    analyzer and the backtester are only meaningful against the script they
-    were built to read.
+    Oakley Wood's "Risk Metric" (© Oakley Wood 2021) is a short TradingView
+    indicator. It plots (close − 1460-day SMA) / 1460-day standard deviation,
+    normalised by −35.64·ln(t) + 1008.1, against four flat reference lines —
+    about twenty lines in total.
 
-    It carries no licence of its own — the file states an author and nothing
-    more — so no rights in it are granted here. It is not mine to license, and
-    the AGPL grant above does not reach it.
+    `riskOne` here follows that idea with its own refitted coefficients
+    (−38.12·ln(t) + 1078.5). Nothing else in this project is in his script:
+    not the second or third sub-metric, not the averaging of the three, and
+    not the strategy layer — the latched DCA entries, the tiered exits, the
+    position sizing or the trading window.
 
-    packages/core/src/indicator/ is a port of that script: the three
-    sub-metrics and their hard-coded time curves are transcribed from it, and
-    CLAUDE.md says so plainly because matching TradingView depends on them
-    being exact. Treat that directory as derived from someone else's work when
-    deciding what you may do with it.
+    Metric 2 follows an idea of Ben Cowen's. Metric 3 follows Ben Cowen and
+    the TradingView user "wugamlo", whose 50DMA/50WMA script is linked from
+    the source. Metric 1's approach is credited in the source to "Andy".
 
-    If you intend to redistribute this repository, resolving that with the
-    original author is the honest first step.
+    A formula is an idea rather than an expression, and none of these were
+    transcribed. The acknowledgement above is a courtesy, and the right one to
+    pay.
+
+    An earlier version of this file said the opposite — that the Pine source
+    was Oakley Wood's and the port derived from it — and blocked publishing
+    this repository for months on that basis. It was wrong. The mistake was
+    reading a bare `// Oakley Wood` header, which named the lineage rather
+    than the author, as naming the author.
 
 
 THIRD-PARTY COMPONENTS

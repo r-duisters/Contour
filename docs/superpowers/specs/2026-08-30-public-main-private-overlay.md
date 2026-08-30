@@ -1,5 +1,18 @@
 # A public main repository, with the port as a private overlay
 
+> **Obsolete, the same day it was written.** Its premise — that something has
+> to be held back — was false. `samples/risk-metric.pine` is this project's own
+> work, not Oakley Wood's; his is a twenty-line indicator with one sub-metric
+> and different coefficients. NOTICE said otherwise and was corrected on
+> 2026-08-30.
+>
+> So there is no overlay, no derived export and no split. The repository goes
+> public whole, once #41 is settled. Kept because the measurements in it are
+> still true and the reasoning is worth being able to re-read — and because the
+> way the error survived is worth remembering: a bare `// Oakley Wood` header
+> naming a lineage was read as naming an author, and that reading was then
+> quoted forward into NOTICE, an epic, a spec and months of not publishing.
+
 Written 2026-08-30. The counter-proposal to #53, which decided the opposite
 direction — one private source of truth, a derived public export. That decision
 was sound on the evidence it had. This argues the evidence changed.
