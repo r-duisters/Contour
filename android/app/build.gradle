@@ -62,6 +62,16 @@ def contourBuildNumber = (System.currentTimeMillis().intdiv(60000L) - 29453760L)
  * back to the debug key. A release quietly signed with a key anybody has is
  * worse than a build that stops and says what is missing.
  */
+/**
+ * The version a person sees, from the one place it is written.
+ *
+ * `package.json` is the source: `packages/core/src/version.ts` exports it for
+ * the About screen and `version.test.ts` fails if the two drift. This is the
+ * third reader, so the APK cannot claim a version the app denies.
+ */
+def contourVersionName = new groovy.json.JsonSlurper()
+    .parse(rootProject.file("../package.json")).version
+
 def contourSigning = [:]
 def contourKeystoreProps = rootProject.file("keystore.properties")
 if (contourKeystoreProps.exists()) {
@@ -110,7 +120,17 @@ android {
         // non-reproducible in this one field, which is the point: a rebuild a
         // launcher cannot tell apart is exactly the failure above.
         versionCode contourBuildNumber
-        versionName "1.0"
+        // Read from package.json, not typed here.
+        //
+        // It said "1.0" — the Android template's default, never touched — while
+        // `packages/core/src/version.ts` said 0.1.0 and the About screen showed
+        // that. Android's own app-info page and the About screen inside the app
+        // disagreed about which version was installed, and both were sincere.
+        //
+        // `version.test.ts` already pins APP_VERSION to package.json; reading
+        // the same file here makes the third copy impossible rather than
+        // merely tested.
+        versionName contourVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
