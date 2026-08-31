@@ -7,4 +7,4 @@
  * so the duplication cannot rot quietly — which is the only thing wrong with
  * duplicating a string.
  */
-export const APP_VERSION = "0.1.0";
+export const APP_VERSION = "0.2.0";
