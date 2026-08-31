@@ -1,19 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, Trash2 } from "lucide-react";
+import { Bell, Plus, Trash2 } from "lucide-react";
 import { useDataClient } from "@/data/client/context";
 import type { AlertSummary } from "@/data/client/data-client";
 import PageLabel from "@/components/PageLabel";
 import EmptyState from "@/components/EmptyState";
 import LastChecked from "@/components/LastChecked";
 import SubHeading from "@/components/SubHeading";
-import DailyMoveSetting from "@/components/DailyMoveSetting";
-import PortfolioMoveSetting from "@/components/PortfolioMoveSetting";
+import PortfolioAlertForm from "@/components/PortfolioAlertForm";
+import Sheet from "@/components/Sheet";
 import Switch from "@/components/Switch";
 import Button from "@/components/Button";
 import { isBatteryExempt, requestBatteryExemption } from "@/components/device-notifications";
-import { deleteButton } from "@/components/icon-button";
+import { deleteButton, iconButton } from "@/components/icon-button";
+import { alertCondition, alertSubject } from "@/components/alert-wording";
 import { KEYS, readKey } from "@/lib/storage-keys";
 
 /**
@@ -29,6 +30,13 @@ import { KEYS, readKey } from "@/lib/storage-keys";
  * full size, the condition sits under it, and the switch is the control: a row
  * whose state is the thing you came to change.
  *
+ * **One idiom, not two.** The two portfolio-wide rules used to be a pair of
+ * switches above the list, and the list filtered them out so they would not
+ * appear twice — a filter that only knew one of the two, so the other did
+ * appear twice and the copy disagreed with itself. They are rows now like
+ * everything else, and the `+` above makes them, because they are the only
+ * rules with no asset page to be made from.
+ *
  * **Paused is not deleted, and that is the point.** A target you are about to
  * trip deliberately, or a swing rule during a loud week, is worth silencing for
  * a few days rather than rebuilding afterwards. The evaluators already skip a
@@ -38,6 +46,14 @@ export default function AlertsPage() {
   const client = useDataClient();
   const [alerts, setAlerts] = useState<AlertSummary[] | null>(null);
   const [names, setNames] = useState<Record<string, string>>({});
+  /**
+   * Which portfolio a new portfolio-wide rule would watch. The first, because
+   * these rules are about "everything I own" and the app has no notion of
+   * watching two portfolios at once — a picker here would be offering a choice
+   * the alert kinds cannot express.
+   */
+  const [portfolioId, setPortfolioId] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
   const [checked, setChecked] = useState<number | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   /**
@@ -68,6 +84,7 @@ export default function AlertsPage() {
       if (cancelled) return;
       setAlerts(listed);
       setNames(Object.fromEntries(portfolios.map((p) => [p.id, p.name])));
+      setPortfolioId(portfolios[0]?.id ?? null);
       const raw = readKey(KEYS.alertsLastChecked);
       setChecked(raw ? Number(JSON.parse(raw)) : null);
       // Asked here as well as during setup, because "Not now" there left no
@@ -98,7 +115,7 @@ export default function AlertsPage() {
     // Asked for, as the ellipsis in the button's name promises — and because
     // this sits a thumb's width from the switch, where the two outcomes are
     // "quiet for a while" and "gone".
-    const what = subject(alert, names);
+    const what = alertSubject(alert.symbol, portfolioName(alert, names));
     if (!window.confirm(`Delete the alert on ${what}?`)) return;
     const id = alert.id;
     setBusy(id);
@@ -113,30 +130,57 @@ export default function AlertsPage() {
   }
 
   /*
-   * The daily-move rule is not in this list, because it is above it.
-   * =============================================================
+   * One list, grouped by what a rule watches rather than by its state.
    *
-   * It is a stored alert like any other — kind `pct_move`, no symbol — so it
-   * arrived in "Watching" as well as in its own switch, and the page showed
-   * one rule twice. Worse, the two disagreed on what they were: the switch
-   * said "on", the row said "Every holding · 5%", and pausing the row left a
-   * switch still reading as on.
+   * This page used to draw the portfolio-wide rules as switches above a list
+   * of everything else, and filter them out of the list so they did not appear
+   * twice. That filter only ever knew one of them, so `portfolio_move` did
+   * appear twice — as a switch reading "off" and a row reading "on", because
+   * the switch looks for its own kind and the store was handing back another.
    *
-   * Identified by shape rather than by id, because the shape is what makes it
-   * special: a percentage rule that names no symbol means every holding, and
-   * `expandRules` is what turns it into checks. Anything else — including a
-   * per-asset rule — belongs in the list.
+   * Two idioms on one screen is what made it unreadable, so there is one now:
+   * every rule is a row, with the same pause and the same delete. Grouping by
+   * subject rather than by state keeps the two portfolio rules adjacent, which
+   * is where the confusion was — they are easy to mistake for each other and
+   * they are only comparable side by side.
    */
-  const isDailyMove = (a: AlertSummary) => a.kind === "pct_move" && !a.symbol;
-  const rows = (alerts ?? []).filter((a) => !isDailyMove(a));
-  const watching = rows.filter((a) => a.enabled);
-  const paused = rows.filter((a) => !a.enabled);
+  const rows = alerts ?? [];
+  const portfolioRules = rows.filter((a) => !a.symbol);
+  const assetRules = rows.filter((a) => a.symbol);
 
   return (
     <main className="min-h-screen px-4 py-5 max-w-xl mx-auto">
       <div className="flex items-center gap-2 mb-4">
         <PageLabel icon={Bell}>Alerts</PageLabel>
+        {/*
+          Only the two rules that have nowhere else to be made.
+          =====================================================
+
+          A price target or a per-asset move is made from the asset's own page,
+          where the live price is on screen to aim at; a form here would be a
+          second place for the same decision, and the two would drift. What is
+          left is the pair that names no asset — and before this they had no
+          creation affordance at all except a switch that also served as their
+          only display.
+        */}
+        <button
+          onClick={() => setAdding(true)}
+          aria-label="Add a portfolio-wide alert"
+          className={`${iconButton()} ml-auto`}
+        >
+          <Plus size={18} aria-hidden />
+        </button>
       </div>
+
+      <Sheet open={adding} onClose={() => setAdding(false)} title="Watch the portfolio">
+        <PortfolioAlertForm
+          portfolioId={portfolioId}
+          onSubmit={async (alert) => {
+            const made = await client.createAlert?.(alert);
+            if (made) setAlerts((cur) => [made, ...(cur ?? [])]);
+          }}
+        />
+      </Sheet>
 
       {/*
         The page in the order the two kinds of rule deserve.
@@ -147,46 +191,22 @@ export default function AlertsPage() {
         below it. Reassurance about delivery matters, but it is the answer to a
         question somebody asks second. What they came for is the list.
 
-        So: the two alert kinds, each under its own heading, and the checking
-        machinery after them.
+        Two groups, by subject. Paused rows stay where they are, dimmed: a rule
+        you switched off last week is still a rule about that asset, and moving
+        it to the bottom of the page hid it from the only place you would look
+        for it.
       */}
-      <section className="mb-8">
-        <SubHeading className="mb-1">Daily move</SubHeading>
-        {/*
-          It has a section rather than a row because it cannot be made
-          anywhere else. Every other rule is created from the asset it watches;
-          this one names no asset on purpose, so there is no page to make it
-          from.
-        */}
-        <DailyMoveSetting />
-        <PortfolioMoveSetting />
-      </section>
-
-      <section className="mb-8">
-        <SubHeading className="mb-1">Price targets</SubHeading>
-        {alerts === null ? null : rows.length === 0 ? (
-          <EmptyState>
-            None yet — open an asset and choose &ldquo;Alert me&rdquo;.
-          </EmptyState>
-        ) : (
-          <div className="space-y-6 mt-2">
-            {/*
-              Split, because the two groups are read differently: the first is
-              "what will reach me", the second is "what I have switched off and
-              might want back". Mixed together, a paused row is just a row that
-              looks slightly wrong.
-            */}
-            <Group title="Watching" alerts={watching} empty="Everything is paused.">
-              {(a) => row(a)}
-            </Group>
-            {paused.length > 0 && (
-              <Group title="Paused" alerts={paused} empty="">
-                {(a) => row(a)}
-              </Group>
-            )}
-          </div>
-        )}
-      </section>
+      {alerts === null ? null : rows.length === 0 ? (
+        <EmptyState className="mb-8">
+          None yet — open an asset and choose &ldquo;Alert me&rdquo;, or use + above to
+          watch the whole portfolio.
+        </EmptyState>
+      ) : (
+        <div className="space-y-8 mb-8">
+          <Group title="Your portfolio" alerts={portfolioRules}>{(a) => row(a)}</Group>
+          <Group title="Individual assets" alerts={assetRules}>{(a) => row(a)}</Group>
+        </div>
+      )}
 
       <section>
         <SubHeading className="mb-2">Checks</SubHeading>
@@ -256,32 +276,26 @@ export default function AlertsPage() {
   );
 
   function row(a: AlertSummary) {
-    const p = a.params as { direction?: string; price?: number; threshold?: number };
     return (
       // `items-center`, so the switch and the bin sit on the row's own centre
       // line rather than each at the top of a two-line block, where they read
       // as floating beside the text instead of belonging to it.
       <li key={a.id} className={`flex items-center gap-3 py-3 ${a.enabled ? "" : "opacity-60"}`}>
         <div className="min-w-0 flex-1">
-          <p className="text-sm truncate">{subject(a, names)}</p>
+          <p className="text-sm truncate">{alertSubject(a.symbol, portfolioName(a, names))}</p>
           <p className="text-xs text-neutral-500 mt-0.5">
-            {/* The mode is stated because it is a choice now. A target used
-                to be one-shot with no say in it, so the word was a fact about
-                the app; it is a fact about this alert. */}
-            {a.kind === "price_target"
-              ? `${p.direction === "below" ? "Falls below" : "Rises above"} ${p.price} · ${a.repeat ? "keeps watching" : "one-shot"}`
-              : `Moves ±${p.threshold}% in a day${a.repeat ? "" : " · one-shot"}`}
+            {alertCondition(a)}
           </p>
         </div>
         <Switch
           checked={a.enabled}
           onChange={(next) => void toggle(a, next)}
-          label={`${a.enabled ? "Pause" : "Resume"} ${subject(a, names)}`}
+          label={`${a.enabled ? "Pause" : "Resume"} ${alertSubject(a.symbol, portfolioName(a, names))}`}
         />
         <button
           onClick={() => void remove(a)}
           disabled={busy === a.id}
-          aria-label={`Delete alert on ${subject(a, names)}…`}
+          aria-label={`Delete alert on ${alertSubject(a.symbol, portfolioName(a, names))}…`}
           className={deleteButton()}
         >
           <Trash2 size={16} aria-hidden />
@@ -291,20 +305,27 @@ export default function AlertsPage() {
   }
 }
 
+/**
+ * A heading and its rows, or nothing at all.
+ *
+ * The empty case used to say something — "Everything is paused." — because the
+ * two groups were "watching" and "paused" and an empty first group was a state
+ * worth reporting. Grouped by subject instead, an empty group means the person
+ * has never made that kind of rule, and a heading over a sentence explaining
+ * its own absence is just noise on the way to the group that does have rows.
+ */
 function Group({
-  title, alerts, empty, children,
+  title, alerts, children,
 }: {
   title: string;
   alerts: AlertSummary[];
-  empty: string;
   children: (a: AlertSummary) => React.ReactNode;
 }) {
+  if (alerts.length === 0) return null;
   return (
     <section>
       <SubHeading className="mb-1">{title}</SubHeading>
-      {alerts.length === 0
-        ? <EmptyState className="py-2">{empty}</EmptyState>
-        : <ul className="divide-y divide-neutral-800">{alerts.map(children)}</ul>}
+      <ul className="divide-y divide-neutral-800">{alerts.map(children)}</ul>
     </section>
   );
 }
@@ -350,16 +371,7 @@ function sinceWords(at: number): string {
   return `${days} ${days === 1 ? "day" : "days"} ago`;
 }
 
-/**
- * What the alert watches, in words rather than in stored fields.
- *
- * A portfolio-scoped rule has no symbol — that is the shape that means "every
- * holding" — and this rendered a blank ticker for it, which is the row the
- * setup flow's switch creates. It says what the rule actually does instead,
- * and names the portfolio rather than showing its id.
- */
-function subject(a: AlertSummary, names: Record<string, string>): string {
-  if (a.symbol) return a.symbol;
-  const name = a.portfolioId ? names[a.portfolioId] : undefined;
-  return name ? `Everything in ${name}` : "Everything you own";
+/** The portfolio's name for a rule that names one, never its id. */
+function portfolioName(a: AlertSummary, names: Record<string, string>): string | null {
+  return a.portfolioId ? names[a.portfolioId] ?? null : null;
 }

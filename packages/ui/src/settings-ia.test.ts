@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -33,24 +33,43 @@ const alertsPage = () =>
 describe("what belongs where", () => {
   /**
    * "Tell me about big moves" writes a `pct_move` row with no symbol. That row
-   * shows in the alerts list, can be paused there, and deleting it turns the
-   * switch off. A control whose effect is a row in a list belongs beside the
-   * list — it was in Settings only because the setup flow put it there.
+   * shows in the alerts list and can be paused there, so the control that
+   * makes it belongs beside the list — it was in Settings only because the
+   * setup flow put it there.
    */
-  it("keeps the daily-move rule on the alerts page, not in settings", () => {
-    expect(alertsPage()).toContain("DailyMoveSetting");
-    expect(ui("screens/SettingsScreen.tsx")).not.toContain("DailyMoveSetting");
+  it("keeps the portfolio-wide rules on the alerts page, not in settings", () => {
+    expect(alertsPage()).toContain("PortfolioAlertForm");
+    expect(ui("screens/SettingsScreen.tsx")).not.toContain("PortfolioAlertForm");
   });
 
   /**
-   * The daily-move rule is a stored alert, so it arrived in the list as well
-   * as in its own switch — one rule shown twice, and the two disagreed: the
-   * switch said "on" while the row said "Every holding · 5%", and pausing the
-   * row left the switch still reading as on.
+   * One rule, one place on screen.
+   *
+   * The portfolio-wide rules used to be switches above the list, and the list
+   * filtered them out so they would not also appear as rows. That filter knew
+   * only `pct_move`, so `portfolio_move` did appear twice — a switch reading
+   * "off" beside a row reading "on" — and pausing the row left the switch
+   * unchanged. The switches are gone: every rule is a row, and the `+` only
+   * creates.
    */
-  it("shows the daily-move rule once, not in the list as well", () => {
-    expect(alertsPage()).toContain("const isDailyMove");
-    expect(alertsPage()).toContain("filter((a) => !isDailyMove(a))");
+  it("draws every rule as a row, with no second switch idiom", () => {
+    const page = alertsPage();
+    for (const gone of ["DailyMoveSetting", "PortfolioMoveSetting", "isDailyMove"]) {
+      expect(page, `the alerts page still has ${gone}`).not.toContain(gone);
+    }
+    expect(page).toContain("portfolioRules");
+    expect(page).toContain("assetRules");
+  });
+
+  /**
+   * The switch components themselves, not just their use. Deleting the call
+   * site and leaving the file is how the idiom comes back: the next screen
+   * that wants a portfolio rule finds a ready-made switch and uses it.
+   */
+  it("keeps no switch component for a portfolio rule", () => {
+    for (const file of ["DailyMoveSetting.tsx", "PortfolioMoveSetting.tsx", "PortfolioRuleSetting.tsx"]) {
+      expect(existsSync(new URL(`./${file}`, import.meta.url).pathname), `${file} is back`).toBe(false);
+    }
   });
 
   /**
@@ -59,7 +78,7 @@ describe("what belongs where", () => {
    * the other one.
    */
   it("uses the app's own vocabulary for the two alert kinds", () => {
-    for (const file of ["DailyMoveSetting.tsx", "screens/SetupScreen.tsx"]) {
+    for (const file of ["PortfolioAlertForm.tsx", "screens/SetupScreen.tsx"]) {
       expect(copyOf(file), `${file} still says "big moves"`).not.toMatch(/big moves/i);
     }
     expect(alertsPage().replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(/big moves/i);
@@ -82,7 +101,7 @@ describe("what belongs where", () => {
   it("leaves the notifications section answering only whether alerts arrive", () => {
     const screen = ui("screens/SettingsScreen.tsx");
     expect(screen).toContain("NotificationAccess");
-    for (const rule of ["DailyMoveSetting", "threshold", "pct_move"]) {
+    for (const rule of ["PortfolioAlertForm", "threshold", "pct_move"]) {
       expect(screen, `SettingsScreen mentions ${rule}, which is an alert rule`).not.toContain(rule);
     }
   });

@@ -96,12 +96,23 @@ export async function POST(req: NextRequest) {
       symbol: "symbol" in d && d.symbol ? d.symbol.toUpperCase() : null,
       // Portfolio-scoped rules read the kind per holding, so theirs is unused.
       assetType: "assetType" in d ? d.assetType : "crypto",
-      portfolioId: d.kind === "pct_move" ? (d.portfolioId ?? null) : null,
+      /*
+       * Three kinds carry a portfolio, not one.
+       *
+       * This named `pct_move` alone, from when it was the only kind that could
+       * be portfolio-scoped. `portfolio_move` and `position_pnl` both *require*
+       * a portfolio — the first has no other subject, the second needs a cost
+       * basis and a cost basis comes from a ledger — and the schema above
+       * enforces that, so the row was accepted and then written with the one
+       * field it could not do without set to null. Reading it back gave a rule
+       * about nothing.
+       */
+      portfolioId: "portfolioId" in d ? (d.portfolioId ?? null) : null,
       timeframe: d.kind === "indicator" ? d.timeframe : "1d",
       params: JSON.stringify(d.params ?? {}),
       // Per kind, and each default is what that kind used to do
       // unconditionally: a target fires once and disarms, a move rule stands.
-      repeat: d.repeat ?? (d.kind === "pct_move"),
+      repeat: d.repeat ?? (d.kind === "pct_move" || d.kind === "portfolio_move"),
       enabled: d.enabled ?? true,
     },
   });

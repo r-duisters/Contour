@@ -12,14 +12,13 @@ import PageLabel from "@/components/PageLabel";
 import LastChecked from "@/components/LastChecked";
 import Switch from "@/components/Switch";
 import SubHeading from "@/components/SubHeading";
-import DailyMoveSetting from "@/components/DailyMoveSetting";
-import PortfolioMoveSetting from "@/components/PortfolioMoveSetting";
 import { deleteButton } from "@/components/icon-button";
+import { alertCondition, alertSubject } from "@/components/alert-wording";
 import { KEYS, readKey } from "@/lib/storage-keys";
 
 type Alert = {
   id: string;
-  kind: "indicator" | "price_target" | "pct_move";
+  kind: "indicator" | "price_target" | "pct_move" | "portfolio_move" | "position_pnl";
   symbol: string | null;
   portfolioId: string | null;
   portfolioName: string | null;
@@ -135,6 +134,11 @@ function Alerts() {
       const price = Number(targetPrice);
       if (!Number.isFinite(price) || price <= 0) { setError("Enter a target price."); return; }
       body = { kind, symbol, assetType, params: { direction, price } };
+    } else if (kind === "portfolio_move") {
+      const t = Number(threshold);
+      if (!Number.isFinite(t) || t <= 0) { setError("Enter a % threshold."); return; }
+      if (!portfolioId) { setError("Pick a portfolio."); return; }
+      body = { kind, portfolioId, params: { threshold: t } };
     } else {
       const t = Number(threshold);
       if (!Number.isFinite(t) || t <= 0) { setError("Enter a % threshold."); return; }
@@ -204,6 +208,67 @@ function Alerts() {
 
   const input = field();
 
+  /*
+   * A row per alert, in the app's list-row anatomy rather than a line of
+   * wrapping text.
+   *
+   * Every alert answers three questions — what it watches, what would fire it,
+   * and whether it is on — and all three were crammed onto one flex row in
+   * `font-mono break-all`, beside two chips and two underlined text buttons.
+   * At a narrow width the whole thing folded into four ragged lines and the
+   * state chip could end up below the buttons that change it.
+   *
+   * The subject leads, the condition sits under it with what is known about
+   * the last check, and the switch is the control: the state is the thing you
+   * came here to change. Delete stays a separate, quieter action — the two are
+   * not neighbours in consequence.
+   *
+   * One renderer, where there were two near-identical copies for the watching
+   * and paused lists. They had already drifted: only one of them carried the
+   * comment explaining why it does not say why a row is paused.
+   */
+  const alertRow = (a: Alert) => (
+    <li
+      key={a.id}
+      // Centred: the switch and the bin belong to the row, not to its first
+      // line. Dimmed rather than moved when paused.
+      className={`py-3 flex items-center gap-3 ${a.enabled ? "" : "opacity-60"}`}
+    >
+      <div className="min-w-0 flex-1">
+        <p className="text-sm">{subjectOf(a)}</p>
+        {/*
+          No "fired, paused". A one-shot target disables itself when it fires,
+          and this said so — but pausing by hand now produces the identical
+          row, and the data cannot tell the two apart. Claiming to know why was
+          true only while there was one way to get there.
+        */}
+        <p className="text-xs text-neutral-500 mt-0.5">
+          {conditionOf(a)}
+          {" · "}
+          {a.lastEvaluated
+            ? `last checked ${new Date(a.lastEvaluated).toLocaleString()}`
+            : "never checked"}
+        </p>
+      </div>
+      <Switch
+        checked={a.enabled}
+        onChange={() => toggle(a)}
+        label={`${a.enabled ? "Pause" : "Resume"} ${describe(a)}`}
+      />
+      <button
+        onClick={() => remove(a)}
+        // The ellipsis moved here when the label became an icon. It is the
+        // app's promise that a confirmation follows, and it is carried by the
+        // accessible name now that there is no text.
+        aria-label={`Delete alert: ${describe(a)}…`}
+        title="Delete alert…"
+        className={deleteButton()}
+      >
+        <Trash2 size={16} aria-hidden />
+      </button>
+    </li>
+  );
+
   return (
     <main className="min-h-screen md:min-h-[calc(100vh-3.5rem)] px-4 py-5 md:p-8 max-w-4xl mx-auto">
       <div className="flex items-center gap-2 mb-4 md:mb-6">
@@ -243,6 +308,13 @@ function Alerts() {
           <option value="indicator">Indicator signal</option>
           <option value="price_target">Price target</option>
           <option value="pct_move">Move over 24h</option>
+          {/*
+            Added here when the switch that used to make it was removed. It was
+            a switch above the list *and* a row inside it, and the two could
+            disagree; the row is the truth now, so the form has to be able to
+            make one.
+          */}
+          <option value="portfolio_move">Portfolio total moves</option>
         </select>
 
         {kind === "pct_move" && (
@@ -273,8 +345,8 @@ function Alerts() {
             <option value="equity">Stock / ETF</option>
           </select>
         )}
-        {kind === "pct_move" && scope === "portfolio" && (
-          <select className={input} value={portfolioId} onChange={(e) => setPortfolioId(e.target.value)}>
+        {((kind === "pct_move" && scope === "portfolio") || kind === "portfolio_move") && (
+          <select aria-label="Portfolio" className={input} value={portfolioId} onChange={(e) => setPortfolioId(e.target.value)}>
             {portfolios.length === 0 && <option value="">— no portfolios —</option>}
             {portfolios.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
@@ -296,7 +368,7 @@ function Alerts() {
                    inputMode="decimal" />
           </>
         )}
-        {kind === "pct_move" && (
+        {(kind === "pct_move" || kind === "portfolio_move") && (
           <label className="flex items-center gap-1 text-sm text-neutral-400">
             ±<input className={`${input} w-16`} value={threshold} onChange={(e) => setThreshold(e.target.value)}
                     inputMode="decimal" /> %
@@ -371,131 +443,76 @@ function Alerts() {
         neighbours in consequence.
       */}
       {/*
-        Split into what will reach you and what will not, the same way the
-        device screen does. Mixed together a paused row is just a row that
-        looks slightly wrong, and the two groups are read for different
-        reasons: one is "am I covered", the other is "what did I switch off".
-      */}
-      {/*
-        The two portfolio-wide rules, above the list rather than in it.
-        Each is a single switch that stands for one row, and putting them
-        among the per-asset alerts would make them look deletable in the same
-        way — which they are not: they are settings with a rule behind them.
-      */}
-      <div className="mb-6">
-        <DailyMoveSetting />
-        <PortfolioMoveSetting />
-      </div>
+        Grouped by what a rule watches, not by whether it is on.
+        =======================================================
 
-      {alerts.length > 0 && <SubHeading className="mb-1">Watching</SubHeading>}
-      <ul className="divide-y divide-neutral-800">
-        {alerts.filter((a) => a.enabled).map((a) => (
-          <li
-            key={a.id}
-            // Centred: the switch and the bin belong to the row, not to its
-            // first line.
-            className={`py-3 flex items-center gap-3 ${a.enabled ? "" : "opacity-60"}`}
-          >
-            <div className="min-w-0 flex-1">
-              <p className="text-sm">{describe(a)}</p>
-              {/*
-                No "fired, paused". A one-shot target disables itself when it
-                fires, and this said so — but pausing by hand now produces the
-                identical row, and the data cannot tell the two apart. The
-                heading above already says paused; claiming to know why was
-                true only while there was one way to get there.
-              */}
-              <p className="text-xs text-neutral-500 mt-0.5">
-                {/* Stated per alert, because it is a choice now rather than a
-                    property of the kind. */}
-                {a.repeat ? "Keeps watching · " : "One-shot · "}
-                {a.lastEvaluated
-                  ? `last checked ${new Date(a.lastEvaluated).toLocaleString()}`
-                  : "never checked"}
-              </p>
-            </div>
-            <Switch
-              checked={a.enabled}
-              onChange={() => toggle(a)}
-              label={`${a.enabled ? "Pause" : "Resume"} ${describe(a)}`}
-            />
-            <button
-              onClick={() => remove(a)}
-              // The ellipsis moved here when the label became an icon. It is
-              // the app's promise that a confirmation follows, and it is
-              // carried by the accessible name now that there is no text.
-              aria-label={`Delete alert: ${describe(a)}…`}
-              title="Delete alert…"
-              className={deleteButton()}
-            >
-              <Trash2 size={16} aria-hidden />
-            </button>
-          </li>
-        ))}
-        {alerts.length === 0 && (
-          <EmptyState as="li" className="py-4">No alerts yet — build one above and press Create.</EmptyState>
-        )}
-        {alerts.length > 0 && alerts.every((a) => !a.enabled) && (
-          <EmptyState as="li" className="py-4">Everything is paused.</EmptyState>
-        )}
-      </ul>
+        There were two idioms on this page: the portfolio-wide rules as
+        switches above the list, and everything else as rows in it — plus a
+        "Watching" / "Paused" split that moved a rule to the bottom of the page
+        when you silenced it. Three ways to read one set of rules.
 
-      {alerts.some((a) => !a.enabled) && (
-        <>
-          <SubHeading className="mt-8 mb-1">Paused</SubHeading>
-          <ul className="divide-y divide-neutral-800">
-            {alerts.filter((a) => !a.enabled).map((a) => (
-              <li key={a.id} className="py-3 flex items-center gap-3 opacity-60">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm">{describe(a)}</p>
-                  <p className="text-xs text-neutral-500 mt-0.5">
-                    {a.repeat ? "Keeps watching · " : "One-shot · "}
-                    {a.lastEvaluated
-                      ? `last checked ${new Date(a.lastEvaluated).toLocaleString()}`
-                      : "never checked"}
-                  </p>
-                </div>
-                <Switch
-                  checked={false}
-                  onChange={() => toggle(a)}
-                  label={`Resume ${describe(a)}`}
-                />
-                <button
-                  onClick={() => remove(a)}
-                  aria-label={`Delete alert: ${describe(a)}…`}
-                  title="Delete alert…"
-                  className={deleteButton()}
-                >
-                  <Trash2 size={16} aria-hidden />
-                </button>
-              </li>
-            ))}
-          </ul>
-        </>
+        One now. Every rule is a row with the same switch and the same bin, and
+        a paused one dims where it stands, because a rule you switched off last
+        week is still a rule about that asset and the only place you would look
+        for it is under that asset.
+      */}
+      {alerts.length === 0 ? (
+        <EmptyState className="py-4">No alerts yet — build one above and press Create.</EmptyState>
+      ) : (
+        <div className="space-y-8">
+          <Group title="Your portfolio" alerts={alerts.filter((a) => !a.symbol)}>{alertRow}</Group>
+          <Group title="Individual assets" alerts={alerts.filter((a) => a.symbol)}>{alertRow}</Group>
+        </div>
       )}
+
     </main>
   );
 }
 
 /**
- * What the alert watches and what would fire it, as a sentence.
+ * A heading and its rows, or nothing at all.
+ *
+ * An empty group means the person has never made that kind of rule, and a
+ * heading over a sentence explaining its own absence is noise on the way to
+ * the group that does have rows.
+ */
+function Group({
+  title, alerts, children,
+}: {
+  title: string;
+  alerts: Alert[];
+  children: (a: Alert) => React.ReactNode;
+}) {
+  if (alerts.length === 0) return null;
+  return (
+    <section>
+      <SubHeading className="mb-1">{title}</SubHeading>
+      <ul className="divide-y divide-neutral-800">{alerts.map(children)}</ul>
+    </section>
+  );
+}
+
+/** The subject line: a ticker, or the portfolio the rule watches. */
+function subjectOf(a: Alert): string {
+  return alertSubject(a.symbol, a.portfolioName);
+}
+
+/** The line under it: what would fire the rule. */
+function conditionOf(a: Alert): string {
+  return a.kind === "indicator"
+    // The one kind the device never sees, so its wording stays here: the
+    // timeframe is part of the rule and `AlertWords` carries no such field.
+    ? `${a.timeframe} indicator signal`
+    : alertCondition(a);
+}
+
+/**
+ * Both halves in one sentence, for the places that have no two lines to use:
+ * a confirm dialog and an accessible name.
  *
  * Was `BTCUSDT ≥ 100000` in a monospace face, which reads as a stored row
- * rather than as a thing someone asked for. The symbols keep the mono face —
- * they are identifiers, which `BRAND.md` reserves it for — and the rest is
- * prose.
+ * rather than as a thing someone asked for.
  */
 function describe(a: Alert): string {
-  if (a.kind === "price_target") {
-    const p = a.params as { direction?: string; price?: number };
-    return `${a.symbol} ${p.direction === "below" ? "falls below" : "rises above"} ${p.price}`;
-  }
-  if (a.kind === "pct_move") {
-    const p = a.params as { threshold?: number };
-    // A portfolio-scoped rule names no symbol; that is the shape that means
-    // every holding, and it must not render as a blank subject.
-    const scope = a.symbol ?? `Everything in ${a.portfolioName ?? "your portfolio"}`;
-    return `${scope} moves ±${p.threshold}% in a day`;
-  }
-  return `${a.symbol} ${a.timeframe} indicator signal`;
+  return `${subjectOf(a)} — ${conditionOf(a)}`;
 }
