@@ -1,4 +1,4 @@
-import { PctMoveParams, PriceTargetParams, type AlertKind } from "./alerts";
+import { PctMoveParams, PortfolioMoveParams, PriceTargetParams, type AlertKind, type PctMoveHit } from "./alerts";
 import { isDisplayCurrency } from "./currencies";
 import { assetOf, pricingPair } from "./symbols";
 
@@ -31,8 +31,15 @@ export type AlertRule = {
   enabled?: boolean;
 };
 
-/** A holding a portfolio-scoped rule expands over, and how to price it. */
-export type HeldAsset = { symbol: string; assetType: AssetKind };
+/**
+ * A holding a portfolio-scoped rule expands over, and how to price it.
+ *
+ * `quantity` is optional because the per-symbol kinds do not need it — a
+ * threshold on a price is the same question however much of it you own. Only
+ * `portfolio_move` reads it, and it refuses to produce a check when it is
+ * missing rather than totalling a portfolio with a hole in it.
+ */
+export type HeldAsset = { symbol: string; assetType: AssetKind; quantity?: number };
 
 export type ExpandedRule = {
   /** Unique per check: a portfolio-scoped rule yields one id per symbol. */
@@ -88,6 +95,10 @@ export function expandRules(alerts: AlertRule[], held: HeldAsset[]): ExpandedRul
   for (const a of alerts) {
     if (a.enabled === false) continue;
     if (a.kind === "indicator") continue;
+    // Not a question about a symbol. `expandPortfolioRules` takes it, and
+    // letting it fall through here would expand it per holding — which is the
+    // behaviour it exists to replace.
+    if (a.kind === "portfolio_move") continue;
 
     const targets: HeldAsset[] = a.symbol
       ? [{ symbol: a.symbol, assetType: a.assetType === "equity" ? "equity" : "crypto" }]
@@ -121,6 +132,109 @@ export function expandRules(alerts: AlertRule[], held: HeldAsset[]): ExpandedRul
   }
 
   return out;
+}
+
+/**
+ * A check that reads the whole portfolio rather than one symbol.
+ *
+ * Its `holdings` are what the check needs priced. That is the same list the
+ * per-symbol rules produce when a portfolio-scoped `pct_move` exists, and a
+ * different list when it does not — so a caller prices the union rather than
+ * assuming one covers the other.
+ */
+export type PortfolioRule = {
+  id: string;
+  kind: "portfolio_move";
+  portfolioId: string;
+  /** Absolute move of the total, in percent. */
+  threshold: number;
+  repeat: boolean;
+  holdings: { symbol: string; assetType: AssetKind; quantity: number }[];
+};
+
+/**
+ * The portfolio-level rules, as checks against a total.
+ *
+ * Separate from `expandRules` rather than a branch inside it, because the two
+ * produce different shapes for different questions: one check per symbol
+ * against a price, or one check per rule against a sum. Folding them together
+ * would mean a union type every caller has to narrow, for no gain.
+ *
+ * A rule naming a symbol is not a portfolio rule and is dropped: `portfolio_move`
+ * on one asset is `pct_move` with extra steps, and the alerts screen does not
+ * offer it.
+ *
+ * **Cash is excluded, and that is a judgement worth stating.** A euro balance
+ * does not move against itself, so including it would damp every percentage by
+ * the share of the portfolio sitting in cash — a 4% fall in the assets reading
+ * as 3% because a quarter of the book is currency. The threshold is about what
+ * was bought.
+ */
+export function expandPortfolioRules(alerts: AlertRule[], held: HeldAsset[]): PortfolioRule[] {
+  const out: PortfolioRule[] = [];
+  for (const a of alerts) {
+    if (a.enabled === false) continue;
+    if (a.kind !== "portfolio_move") continue;
+    if (a.symbol) continue;
+    if (!a.portfolioId) continue;
+
+    const params = PortfolioMoveParams.safeParse(a.params);
+    if (!params.success) continue;
+
+    const holdings = held
+      .filter((h) => !isCash(h.symbol))
+      .filter((h) => typeof h.quantity === "number" && h.quantity > 0)
+      .map((h) => ({
+        symbol: h.assetType === "equity" ? assetOf(h.symbol) : pricingPair(h.symbol),
+        assetType: h.assetType,
+        quantity: h.quantity as number,
+      }));
+    if (holdings.length === 0) continue;
+
+    out.push({
+      id: a.id,
+      kind: "portfolio_move",
+      portfolioId: a.portfolioId,
+      threshold: params.data.threshold,
+      repeat: a.repeat ?? false,
+      holdings,
+    });
+  }
+  return out;
+}
+
+/**
+ * The move of a portfolio's total, or null when it cannot be known.
+ *
+ * Null in three cases, and they are all the same case: a total computed from
+ * some of its parts is not the portfolio's move, it is a different portfolio's
+ * move. If any holding is missing either price, this answers null rather than
+ * quietly reporting the sum of whatever priced. `alert-rules` already states
+ * the principle for symbols — firing on the wrong number is worse than not
+ * firing, and it is the failure a person cannot see.
+ *
+ * `prices` and `dayAgo` are keyed by the same `symbol` the rule carries, which
+ * is a Binance pair for a coin and a bare ticker for a share.
+ */
+export function evaluatePortfolioMove(
+  rule: PortfolioRule,
+  prices: Record<string, number>,
+  dayAgo: Record<string, number>,
+): PctMoveHit | null {
+  let now = 0;
+  let then = 0;
+  for (const h of rule.holdings) {
+    const p = prices[h.symbol];
+    const q = dayAgo[h.symbol];
+    if (!Number.isFinite(p) || !Number.isFinite(q) || p === undefined || q === undefined) return null;
+    now += h.quantity * p;
+    then += h.quantity * q;
+  }
+  if (then <= 0) return null;
+
+  const pct = ((now - then) / then) * 100;
+  if (Math.abs(pct) < rule.threshold) return null;
+  return { direction: pct >= 0 ? "up" : "down", pct };
 }
 
 /** A currency balance rather than a position someone chose to take. */
