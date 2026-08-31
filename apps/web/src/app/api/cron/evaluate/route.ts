@@ -4,7 +4,10 @@ import type { Alert } from "@prisma/client";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { assetOf, pricingPair } from "@/core/symbols";
-import { indicatorNotice, moveNotice, priceTargetNotice, type Notice } from "@/lib/alert-copy";
+import {
+  indicatorNotice, moveNotice, portfolioMoveNotice, priceTargetNotice, type Notice,
+} from "@/lib/alert-copy";
+import { evaluatePortfolioMove, expandPortfolioRules } from "@/lib/alert-rules";
 import { fetchKlines } from "@/data/sources/binance";
 import { assetTypeOf, baselines, priceSymbols, type PricedSymbol, type Settings } from "@/data/services/alert-pricing";
 import { deps } from "@/lib/deps";
@@ -43,6 +46,7 @@ export async function GET(req: NextRequest) {
     try {
       if (a.kind === "price_target") summary.push(await evalPriceTarget(a, notifiers, pricing));
       else if (a.kind === "pct_move") summary.push(await evalPctMove(a, notifiers, pricing));
+      else if (a.kind === "portfolio_move") summary.push(await evalPortfolioMove(a, notifiers, pricing));
       else summary.push(await evalIndicator(a, notifiers));
     } catch (e) {
       summary.push({ alertId: a.id, fired: 0, skipped: 0, error: (e as Error).message });
@@ -204,6 +208,71 @@ async function evalPriceTarget(
  * alert and the figure it was about could disagree by a percentage point.
  * Both now come from `fetchCrypto24hAgo`.
  */
+/**
+ * The portfolio's own move, evaluated once against the total.
+ *
+ * Not a loop over holdings: that is `pct_move`, and it answers a different
+ * question. This asks whether the money moved, which is what the front page
+ * shows and what no rule could express before.
+ *
+ * The rule is built through `expandPortfolioRules` rather than from the row
+ * directly, so the server and the device agree on what is included — cash out,
+ * coins as Binance pairs, shares as bare tickers — instead of two evaluators
+ * each deciding for themselves.
+ */
+async function evalPortfolioMove(
+  a: Alert, notifiers: Notifier[], pricing: Settings,
+): Promise<Summary> {
+  const held = await heldSymbols(a.portfolioId);
+  const [rule] = expandPortfolioRules(
+    [{
+      id: a.id, kind: "portfolio_move", symbol: a.symbol, portfolioId: a.portfolioId,
+      params: JSON.parse(a.params) as Record<string, unknown>, repeat: a.repeat,
+    }],
+    held.map((h: PricedSymbol) => ({ symbol: h.symbol, assetType: h.assetType, quantity: h.quantity })),
+  );
+  if (!rule) {
+    await prisma.alert.update({ where: { id: a.id }, data: { lastEvaluated: new Date() } });
+    return { alertId: a.id, fired: 0, skipped: 0 };
+  }
+
+  const wanted = rule.holdings.map((h) => ({ symbol: h.symbol, assetType: h.assetType }));
+  const [prices, base] = await Promise.all([
+    priceSymbols(deps().net, pricing, wanted),
+    baselines(deps().net, pricing, wanted),
+  ]);
+
+  const priced = Object.fromEntries(Object.entries(prices).map(([k, v]) => [k, v.price]));
+  const hit = evaluatePortfolioMove(rule, priced, base);
+  await prisma.alert.update({ where: { id: a.id }, data: { lastEvaluated: new Date() } });
+  if (!hit) return { alertId: a.id, fired: 0, skipped: 1 };
+
+  const portfolioName = a.portfolioId
+    ? (await prisma.portfolio.findUnique({ where: { id: a.portfolioId }, select: { name: true } }))?.name
+    : null;
+  const currency = Object.values(prices)[0]?.currency ?? "USD";
+  const value = rule.holdings.reduce((n: number, h) => n + h.quantity * (priced[h.symbol] ?? 0), 0);
+  const from = rule.holdings.reduce((n: number, h) => n + h.quantity * (base[h.symbol] ?? 0), 0);
+
+  /*
+   * The bar time is the UTC day, and the signal carries the direction — the
+   * same dedupe shape the other kinds use, so a standing fall notifies once
+   * and a rise after it still gets through, because they are different news.
+   */
+  const day = Math.floor(Date.now() / 86_400_000) * 86_400_000;
+  const sent = await dispatch(a, notifiers, {
+    barTime: day,
+    signal: `portfolio_${hit.direction}`,
+    symbol: a.symbol ?? rule.portfolioId,
+    price: value,
+    text: portfolioMoveNotice({
+      portfolio: portfolioName ?? "your portfolio",
+      direction: hit.direction, pct: hit.pct, from, value, currency,
+    }),
+  });
+  return { alertId: a.id, fired: sent ? 1 : 0, skipped: sent ? 0 : 1 };
+}
+
 async function evalPctMove(
   a: Alert, notifiers: Notifier[], pricing: Settings,
 ): Promise<Summary> {
@@ -303,6 +372,10 @@ async function heldSymbols(portfolioId: string | null): Promise<PricedSymbol[]> 
     .map((h) => ({
       symbol: h.symbol,
       assetType: kindOf.get(h.symbol) === "equity" ? "equity" as const : "crypto" as const,
+      // Carried for `portfolio_move`, which totals a book rather than testing a
+      // price. The per-symbol kinds ignore it: a threshold on a price is the
+      // same question however much of it is held.
+      quantity: h.quantity,
     }));
 }
 

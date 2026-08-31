@@ -24,7 +24,13 @@ import type { EquityQuote } from "@/core/equity";
 export type AssetKind = "crypto" | "equity";
 
 /** An alert's symbol together with how to price it. */
-export type PricedSymbol = { symbol: string; assetType: AssetKind };
+/**
+ * `quantity` is optional and read by exactly one caller: the portfolio-move
+ * evaluator, which totals a book rather than testing a price. Everything else
+ * here is about what a symbol costs, which does not depend on how much of it
+ * somebody owns.
+ */
+export type PricedSymbol = { symbol: string; assetType: AssetKind; quantity?: number };
 
 /**
  * What kind of thing this alert is about.

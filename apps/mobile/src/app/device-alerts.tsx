@@ -4,8 +4,11 @@ import { useEffect } from "react";
 import { useDataClient } from "@/data/client/context";
 import { baselines, priceSymbols } from "@/data/services/alert-pricing";
 import { evaluatePctMove, evaluatePriceTarget } from "@/lib/alerts";
-import { expandRules, forgetOldMarks, shouldNotify, type AlertRule, type HeldAsset } from "@/lib/alert-rules";
-import { moveNotice, priceTargetNotice, type Notice } from "@/lib/alert-copy";
+import {
+  evaluatePortfolioMove, expandPortfolioRules, expandRules, forgetOldMarks, shouldNotify,
+  type AlertRule, type HeldAsset,
+} from "@/lib/alert-rules";
+import { moveNotice, portfolioMoveNotice, priceTargetNotice, type Notice } from "@/lib/alert-copy";
 import type { AlertSummary, DataClient } from "@/data/client/data-client";
 import { KEYS } from "@/lib/storage-keys";
 import { CapacitorNet } from "../lib/net/capacitor-net";
@@ -62,12 +65,16 @@ export default function DeviceAlerts() {
        * check per holding, and it is what the background runner is handed too,
        * so the two cannot disagree about what a rule means.
        */
-      const rules = expandRules(alerts.flatMap(asRule), await heldAssets(client, alerts));
-      if (cancelled || rules.length === 0) return;
+      const held = await heldAssets(client, alerts);
+      const rules = expandRules(alerts.flatMap(asRule), held);
+      // A question about the total rather than about a symbol, so it is
+      // expanded separately and evaluated once. See `expandPortfolioRules`.
+      const portfolioRules = expandPortfolioRules(alerts.flatMap(asRule), held);
+      if (cancelled || (rules.length === 0 && portfolioRules.length === 0)) return;
 
       // Only when something watches a whole portfolio: a rule that named its
       // own symbol has no portfolio to name, and this is a request.
-      const portfolioNames: Record<string, string> = rules.some((r) => r.portfolioId)
+      const portfolioNames: Record<string, string> = rules.some((r) => r.portfolioId) || portfolioRules.length
         ? Object.fromEntries(
             (await client.listPortfolios().catch(() => [])).map((p) => [p.id, p.name]),
           )
@@ -75,13 +82,22 @@ export default function DeviceAlerts() {
 
       const settings = await client.getSettings().catch(() => null);
       const net = CapacitorNet();
-      const wanted = rules.map((r) => ({ symbol: r.symbol, assetType: r.assetType }));
+      /*
+       * The union, deduplicated. A portfolio rule needs every holding priced
+       * and the per-symbol rules need theirs; asking for one set does not
+       * cover the other, and asking twice would double the requests that name
+       * what is held.
+       */
+      const wanted = [
+        ...rules.map((r) => ({ symbol: r.symbol, assetType: r.assetType })),
+        ...portfolioRules.flatMap((r) => r.holdings.map((h) => ({ symbol: h.symbol, assetType: h.assetType }))),
+      ].filter((w, i, all) => all.findIndex((o) => o.symbol === w.symbol) === i);
 
       const [prices, base] = await Promise.all([
         priceSymbols(net, settings ?? {}, wanted),
         // Only fetched when something needs it: a portfolio of price targets
         // should not pay for a day of history it will not read.
-        rules.some((r) => r.kind === "pct_move")
+        rules.some((r) => r.kind === "pct_move") || portfolioRules.length > 0
           ? baselines(net, settings ?? {}, wanted)
           : Promise.resolve<Record<string, number>>({}),
       ]);
@@ -142,6 +158,36 @@ export default function DeviceAlerts() {
           }), rule.name);
           sent[key] = day;
         }
+      }
+
+      /*
+       * The portfolio checks, after the per-symbol ones and in the same pass.
+       *
+       * `prices` and `base` are keyed by the symbol the expander produced, and
+       * `evaluatePortfolioMove` reads them the same way — so a holding that
+       * failed to price makes the whole check answer null rather than totalling
+       * the rest, which is the point of it being one check.
+       */
+      for (const rule of portfolioRules) {
+        const priced = Object.fromEntries(
+          Object.entries(prices).map(([k, v]) => [k, v.price]),
+        );
+        const hit = evaluatePortfolioMove(rule, priced, base);
+        if (!hit) continue;
+        const key = `p:${rule.id}:${hit.direction}`;
+        if (!shouldNotify(sent, key, day)) continue;
+
+        // Totals in the same currency the prices came back in, so the notice
+        // does not mix a quoted price with a converted one.
+        const currency = Object.values(prices)[0]?.currency ?? "USD";
+        const value = rule.holdings.reduce((n, h) => n + h.quantity * (priced[h.symbol] ?? 0), 0);
+        const from = rule.holdings.reduce((n, h) => n + h.quantity * (base[h.symbol] ?? 0), 0);
+
+        await notify(id++, portfolioMoveNotice({
+          portfolio: portfolioNames[rule.portfolioId] ?? "your portfolio",
+          direction: hit.direction, pct: hit.pct, from, value, currency,
+        }), rule.holdings[0]?.symbol ?? "");
+        sent[key] = day;
       }
 
       writeJson(KEYS.alertsSent, forgetOldMarks(sent, day));
@@ -239,7 +285,7 @@ async function heldAssets(
       const valuation = await client.getValuation(id);
       for (const h of valuation.holdings) {
         if (h.quantity > 0 && h.assetType !== "cash") {
-          bySymbol.set(h.symbol, { symbol: h.symbol, assetType: h.assetType });
+          bySymbol.set(h.symbol, { symbol: h.symbol, assetType: h.assetType, quantity: h.quantity });
         }
       }
     } catch {

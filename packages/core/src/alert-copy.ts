@@ -102,6 +102,33 @@ export function moveNotice(a: {
 }
 
 /**
+ * The whole portfolio moved, which is a different sentence from an asset
+ * moving.
+ *
+ * It names the portfolio and the money rather than a ticker and a price,
+ * because that is what the rule is about — the per-asset notice already exists
+ * for the other question, and reusing it would say "Long-term up 4%" as though
+ * the portfolio were a holding.
+ *
+ * The value is included because a percentage alone is not actionable at 6am: a
+ * 4% fall means one thing on a book of 8,000 and another on 800,000, and the
+ * reader should not have to open the app to learn which portfolio this was.
+ */
+export function portfolioMoveNotice(a: {
+  portfolio: string;
+  direction: "up" | "down";
+  pct: number;
+  from: number;
+  value: number;
+  currency: string;
+}): Notice {
+  return {
+    title: `${a.portfolio} ${a.direction} ${Math.abs(a.pct).toFixed(1)}% in 24 hours`,
+    body: `${amount(a.from, a.currency)} → ${amount(a.value, a.currency)}`,
+  };
+}
+
+/**
  * An indicator signal from the strategy, which only the server evaluates.
  *
  * The words are the Pine script's own — long, short, exit — and stay that way;
