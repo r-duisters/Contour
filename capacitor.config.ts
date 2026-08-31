@@ -73,6 +73,27 @@ const config: CapacitorConfig = {
       repeat: true,
       interval: url ? 15 : 30,
       autoStart: true,
+      // Named here as well as under LocalNotifications, and that is not a
+      // duplicate: the two plugins post through different code and each reads
+      // `smallIcon` from its own config. Set on one only, half the alerts this
+      // app sends wear the right mark and half wear Android's generic "i" —
+      // which is what both did before, since neither was set.
+      smallIcon: "ic_stat_contour",
+    },
+    LocalNotifications: {
+      /*
+       * The mark, without its tile.
+       *
+       * A status-bar icon keeps only its alpha channel; Android discards the
+       * colours and tints what is left. The blue disc has alpha everywhere, so
+       * pointing this at the app icon posts a solid white blob. The mark alone
+       * is the same drawing with the part that cannot survive removed —
+       * `scripts/generate-icons.mjs` writes it, from the same geometry as every
+       * other surface.
+       *
+       * Absent, both plugins fall back to `android.R.drawable.ic_dialog_info`.
+       */
+      smallIcon: "ic_stat_contour",
     },
   },
   ...(url ? { server: { url, cleartext: url.startsWith("http://") } } : {}),

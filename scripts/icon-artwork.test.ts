@@ -145,3 +145,56 @@ describe("the mark outside the two apps", () => {
     expect(svg).not.toMatch(/#(?!ffffff|2563eb)[0-9a-f]{6}/i);
   });
 });
+
+describe("the notification icon", () => {
+  const drawable = () => readFileSync(
+    new URL("../android/app/src/main/res/drawable/ic_stat_contour.xml", import.meta.url).pathname,
+    "utf8",
+  );
+
+  /**
+   * No filled shape, and this is the whole design constraint.
+   *
+   * Android keeps only a status-bar icon's alpha channel and tints what is
+   * left. Anything filled arrives as a solid silhouette — point a notification
+   * at the app icon and you get a white blob, because the blue tile has alpha
+   * everywhere. The mark survives the treatment precisely because BRAND.md put
+   * the colour on the container and left the ring and the rise as strokes.
+   */
+  it("is strokes only — a fill would post as a white blob", () => {
+    const xml = drawable();
+    expect(xml, "a fillColor here becomes a solid silhouette in the status bar")
+      .not.toMatch(/android:fillColor="(?!#00000000)/);
+    expect(xml).toContain('android:strokeColor="#FFFFFF"');
+  });
+
+  /**
+   * The ring fills 20dp of the 24dp canvas, leaving Android's 2dp margin.
+   *
+   * Asserted as the rendered size rather than as the `size` argument, because
+   * those are not the same number: `markGroup` measures against the mark's
+   * 474-unit viewBox while the ring is 346 units across including its stroke,
+   * and passing 20 the obvious way produced a 14.6dp ring adrift in the box.
+   */
+  it("draws the ring at 20dp of 24, with strokes that survive the size", () => {
+    const xml = drawable();
+    const scale = Number(/android:scaleX="([\d.]+)"/.exec(xml)?.[1]);
+    expect(346 * scale, "the ring should span 20dp of the 24dp icon").toBeCloseTo(20, 1);
+    const widths = [...xml.matchAll(/android:strokeWidth="(\d+)"/g)].map((m) => Number(m[1]) * scale);
+    for (const w of widths) {
+      expect(w, `a ${w.toFixed(2)}dp stroke disappears at notification size`).toBeGreaterThan(1);
+    }
+  });
+
+  /**
+   * Both plugins, because both post notifications and each reads `smallIcon`
+   * from its own config. Setting one leaves half this app's alerts wearing
+   * `android.R.drawable.ic_dialog_info`, which is where both started.
+   */
+  it("is named by both notification plugins", () => {
+    const config = readFileSync(new URL("../capacitor.config.ts", import.meta.url).pathname, "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    expect((config.match(/smallIcon:\s*"ic_stat_contour"/g) ?? []).length,
+      "both LocalNotifications and BackgroundRunner must name it").toBe(2);
+  });
+});

@@ -92,18 +92,27 @@ const DENSITIES = [
 const disc = (cx, cy, r) =>
   `M${cx - r},${cy} a${r},${r} 0 1,0 ${2 * r},0 a${r},${r} 0 1,0 ${-2 * r},0`;
 
-/** The mark's own paths, in the 512-unit space the rest of this file draws in. */
-const MARK_PATHS = `
+/**
+ * The mark's own paths, in the 512-unit space the rest of this file draws in.
+ *
+ * The stroke widths are arguments because a group scales its strokes with its
+ * geometry, so the only way to draw the same shape with heavier lines is to
+ * state heavier lines in this space. The favicon needs that, and so does the
+ * notification icon, for the same reason at different sizes.
+ */
+const markPaths = (ring = 12, line = 30) => `
         <path
             android:strokeColor="#FFFFFF"
-            android:strokeWidth="12"
+            android:strokeWidth="${ring}"
             android:pathData="${disc(256, 256, 160)}" />
         <path
             android:strokeColor="#FFFFFF"
-            android:strokeWidth="30"
+            android:strokeWidth="${line}"
             android:strokeLineCap="round"
             android:strokeLineJoin="round"
             android:pathData="M172,302 L228,244 L280,276 L348,190" />`;
+
+const MARK_PATHS = markPaths();
 
 /**
  * The mark, scaled to `size` and centred in a `canvas`-unit viewport.
@@ -113,14 +122,14 @@ const MARK_PATHS = `
  * · translate(-pivot), so pivoting on the mark's own centre and then
  * translating to the canvas centre puts it where it belongs at any scale.
  */
-const markGroup = (canvas, size) => `
+const markGroup = (canvas, size, paths = MARK_PATHS) => `
     <group
         android:pivotX="256"
         android:pivotY="256"
         android:scaleX="${(size / 474).toFixed(6)}"
         android:scaleY="${(size / 474).toFixed(6)}"
         android:translateX="${(canvas / 2 - 256).toFixed(3)}"
-        android:translateY="${(canvas / 2 - 256).toFixed(3)}">${MARK_PATHS}
+        android:translateY="${(canvas / 2 - 256).toFixed(3)}">${paths}
     </group>`;
 
 const vectorFile = (canvas, body) => `<?xml version="1.0" encoding="utf-8"?>
@@ -204,6 +213,7 @@ async function androidIcons() {
   await mkdir(drawables, { recursive: true });
   await writeFile(`${drawables}/ic_launcher_mark.xml`, launcherForeground());
   await writeFile(`${drawables}/contour_splash_icon.xml`, splashIcon());
+  await writeFile(`${drawables}/ic_stat_contour.xml`, notificationIcon());
   console.log("wrote", drawables);
 
 
@@ -269,6 +279,46 @@ const roundMark = () => `
   <circle cx="256" cy="256" r="256" fill="#2563eb"/>
   ${mark(0.86)}
 </svg>`;
+
+/**
+ * The notification icon, and why it is the mark without its tile.
+ *
+ * Android throws away every colour in a status-bar icon and keeps only the
+ * alpha, then tints what is left — white on the status bar, the accent colour
+ * in the shade. So the blue disc cannot come along: a filled circle has alpha
+ * everywhere and would arrive as a solid white blob, which is what the app icon
+ * renders as if you point a notification at it.
+ *
+ * The mark alone is already the right shape for this, because BRAND.md put the
+ * colour on the container and left the ring and the rise as one white line.
+ * Stripping the tile is not a compromise here; it is the same mark with the
+ * part that cannot survive removed.
+ *
+ * Drawn at 24dp with the ring spanning 20 of it, which leaves the 2dp margin
+ * Android's guidance asks for.
+ *
+ * That 20 is stated against the ring rather than handed to `markGroup` as a
+ * `size`, because `size` is measured against the mark's 474-unit viewBox while
+ * the ring is only 346 units across including its stroke. Asking for 20 the
+ * usual way produced a 14.6dp ring adrift in a 24dp box — correct by the
+ * function's own definition and visibly wrong on a status bar, which is the
+ * kind of error only a rendering catches.
+ *
+ * The strokes are thickened because a group scales strokes with geometry: the
+ * ring's 12 units of 512 would land at half a pixel and disappear entirely,
+ * which is the mistake `favicon()` already documents at a different size. At
+ * this scale they come out at 1.5dp and 3.0dp.
+ *
+ * Both notification paths need it named. `@capacitor/local-notifications` and
+ * `@capacitor/background-runner` each read `smallIcon` from their own plugin
+ * config and each fall back to `android.R.drawable.ic_dialog_info` — so before
+ * this, every alert this app has ever posted wore Android's generic "i".
+ */
+const NOTIFICATION_RING_DP = 20;
+/** Ring diameter plus its stroke, in the 512-unit space: 2 × 160 + 26. */
+const RING_EXTENT_UNITS = 346;
+const notificationIcon = () =>
+  vectorFile(24, markGroup(24, (NOTIFICATION_RING_DP * 474) / RING_EXTENT_UNITS, markPaths(26, 52)));
 
 await mkdir("docs/brand", { recursive: true });
 await writeFile("docs/brand/contour-mark.svg", roundMark().trim() + "\n");
