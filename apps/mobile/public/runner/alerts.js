@@ -126,8 +126,30 @@ function positionPnlNotice(a) {
 function portfolioMoveNotice(a) {
   return {
     title: `${a.portfolio} ${a.direction} ${Math.abs(a.pct).toFixed(1)}% in 24 hours`,
-    body: `${amount(a.from, a.currency)} → ${amount(a.value, a.currency)}`,
+    body: `${amount(a.from, a.currency)} → ${amount(a.value, a.currency)}${excluding(a.skipped)}`,
   };
+}
+
+/**
+ * What the total was computed without. Duplicated from `alert-copy.ts`.
+ *
+ * `assetOf` is inline here for the same reason everything else is: this
+ * runtime has no imports. Stripping the quote asset is what turns `ETHUSDT`
+ * back into the `ETH` a person recognises.
+ */
+function excluding(skipped) {
+  if (!skipped || skipped.length === 0) return "";
+  const QUOTES = ["FDUSD", "USDT", "USDC", "BUSD", "TUSD", "BNB", "BTC", "ETH", "EUR", "TRY"];
+  const bare = (sym) => {
+    const u = String(sym).toUpperCase();
+    // Longest first, and the length guard is what stops USDT becoming "".
+    for (const q of QUOTES) if (u.endsWith(q) && u.length > q.length) return u.slice(0, -q.length);
+    return u;
+  };
+  const what = skipped.length <= 2
+    ? skipped.map(bare).join(" and ")
+    : `${skipped.length} holdings`;
+  return ` · excludes ${what}, not priced`;
 }
 
 /** One notification per rule per UTC day, so a standing condition stays quiet. */
@@ -344,26 +366,35 @@ addEventListener("alertCheck", async (resolve, reject) => {
     /*
      * The portfolio checks, evaluated once each against a total.
      *
-     * A missing price answers nothing rather than a total of whatever priced:
-     * a sum of some of the parts is a different portfolio's move, and firing
-     * on the wrong number is worse than not firing. This mirrors
-     * `evaluatePortfolioMove`, which the app-side pass imports — the two are
-     * duplicated rather than shared because this runtime has no imports at
-     * all, and `runner-wiring.test.ts` is what keeps them saying the same
-     * thing.
+     * A holding that priced on neither side is left out and named in the
+     * notice; a holding with one of the two prices answers nothing, because
+     * that is a fetch that failed rather than an asset that stopped existing
+     * and dropping it would silently reweight the total for one check. This
+     * mirrors `evaluatePortfolioMove`, which the app-side pass imports — the
+     * two are duplicated rather than shared because this runtime has no
+     * imports at all, and `runner-wiring.test.ts` is what keeps them saying
+     * the same thing.
      */
     for (const rule of portfolioRules) {
       let now = 0;
       let then = 0;
-      let complete = true;
+      let counted = 0;
+      let partial = false;
+      const skipped = [];
       for (const h of rule.holdings) {
         const price = prices[h.symbol];
         const base = dayAgo[h.symbol];
-        if (!price || !base) { complete = false; break; }
+        // Finite rather than truthy: a price of 0 is a price, and treating it
+        // as absent is how a worthless holding silences the whole rule.
+        const hasPrice = price !== undefined && Number.isFinite(price);
+        const hasBase = base !== undefined && Number.isFinite(base);
+        if (!hasPrice && !hasBase) { skipped.push(h.symbol); continue; }
+        if (!hasPrice || !hasBase) { partial = true; break; }
         now += h.quantity * price;
         then += h.quantity * base;
+        counted++;
       }
-      if (!complete || then <= 0) continue;
+      if (partial || counted === 0 || then <= 0) continue;
 
       const pct = ((now - then) / then) * 100;
       if (Math.abs(pct) < rule.threshold) continue;
@@ -375,7 +406,7 @@ addEventListener("alertCheck", async (resolve, reject) => {
       const currency = first && isEquity(first) ? currencies[first.symbol] || "" : "USDT";
       const n = portfolioMoveNotice({
         portfolio: rule.portfolio || "your portfolio",
-        direction, pct, from: then, value: now, currency,
+        direction, pct, from: then, value: now, currency, skipped,
       });
       notify(id++, n.title, n.body);
       sent[key] = day;

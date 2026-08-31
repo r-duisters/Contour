@@ -238,14 +238,46 @@ export function expandPortfolioRules(alerts: AlertRule[], held: HeldAsset[]): Po
 }
 
 /**
+ * What a portfolio-move check answers with when it fires.
+ *
+ * The totals come back with the hit rather than being recomputed by the
+ * caller. Both callers used to reduce over `rule.holdings` with `?? 0` to
+ * build the figures for the notice — which quietly used a different set of
+ * holdings from the one the percentage was computed over. They agreed only
+ * because the check refused to fire whenever they would have differed.
+ */
+export type PortfolioMoveHit = PctMoveHit & {
+  /** The total now, over the holdings that priced. */
+  value: number;
+  /** The same holdings a day ago. */
+  from: number;
+  /** Holdings left out of both totals, as the rule spells their symbols. */
+  skipped: string[];
+};
+
+/**
  * The move of a portfolio's total, or null when it cannot be known.
  *
- * Null in three cases, and they are all the same case: a total computed from
- * some of its parts is not the portfolio's move, it is a different portfolio's
- * move. If any holding is missing either price, this answers null rather than
- * quietly reporting the sum of whatever priced. `alert-rules` already states
- * the principle for symbols — firing on the wrong number is worse than not
- * firing, and it is the failure a person cannot see.
+ * **A holding with no price on either side is left out, and the notice says
+ * so.** This used to answer null if any holding failed to price, on the
+ * principle that a total computed from some of its parts is a different
+ * portfolio's total. The principle is right and the consequence was not: one
+ * delisted coin has no price and never will again, so the rule fell silent
+ * permanently, and a portfolio alert that never fires is indistinguishable
+ * from a portfolio that never moved — the failure this file's own comments
+ * call the worst one available. Excluding it costs accuracy in a way the
+ * reader is told about; the old behaviour cost the whole alert in a way
+ * nobody was.
+ *
+ * **Missing one of the two prices is still null, and that is a different
+ * case.** Yesterday's price without today's is a fetch that failed, not an
+ * asset that stopped existing: the holding's weight is known, the move is
+ * not, and dropping it would silently reweight the total for one check. The
+ * next check in half an hour will have it. Only a holding that priced on
+ * neither side is treated as gone.
+ *
+ * Null still when nothing priced at all, and when the earlier total is not
+ * positive — a percentage of zero is not a number to notify anybody about.
  *
  * `prices` and `dayAgo` are keyed by the same `symbol` the rule carries, which
  * is a Binance pair for a coin and a bare ticker for a share.
@@ -254,21 +286,28 @@ export function evaluatePortfolioMove(
   rule: PortfolioRule,
   prices: Record<string, number>,
   dayAgo: Record<string, number>,
-): PctMoveHit | null {
+): PortfolioMoveHit | null {
+  const known = (v: number | undefined): v is number => v !== undefined && Number.isFinite(v);
+
   let now = 0;
   let then = 0;
+  let counted = 0;
+  const skipped: string[] = [];
   for (const h of rule.holdings) {
     const p = prices[h.symbol];
     const q = dayAgo[h.symbol];
-    if (!Number.isFinite(p) || !Number.isFinite(q) || p === undefined || q === undefined) return null;
+    if (!known(p) && !known(q)) { skipped.push(h.symbol); continue; }
+    if (!known(p) || !known(q)) return null;
     now += h.quantity * p;
     then += h.quantity * q;
+    counted += 1;
   }
+  if (counted === 0) return null;
   if (then <= 0) return null;
 
   const pct = ((now - then) / then) * 100;
   if (Math.abs(pct) < rule.threshold) return null;
-  return { direction: pct >= 0 ? "up" : "down", pct };
+  return { direction: pct >= 0 ? "up" : "down", pct, value: now, from: then, skipped };
 }
 
 /*

@@ -1,3 +1,4 @@
+import { assetOf } from "./symbols";
 import { priceDigits } from "./price-format";
 
 /**
@@ -147,11 +148,34 @@ export function portfolioMoveNotice(a: {
   from: number;
   value: number;
   currency: string;
+  /** Holdings the total was computed without, because they have no price. */
+  skipped?: string[];
 }): Notice {
   return {
     title: `${a.portfolio} ${a.direction} ${Math.abs(a.pct).toFixed(1)}% in 24 hours`,
-    body: `${amount(a.from, a.currency)} → ${amount(a.value, a.currency)}`,
+    body: `${amount(a.from, a.currency)} → ${amount(a.value, a.currency)}${excluding(a.skipped)}`,
   };
+}
+
+/**
+ * What the total was computed without.
+ *
+ * A delisted holding is left out rather than silencing the alert, so the
+ * percentage is about part of the book — and a figure that describes a
+ * different portfolio from the one the reader has in mind is exactly the kind
+ * of wrong number this file exists to avoid. Naming the exclusion costs a
+ * clause and makes the number honest.
+ *
+ * Two are named because two tickers fit; beyond that the count is the useful
+ * part, since a notification is read at a glance and a list of six symbols is
+ * not read at all.
+ */
+function excluding(skipped?: string[]): string {
+  if (!skipped || skipped.length === 0) return "";
+  const what = skipped.length <= 2
+    ? skipped.map(assetOf).join(" and ")
+    : `${skipped.length} holdings`;
+  return ` · excludes ${what}, not priced`;
 }
 
 /**

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { indicatorNotice, moveNotice, priceTargetNotice } from "./alert-copy";
+import {
+  indicatorNotice, moveNotice, portfolioMoveNotice, priceTargetNotice,
+} from "./alert-copy";
 
 /**
  * The failure being designed against is not an ugly sentence. It is a figure
@@ -79,5 +81,44 @@ describe("indicatorNotice", () => {
       title: "BTC long signal",
       body: "118,234.5 USDT on the 1d chart",
     });
+  });
+});
+
+/**
+ * The portfolio notice has one job the others do not: saying what its own
+ * number leaves out.
+ *
+ * A delisted holding is excluded from the total rather than silencing the
+ * alert, so the percentage is about part of the book. Unsaid, that is a figure
+ * describing a portfolio the reader does not have — which is the failure this
+ * whole file is written against, arriving by a new route.
+ */
+describe("portfolioMoveNotice", () => {
+  const base = {
+    portfolio: "Main", direction: "down" as const, pct: -4.2,
+    from: 26_000, value: 24_908, currency: "EUR",
+  };
+
+  it("says nothing extra when every holding priced", () => {
+    expect(portfolioMoveNotice(base)).toEqual({
+      title: "Main down 4.2% in 24 hours",
+      body: "26,000 EUR → 24,908 EUR",
+    });
+    // An empty list is the same as no list — a caller that always passes the
+    // field must not produce a dangling clause.
+    expect(portfolioMoveNotice({ ...base, skipped: [] }).body).toBe("26,000 EUR → 24,908 EUR");
+  });
+
+  it("names what the total was computed without, as an asset rather than a pair", () => {
+    expect(portfolioMoveNotice({ ...base, skipped: ["LUNAUSDT"] }).body)
+      .toBe("26,000 EUR → 24,908 EUR · excludes LUNA, not priced");
+    expect(portfolioMoveNotice({ ...base, skipped: ["LUNAUSDT", "FTTUSDT"] }).body)
+      .toContain("excludes LUNA and FTT, not priced");
+  });
+
+  /** Six tickers in a notification body is a list nobody reads. */
+  it("counts them once there are too many to name", () => {
+    expect(portfolioMoveNotice({ ...base, skipped: ["A", "B", "C"] }).body)
+      .toContain("excludes 3 holdings, not priced");
   });
 });

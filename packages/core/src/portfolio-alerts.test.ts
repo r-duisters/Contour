@@ -90,30 +90,60 @@ describe("evaluating it", () => {
     expect(evaluatePortfolioMove(check!, { BTCUSDT: 40_000, "ASML.AS": 540 }, before)).toBeNull();
     // The same 10%, on the holding that is 20,000 of it, is 7.7%.
     expect(evaluatePortfolioMove(check!, { BTCUSDT: 36_000, "ASML.AS": 600 }, before))
-      .toEqual({ direction: "down", pct: expect.closeTo(-7.6923, 3) });
+      .toMatchObject({ direction: "down", pct: expect.closeTo(-7.6923, 3) });
   });
 
   it("fires on a broad fall as one notification rather than several", () => {
     // Both down 4%: two per-asset alerts today, one portfolio alert here.
     expect(evaluatePortfolioMove(check!, { BTCUSDT: 38_400, "ASML.AS": 576 }, before))
-      .toEqual({ direction: "down", pct: expect.closeTo(-4, 6) });
+      .toMatchObject({ direction: "down", pct: expect.closeTo(-4, 6) });
   });
 
   it("reports direction, so a fall after a rise is different news", () => {
     expect(evaluatePortfolioMove(check!, { BTCUSDT: 44_000, "ASML.AS": 660 }, before))
-      .toEqual({ direction: "up", pct: expect.closeTo(10, 6) });
+      .toMatchObject({ direction: "up", pct: expect.closeTo(10, 6) });
   });
 
   /**
-   * The honest failure. A total computed from some of its parts is a different
-   * portfolio's move, so a missing price answers null rather than reporting the
-   * sum of whatever happened to price.
+   * Half of a price is worse than none of it.
+   *
+   * A holding with today's price but not yesterday's — or the reverse — has a
+   * known weight and an unknown move. Leaving it out would reweight the total
+   * for this one check and report a percentage about a portfolio the owner
+   * does not have; the fetch that failed will succeed on the next run.
    */
-  it("answers null when any holding is unpriced, rather than totalling the rest", () => {
-    expect(evaluatePortfolioMove(check!, { BTCUSDT: 30_000 }, before)).toBeNull();
+  it("abandons the check when a holding has one of its two prices", () => {
+    // Today's for ASML, not yesterday's.
     expect(evaluatePortfolioMove(check!, { BTCUSDT: 30_000, "ASML.AS": 600 }, { BTCUSDT: 40_000 }))
       .toBeNull();
+    // Yesterday's for BTC, but today's came back NaN.
     expect(evaluatePortfolioMove(check!, { BTCUSDT: NaN, "ASML.AS": 600 }, before)).toBeNull();
+  });
+
+  /**
+   * A holding with neither price is gone, not late.
+   *
+   * This used to abandon the check too, which is defensible for one bad
+   * fetch and wrong for a delisting: a coin that no venue quotes never prices
+   * again, so the portfolio rule fell silent for good — and an alert that
+   * never fires looks exactly like a portfolio that never moved. It is left
+   * out of both totals and named, so the notice describes the book it was
+   * actually computed over.
+   */
+  it("excludes a holding that priced on neither side, and says which", () => {
+    // ASML delisted: 0.5 BTC from 20,000 to 15,000 is -25% of what is left.
+    const hit = evaluatePortfolioMove(check!, { BTCUSDT: 30_000 }, { BTCUSDT: 40_000 });
+    expect(hit).toMatchObject({ direction: "down", pct: expect.closeTo(-25, 6) });
+    expect(hit!.skipped).toEqual(["ASML.AS"]);
+    // The totals are over the same holdings the percentage is, not over all
+    // of them — the notice quotes these, and the two must agree.
+    expect(hit!.from).toBe(20_000);
+    expect(hit!.value).toBe(15_000);
+  });
+
+  /** Nothing priced is a network that is down, not a portfolio that moved. */
+  it("answers null when no holding priced at all", () => {
+    expect(evaluatePortfolioMove(check!, {}, {})).toBeNull();
   });
 
   it("answers null when the earlier total is not positive", () => {

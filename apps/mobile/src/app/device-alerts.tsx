@@ -183,9 +183,10 @@ export default function DeviceAlerts() {
        * The portfolio checks, after the per-symbol ones and in the same pass.
        *
        * `prices` and `base` are keyed by the symbol the expander produced, and
-       * `evaluatePortfolioMove` reads them the same way — so a holding that
-       * failed to price makes the whole check answer null rather than totalling
-       * the rest, which is the point of it being one check.
+       * `evaluatePortfolioMove` reads them the same way. The totals come back
+       * from it rather than being reduced again here: a holding it left out of
+       * the percentage has to be out of the money as well, and two reductions
+       * over the same list are how those come apart.
        */
       for (const rule of portfolioRules) {
         const priced = Object.fromEntries(
@@ -199,12 +200,11 @@ export default function DeviceAlerts() {
         // Totals in the same currency the prices came back in, so the notice
         // does not mix a quoted price with a converted one.
         const currency = Object.values(prices)[0]?.currency ?? "USD";
-        const value = rule.holdings.reduce((n, h) => n + h.quantity * (priced[h.symbol] ?? 0), 0);
-        const from = rule.holdings.reduce((n, h) => n + h.quantity * (base[h.symbol] ?? 0), 0);
 
         await notify(id++, portfolioMoveNotice({
           portfolio: portfolioNames[rule.portfolioId] ?? "your portfolio",
-          direction: hit.direction, pct: hit.pct, from, value, currency,
+          direction: hit.direction, pct: hit.pct,
+          from: hit.from, value: hit.value, currency, skipped: hit.skipped,
         }), rule.holdings[0]?.symbol ?? "");
         sent[key] = day;
       }

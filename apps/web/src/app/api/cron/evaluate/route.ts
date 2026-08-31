@@ -306,8 +306,9 @@ async function evalPortfolioMove(
     ? (await prisma.portfolio.findUnique({ where: { id: a.portfolioId }, select: { name: true } }))?.name
     : null;
   const currency = Object.values(prices)[0]?.currency ?? "USD";
-  const value = rule.holdings.reduce((n: number, h) => n + h.quantity * (priced[h.symbol] ?? 0), 0);
-  const from = rule.holdings.reduce((n: number, h) => n + h.quantity * (base[h.symbol] ?? 0), 0);
+  // From the hit, not reduced again: a holding it excluded from the percentage
+  // has to be excluded from the money the notice quotes too.
+  const { value, from } = hit;
 
   /*
    * The bar time is the UTC day, and the signal carries the direction — the
@@ -323,6 +324,7 @@ async function evalPortfolioMove(
     text: portfolioMoveNotice({
       portfolio: portfolioName ?? "your portfolio",
       direction: hit.direction, pct: hit.pct, from, value, currency,
+      skipped: hit.skipped,
     }),
   });
   return { alertId: a.id, fired: sent ? 1 : 0, skipped: sent ? 0 : 1 };

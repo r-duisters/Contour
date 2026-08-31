@@ -127,12 +127,26 @@ describe("the background runner's wiring", () => {
   });
 
   /**
-   * A total from some of its parts is a different portfolio's move, so an
-   * unpriced holding must abandon the whole check rather than sum the rest.
-   * The app side gets this from `evaluatePortfolioMove`; here it is by hand.
+   * The two halves of the unpriced rule, which are easy to collapse into one.
+   *
+   * A holding with neither price is delisted: it never prices again, so
+   * abandoning the check would silence the alert permanently, and a portfolio
+   * alert that never fires looks exactly like a portfolio that never moved.
+   * It is excluded and named in the notice.
+   *
+   * A holding with one of the two prices is a fetch that failed: its weight is
+   * known and its move is not, so excluding it would reweight the total for
+   * one check. That still abandons, and the next run half an hour later has
+   * it. The app side gets both from `evaluatePortfolioMove`; here it is by
+   * hand, and a runner that collapsed them would notify on a different total
+   * from the one the app computes for the same portfolio.
    */
-  it("abandons a portfolio check when any holding is unpriced", () => {
-    expect(runner).toMatch(/complete\s*=\s*false/);
+  it("excludes a delisted holding but abandons on a failed fetch", () => {
+    expect(runner, "a holding with neither price is collected").toMatch(/skipped\.push/);
+    expect(runner, "a holding with one price abandons the check").toMatch(/partial\s*=\s*true/);
+    expect(runner, "and the notice says what was left out").toContain("excludes");
+    const shared = readFileSync(join(ROOT, "packages/core/src/alert-copy.ts"), "utf8");
+    expect(shared, "the shared copy says it the same way").toContain("excludes");
   });
 
   it("keeps the runner's location permissions out of the build", () => {
