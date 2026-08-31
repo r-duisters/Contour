@@ -235,7 +235,16 @@ function Alerts() {
       className={`py-3 flex items-center gap-3 ${a.enabled ? "" : "opacity-60"}`}
     >
       <div className="min-w-0 flex-1">
-        <p className="text-sm">{subjectOf(a)}</p>
+        {/*
+          The row leads with whatever tells it apart from its neighbours.
+
+          Under "Individual assets" that is the ticker. Under "Your portfolio"
+          every row says "Everything in Main" — the group heading restated — so
+          leading with it gave the line that distinguishes nothing full size
+          and put the whole rule underneath in grey. Same anatomy either way;
+          only which line goes where moves, on the split the groups already use.
+        */}
+        <p className="text-sm">{a.symbol ? subjectOf(a) : conditionOf(a)}</p>
         {/*
           No "fired, paused". A one-shot target disables itself when it fires,
           and this said so — but pausing by hand now produces the identical
@@ -243,7 +252,7 @@ function Alerts() {
           true only while there was one way to get there.
         */}
         <p className="text-xs text-neutral-500 mt-0.5">
-          {conditionOf(a)}
+          {a.symbol ? conditionOf(a) : subjectOf(a)}
           {" · "}
           {a.lastEvaluated
             ? `last checked ${new Date(a.lastEvaluated).toLocaleString()}`

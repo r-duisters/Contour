@@ -282,9 +282,26 @@ export default function AlertsPage() {
       // as floating beside the text instead of belonging to it.
       <li key={a.id} className={`flex items-center gap-3 py-3 ${a.enabled ? "" : "opacity-60"}`}>
         <div className="min-w-0 flex-1">
-          <p className="text-sm truncate">{alertSubject(a.symbol, portfolioName(a, names))}</p>
+          {/*
+            The row leads with whatever tells it apart from its neighbours.
+            ==============================================================
+
+            Under "Individual assets" that is the ticker: the rules differ by
+            what they watch, and the eye goes down the column looking for one.
+            Under "Your portfolio" every row says "Everything in Main" — the
+            subject is the group heading restated, so leading with it put the
+            one word that distinguishes nothing at full size and the whole rule
+            underneath it in grey.
+
+            Same anatomy either way: one line at full size, one under it. Which
+            line goes where is the only thing that moves, and `a.symbol` is
+            exactly the split the groups are already made on.
+          */}
+          <p className="text-sm truncate">
+            {a.symbol ? alertSubject(a.symbol, null) : alertCondition(a)}
+          </p>
           <p className="text-xs text-neutral-500 mt-0.5">
-            {alertCondition(a)}
+            {a.symbol ? alertCondition(a) : alertSubject(null, portfolioName(a, names))}
           </p>
         </div>
         <Switch
