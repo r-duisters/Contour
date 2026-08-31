@@ -373,11 +373,31 @@ async function evalPctMove(
    * delisted market does not.
    */
   const dead = unpricedSymbols(wanted, prices);
-  const day = Math.floor(Date.now() / 86_400_000) * 86_400_000;
+  /*
+   * `barTime: 0`, and that constant is the latch.
+   *
+   * Every other event keys its dedupe on the day, so a standing condition says
+   * itself once a morning. That is right for a market doing something and
+   * wrong for a delisted coin, which fails to price every morning for good —
+   * reporting it daily is a machine nagging about something nobody can fix,
+   * and it is how people learn to dismiss notifications without reading them.
+   *
+   * A fixed bar time makes `(alertId, barTime, signal)` unique per symbol
+   * rather than per symbol per day, so the notice is sent once. Recovery
+   * deletes the row below, which re-arms it: a market that comes back and
+   * breaks again is news a second time.
+   */
   for (const d of dead) {
     await dispatch(a, notifiers, {
-      barTime: day, signal: `stale:${d.symbol}`, symbol: d.symbol, price: 0,
+      barTime: 0, signal: `stale:${d.symbol}`, symbol: d.symbol, price: 0,
       text: stalePriceNotice({ name: d.name }),
+    });
+  }
+  // Anything that priced is working; forget it was ever reported.
+  const alive = wanted.map((w) => w.symbol).filter((sym) => prices[sym] !== undefined);
+  if (alive.length) {
+    await prisma.alertEvent.deleteMany({
+      where: { alertId: a.id, barTime: BigInt(0), signal: { in: alive.map((sym) => `stale:${sym}`) } },
     });
   }
 

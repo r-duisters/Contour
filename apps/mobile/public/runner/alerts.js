@@ -400,17 +400,29 @@ addEventListener("alertCheck", async (resolve, reject) => {
      * to ignore the one time it is true.
      */
     if (rules.some((r) => prices[r.symbol])) {
-      const reported = {};
+      /*
+       * Latched, not deduped by day. A delisted coin fails to price every
+       * morning for good, and saying so every morning is a machine nagging
+       * about something nobody can fix. Reported once, then silent until it
+       * prices again — recovery clears the mark, so a second breakage is
+       * news a second time.
+       */
+      const known = readJson("alertsUnpriced", {});
+      const next = {};
+      for (const symbol of Object.keys(known)) {
+        if (!prices[symbol]) next[symbol] = known[symbol];
+      }
+      const seen = {};
       for (const rule of rules) {
-        if (prices[rule.symbol] || reported[rule.symbol]) continue;
-        reported[rule.symbol] = true;
-        const key = `x:${rule.symbol}`;
-        if (alreadySentToday(sent, key, day)) continue;
+        if (prices[rule.symbol] || seen[rule.symbol]) continue;
+        seen[rule.symbol] = true;
+        if (next[rule.symbol] !== undefined) continue;
+        next[rule.symbol] = Date.now();
         const n = stalePriceNotice({ name: rule.name || rule.symbol });
         notify(id++, n.title, n.body);
-        sent[key] = day;
         notified++;
       }
+      writeJson("alertsUnpriced", next);
     }
 
     // Forget yesterday's marks so the store cannot grow without bound.

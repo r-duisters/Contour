@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  evaluatePortfolioMove, expandPortfolioRules, expandRules, unpricedSymbols,
+  evaluatePortfolioMove, expandPortfolioRules, expandRules, latchUnpriced, unpricedSymbols,
   type AlertRule, type HeldAsset,
 } from "./alert-rules";
 import { evaluatePositionPnl } from "./alerts";
@@ -212,5 +212,40 @@ describe("reporting symbols that could not be priced", () => {
   it("names the asset when the caller gives no name", () => {
     expect(unpricedSymbols([{ symbol: "ETHUSDT" }, { symbol: "BTCUSDT" }], { BTCUSDT: 1 }))
       .toEqual([{ symbol: "ETHUSDT", name: "ETH" }]);
+  });
+});
+
+/**
+ * Once per outage, not once a day forever.
+ *
+ * The stale notice first shipped on the day-based dedupe every other kind
+ * uses, which is right for a market doing something and wrong for a delisted
+ * coin: that fails to price every morning for good, and saying so every
+ * morning is a machine nagging about something nobody can fix.
+ */
+describe("latching the unpriced report", () => {
+  const dead = [{ symbol: "DEADUSDT", name: "DEAD" }];
+
+  it("reports a symbol the first time and not the second", () => {
+    const first = latchUnpriced(dead, ["BTCUSDT"], {}, 1000);
+    expect(first.report).toEqual(dead);
+    const second = latchUnpriced(dead, ["BTCUSDT"], first.reported, 2000);
+    expect(second.report).toEqual([]);
+    // And the mark survives, so the third morning is quiet too.
+    expect(second.reported).toHaveProperty("DEADUSDT");
+  });
+
+  /** A market that comes back and breaks again is news a second time. */
+  it("forgets a symbol that prices again, so a later break is reported", () => {
+    const first = latchUnpriced(dead, ["BTCUSDT"], {}, 1000);
+    const recovered = latchUnpriced([], ["BTCUSDT", "DEADUSDT"], first.reported, 2000);
+    expect(recovered.reported).toEqual({});
+    expect(latchUnpriced(dead, ["BTCUSDT"], recovered.reported, 3000).report).toEqual(dead);
+  });
+
+  it("keeps marks for symbols that are still unpriced", () => {
+    const state = { DEADUSDT: 1000, OTHERUSDT: 900 };
+    const out = latchUnpriced([], ["BTCUSDT"], state, 2000);
+    expect(out.reported).toEqual(state);
   });
 });

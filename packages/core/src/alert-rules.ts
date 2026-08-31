@@ -303,6 +303,42 @@ export function unpricedSymbols(
   return out;
 }
 
+/**
+ * Which of the unpriced symbols are *news*, and what to remember afterwards.
+ *
+ * The stale notice shipped deduped by day, like every other kind, and that is
+ * wrong for this one. A move rule firing daily is a market doing something
+ * daily; a delisted coin failing to price daily is one fact, and reporting it
+ * every morning for the rest of the owner's life is a machine nagging about
+ * something nobody can fix. The first notification is useful and the
+ * three-hundredth is why people turn notifications off.
+ *
+ * So it latches: reported once, then silent until the symbol prices again. A
+ * market that comes back and breaks a second time is news a second time, which
+ * is why recovery clears the mark rather than the mark simply expiring.
+ *
+ * Returns the marks to keep rather than mutating, so the caller writes one
+ * value and the pure part stays testable — the same shape `forgetOldMarks`
+ * has.
+ */
+export function latchUnpriced(
+  unpriced: { symbol: string; name: string }[],
+  pricedSymbols: string[],
+  reported: Record<string, number>,
+  now: number,
+): { report: { symbol: string; name: string }[]; reported: Record<string, number> } {
+  const next: Record<string, number> = {};
+  const recovered = new Set(pricedSymbols);
+  // Anything that priced this time is forgotten: it is working, and if it
+  // breaks again that is a new thing to say.
+  for (const [symbol, at] of Object.entries(reported)) {
+    if (!recovered.has(symbol)) next[symbol] = at;
+  }
+  const report = unpriced.filter((u) => next[u.symbol] === undefined);
+  for (const u of report) next[u.symbol] = now;
+  return { report, reported: next };
+}
+
 /** A currency balance rather than a position someone chose to take. */
 function isCash(symbol: string): boolean {
   return isDisplayCurrency(assetOf(symbol));
