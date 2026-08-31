@@ -271,73 +271,25 @@ export function evaluatePortfolioMove(
   return { direction: pct >= 0 ? "up" : "down", pct };
 }
 
-/**
- * Which watched symbols could not be priced, when that is the symbol's fault.
+/*
+ * There is deliberately no "this asset has no price" alert.
  *
- * The distinction is the whole value. If nothing priced, the network was down
- * or the provider was — telling somebody their portfolio is broken because
- * their train went into a tunnel is worse than silence. If some priced and one
- * did not, that one is the problem: renamed, delisted, or behind a key that
- * has lapsed.
+ * One was built and removed on 2026-08-31. The argument for it was good — a
+ * rule whose symbol will not price fires nothing, and firing nothing is
+ * indistinguishable from a market that did not move — and the thing built
+ * from that argument was still wrong.
  *
- * Needs no stored history, which is why it is shaped this way. Counting
- * consecutive failures would be more precise and would need a per-symbol
- * durable store on three platforms; this asks a question answerable from the
- * check that just ran, and the once-a-day dedupe every kind already uses keeps
- * a flapping provider from becoming a flapping notification.
+ * A delisted coin has no price and never will again. There is no action
+ * behind the notification: the owner cannot relist it, and the ledger row is
+ * a fact about a trade that really happened. So it is a notification that
+ * says something true, changes nothing, and arrives about an asset the person
+ * has usually already forgotten they hold. Latching it to once per outage
+ * made it quieter without making it useful.
+ *
+ * If this becomes worth surfacing again, the place is the alerts screen —
+ * where somebody has gone to ask "am I covered" — and not a notification,
+ * which interrupts to answer a question nobody asked.
  */
-export function unpricedSymbols(
-  wanted: { symbol: string; name?: string }[],
-  priced: Record<string, unknown>,
-): { symbol: string; name: string }[] {
-  const got = (s: string) => priced[s] !== undefined;
-  // Nothing answered: not the symbols' fault, and not worth waking anybody for.
-  if (!wanted.some((w) => got(w.symbol))) return [];
-  const seen = new Set<string>();
-  const out: { symbol: string; name: string }[] = [];
-  for (const w of wanted) {
-    if (got(w.symbol) || seen.has(w.symbol)) continue;
-    seen.add(w.symbol);
-    out.push({ symbol: w.symbol, name: w.name ?? assetOf(w.symbol) });
-  }
-  return out;
-}
-
-/**
- * Which of the unpriced symbols are *news*, and what to remember afterwards.
- *
- * The stale notice shipped deduped by day, like every other kind, and that is
- * wrong for this one. A move rule firing daily is a market doing something
- * daily; a delisted coin failing to price daily is one fact, and reporting it
- * every morning for the rest of the owner's life is a machine nagging about
- * something nobody can fix. The first notification is useful and the
- * three-hundredth is why people turn notifications off.
- *
- * So it latches: reported once, then silent until the symbol prices again. A
- * market that comes back and breaks a second time is news a second time, which
- * is why recovery clears the mark rather than the mark simply expiring.
- *
- * Returns the marks to keep rather than mutating, so the caller writes one
- * value and the pure part stays testable — the same shape `forgetOldMarks`
- * has.
- */
-export function latchUnpriced(
-  unpriced: { symbol: string; name: string }[],
-  pricedSymbols: string[],
-  reported: Record<string, number>,
-  now: number,
-): { report: { symbol: string; name: string }[]; reported: Record<string, number> } {
-  const next: Record<string, number> = {};
-  const recovered = new Set(pricedSymbols);
-  // Anything that priced this time is forgotten: it is working, and if it
-  // breaks again that is a new thing to say.
-  for (const [symbol, at] of Object.entries(reported)) {
-    if (!recovered.has(symbol)) next[symbol] = at;
-  }
-  const report = unpriced.filter((u) => next[u.symbol] === undefined);
-  for (const u of report) next[u.symbol] = now;
-  return { report, reported: next };
-}
 
 /** A currency balance rather than a position someone chose to take. */
 function isCash(symbol: string): boolean {

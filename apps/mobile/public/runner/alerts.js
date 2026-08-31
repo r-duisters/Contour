@@ -108,17 +108,6 @@ function moveNotice(a) {
 }
 
 /**
- * The alert that says the other alerts are blind. Duplicated from
- * `alert-copy.ts`; `runner-wiring.test.ts` fails when the two drift.
- */
-function stalePriceNotice(a) {
-  return {
-    title: `No price for ${a.name}`,
-    body: "Your alerts on it were not checked. It may have been renamed, delisted, or moved to a provider that needs a key.",
-  };
-}
-
-/**
  * What a position has done for its owner. Duplicated from `alert-copy.ts`;
  * `runner-wiring.test.ts` fails when the two drift.
  */
@@ -399,32 +388,6 @@ addEventListener("alertCheck", async (resolve, reject) => {
      * and reporting every symbol as broken then is noise that trains people
      * to ignore the one time it is true.
      */
-    if (rules.some((r) => prices[r.symbol])) {
-      /*
-       * Latched, not deduped by day. A delisted coin fails to price every
-       * morning for good, and saying so every morning is a machine nagging
-       * about something nobody can fix. Reported once, then silent until it
-       * prices again — recovery clears the mark, so a second breakage is
-       * news a second time.
-       */
-      const known = readJson("alertsUnpriced", {});
-      const next = {};
-      for (const symbol of Object.keys(known)) {
-        if (!prices[symbol]) next[symbol] = known[symbol];
-      }
-      const seen = {};
-      for (const rule of rules) {
-        if (prices[rule.symbol] || seen[rule.symbol]) continue;
-        seen[rule.symbol] = true;
-        if (next[rule.symbol] !== undefined) continue;
-        next[rule.symbol] = Date.now();
-        const n = stalePriceNotice({ name: rule.name || rule.symbol });
-        notify(id++, n.title, n.body);
-        notified++;
-      }
-      writeJson("alertsUnpriced", next);
-    }
-
     // Forget yesterday's marks so the store cannot grow without bound.
     for (const key of Object.keys(sent)) if (sent[key] < day - 1) delete sent[key];
     writeJson("alertsSent", sent);

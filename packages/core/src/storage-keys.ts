@@ -44,13 +44,6 @@ export const KEYS = {
   alertsLastChecked: `${PREFIX}alerts-last-checked`,
   alertsSent: `${PREFIX}alerts-sent`,
   /**
-   * Symbols already reported as unpriceable, so the notice is once per outage
-   * rather than once a day forever. Cleared per symbol when it prices again.
-   * Separate from `alertsSent` because that store is pruned daily by design,
-   * and this one must outlive a day to mean anything.
-   */
-  alertsUnpriced: `${PREFIX}alerts-unpriced`,
-  /**
    * That first-run setup has been through once, whether it was completed or
    * skipped. Skipping means "don't ask again"; without this the flow would
    * reappear on every launch until a portfolio existed, which is the opposite

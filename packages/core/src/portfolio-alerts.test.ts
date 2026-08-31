@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  evaluatePortfolioMove, expandPortfolioRules, expandRules, latchUnpriced, unpricedSymbols,
+  evaluatePortfolioMove, expandPortfolioRules, expandRules,
   type AlertRule, type HeldAsset,
 } from "./alert-rules";
 import { evaluatePositionPnl } from "./alerts";
@@ -172,80 +172,5 @@ describe("a position's return against a threshold", () => {
       expect(evaluatePositionPnl({ direction: "up", pct: 10 }, bad, 100)).toBeNull();
     }
     expect(evaluatePositionPnl({ direction: "up", pct: 10 }, 100, NaN)).toBeNull();
-  });
-});
-
-/**
- * Saying the alerts are blind, which is the one thing silence cannot say.
- */
-describe("reporting symbols that could not be priced", () => {
-  const wanted = [
-    { symbol: "BTCUSDT", name: "BTC" },
-    { symbol: "ETHUSDT", name: "ETH" },
-  ];
-
-  it("names the ones missing from the answer", () => {
-    expect(unpricedSymbols(wanted, { BTCUSDT: 40_000 })).toEqual([{ symbol: "ETHUSDT", name: "ETH" }]);
-  });
-
-  /**
-   * The distinction the whole thing rests on. Nothing priced means the network
-   * or a provider was down — telling somebody their portfolio is broken
-   * because their train went into a tunnel is worse than silence, and it
-   * teaches them to ignore the message that matters.
-   */
-  it("says nothing when nothing priced, because that is not the symbols' fault", () => {
-    expect(unpricedSymbols(wanted, {})).toEqual([]);
-  });
-
-  it("says nothing when everything priced", () => {
-    expect(unpricedSymbols(wanted, { BTCUSDT: 1, ETHUSDT: 2 })).toEqual([]);
-  });
-
-  /** A portfolio rule expands to many checks on one symbol; one report. */
-  it("reports a symbol once however many rules watch it", () => {
-    const twice = [...wanted, { symbol: "ETHUSDT", name: "ETH" }];
-    expect(unpricedSymbols(twice, { BTCUSDT: 1 })).toHaveLength(1);
-  });
-
-  /** Falls back to the asset, so a coin is named ETH rather than ETHUSDT. */
-  it("names the asset when the caller gives no name", () => {
-    expect(unpricedSymbols([{ symbol: "ETHUSDT" }, { symbol: "BTCUSDT" }], { BTCUSDT: 1 }))
-      .toEqual([{ symbol: "ETHUSDT", name: "ETH" }]);
-  });
-});
-
-/**
- * Once per outage, not once a day forever.
- *
- * The stale notice first shipped on the day-based dedupe every other kind
- * uses, which is right for a market doing something and wrong for a delisted
- * coin: that fails to price every morning for good, and saying so every
- * morning is a machine nagging about something nobody can fix.
- */
-describe("latching the unpriced report", () => {
-  const dead = [{ symbol: "DEADUSDT", name: "DEAD" }];
-
-  it("reports a symbol the first time and not the second", () => {
-    const first = latchUnpriced(dead, ["BTCUSDT"], {}, 1000);
-    expect(first.report).toEqual(dead);
-    const second = latchUnpriced(dead, ["BTCUSDT"], first.reported, 2000);
-    expect(second.report).toEqual([]);
-    // And the mark survives, so the third morning is quiet too.
-    expect(second.reported).toHaveProperty("DEADUSDT");
-  });
-
-  /** A market that comes back and breaks again is news a second time. */
-  it("forgets a symbol that prices again, so a later break is reported", () => {
-    const first = latchUnpriced(dead, ["BTCUSDT"], {}, 1000);
-    const recovered = latchUnpriced([], ["BTCUSDT", "DEADUSDT"], first.reported, 2000);
-    expect(recovered.reported).toEqual({});
-    expect(latchUnpriced(dead, ["BTCUSDT"], recovered.reported, 3000).report).toEqual(dead);
-  });
-
-  it("keeps marks for symbols that are still unpriced", () => {
-    const state = { DEADUSDT: 1000, OTHERUSDT: 900 };
-    const out = latchUnpriced([], ["BTCUSDT"], state, 2000);
-    expect(out.reported).toEqual(state);
   });
 });

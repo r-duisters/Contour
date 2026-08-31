@@ -6,11 +6,10 @@ import { baselines, priceSymbols } from "@/data/services/alert-pricing";
 import { evaluatePctMove, evaluatePositionPnl, evaluatePriceTarget } from "@/lib/alerts";
 import {
   evaluatePortfolioMove, expandPortfolioRules, expandRules, forgetOldMarks, shouldNotify,
-  latchUnpriced, unpricedSymbols, type AlertRule, type HeldAsset,
+  type AlertRule, type HeldAsset,
 } from "@/lib/alert-rules";
 import {
-  moveNotice, portfolioMoveNotice, positionPnlNotice, priceTargetNotice, stalePriceNotice,
-  type Notice,
+  moveNotice, portfolioMoveNotice, positionPnlNotice, priceTargetNotice, type Notice,
 } from "@/lib/alert-copy";
 import type { AlertSummary, DataClient } from "@/data/client/data-client";
 import { KEYS } from "@/lib/storage-keys";
@@ -209,25 +208,6 @@ export default function DeviceAlerts() {
         }), rule.holdings[0]?.symbol ?? "");
         sent[key] = day;
       }
-
-      /*
-       * And the rules that could not be checked at all.
-       *
-       * Last, so a working alert is never delayed behind a broken one, and
-       * only when something else priced — see `unpricedSymbols`. A person
-       * whose train is in a tunnel should not be told their portfolio is
-       * broken.
-       */
-      const { report, reported } = latchUnpriced(
-        unpricedSymbols(rules.map((r) => ({ symbol: r.symbol, name: r.name })), prices),
-        Object.keys(prices),
-        readJson<Record<string, number>>(KEYS.alertsUnpriced, {}),
-        Date.now(),
-      );
-      for (const dead of report) {
-        await notify(id++, stalePriceNotice({ name: dead.name }), dead.symbol);
-      }
-      writeJson(KEYS.alertsUnpriced, reported);
 
       writeJson(KEYS.alertsSent, forgetOldMarks(sent, day));
       writeJson(KEYS.alertsLastChecked, Date.now());
