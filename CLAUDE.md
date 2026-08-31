@@ -594,6 +594,21 @@ MQTT is a viable alternative (publish to `trader/signals/<symbol>`), but isn't i
   push *from*, which the direction above rules out as a requirement. Indicator
   alerts stay on the desktop — 1,460 daily bars of warm-up is not work for a
   phone, and the port has no column that would invite one.
+- **Thirty minutes is the floor on a phone, and anything faster is the
+  server's.** Decided 2026-08-31. The background check runs every half hour
+  *when Android allows it*, and Android treats a periodic job as a suggestion —
+  so a rule phrased in minutes cannot be honoured on a device however it is
+  configured. Shortening the interval does not fix that; it spends battery and
+  data to make the same promise less often kept, and every check names the
+  tickers held.
+
+  The consequence for anything sudden-move shaped: it is server-only, dropped
+  by `expandRules` the way `indicator` is, and for the same class of reason —
+  not "the phone is slow" but "the phone cannot answer this question honestly".
+  A window measured in minutes, checked every thirty, is a slow alert wearing a
+  fast name, and offering it would be the failure this file already names as
+  the worst: a notification that never arrives looks exactly like a market that
+  did not move.
 - **A rule that names no symbol means every holding.** `Alert.symbol` null
   plus `portfolioId` set is the shape the setup flow's "tell me about big
   moves" switch creates, and `expandRules` resolves it against what is held at

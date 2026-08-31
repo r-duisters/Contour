@@ -64,6 +64,13 @@ const config: CapacitorConfig = {
    * Half an hour rather than the wrapper's quarter: a check is two requests
    * for coins and one per share, and doubling the gap halves that against a
    * schedule Android already declines to honour precisely.
+   *
+   * **Thirty is a floor, not a default to tune down.** Decided 2026-08-31 and
+   * written up in CLAUDE.md: Android treats a periodic job as a suggestion, so
+   * a shorter interval does not buy a faster alert — it spends battery and
+   * data to make the same promise less often kept, and every check names the
+   * tickers held. Anything that needs minutes belongs on the server, where the
+   * schedule is the owner's to set.
    */
   plugins: {
     BackgroundRunner: {
