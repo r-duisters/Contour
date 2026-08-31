@@ -65,3 +65,51 @@ describe("repeat", () => {
     expect(oneShot).toMatchObject({ ok: true, repeat: false });
   });
 });
+
+/**
+ * The return question, which the same form asks about the holder rather than
+ * the market. Two gates, and both matter: the mode is only *offered* where
+ * there is a position, and validated here even so — a form that can only be
+ * reached one way is still a form.
+ */
+describe("a return rule from the asset page", () => {
+  const draft = {
+    mode: "return" as const, direction: "above" as const, price: "",
+    pnlDirection: "up" as const, pnlPct: "50", repeat: true,
+  };
+
+  it("builds a position_pnl rule against the portfolio holding it", () => {
+    expect(alertFields("ETH", "crypto", draft, "p1")).toEqual({
+      ok: true, kind: "position_pnl", symbol: "ETHUSDT", assetType: "crypto",
+      portfolioId: "p1", direction: "up", pct: 50, repeat: true,
+    });
+  });
+
+  /** A return needs a position, and a position lives in a portfolio. */
+  it("refuses without a portfolio, in words rather than silently", () => {
+    expect(alertFields("ETH", "crypto", draft, null))
+      .toEqual({ ok: false, error: "This only works on something you hold." });
+  });
+
+  it("refuses a percentage that is not one", () => {
+    for (const pct of ["", "0", "-5", "abc"]) {
+      const r = alertFields("ETH", "crypto", { ...draft, pnlPct: pct }, "p1");
+      expect(r.ok).toBe(false);
+    }
+    // A comma decimal is a percentage, and half of Europe types it.
+    expect(alertFields("ETH", "crypto", { ...draft, pnlPct: "12,5" }, "p1"))
+      .toMatchObject({ ok: true, pct: 12.5 });
+  });
+
+  /** The same asymmetry the price path has: a pair for a coin, a bare ticker
+   *  for a share. `ASML.ASUSDT` is not a market. */
+  it("keeps the venue's own spelling", () => {
+    expect(alertFields("ASML.AS", "equity", draft, "p1")).toMatchObject({ symbol: "ASML.AS" });
+  });
+
+  /** Absent the mode, this is the form it has always been. */
+  it("still builds a price target when the mode is not set", () => {
+    expect(alertFields("ETH", "crypto", { direction: "above", price: "4000", repeat: false }, "p1"))
+      .toMatchObject({ ok: true, price: 4000, direction: "above" });
+  });
+});

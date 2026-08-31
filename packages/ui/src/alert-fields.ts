@@ -10,8 +10,17 @@ import { pricingPair } from "@/core/symbols";
  */
 
 export type AlertDraft = {
+  /**
+   * Which question is being asked. "price" is where this form started and
+   * stays the default; "return" is the same form asking about the holder
+   * instead of the market, and is only offered on something actually held.
+   */
+  mode?: "price" | "return";
   direction: "above" | "below";
   price: string;
+  /** "return" only: which way the position has to have gone, and how far. */
+  pnlDirection?: "up" | "down";
+  pnlPct?: string;
   /**
    * Keep watching after it fires, rather than disarming.
    *
@@ -24,8 +33,12 @@ export type AlertDraft = {
 
 export type AlertFieldsResult =
   | {
-      ok: true; symbol: string; assetType: "crypto" | "equity";
+      ok: true; kind?: "price_target"; symbol: string; assetType: "crypto" | "equity";
       direction: "above" | "below"; price: number; repeat: boolean;
+    }
+  | {
+      ok: true; kind: "position_pnl"; symbol: string; assetType: "crypto" | "equity";
+      portfolioId: string; direction: "up" | "down"; pct: number; repeat: boolean;
     }
   | { ok: false; error: string };
 
@@ -57,12 +70,41 @@ export function alertFields(
   symbol: string,
   assetType: "crypto" | "equity" | null,
   draft: AlertDraft,
+  /** Required for a return rule, ignored by a price target. */
+  portfolioId?: string | null,
 ): AlertFieldsResult {
   if (assetType === null) {
     // The kind decides which venue prices it, and guessing from the ticker is
     // how `AMD` becomes `AMDUSDT`. Waiting is the correct answer.
     return { ok: false, error: "Still working out what this asset is." };
   }
+  if (draft.mode === "return") {
+    /*
+     * A return is a fact about a position, so it needs the portfolio the
+     * position is in. The form only offers this mode on something held, and
+     * this is the second gate: without an id the rule would have no ledger to
+     * read a cost from, and the evaluator would produce no check at all —
+     * which is a silent nothing rather than a message.
+     */
+    if (!portfolioId) {
+      return { ok: false, error: "This only works on something you hold." };
+    }
+    const pct = Number((draft.pnlPct ?? "").replace(",", "."));
+    if (!Number.isFinite(pct) || pct <= 0) {
+      return { ok: false, error: "Enter a percentage above zero." };
+    }
+    return {
+      ok: true,
+      kind: "position_pnl",
+      symbol: alertSymbol(symbol, assetType),
+      assetType,
+      portfolioId,
+      direction: draft.pnlDirection ?? "up",
+      pct,
+      repeat: draft.repeat,
+    };
+  }
+
   const price = Number(draft.price.replace(",", "."));
   if (!Number.isFinite(price) || price <= 0) {
     return { ok: false, error: "Enter a price above zero." };

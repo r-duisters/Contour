@@ -394,6 +394,12 @@ export default function AssetScreen({
             // which venue prices an alert.
             assetType={knownType}
             livePrice={shownHolding?.price ?? null}
+            // Both, so the form can offer the return question — and only offer
+            // it where there is a position to have a return on. On a page
+            // reached from Markets there is no holding, and the form draws the
+            // price question alone.
+            portfolioId={portfolioId}
+            avgCost={shownHolding?.avgCost ?? null}
             // The sheet stays open so the form can say what it did.
             // Closing it on submit threw away the one confirmation there
             // is — the alert was created and the screen said nothing,

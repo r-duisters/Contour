@@ -26,16 +26,29 @@ export default function AlertForm({
   symbol,
   assetType,
   livePrice,
+  portfolioId,
+  avgCost,
   onSubmit,
 }: {
   symbol: string;
   assetType: "crypto" | "equity" | null;
   /** Prefills the box, so a target starts from where the asset actually is. */
   livePrice?: number | null;
+  /**
+   * The portfolio this asset is held in, and what it cost. Both present means
+   * the return question can be asked; either absent and the form offers only
+   * the price one, because a return needs a position and this page also draws
+   * for assets nobody owns.
+   */
+  portfolioId?: string | null;
+  avgCost?: number | null;
   onSubmit: (alert: NewAlertInput) => Promise<void>;
 }) {
   const [draft, setDraft] = useState<AlertDraft>({
+    mode: "price",
     direction: "above",
+    pnlDirection: "up",
+    pnlPct: "",
     // One-shot by default, which is what a price target has always done.
     repeat: false,
     // Rounded, because a target of 399.8797560766 is a price nobody typed and
@@ -47,7 +60,7 @@ export default function AlertForm({
   const [saved, setSaved] = useState(false);
 
   async function submit() {
-    const result = alertFields(symbol, assetType, draft);
+    const result = alertFields(symbol, assetType, draft, portfolioId);
     if (!result.ok) { setError(result.error); return; }
     setError(null);
     setSaving(true);
@@ -71,8 +84,62 @@ export default function AlertForm({
     );
   }
 
+  // Only where there is a position to have a return on.
+  const canAskReturn = Boolean(portfolioId) && typeof avgCost === "number" && avgCost > 0;
+  const mode = canAskReturn ? draft.mode ?? "price" : "price";
+
   return (
     <div className="space-y-3">
+      {/*
+        Two questions about the same asset, and the second is only ever
+        offered on something held: "what is it worth" is about the market,
+        "what has it done for me" is about the ledger. Drawing the second on an
+        asset nobody owns would be a control that can only fail.
+      */}
+      {canAskReturn && (
+        <div className="flex items-center gap-2">
+          <select
+            aria-label="What to watch"
+            className={field()}
+            value={mode}
+            onChange={(e) => setDraft({ ...draft, mode: e.target.value as "price" | "return" })}
+          >
+            <option value="price">Its price</option>
+            <option value="return">My return</option>
+          </select>
+          {mode === "return" && (
+            <span className="text-xs text-neutral-500">
+              measured against what you paid
+            </span>
+          )}
+        </div>
+      )}
+
+      {mode === "return" ? (
+        <div className="flex items-center gap-2 flex-wrap">
+          <select
+            aria-label="Return direction"
+            className={field()}
+            value={draft.pnlDirection ?? "up"}
+            onChange={(e) => setDraft({ ...draft, pnlDirection: e.target.value as "up" | "down" })}
+          >
+            <option value="up">Up by</option>
+            <option value="down">Down by</option>
+          </select>
+          <input
+            aria-label="Return percentage"
+            className={field("w-24")}
+            value={draft.pnlPct ?? ""}
+            onChange={(e) => setDraft({ ...draft, pnlPct: e.target.value })}
+            inputMode="decimal"
+            placeholder="%"
+          />
+          <span className="text-xs text-neutral-500">%</span>
+          <Button onClick={submit} disabled={saving}>
+            {saving ? "Saving…" : "Alert me"}
+          </Button>
+        </div>
+      ) : (
       <div className="flex items-center gap-2 flex-wrap">
         <select
           aria-label="Direction"
@@ -95,6 +162,7 @@ export default function AlertForm({
           {saving ? "Saving…" : "Alert me"}
         </Button>
       </div>
+      )}
 
       {error && <p className="text-xs text-red-500">{error}</p>}
 
