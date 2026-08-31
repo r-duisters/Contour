@@ -104,6 +104,8 @@ describe("the background runner's wiring", () => {
       // The position kind, which speaks in the holder's terms rather than the market's.
       "% on what you paid",
       "average cost",
+      // The alert that says the other alerts are blind.
+      "No price for",
     ]) {
       expect(shared, `shared copy should contain ${phrase}`).toContain(phrase);
       expect(runner, `runner copy should contain ${phrase}`).toContain(phrase);
@@ -133,6 +135,18 @@ describe("the background runner's wiring", () => {
    */
   it("abandons a portfolio check when any holding is unpriced", () => {
     expect(runner).toMatch(/complete\s*=\s*false/);
+  });
+
+  /**
+   * An outage is not a delisting, and reporting every symbol as broken when
+   * the network is down trains people to ignore the one time it is true.
+   * Both sides gate on something else having priced.
+   */
+  it("only reports an unpriced symbol when something else priced", () => {
+    expect(runner).toMatch(/rules\.some\(\(r\) => prices\[r\.symbol\]\)/);
+    const shared = readFileSync(join(ROOT, "packages/core/src/alert-rules.ts"), "utf8");
+    expect(shared, "unpricedSymbols must answer nothing when nothing priced")
+      .toMatch(/if \(!wanted\.some\(\(w\) => got\(w\.symbol\)\)\) return \[\];/);
   });
 
   it("keeps the runner's location permissions out of the build", () => {

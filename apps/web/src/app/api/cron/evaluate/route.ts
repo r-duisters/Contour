@@ -6,10 +6,12 @@ import { prisma } from "@/lib/db";
 import { assetOf, pricingPair } from "@/core/symbols";
 import {
   indicatorNotice, moveNotice, portfolioMoveNotice, positionPnlNotice, priceTargetNotice,
-  type Notice,
+  stalePriceNotice, type Notice,
 } from "@/lib/alert-copy";
 import { evaluatePositionPnl } from "@/lib/alerts";
-import { evaluatePortfolioMove, expandPortfolioRules, expandRules } from "@/lib/alert-rules";
+import {
+  evaluatePortfolioMove, expandPortfolioRules, expandRules, unpricedSymbols,
+} from "@/lib/alert-rules";
 import { fetchKlines } from "@/data/sources/binance";
 import { assetTypeOf, baselines, priceSymbols, type PricedSymbol, type Settings } from "@/data/services/alert-pricing";
 import { deps } from "@/lib/deps";
@@ -360,6 +362,24 @@ async function evalPctMove(
     priceSymbols(deps().net, pricing, wanted),
     baselines(deps().net, pricing, wanted),
   ]);
+
+  /*
+   * Say when a rule could not be checked at all.
+   *
+   * A symbol absent from `prices` fires nothing, and firing nothing looks
+   * exactly like a market that did not move — the person is not waiting for
+   * news, they believe they have it. `unpricedSymbols` reports only when
+   * something *else* priced, so an outage stays quiet and a renamed or
+   * delisted market does not.
+   */
+  const dead = unpricedSymbols(wanted, prices);
+  const day = Math.floor(Date.now() / 86_400_000) * 86_400_000;
+  for (const d of dead) {
+    await dispatch(a, notifiers, {
+      barTime: day, signal: `stale:${d.symbol}`, symbol: d.symbol, price: 0,
+      text: stalePriceNotice({ name: d.name }),
+    });
+  }
 
   let fired = 0, skipped = 0;
   for (const { symbol } of wanted) {

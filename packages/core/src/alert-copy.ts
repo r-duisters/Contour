@@ -102,6 +102,29 @@ export function moveNotice(a: {
 }
 
 /**
+ * The alert that says the other alerts are blind.
+ *
+ * A rule whose symbol cannot be priced fires nothing, and firing nothing is
+ * indistinguishable from a market that did not move — the failure this project
+ * treats as the worst one, because the person is not waiting for news, they
+ * believe they already have it.
+ *
+ * Not a kind somebody creates. It rides on the rules that already exist: if
+ * you asked to be told about BTC and BTC cannot be priced, that is worth one
+ * sentence.
+ *
+ * The wording avoids blaming a provider by name. "Binance did not answer" is
+ * often wrong — a renamed market, a delisting and a lapsed key all look
+ * identical from here — so it says what is true (no price) and what to check.
+ */
+export function stalePriceNotice(a: { name: string }): Notice {
+  return {
+    title: `No price for ${a.name}`,
+    body: "Your alerts on it were not checked. It may have been renamed, delisted, or moved to a provider that needs a key.",
+  };
+}
+
+/**
  * What a position has done for its owner, which no price alert can say.
  *
  * "ETH up 50% on what you paid" rather than "ETH reached $4,200": the same

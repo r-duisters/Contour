@@ -271,6 +271,38 @@ export function evaluatePortfolioMove(
   return { direction: pct >= 0 ? "up" : "down", pct };
 }
 
+/**
+ * Which watched symbols could not be priced, when that is the symbol's fault.
+ *
+ * The distinction is the whole value. If nothing priced, the network was down
+ * or the provider was — telling somebody their portfolio is broken because
+ * their train went into a tunnel is worse than silence. If some priced and one
+ * did not, that one is the problem: renamed, delisted, or behind a key that
+ * has lapsed.
+ *
+ * Needs no stored history, which is why it is shaped this way. Counting
+ * consecutive failures would be more precise and would need a per-symbol
+ * durable store on three platforms; this asks a question answerable from the
+ * check that just ran, and the once-a-day dedupe every kind already uses keeps
+ * a flapping provider from becoming a flapping notification.
+ */
+export function unpricedSymbols(
+  wanted: { symbol: string; name?: string }[],
+  priced: Record<string, unknown>,
+): { symbol: string; name: string }[] {
+  const got = (s: string) => priced[s] !== undefined;
+  // Nothing answered: not the symbols' fault, and not worth waking anybody for.
+  if (!wanted.some((w) => got(w.symbol))) return [];
+  const seen = new Set<string>();
+  const out: { symbol: string; name: string }[] = [];
+  for (const w of wanted) {
+    if (got(w.symbol) || seen.has(w.symbol)) continue;
+    seen.add(w.symbol);
+    out.push({ symbol: w.symbol, name: w.name ?? assetOf(w.symbol) });
+  }
+  return out;
+}
+
 /** A currency balance rather than a position someone chose to take. */
 function isCash(symbol: string): boolean {
   return isDisplayCurrency(assetOf(symbol));

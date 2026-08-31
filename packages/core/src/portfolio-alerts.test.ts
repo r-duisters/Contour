@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  evaluatePortfolioMove, expandPortfolioRules, expandRules,
+  evaluatePortfolioMove, expandPortfolioRules, expandRules, unpricedSymbols,
   type AlertRule, type HeldAsset,
 } from "./alert-rules";
 import { evaluatePositionPnl } from "./alerts";
@@ -172,5 +172,45 @@ describe("a position's return against a threshold", () => {
       expect(evaluatePositionPnl({ direction: "up", pct: 10 }, bad, 100)).toBeNull();
     }
     expect(evaluatePositionPnl({ direction: "up", pct: 10 }, 100, NaN)).toBeNull();
+  });
+});
+
+/**
+ * Saying the alerts are blind, which is the one thing silence cannot say.
+ */
+describe("reporting symbols that could not be priced", () => {
+  const wanted = [
+    { symbol: "BTCUSDT", name: "BTC" },
+    { symbol: "ETHUSDT", name: "ETH" },
+  ];
+
+  it("names the ones missing from the answer", () => {
+    expect(unpricedSymbols(wanted, { BTCUSDT: 40_000 })).toEqual([{ symbol: "ETHUSDT", name: "ETH" }]);
+  });
+
+  /**
+   * The distinction the whole thing rests on. Nothing priced means the network
+   * or a provider was down — telling somebody their portfolio is broken
+   * because their train went into a tunnel is worse than silence, and it
+   * teaches them to ignore the message that matters.
+   */
+  it("says nothing when nothing priced, because that is not the symbols' fault", () => {
+    expect(unpricedSymbols(wanted, {})).toEqual([]);
+  });
+
+  it("says nothing when everything priced", () => {
+    expect(unpricedSymbols(wanted, { BTCUSDT: 1, ETHUSDT: 2 })).toEqual([]);
+  });
+
+  /** A portfolio rule expands to many checks on one symbol; one report. */
+  it("reports a symbol once however many rules watch it", () => {
+    const twice = [...wanted, { symbol: "ETHUSDT", name: "ETH" }];
+    expect(unpricedSymbols(twice, { BTCUSDT: 1 })).toHaveLength(1);
+  });
+
+  /** Falls back to the asset, so a coin is named ETH rather than ETHUSDT. */
+  it("names the asset when the caller gives no name", () => {
+    expect(unpricedSymbols([{ symbol: "ETHUSDT" }, { symbol: "BTCUSDT" }], { BTCUSDT: 1 }))
+      .toEqual([{ symbol: "ETHUSDT", name: "ETH" }]);
   });
 });

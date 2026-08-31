@@ -108,6 +108,17 @@ function moveNotice(a) {
 }
 
 /**
+ * The alert that says the other alerts are blind. Duplicated from
+ * `alert-copy.ts`; `runner-wiring.test.ts` fails when the two drift.
+ */
+function stalePriceNotice(a) {
+  return {
+    title: `No price for ${a.name}`,
+    body: "Your alerts on it were not checked. It may have been renamed, delisted, or moved to a provider that needs a key.",
+  };
+}
+
+/**
  * What a position has done for its owner. Duplicated from `alert-copy.ts`;
  * `runner-wiring.test.ts` fails when the two drift.
  */
@@ -380,6 +391,26 @@ addEventListener("alertCheck", async (resolve, reject) => {
       notify(id++, n.title, n.body);
       sent[key] = day;
       notified++;
+    }
+
+    /*
+     * The rules that could not be checked at all — but only when something
+     * else priced. Nothing priced means the network or a provider was down,
+     * and reporting every symbol as broken then is noise that trains people
+     * to ignore the one time it is true.
+     */
+    if (rules.some((r) => prices[r.symbol])) {
+      const reported = {};
+      for (const rule of rules) {
+        if (prices[rule.symbol] || reported[rule.symbol]) continue;
+        reported[rule.symbol] = true;
+        const key = `x:${rule.symbol}`;
+        if (alreadySentToday(sent, key, day)) continue;
+        const n = stalePriceNotice({ name: rule.name || rule.symbol });
+        notify(id++, n.title, n.body);
+        sent[key] = day;
+        notified++;
+      }
     }
 
     // Forget yesterday's marks so the store cannot grow without bound.
