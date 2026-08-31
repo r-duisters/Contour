@@ -361,15 +361,9 @@ async function evalPctMove(
     baselines(deps().net, pricing, wanted),
   ]);
 
-  /*
-   * Say when a rule could not be checked at all.
-   *
-   * A symbol absent from `prices` fires nothing, and firing nothing looks
-   * exactly like a market that did not move — the person is not waiting for
-   * news, they believe they have it. `unpricedSymbols` reports only when
-   * something *else* priced, so an outage stays quiet and a renamed or
-   * delisted market does not.
-   */
+  // A symbol that will not price is skipped, silently and deliberately — see
+  // the note in `alert-rules.ts` about the no-price alert that was built and
+  // removed.
   let fired = 0, skipped = 0;
   for (const { symbol } of wanted) {
     const quote = prices[symbol];
