@@ -15,12 +15,14 @@ export type AlertDraft = {
    * stays the default; "return" is the same form asking about the holder
    * instead of the market, and is only offered on something actually held.
    */
-  mode?: "price" | "return";
+  mode?: "price" | "return" | "move";
   direction: "above" | "below";
   price: string;
   /** "return" only: which way the position has to have gone, and how far. */
   pnlDirection?: "up" | "down";
   pnlPct?: string;
+  /** "move" only: how far in a day, either way. */
+  movePct?: string;
   /**
    * Keep watching after it fires, rather than disarming.
    *
@@ -39,6 +41,10 @@ export type AlertFieldsResult =
   | {
       ok: true; kind: "position_pnl"; symbol: string; assetType: "crypto" | "equity";
       portfolioId: string; direction: "up" | "down"; pct: number; repeat: boolean;
+    }
+  | {
+      ok: true; kind: "pct_move"; symbol: string; assetType: "crypto" | "equity";
+      portfolioId: string; threshold: number; repeat: boolean;
     }
   | { ok: false; error: string };
 
@@ -78,6 +84,28 @@ export function alertFields(
     // how `AMD` becomes `AMDUSDT`. Waiting is the correct answer.
     return { ok: false, error: "Still working out what this asset is." };
   }
+  if (draft.mode === "move") {
+    /*
+     * A move needs no position — an asset moves whether or not anybody owns
+     * it — so unlike a return this is offered on anything the page can draw.
+     * The portfolio id still travels because `NewAlertInput` carries it for
+     * the whole family, and the client drops it when a symbol is named.
+     */
+    const pct = Number((draft.movePct ?? "").replace(",", "."));
+    if (!Number.isFinite(pct) || pct <= 0) {
+      return { ok: false, error: "Enter a percentage above zero." };
+    }
+    return {
+      ok: true,
+      kind: "pct_move",
+      symbol: alertSymbol(symbol, assetType),
+      assetType,
+      portfolioId: portfolioId ?? "",
+      threshold: pct,
+      repeat: draft.repeat,
+    };
+  }
+
   if (draft.mode === "return") {
     /*
      * A return is a fact about a position, so it needs the portfolio the

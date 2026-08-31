@@ -49,6 +49,7 @@ export default function AlertForm({
     direction: "above",
     pnlDirection: "up",
     pnlPct: "",
+    movePct: "",
     // One-shot by default, which is what a price target has always done.
     repeat: false,
     // Rounded, because a target of 399.8797560766 is a price nobody typed and
@@ -84,9 +85,14 @@ export default function AlertForm({
     );
   }
 
-  // Only where there is a position to have a return on.
+  /*
+   * A move needs no position — an asset moves whether or not anybody owns it —
+   * so that question is always available. A return does not exist without a
+   * cost, so it is offered only where there is one.
+   */
   const canAskReturn = Boolean(portfolioId) && typeof avgCost === "number" && avgCost > 0;
-  const mode = canAskReturn ? draft.mode ?? "price" : "price";
+  const requested = draft.mode ?? "price";
+  const mode = requested === "return" && !canAskReturn ? "price" : requested;
 
   return (
     <div className="space-y-3">
@@ -96,26 +102,42 @@ export default function AlertForm({
         "what has it done for me" is about the ledger. Drawing the second on an
         asset nobody owns would be a control that can only fail.
       */}
-      {canAskReturn && (
-        <div className="flex items-center gap-2">
-          <select
-            aria-label="What to watch"
-            className={field()}
-            value={mode}
-            onChange={(e) => setDraft({ ...draft, mode: e.target.value as "price" | "return" })}
-          >
-            <option value="price">Its price</option>
-            <option value="return">My return</option>
-          </select>
-          {mode === "return" && (
-            <span className="text-xs text-neutral-500">
-              measured against what you paid
-            </span>
-          )}
-        </div>
-      )}
+      <div className="flex items-center gap-2">
+        <select
+          aria-label="What to watch"
+          className={field()}
+          value={mode}
+          onChange={(e) => setDraft({ ...draft, mode: e.target.value as "price" | "return" | "move" })}
+        >
+          <option value="price">Its price</option>
+          <option value="move">Its daily move</option>
+          {canAskReturn && <option value="return">My return</option>}
+        </select>
+        {mode === "return" && (
+          <span className="text-xs text-neutral-500">measured against what you paid</span>
+        )}
+        {mode === "move" && (
+          <span className="text-xs text-neutral-500">either direction</span>
+        )}
+      </div>
 
-      {mode === "return" ? (
+      {mode === "move" ? (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm text-neutral-400">Moves more than</span>
+          <input
+            aria-label="Daily move percentage"
+            className={field("w-24")}
+            value={draft.movePct ?? ""}
+            onChange={(e) => setDraft({ ...draft, movePct: e.target.value })}
+            inputMode="decimal"
+            placeholder="%"
+          />
+          <span className="text-xs text-neutral-500">% in a day</span>
+          <Button onClick={submit} disabled={saving}>
+            {saving ? "Saving…" : "Alert me"}
+          </Button>
+        </div>
+      ) : mode === "return" ? (
         <div className="flex items-center gap-2 flex-wrap">
           <select
             aria-label="Return direction"

@@ -64,7 +64,22 @@ export type NewAlertInput =
    * `expandRules` turns it into one check per holding at evaluation time, so
    * something bought tomorrow is covered without touching the rule.
    */
-  | { kind: "pct_move"; portfolioId: string; threshold: number; repeat?: boolean }
+  /**
+   * A move over a day — of one holding, or of every holding.
+   *
+   * `symbol` present means this asset alone, which an asset page creates.
+   * Absent means the portfolio, which `expandRules` resolves against whatever
+   * is held at the moment of the check. Exactly one of the two, and the route
+   * refuses both or neither.
+   */
+  | {
+      kind: "pct_move";
+      symbol?: string;
+      assetType?: "crypto" | "equity";
+      portfolioId: string;
+      threshold: number;
+      repeat?: boolean;
+    }
   /**
    * The portfolio's own total moving more than `threshold` percent in a day.
    *

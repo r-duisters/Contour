@@ -253,10 +253,18 @@ export function HttpClient(net: Net, baseUrl = ""): DataClient {
         : alert.kind === "pct_move"
         ? {
             kind: "pct_move",
-            // No symbol, deliberately: the route reads the portfolio and the
-            // evaluator expands it. Naming one here would pin the rule to
-            // whatever was held on the day it was made.
-            portfolioId: alert.portfolioId,
+            /*
+             * A symbol when the caller named one, and the portfolio otherwise
+             * — never both, which the route also refuses.
+             *
+             * Without a symbol the rule means "every holding", and the
+             * evaluator resolves that at check time rather than here: naming
+             * the holdings now would pin the rule to whatever was held on the
+             * day it was made.
+             */
+            ...(alert.symbol
+              ? { symbol: alert.symbol, assetType: alert.assetType ?? "crypto" }
+              : { portfolioId: alert.portfolioId }),
             repeat: alert.repeat ?? true,
             params: { threshold: alert.threshold },
           }

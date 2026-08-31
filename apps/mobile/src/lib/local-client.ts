@@ -268,11 +268,12 @@ export function LocalClient(store: Store, net: Net): DataClient {
           : alert.kind === "pct_move"
           ? {
               kind: "pct_move",
-              // A portfolio, not a symbol. `expandRules` resolves it against
-              // whatever is held at the moment of the check, so a coin bought
-              // next week is covered by a rule written today.
-              portfolioId: alert.portfolioId,
-              assetType: "crypto",
+              // A symbol names one holding; its absence means every holding,
+              // which `expandRules` resolves at the moment of the check — so a
+              // coin bought next week is covered by a rule written today.
+              symbol: alert.symbol ?? null,
+              portfolioId: alert.symbol ? null : alert.portfolioId,
+              assetType: alert.assetType ?? "crypto",
               threshold: alert.threshold,
               direction: null,
               // A move rule has always been standing; that is what it means.
