@@ -126,15 +126,47 @@ type AlertRow = {
 };
 
 /** SQLite has no boolean and no union type; the port has both. */
+/**
+ * SQLite has no enums, so the text comes back as text and has to be narrowed.
+ *
+ * Both lists below are exhaustive on purpose and were not. `kind` was
+ * `row.kind === "pct_move" ? "pct_move" : "price_target"`, which is correct
+ * while there are two kinds and silently wrong the moment there is a third:
+ * `portfolio_move` and `position_pnl` were written correctly, read back as
+ * price targets, and evaluated as price targets. A portfolio rule with a 3%
+ * threshold became "rises above 3" against every holding — an alert on
+ * everything, from a rule the owner set to watch a total. The control that
+ * made it could not find it either, so switching it on again made a second.
+ *
+ * `direction` had the same shape and the same hole: `up` and `down` narrowed
+ * to null, which is how a return rule lost the half of its meaning that says
+ * which way.
+ *
+ * Written as membership in a list rather than a chain of comparisons, so
+ * adding a kind is one entry in one place and forgetting it is a type error
+ * rather than a wrong answer.
+ */
+const ALERT_KINDS = ["price_target", "pct_move", "portfolio_move", "position_pnl"] as const;
+const ALERT_DIRECTIONS = ["above", "below", "up", "down"] as const;
+
+const oneOf = <T extends readonly string[]>(list: T, value: unknown): T[number] | null =>
+  typeof value === "string" && (list as readonly string[]).includes(value)
+    ? (value as T[number])
+    : null;
+
 function toAlert(row: AlertRow): Alert {
   return {
     id: row.id,
-    kind: row.kind === "pct_move" ? "pct_move" : "price_target",
+    // A row whose kind is not one this build knows is a row from a newer
+    // schema. Reading it as a price target would evaluate it as one; reading
+    // it as its nearest neighbour is the same mistake. `pct_move` is the
+    // safest default only because it needs no direction and no price.
+    kind: oneOf(ALERT_KINDS, row.kind) ?? "pct_move",
     symbol: row.symbol ?? null,
     portfolioId: row.portfolioId ?? null,
     assetType: row.assetType === "equity" ? "equity" : "crypto",
     threshold: row.threshold,
-    direction: row.direction === "above" || row.direction === "below" ? row.direction : null,
+    direction: oneOf(ALERT_DIRECTIONS, row.direction),
     repeat: row.repeat !== 0,
     enabled: row.enabled !== 0,
     createdAt: row.createdAt,

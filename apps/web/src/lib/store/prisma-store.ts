@@ -123,11 +123,32 @@ function toAlert(row: {
   assetType: string;
   params: string; repeat: boolean; enabled: boolean; createdAt: Date;
 }): Alert {
-  const params = JSON.parse(row.params) as { direction?: string; price?: number; threshold?: number };
+  const params = JSON.parse(row.params) as {
+    direction?: string; price?: number; threshold?: number; pct?: number;
+  };
   const target = row.kind === "price_target";
+  /*
+   * Exhaustive, and it was not.
+   *
+   * `kind` narrowed to `target ? "price_target" : "pct_move"` and `direction`
+   * to `above`/`below`, which is right for two kinds and silently wrong for
+   * the third: `portfolio_move` and `position_pnl` came back as something they
+   * are not, and were then evaluated as that. The same hole existed in
+   * `SqliteStore`, written independently, which is what a shared contract case
+   * is for.
+   *
+   * The threshold lives under a different key per kind because each stores the
+   * number it means — a price, a percentage move, a percentage return — and
+   * flattening them to one name in the row would lose which.
+   */
+  const KINDS = ["price_target", "pct_move", "portfolio_move", "position_pnl"] as const;
+  const DIRECTIONS = ["above", "below", "up", "down"] as const;
+  const kind = (KINDS as readonly string[]).includes(row.kind)
+    ? (row.kind as (typeof KINDS)[number])
+    : "pct_move";
   return {
     id: row.id,
-    kind: target ? "price_target" : "pct_move",
+    kind,
     // Null, not "". A portfolio-scoped rule names no symbol, and the empty
     // string reads as one that failed to load — `expandRules` branches on
     // exactly this, so flattening it turned "every holding" into "a holding
@@ -135,8 +156,10 @@ function toAlert(row: {
     symbol: row.symbol ?? null,
     portfolioId: row.portfolioId ?? null,
     assetType: row.assetType === "equity" ? "equity" : "crypto",
-    threshold: (target ? params.price : params.threshold) ?? 0,
-    direction: target ? (params.direction === "below" ? "below" : "above") : null,
+    threshold: (target ? params.price : kind === "position_pnl" ? params.pct : params.threshold) ?? 0,
+    direction: (DIRECTIONS as readonly string[]).includes(params.direction ?? "")
+      ? (params.direction as (typeof DIRECTIONS)[number])
+      : null,
     repeat: row.repeat,
     enabled: row.enabled,
     createdAt: row.createdAt.getTime(),
@@ -232,7 +255,13 @@ export function PrismaStore(client: PrismaClient = defaultClient): Store {
           // portfolio-scoped rule before anything could evaluate it — the
           // second of three places this shape was being discarded on the way
           // to a device.
-          where: { kind: { in: ["price_target", "pct_move"] } },
+          //
+          // And the kind list is every kind the port carries, which it was
+          // not: `portfolio_move` and `position_pnl` were written, stored, and
+          // then filtered out of every read — the same discarding, one kind
+          // later. `indicator` stays out because it is the one kind a device
+          // genuinely cannot evaluate.
+          where: { kind: { in: ["price_target", "pct_move", "portfolio_move", "position_pnl"] } },
           orderBy: { createdAt: "desc" },
         });
         return rows.map(toAlert);
@@ -247,9 +276,19 @@ export function PrismaStore(client: PrismaClient = defaultClient): Store {
             repeat: alert.repeat ?? false,
             timeframe: "1d",
             enabled: alert.enabled ?? true,
+            /*
+             * One shape per kind, because each stores a different number and
+             * the route's own schemas name them differently — a price, a
+             * threshold, a percentage return. Writing `{ threshold }` for a
+             * return rule loses its direction, which is half of what "up 50%"
+             * means, and `toAlert` then reads back a rule that says only
+             * "50%".
+             */
             params: JSON.stringify(
               alert.kind === "price_target"
                 ? { direction: alert.direction ?? "above", price: alert.threshold }
+                : alert.kind === "position_pnl"
+                ? { direction: alert.direction ?? "up", pct: alert.threshold }
                 : { threshold: alert.threshold },
             ),
           },

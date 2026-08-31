@@ -393,6 +393,47 @@ export function runStoreContract(name: string, makeStore: () => Promise<Store>):
         expect(made.enabled).toBe(true);
       });
 
+      /**
+       * Every kind, and every direction, exactly as written.
+       *
+       * SQLite has no enums, so `SqliteStore` narrows the text on the way out
+       * — and did it with `row.kind === "pct_move" ? "pct_move" : "price_target"`,
+       * which is right for two kinds and silently wrong for the third. A
+       * `portfolio_move` written correctly came back a price target and was
+       * evaluated as one: a 3% threshold became "rises above 3" against every
+       * holding, and the control that created it could no longer find it, so
+       * turning it on again made a second.
+       *
+       * Nothing caught it because this suite only ever stored one kind. It is
+       * a contract case rather than a SQLite test because the other two stores
+       * pass it for free and the next store will not.
+       */
+      it.each([
+        ["price_target", "above"],
+        ["price_target", "below"],
+        ["pct_move", null],
+        ["portfolio_move", null],
+        ["position_pnl", "up"],
+        ["position_pnl", "down"],
+      ] as const)("round-trips a %s alert with direction %s", async (kind, direction) => {
+        const store = await makeStore();
+        // A real portfolio, not a made-up id: Prisma enforces the foreign key
+        // and the other two implementations do not, so an invented id passes
+        // two of the three and fails the one that matters.
+        const portfolio = kind === "portfolio_move" ? await store.portfolios.create("For alerts") : null;
+        const made = await store.alerts.create({
+          ...target, kind, direction, symbol: portfolio ? null : "BTCUSDT",
+          portfolioId: portfolio?.id ?? null,
+        });
+        expect(made.kind, `${kind} did not survive the round trip`).toBe(kind);
+        expect(made.direction, `direction ${direction} did not survive`).toBe(direction);
+        // And again through a read rather than the create's own return value,
+        // since those are different code paths in at least one implementation.
+        const listed = (await store.alerts.list()).find((a) => a.id === made.id);
+        expect(listed?.kind).toBe(kind);
+        expect(listed?.direction).toBe(direction);
+      });
+
       it("lists newest first", async () => {
         // Relative, not absolute: one implementation's `makeStore` hands back a
         // shared store, so rows from earlier cases are still there. What is
