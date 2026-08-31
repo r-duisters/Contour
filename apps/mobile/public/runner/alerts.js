@@ -108,6 +108,17 @@ function moveNotice(a) {
 }
 
 /**
+ * What a position has done for its owner. Duplicated from `alert-copy.ts`;
+ * `runner-wiring.test.ts` fails when the two drift.
+ */
+function positionPnlNotice(a) {
+  return {
+    title: `${a.name} ${a.direction} ${Math.abs(a.pct).toFixed(1)}% on what you paid`,
+    body: `${amount(a.avgCost, a.currency)} average cost → ${amount(a.price, a.currency)}`,
+  };
+}
+
+/**
  * The whole portfolio moved, which is a different sentence from an asset
  * moving. Duplicated from `alert-copy.ts` by hand, like the rest of the
  * wording here; `runner-wiring.test.ts` fails when the two drift.
@@ -292,6 +303,22 @@ addEventListener("alertCheck", async (resolve, reject) => {
           const n = priceTargetNotice({
             name, direction: rule.direction, target: rule.price,
             price, currency, oneShot: !rule.repeat,
+          });
+          notify(id++, n.title, n.body);
+          sent[key] = day;
+          notified++;
+        }
+      } else if (rule.kind === "position_pnl") {
+        // Average cost comes down with the rule; the runner cannot compute one
+        // — it has no ledger, only the prices it just fetched.
+        if (!rule.avgCost || rule.avgCost <= 0) continue;
+        const pct = ((price - rule.avgCost) / rule.avgCost) * 100;
+        const dir = rule.pnlDirection || "up";
+        const reached = dir === "up" ? pct >= rule.pnlPct : pct <= -rule.pnlPct;
+        const key = `n:${rule.id}:${dir}`;
+        if (reached && !alreadySentToday(sent, key, day)) {
+          const n = positionPnlNotice({
+            name, direction: dir, pct, avgCost: rule.avgCost, price, currency,
           });
           notify(id++, n.title, n.body);
           sent[key] = day;

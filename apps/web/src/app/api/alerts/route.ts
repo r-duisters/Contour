@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { PctMoveParams, PortfolioMoveParams, PriceTargetParams } from "@/lib/alerts";
+import {
+  PctMoveParams, PortfolioMoveParams, PositionPnlParams, PriceTargetParams,
+} from "@/lib/alerts";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +45,21 @@ const Create = z.discriminatedUnion("kind", [
    * differently at evaluation — one expanded per holding, one totalled. The
    * portfolio is the subject or there is no rule.
    */
+  /*
+   * The symbol is optional and means "this holding" rather than "every
+   * holding" — the same shape `pct_move` has, and for the same reason. What is
+   * *not* optional is the portfolio: a return needs a cost, the cost comes
+   * from the ledger, and the ledger is a portfolio.
+   */
+  z.object({
+    kind: z.literal("position_pnl"),
+    symbol: z.string().min(1).optional(),
+    assetType: z.enum(["crypto", "equity"]).default("crypto"),
+    portfolioId: z.string().min(1),
+    params: PositionPnlParams,
+    repeat: z.boolean().optional(),
+    enabled: z.boolean().optional(),
+  }),
   z.object({
     kind: z.literal("portfolio_move"),
     portfolioId: z.string().min(1),

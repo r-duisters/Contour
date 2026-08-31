@@ -102,6 +102,32 @@ export function moveNotice(a: {
 }
 
 /**
+ * What a position has done for its owner, which no price alert can say.
+ *
+ * "ETH up 50% on what you paid" rather than "ETH reached $4,200": the same
+ * event, told in the terms the rule was written in. A reader who set a return
+ * threshold is not watching a price, and echoing one back would make them do
+ * the arithmetic the alert exists to do.
+ *
+ * The average cost is included because it is the number that makes the
+ * percentage checkable, and because somebody who has bought three times will
+ * not remember it.
+ */
+export function positionPnlNotice(a: {
+  name: string;
+  direction: "up" | "down";
+  pct: number;
+  avgCost: number;
+  price: number;
+  currency: string;
+}): Notice {
+  return {
+    title: `${a.name} ${a.direction} ${Math.abs(a.pct).toFixed(1)}% on what you paid`,
+    body: `${amount(a.avgCost, a.currency)} average cost → ${amount(a.price, a.currency)}`,
+  };
+}
+
+/**
  * The whole portfolio moved, which is a different sentence from an asset
  * moving.
  *

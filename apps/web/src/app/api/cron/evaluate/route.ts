@@ -5,9 +5,11 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { assetOf, pricingPair } from "@/core/symbols";
 import {
-  indicatorNotice, moveNotice, portfolioMoveNotice, priceTargetNotice, type Notice,
+  indicatorNotice, moveNotice, portfolioMoveNotice, positionPnlNotice, priceTargetNotice,
+  type Notice,
 } from "@/lib/alert-copy";
-import { evaluatePortfolioMove, expandPortfolioRules } from "@/lib/alert-rules";
+import { evaluatePositionPnl } from "@/lib/alerts";
+import { evaluatePortfolioMove, expandPortfolioRules, expandRules } from "@/lib/alert-rules";
 import { fetchKlines } from "@/data/sources/binance";
 import { assetTypeOf, baselines, priceSymbols, type PricedSymbol, type Settings } from "@/data/services/alert-pricing";
 import { deps } from "@/lib/deps";
@@ -47,6 +49,7 @@ export async function GET(req: NextRequest) {
       if (a.kind === "price_target") summary.push(await evalPriceTarget(a, notifiers, pricing));
       else if (a.kind === "pct_move") summary.push(await evalPctMove(a, notifiers, pricing));
       else if (a.kind === "portfolio_move") summary.push(await evalPortfolioMove(a, notifiers, pricing));
+      else if (a.kind === "position_pnl") summary.push(await evalPositionPnl(a, notifiers, pricing));
       else summary.push(await evalIndicator(a, notifiers));
     } catch (e) {
       summary.push({ alertId: a.id, fired: 0, skipped: 0, error: (e as Error).message });
@@ -220,6 +223,58 @@ async function evalPriceTarget(
  * coins as Binance pairs, shares as bare tickers — instead of two evaluators
  * each deciding for themselves.
  */
+/**
+ * What a position has done since it was bought, against a threshold.
+ *
+ * Built through `expandRules` rather than by hand, so the server and the
+ * device agree on the one rule that needs the ledger: which holdings exist,
+ * what each cost, and that a rule about something unheld produces no check.
+ * `heldSymbols` carries the average cost for exactly this.
+ */
+async function evalPositionPnl(
+  a: Alert, notifiers: Notifier[], pricing: Settings,
+): Promise<Summary> {
+  const held = await heldSymbols(a.portfolioId);
+  const rules = expandRules(
+    [{
+      id: a.id, kind: "position_pnl", symbol: a.symbol, portfolioId: a.portfolioId,
+      assetType: assetTypeOf(a),
+      params: JSON.parse(a.params) as Record<string, unknown>, repeat: a.repeat,
+    }],
+    held.map((h: PricedSymbol) => ({
+      symbol: h.symbol, assetType: h.assetType, quantity: h.quantity, avgCost: h.avgCost,
+    })),
+  );
+  await prisma.alert.update({ where: { id: a.id }, data: { lastEvaluated: new Date() } });
+  if (rules.length === 0) return { alertId: a.id, fired: 0, skipped: 0 };
+
+  const wanted = rules.map((r) => ({ symbol: r.symbol, assetType: r.assetType }));
+  const prices = await priceSymbols(deps().net, pricing, wanted);
+
+  const day = Math.floor(Date.now() / 86_400_000) * 86_400_000;
+  let fired = 0, skipped = 0;
+  for (const rule of rules) {
+    const quote = prices[rule.symbol];
+    if (!quote || rule.pnlPct === undefined) { skipped++; continue; }
+    const hit = evaluatePositionPnl(
+      { direction: rule.pnlDirection ?? "up", pct: rule.pnlPct }, rule.avgCost ?? 0, quote.price,
+    );
+    if (!hit) { skipped++; continue; }
+    const sent = await dispatch(a, notifiers, {
+      barTime: day,
+      signal: `pnl_${rule.pnlDirection ?? "up"}:${rule.symbol}`,
+      symbol: rule.symbol,
+      price: quote.price,
+      text: positionPnlNotice({
+        name: rule.name, direction: rule.pnlDirection ?? "up", pct: hit.pct,
+        avgCost: rule.avgCost ?? 0, price: quote.price, currency: quote.currency,
+      }),
+    });
+    if (sent) fired++; else skipped++;
+  }
+  return { alertId: a.id, fired, skipped };
+}
+
 async function evalPortfolioMove(
   a: Alert, notifiers: Notifier[], pricing: Settings,
 ): Promise<Summary> {
@@ -376,6 +431,8 @@ async function heldSymbols(portfolioId: string | null): Promise<PricedSymbol[]> 
       // price. The per-symbol kinds ignore it: a threshold on a price is the
       // same question however much of it is held.
       quantity: h.quantity,
+      // Read only by `position_pnl`, the one kind that asks about the holder.
+      avgCost: h.avgCost,
     }));
 }
 

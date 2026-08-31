@@ -230,7 +230,18 @@ export function HttpClient(net: Net, baseUrl = ""): DataClient {
       // The route's own shape, which this is the last file to know about:
       // `kind` and a nested `params`, where the interface takes one flat
       // object because a screen has no reason to learn an envelope.
-      const body = alert.kind === "portfolio_move"
+      const body = alert.kind === "position_pnl"
+        ? {
+            kind: "position_pnl",
+            // The symbol is optional here and meaningful when present: one
+            // holding rather than every one. Either way the evaluator resolves
+            // the cost from the ledger, never from this call.
+            ...(alert.symbol ? { symbol: alert.symbol, assetType: alert.assetType ?? "crypto" } : {}),
+            portfolioId: alert.portfolioId,
+            repeat: alert.repeat ?? true,
+            params: { direction: alert.direction, pct: alert.pct },
+          }
+        : alert.kind === "portfolio_move"
         ? {
             kind: "portfolio_move",
             // The portfolio is the subject, so there is no symbol branch at

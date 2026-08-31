@@ -3,12 +3,14 @@
 import { useEffect } from "react";
 import { useDataClient } from "@/data/client/context";
 import { baselines, priceSymbols } from "@/data/services/alert-pricing";
-import { evaluatePctMove, evaluatePriceTarget } from "@/lib/alerts";
+import { evaluatePctMove, evaluatePositionPnl, evaluatePriceTarget } from "@/lib/alerts";
 import {
   evaluatePortfolioMove, expandPortfolioRules, expandRules, forgetOldMarks, shouldNotify,
   type AlertRule, type HeldAsset,
 } from "@/lib/alert-rules";
-import { moveNotice, portfolioMoveNotice, priceTargetNotice, type Notice } from "@/lib/alert-copy";
+import {
+  moveNotice, portfolioMoveNotice, positionPnlNotice, priceTargetNotice, type Notice,
+} from "@/lib/alert-copy";
 import type { AlertSummary, DataClient } from "@/data/client/data-client";
 import { KEYS } from "@/lib/storage-keys";
 import { CapacitorNet } from "../lib/net/capacitor-net";
@@ -146,6 +148,19 @@ export default function DeviceAlerts() {
           // rule is not one target, and one holding reaching a level is no
           // reason to stop watching the others.
           if (oneShot && !rule.id.includes(":")) await client.deleteAlert?.(rule.id).catch(() => {});
+        } else if (rule.kind === "position_pnl" && rule.pnlPct !== undefined) {
+          const hit = evaluatePositionPnl(
+            { direction: rule.pnlDirection ?? "up", pct: rule.pnlPct },
+            rule.avgCost ?? 0, quote.price,
+          );
+          if (!hit) continue;
+          const key = `n:${rule.id}:${rule.pnlDirection ?? "up"}`;
+          if (!shouldNotify(sent, key, day)) continue;
+          await notify(id++, positionPnlNotice({
+            name: rule.name, direction: rule.pnlDirection ?? "up", pct: hit.pct,
+            avgCost: rule.avgCost ?? 0, price: quote.price, currency: quote.currency,
+          }), rule.name);
+          sent[key] = day;
         } else if (rule.kind === "pct_move" && rule.threshold !== undefined) {
           const was = base[rule.symbol];
           if (was === undefined) continue;
@@ -289,7 +304,9 @@ async function heldAssets(
       const valuation = await client.getValuation(id);
       for (const h of valuation.holdings) {
         if (h.quantity > 0 && h.assetType !== "cash") {
-          bySymbol.set(h.symbol, { symbol: h.symbol, assetType: h.assetType, quantity: h.quantity });
+          bySymbol.set(h.symbol, {
+            symbol: h.symbol, assetType: h.assetType, quantity: h.quantity, avgCost: h.avgCost,
+          });
         }
       }
     } catch {

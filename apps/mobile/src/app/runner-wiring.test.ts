@@ -101,6 +101,9 @@ describe("the background runner's wiring", () => {
       "From your daily move rule on",
       // The portfolio kind, whose notice names a book rather than a ticker.
       "% in 24 hours",
+      // The position kind, which speaks in the holder's terms rather than the market's.
+      "% on what you paid",
+      "average cost",
     ]) {
       expect(shared, `shared copy should contain ${phrase}`).toContain(phrase);
       expect(runner, `runner copy should contain ${phrase}`).toContain(phrase);

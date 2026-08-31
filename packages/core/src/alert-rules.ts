@@ -1,4 +1,7 @@
-import { PctMoveParams, PortfolioMoveParams, PriceTargetParams, type AlertKind, type PctMoveHit } from "./alerts";
+import {
+  PctMoveParams, PortfolioMoveParams, PositionPnlParams, PriceTargetParams,
+  type AlertKind, type PctMoveHit,
+} from "./alerts";
 import { isDisplayCurrency } from "./currencies";
 import { assetOf, pricingPair } from "./symbols";
 
@@ -39,12 +42,22 @@ export type AlertRule = {
  * `portfolio_move` reads it, and it refuses to produce a check when it is
  * missing rather than totalling a portfolio with a hole in it.
  */
-export type HeldAsset = { symbol: string; assetType: AssetKind; quantity?: number };
+export type HeldAsset = {
+  symbol: string;
+  assetType: AssetKind;
+  quantity?: number;
+  /**
+   * What the position cost per unit, fees folded in. Read only by
+   * `position_pnl`, which is the one kind that asks about the holder rather
+   * than the market.
+   */
+  avgCost?: number;
+};
 
 export type ExpandedRule = {
   /** Unique per check: a portfolio-scoped rule yields one id per symbol. */
   id: string;
-  kind: "price_target" | "pct_move";
+  kind: "price_target" | "pct_move" | "position_pnl";
   /**
    * What to ask for. A Binance market for a coin — `pricingPair` has already
    * been applied — and the plain ticker for a share, which is what the equity
@@ -62,6 +75,11 @@ export type ExpandedRule = {
   direction?: "above" | "below";
   price?: number;
   threshold?: number;
+  /** `position_pnl` only: the threshold and which way it is measured. */
+  pnlDirection?: "up" | "down";
+  pnlPct?: number;
+  /** `position_pnl` only: what this holding cost, per unit. */
+  avgCost?: number;
 };
 
 /**
@@ -123,6 +141,22 @@ export function expandRules(alerts: AlertRule[], held: HeldAsset[]): ExpandedRul
         const params = PriceTargetParams.safeParse(a.params);
         if (!params.success) continue;
         out.push({ ...base, direction: params.data.direction, price: params.data.price });
+      } else if (a.kind === "position_pnl") {
+        const params = PositionPnlParams.safeParse(a.params);
+        if (!params.success) continue;
+        /*
+         * A return needs a cost, and a cost needs a position.
+         *
+         * For a rule naming its own symbol the holding is looked up rather
+         * than assumed: you cannot be up 50% on something you do not own, so a
+         * rule about an unheld asset produces no check at all. That is the
+         * honest answer and it costs nothing — an alert that cannot be
+         * computed should not be priced either.
+         */
+        const holding = held.find((h) => assetOf(h.symbol) === asset);
+        const avgCost = holding?.avgCost ?? target.avgCost;
+        if (typeof avgCost !== "number" || !(avgCost > 0)) continue;
+        out.push({ ...base, pnlDirection: params.data.direction, pnlPct: params.data.pct, avgCost });
       } else {
         const params = PctMoveParams.safeParse(a.params);
         if (!params.success) continue;

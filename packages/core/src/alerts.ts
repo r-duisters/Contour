@@ -9,7 +9,9 @@ import { z } from "zod";
  * everything falls 3% together crosses no single asset's threshold while the
  * figure on the front page has its worst day of the month.
  */
-export const AlertKind = z.enum(["indicator", "price_target", "pct_move", "portfolio_move"]);
+export const AlertKind = z.enum([
+  "indicator", "price_target", "pct_move", "portfolio_move", "position_pnl",
+]);
 export type AlertKind = z.infer<typeof AlertKind>;
 
 export const PriceTargetParams = z.object({
@@ -25,6 +27,48 @@ export const PctMoveParams = z.object({
 export type PctMoveParams = z.infer<typeof PctMoveParams>;
 
 export type PctMoveHit = { direction: "up" | "down"; pct: number };
+
+/**
+ * A threshold on what a position has done since it was bought.
+ *
+ * The only kind that reads the ledger rather than the market. A price target
+ * asks "is it worth £X"; this asks "am I up 50%", which is a question about
+ * the holder and cannot be answered by a price alone — two people watching the
+ * same ticker want different numbers, and only one of them is in this app.
+ *
+ * `up` fires when the unrealised return reaches +pct, `down` when it reaches
+ * −pct. Two directions rather than a signed threshold, because "tell me when I
+ * am down 20%" is a sentence and "tell me when my return is −20" is not.
+ */
+export const PositionPnlParams = z.object({
+  direction: z.enum(["up", "down"]),
+  /** Magnitude, always positive; `direction` carries the sign. */
+  pct: z.number().positive(),
+});
+export type PositionPnlParams = z.infer<typeof PositionPnlParams>;
+
+/**
+ * The unrealised return on a position, against the threshold.
+ *
+ * Average cost, not the first price paid: somebody who bought three times has
+ * one position, and the ledger already averages it — `computeHoldings` folds
+ * fees in, so a rule fires on what the position actually cost rather than on
+ * the sticker price of one buy.
+ *
+ * Null when the position has no cost to measure against. A grant recorded at
+ * zero, or a fully-sold position still carrying a row, would otherwise divide
+ * by zero and report an infinite gain — which is exactly the shape of the
+ * share-grant bug this ledger has already had once.
+ */
+export function evaluatePositionPnl(
+  params: PositionPnlParams, avgCost: number, price: number,
+): { pct: number } | null {
+  if (!Number.isFinite(avgCost) || avgCost <= 0) return null;
+  if (!Number.isFinite(price)) return null;
+  const pct = ((price - avgCost) / avgCost) * 100;
+  if (params.direction === "up" ? pct >= params.pct : pct <= -params.pct) return { pct };
+  return null;
+}
 
 /**
  * Same shape as `PctMoveParams`, and deliberately its own type.

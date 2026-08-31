@@ -74,7 +74,24 @@ export type NewAlertInput =
    * the portfolio screen shows. `expandPortfolioRules` builds it, and leaves
    * cash out — a balance does not move against itself.
    */
-  | { kind: "portfolio_move"; portfolioId: string; threshold: number; repeat?: boolean };
+  | { kind: "portfolio_move"; portfolioId: string; threshold: number; repeat?: boolean }
+  /**
+   * A position reaching a return, up or down, on what it cost.
+   *
+   * Named-symbol or portfolio-wide, like `pct_move` — but with one property
+   * neither of the others has: a rule about an asset that is not held produces
+   * no check at all, because a return needs a cost and a cost needs a
+   * position. `expandRules` looks the holding up rather than assuming one.
+   */
+  | {
+      kind: "position_pnl";
+      symbol?: string;
+      assetType?: "crypto" | "equity";
+      portfolioId: string;
+      direction: "up" | "down";
+      pct: number;
+      repeat?: boolean;
+    };
 export type { AssetHit } from "../sources/search";
 
 /**

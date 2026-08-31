@@ -3,6 +3,7 @@ import {
   evaluatePortfolioMove, expandPortfolioRules, expandRules,
   type AlertRule, type HeldAsset,
 } from "./alert-rules";
+import { evaluatePositionPnl } from "./alerts";
 
 /**
  * The alert that fires on the number a person actually watches.
@@ -118,5 +119,58 @@ describe("evaluating it", () => {
   it("answers null when the earlier total is not positive", () => {
     expect(evaluatePortfolioMove(check!, { BTCUSDT: 1, "ASML.AS": 1 }, { BTCUSDT: 0, "ASML.AS": 0 }))
       .toBeNull();
+  });
+});
+
+/**
+ * The kind that reads the ledger rather than the market.
+ *
+ * A price target asks what something is worth; this asks what it has done for
+ * the person holding it. Two people watching the same ticker want different
+ * numbers, and only one of them is in this app.
+ */
+describe("a position's return against a threshold", () => {
+  const heldWithCost: HeldAsset[] = [
+    { symbol: "ETH", assetType: "crypto", quantity: 2, avgCost: 2000 },
+  ];
+  const pnl = (params: unknown, over: Partial<AlertRule> = {}): AlertRule => ({
+    id: "n1", kind: "position_pnl", symbol: null, portfolioId: "p1", params: params as never, ...over,
+  });
+
+  it("carries the average cost onto the check, since a return needs one", () => {
+    const [check] = expandRules([pnl({ direction: "up", pct: 50 })], heldWithCost);
+    expect(check).toMatchObject({ kind: "position_pnl", avgCost: 2000, pnlPct: 50, pnlDirection: "up" });
+  });
+
+  /**
+   * You cannot be up 50% on something you do not own. A rule about an unheld
+   * asset produces no check rather than an unanswerable one — and costs no
+   * price request either.
+   */
+  it("produces nothing for an asset that is not held", () => {
+    const named = pnl({ direction: "up", pct: 50 }, { symbol: "BTC", portfolioId: null });
+    expect(expandRules([named], heldWithCost)).toEqual([]);
+  });
+
+  /** A grant recorded at zero would otherwise report an infinite gain. */
+  it("produces nothing when the position has no cost to measure against", () => {
+    const free: HeldAsset[] = [{ symbol: "ETH", assetType: "crypto", quantity: 2, avgCost: 0 }];
+    expect(expandRules([pnl({ direction: "up", pct: 50 })], free)).toEqual([]);
+  });
+
+  it("fires up and down on their own sides, and not on the other's", () => {
+    expect(evaluatePositionPnl({ direction: "up", pct: 50 }, 2000, 3000)).toEqual({ pct: 50 });
+    expect(evaluatePositionPnl({ direction: "up", pct: 50 }, 2000, 2999)).toBeNull();
+    expect(evaluatePositionPnl({ direction: "down", pct: 20 }, 2000, 1600)).toEqual({ pct: -20 });
+    expect(evaluatePositionPnl({ direction: "down", pct: 20 }, 2000, 1601)).toBeNull();
+    // A loss does not satisfy a gain rule, however large.
+    expect(evaluatePositionPnl({ direction: "up", pct: 50 }, 2000, 100)).toBeNull();
+  });
+
+  it("refuses a cost that cannot produce a percentage", () => {
+    for (const bad of [0, -1, NaN, Infinity]) {
+      expect(evaluatePositionPnl({ direction: "up", pct: 10 }, bad, 100)).toBeNull();
+    }
+    expect(evaluatePositionPnl({ direction: "up", pct: 10 }, 100, NaN)).toBeNull();
   });
 });

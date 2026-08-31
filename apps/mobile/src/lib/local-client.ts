@@ -242,7 +242,19 @@ export function LocalClient(store: Store, net: Net): DataClient {
 
     async createAlert(alert: NewAlertInput): Promise<AlertSummary> {
       return attempt(async () => toSummary(await store.alerts.create(
-        alert.kind === "portfolio_move"
+        alert.kind === "position_pnl"
+          ? {
+              kind: "position_pnl",
+              symbol: alert.symbol ?? null,
+              portfolioId: alert.portfolioId,
+              assetType: alert.assetType ?? "crypto",
+              // The store keeps one number per rule; the direction rides in
+              // `direction`, which the per-symbol kinds already use.
+              threshold: alert.pct,
+              direction: alert.direction,
+              repeat: alert.repeat ?? true,
+            }
+          : alert.kind === "portfolio_move"
           ? {
               kind: "portfolio_move",
               // No symbol, and no expansion either: this one is evaluated once

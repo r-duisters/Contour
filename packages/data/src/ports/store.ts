@@ -109,7 +109,7 @@ export type Alert = {
    * port. `portfolio_move` is here because it is cheap — a sum over prices the
    * check already fetched.
    */
-  kind: "price_target" | "pct_move" | "portfolio_move";
+  kind: "price_target" | "pct_move" | "portfolio_move" | "position_pnl";
   /**
    * Null for a portfolio-scoped rule, which names no symbol of its own and
    * expands to one check per holding. See `expandRules`.
@@ -121,7 +121,13 @@ export type Alert = {
   /** `price_target`: the level. `pct_move`: the threshold in percent. */
   threshold: number;
   /** `price_target` only; `null` for a move, which fires either way. */
-  direction: "above" | "below" | null;
+  /**
+   * Which way the threshold is read. `above`/`below` for a price target;
+   * `up`/`down` for a position's return, which is a different axis — a price
+   * crosses a level, a return grows or shrinks — and reusing the words would
+   * have made "below" mean two things depending on the kind.
+   */
+  direction: "above" | "below" | "up" | "down" | null;
   /**
    * Whether it stays armed after firing. A one-shot target disarms itself on
    * the first crossing; a continuous one may say the same thing again

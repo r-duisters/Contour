@@ -30,7 +30,13 @@ export type AssetKind = "crypto" | "equity";
  * here is about what a symbol costs, which does not depend on how much of it
  * somebody owns.
  */
-export type PricedSymbol = { symbol: string; assetType: AssetKind; quantity?: number };
+export type PricedSymbol = {
+  symbol: string;
+  assetType: AssetKind;
+  quantity?: number;
+  /** What the position cost per unit. Read only by `position_pnl`. */
+  avgCost?: number;
+};
 
 /**
  * What kind of thing this alert is about.
