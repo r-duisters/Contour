@@ -99,10 +99,37 @@ describe("the background runner's wiring", () => {
       "this one-shot alert has switched itself off",
       "still watching",
       "From your daily move rule on",
+      // The portfolio kind, whose notice names a book rather than a ticker.
+      "% in 24 hours",
     ]) {
       expect(shared, `shared copy should contain ${phrase}`).toContain(phrase);
       expect(runner, `runner copy should contain ${phrase}`).toContain(phrase);
     }
+  });
+
+  /**
+   * Both lists, and evaluated differently.
+   *
+   * A portfolio rule has no `symbol`, and the runner's first filter is
+   * `r && r.symbol` — so shipping them in the same array would drop every one
+   * of them silently, which is the shape of the bug `expandRules` was written
+   * to fix on the app side. They travel in their own list and are read from
+   * their own key.
+   */
+  it("receives portfolio rules separately, since a symbol filter would drop them", () => {
+    expect(runner, "the runner must store the second list").toContain("alertPortfolioRules");
+    expect(runner, "and evaluate it against a total").toContain("portfolioMoveNotice");
+    const device = readFileSync(join(ROOT, "apps/mobile/src/app/device-alerts.tsx"), "utf8");
+    expect(device, "the app must send it").toContain("portfolioRules");
+  });
+
+  /**
+   * A total from some of its parts is a different portfolio's move, so an
+   * unpriced holding must abandon the whole check rather than sum the rest.
+   * The app side gets this from `evaluatePortfolioMove`; here it is by hand.
+   */
+  it("abandons a portfolio check when any holding is unpriced", () => {
+    expect(runner).toMatch(/complete\s*=\s*false/);
   });
 
   it("keeps the runner's location permissions out of the build", () => {

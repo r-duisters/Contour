@@ -64,7 +64,17 @@ export type NewAlertInput =
    * `expandRules` turns it into one check per holding at evaluation time, so
    * something bought tomorrow is covered without touching the rule.
    */
-  | { kind: "pct_move"; portfolioId: string; threshold: number; repeat?: boolean };
+  | { kind: "pct_move"; portfolioId: string; threshold: number; repeat?: boolean }
+  /**
+   * The portfolio's own total moving more than `threshold` percent in a day.
+   *
+   * The same shape as `pct_move` and a different question. That one expands to
+   * one check per holding, so it is dominated by whichever position is
+   * smallest; this one is evaluated once against the sum, which is the figure
+   * the portfolio screen shows. `expandPortfolioRules` builds it, and leaves
+   * cash out — a balance does not move against itself.
+   */
+  | { kind: "portfolio_move"; portfolioId: string; threshold: number; repeat?: boolean };
 export type { AssetHit } from "../sources/search";
 
 /**

@@ -103,7 +103,13 @@ export type Settings = {
  */
 export type Alert = {
   id: string;
-  kind: "price_target" | "pct_move";
+  /**
+   * No `indicator`: the risk metric needs 1,460 daily bars of warm-up, which
+   * is not work for a phone, so it stays on the server and never reaches this
+   * port. `portfolio_move` is here because it is cheap — a sum over prices the
+   * check already fetched.
+   */
+  kind: "price_target" | "pct_move" | "portfolio_move";
   /**
    * Null for a portfolio-scoped rule, which names no symbol of its own and
    * expands to one check per holding. See `expandRules`.

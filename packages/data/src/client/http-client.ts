@@ -230,7 +230,16 @@ export function HttpClient(net: Net, baseUrl = ""): DataClient {
       // The route's own shape, which this is the last file to know about:
       // `kind` and a nested `params`, where the interface takes one flat
       // object because a screen has no reason to learn an envelope.
-      const body = alert.kind === "pct_move"
+      const body = alert.kind === "portfolio_move"
+        ? {
+            kind: "portfolio_move",
+            // The portfolio is the subject, so there is no symbol branch at
+            // all — the route refuses one. See `expandPortfolioRules`.
+            portfolioId: alert.portfolioId,
+            repeat: alert.repeat ?? true,
+            params: { threshold: alert.threshold },
+          }
+        : alert.kind === "pct_move"
         ? {
             kind: "pct_move",
             // No symbol, deliberately: the route reads the portfolio and the

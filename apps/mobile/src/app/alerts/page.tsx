@@ -9,6 +9,7 @@ import EmptyState from "@/components/EmptyState";
 import LastChecked from "@/components/LastChecked";
 import SubHeading from "@/components/SubHeading";
 import DailyMoveSetting from "@/components/DailyMoveSetting";
+import PortfolioMoveSetting from "@/components/PortfolioMoveSetting";
 import Switch from "@/components/Switch";
 import Button from "@/components/Button";
 import { isBatteryExempt, requestBatteryExemption } from "@/components/device-notifications";
@@ -158,6 +159,7 @@ export default function AlertsPage() {
           from.
         */}
         <DailyMoveSetting />
+        <PortfolioMoveSetting />
       </section>
 
       <section className="mb-8">

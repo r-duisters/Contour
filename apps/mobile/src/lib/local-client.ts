@@ -242,7 +242,18 @@ export function LocalClient(store: Store, net: Net): DataClient {
 
     async createAlert(alert: NewAlertInput): Promise<AlertSummary> {
       return attempt(async () => toSummary(await store.alerts.create(
-        alert.kind === "pct_move"
+        alert.kind === "portfolio_move"
+          ? {
+              kind: "portfolio_move",
+              // No symbol, and no expansion either: this one is evaluated once
+              // against the total. `expandPortfolioRules` builds the check.
+              portfolioId: alert.portfolioId,
+              assetType: "crypto",
+              threshold: alert.threshold,
+              direction: null,
+              repeat: alert.repeat ?? true,
+            }
+          : alert.kind === "pct_move"
           ? {
               kind: "pct_move",
               // A portfolio, not a symbol. `expandRules` resolves it against

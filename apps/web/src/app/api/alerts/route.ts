@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { PctMoveParams, PriceTargetParams } from "@/lib/alerts";
+import { PctMoveParams, PortfolioMoveParams, PriceTargetParams } from "@/lib/alerts";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +34,21 @@ const Create = z.discriminatedUnion("kind", [
     enabled: z.boolean().optional(),
   }).refine((v) => !!v.symbol !== !!v.portfolioId, {
     message: "pct_move needs exactly one of symbol or portfolioId",
+  }),
+  /*
+   * No `symbol` branch at all, unlike `pct_move`.
+   *
+   * A portfolio move on one asset is a percentage move with extra steps, and
+   * offering it would mean two ways to write the same rule that then behave
+   * differently at evaluation — one expanded per holding, one totalled. The
+   * portfolio is the subject or there is no rule.
+   */
+  z.object({
+    kind: z.literal("portfolio_move"),
+    portfolioId: z.string().min(1),
+    params: PortfolioMoveParams,
+    repeat: z.boolean().optional(),
+    enabled: z.boolean().optional(),
   }),
 ]);
 

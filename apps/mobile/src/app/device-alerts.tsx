@@ -112,6 +112,10 @@ export default function DeviceAlerts() {
           ...r,
           portfolio: r.portfolioId ? portfolioNames[r.portfolioId] ?? null : null,
         })),
+        portfolioRules.map((r) => ({
+          ...r,
+          portfolio: portfolioNames[r.portfolioId] ?? null,
+        })),
         settings,
       );
 
@@ -305,6 +309,7 @@ async function heldAssets(
  */
 async function dispatchToRunner(
   rules: unknown[],
+  portfolioRules: unknown[],
   settings: { equityProvider?: string | null; equityApiKey?: string | null } | null,
 ): Promise<void> {
   try {
@@ -312,7 +317,11 @@ async function dispatchToRunner(
     await BackgroundRunner.dispatchEvent({
       label: "app.contour.standalone.alerts",
       event: "setRules",
-      details: { rules, settings: settings ?? {} },
+      // Two lists, because the runner cannot expand either itself: it has no
+      // imports and no valuation. The portfolio rules arrive with their
+      // holdings and quantities already resolved, and their portfolio named —
+      // there is no way to look one up from in there.
+      details: { rules, portfolioRules, settings: settings ?? {} },
     });
   } catch {
     // The runner may not be registered yet on first launch; the next

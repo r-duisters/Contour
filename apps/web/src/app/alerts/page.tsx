@@ -12,6 +12,8 @@ import PageLabel from "@/components/PageLabel";
 import LastChecked from "@/components/LastChecked";
 import Switch from "@/components/Switch";
 import SubHeading from "@/components/SubHeading";
+import DailyMoveSetting from "@/components/DailyMoveSetting";
+import PortfolioMoveSetting from "@/components/PortfolioMoveSetting";
 import { deleteButton } from "@/components/icon-button";
 import { KEYS, readKey } from "@/lib/storage-keys";
 
@@ -374,6 +376,17 @@ function Alerts() {
         looks slightly wrong, and the two groups are read for different
         reasons: one is "am I covered", the other is "what did I switch off".
       */}
+      {/*
+        The two portfolio-wide rules, above the list rather than in it.
+        Each is a single switch that stands for one row, and putting them
+        among the per-asset alerts would make them look deletable in the same
+        way — which they are not: they are settings with a rule behind them.
+      */}
+      <div className="mb-6">
+        <DailyMoveSetting />
+        <PortfolioMoveSetting />
+      </div>
+
       {alerts.length > 0 && <SubHeading className="mb-1">Watching</SubHeading>}
       <ul className="divide-y divide-neutral-800">
         {alerts.filter((a) => a.enabled).map((a) => (

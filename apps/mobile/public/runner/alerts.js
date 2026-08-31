@@ -107,6 +107,18 @@ function moveNotice(a) {
   };
 }
 
+/**
+ * The whole portfolio moved, which is a different sentence from an asset
+ * moving. Duplicated from `alert-copy.ts` by hand, like the rest of the
+ * wording here; `runner-wiring.test.ts` fails when the two drift.
+ */
+function portfolioMoveNotice(a) {
+  return {
+    title: `${a.portfolio} ${a.direction} ${Math.abs(a.pct).toFixed(1)}% in 24 hours`,
+    body: `${amount(a.from, a.currency)} → ${amount(a.value, a.currency)}`,
+  };
+}
+
 /** One notification per rule per UTC day, so a standing condition stays quiet. */
 function alreadySentToday(sent, key, day) {
   return sent[key] === day;
@@ -116,6 +128,10 @@ function alreadySentToday(sent, key, day) {
 addEventListener("setRules", (resolve, reject, args) => {
   try {
     writeJson("alertRules", (args && args.rules) || []);
+    // Kept apart because they are different shapes: one check per symbol, and
+    // one check against a sum. The runner cannot build either — it has no
+    // imports and no valuation — so both arrive expanded.
+    writeJson("alertPortfolioRules", (args && args.portfolioRules) || []);
     resolve();
   } catch (err) {
     reject(err);
@@ -222,18 +238,37 @@ async function priceEquities(symbols) {
 addEventListener("alertCheck", async (resolve, reject) => {
   try {
     const rules = readJson("alertRules", []).filter((r) => r && r.symbol);
-    if (!rules.length) return resolve();
+    const portfolioRules = readJson("alertPortfolioRules", []).filter(
+      (r) => r && r.holdings && r.holdings.length,
+    );
+    if (!rules.length && !portfolioRules.length) return resolve();
 
     const isEquity = (r) => r.assetType === "equity";
     const uniq = (list) => [...new Set(list)];
     const moves = rules.filter((r) => r.kind === "pct_move");
 
+    /*
+     * Every holding a portfolio rule totals needs both a price and a day-ago
+     * price, exactly like a `pct_move` does — so they join the same two lists
+     * rather than being fetched separately. Asking twice would double the
+     * requests that name what is held, which is the cost the app counts.
+     */
+    const pHoldings = portfolioRules.flatMap((r) => r.holdings);
+    const wantPrice = uniq([
+      ...rules.filter((r) => !isEquity(r)).map((r) => r.symbol),
+      ...pHoldings.filter((h) => !isEquity(h)).map((h) => h.symbol),
+    ]);
+    const wantDayAgo = uniq([
+      ...moves.filter((r) => !isEquity(r)).map((r) => r.symbol),
+      ...pHoldings.filter((h) => !isEquity(h)).map((h) => h.symbol),
+    ]);
+
     const [coin, share] = await Promise.all([
-      priceCrypto(
-        uniq(rules.filter((r) => !isEquity(r)).map((r) => r.symbol)),
-        uniq(moves.filter((r) => !isEquity(r)).map((r) => r.symbol)),
-      ),
-      priceEquities(uniq(rules.filter(isEquity).map((r) => r.symbol))),
+      priceCrypto(wantPrice, wantDayAgo),
+      priceEquities(uniq([
+        ...rules.filter(isEquity).map((r) => r.symbol),
+        ...pHoldings.filter(isEquity).map((h) => h.symbol),
+      ])),
     ]);
     const prices = { ...coin.prices, ...share.prices };
     const dayAgo = { ...coin.dayAgo, ...share.dayAgo };
@@ -277,6 +312,47 @@ addEventListener("alertCheck", async (resolve, reject) => {
           notified++;
         }
       }
+    }
+
+    /*
+     * The portfolio checks, evaluated once each against a total.
+     *
+     * A missing price answers nothing rather than a total of whatever priced:
+     * a sum of some of the parts is a different portfolio's move, and firing
+     * on the wrong number is worse than not firing. This mirrors
+     * `evaluatePortfolioMove`, which the app-side pass imports — the two are
+     * duplicated rather than shared because this runtime has no imports at
+     * all, and `runner-wiring.test.ts` is what keeps them saying the same
+     * thing.
+     */
+    for (const rule of portfolioRules) {
+      let now = 0;
+      let then = 0;
+      let complete = true;
+      for (const h of rule.holdings) {
+        const price = prices[h.symbol];
+        const base = dayAgo[h.symbol];
+        if (!price || !base) { complete = false; break; }
+        now += h.quantity * price;
+        then += h.quantity * base;
+      }
+      if (!complete || then <= 0) continue;
+
+      const pct = ((now - then) / then) * 100;
+      if (Math.abs(pct) < rule.threshold) continue;
+      const direction = pct >= 0 ? "up" : "down";
+      const key = `p:${rule.id}:${direction}`;
+      if (alreadySentToday(sent, key, day)) continue;
+
+      const first = rule.holdings[0];
+      const currency = first && isEquity(first) ? currencies[first.symbol] || "" : "USDT";
+      const n = portfolioMoveNotice({
+        portfolio: rule.portfolio || "your portfolio",
+        direction, pct, from: then, value: now, currency,
+      });
+      notify(id++, n.title, n.body);
+      sent[key] = day;
+      notified++;
     }
 
     // Forget yesterday's marks so the store cannot grow without bound.
