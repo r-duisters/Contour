@@ -1,6 +1,8 @@
-<img src="docs/brand/contour-mark.svg" alt="" width="84">
+<p align="center">
+  <img src="docs/brand/contour-mark.svg" alt="" width="84">
+</p>
 
-# Contour
+<h1 align="center">Contour</h1>
 
 A portfolio tracker for crypto and equities that runs on your own machine, or
 on your own phone, and asks nobody's permission to do it.
