@@ -49,19 +49,28 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <Providers>
-          {/*
-            The only lock this build has. There is no password, no passkey, no
-            SESSION_SECRET, no /login and no /setup — the server did that, and
-            there is no server. Falling back to the device PIN is the plugin's
-            own behaviour and is the right one: a lock this app cannot itself
-            reset is the point.
+        {/*
+          The only lock this build has. There is no password, no passkey, no
+          SESSION_SECRET, no /login and no /setup — the server did that, and
+          there is no server. Falling back to the device PIN is the plugin's
+          own behaviour and is the right one: a lock this app cannot itself
+          reset is the point.
 
-            No TopNav either: it is `hidden md:block`, and there is no desktop
-            here. The tab bar carries its own list, because half of what the
-            web app puts behind More is server-only.
-          */}
-          <BiometricLock>
+          Outermost — outside Providers — on purpose. The lock needs no data,
+          and its two-second entrance used to start only after SQLite had
+          opened, so the launch paid for both in sequence. Mounted here, the
+          database opens *behind* the entrance and is ready by the time the
+          prompt is: the animation absorbs the wait instead of following it.
+          It also makes the lock's first frame the WebView's first frame,
+          which is what the system splash hands over to — see the "checking"
+          note in BiometricLock.
+
+          No TopNav either: it is `hidden md:block`, and there is no desktop
+          here. The tab bar carries its own list, because half of what the
+          web app puts behind More is server-only.
+        */}
+        <BiometricLock>
+          <Providers>
             {/* An empty device gets the setup flow instead of an empty
                 portfolio — and instead of the tab bar, so the wizard has the
                 screen to itself. */}
@@ -71,8 +80,8 @@ export default function RootLayout({
               <div className="pb-20">{children}</div>
               <Nav />
             </FirstRun>
-          </BiometricLock>
-        </Providers>
+          </Providers>
+        </BiometricLock>
       </body>
     </html>
   );

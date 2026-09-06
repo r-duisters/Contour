@@ -4,11 +4,9 @@ import {
   MIN_SPLASH_MS,
   SETTLE_SCALE,
   SPLASH_DISC_PX,
-  REST_MS,
   SETTLE_DELAY_MS,
   SETTLE_MS,
   TITLE_DELAY_MS,
-  TITLE_MS,
   remainingSplash,
 } from "./lock-timing";
 
@@ -47,9 +45,11 @@ describe("remainingSplash", () => {
  * stays one.
  */
 describe("the entrance fits the splash", () => {
-  it("ends with a beat to spare, not on the frame the prompt arrives", () => {
-    expect(TITLE_DELAY_MS + TITLE_MS).toBe(MIN_SPLASH_MS - REST_MS);
-    expect(REST_MS).toBeGreaterThan(0);
+  it("requests the prompt the moment the mark lands, and not a frame before", () => {
+    // Waiting longer than the travel is dead time: the sheet spends its own
+    // quarter second sliding up, and the title fades in underneath it. Waiting
+    // *less* puts the sheet over a mark still in flight — the original bug.
+    expect(MIN_SPLASH_MS).toBe(SETTLE_DELAY_MS + SETTLE_MS);
   });
 
   it("starts the name only once the mark has stopped moving", () => {

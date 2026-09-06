@@ -30,9 +30,18 @@ const CLOSE_MS = 260;
 /**
  * `splash` is the app's own screen, held briefly before the system sheet
  * covers it. It exists as a state of its own rather than as a delay inside
- * `checking`, because the two look different on purpose: `checking` is the
- * single frame a browser sees and is deliberately blank, while `splash` is
- * the entrance and shows the mark over the moving market.
+ * `checking`, because the two look different on purpose: `checking` draws
+ * only the ground and the centred disc, while `splash` adds the moving
+ * market and the breathing ring.
+ *
+ * That distinction is now load-bearing. The lock mounts outermost — outside
+ * Providers, so its entrance plays while SQLite opens — which makes the
+ * `checking` frame the WebView's first paint, and the WebView's first paint
+ * is what MainActivity hands the system splash over to. The system splash is
+ * the same disc on the same ground and nothing else, so `checking` must be
+ * exactly that picture: anything extra pops into existence at the cut. A
+ * plain browser sees this frame for an instant before the lock bows out,
+ * which costs it a blink of the disc; the APK sees it on every launch.
  */
 type State = "checking" | "splash" | "unavailable" | "locked" | "prompting" | "open";
 
@@ -106,6 +115,12 @@ export default function BiometricLock({ children }: { children: React.ReactNode 
         // Let the app say who it is before the operating system takes the
         // screen. Without this the sheet can arrive in the same breath as the
         // first paint, and the entrance is a black flash.
+        //
+        // The wait ends the moment the mark lands — not after the title and a
+        // rest, which used to add ~800ms of finished animation admired in
+        // silence. The sheet spends its own quarter second sliding up over
+        // the bottom of the screen while the title fades in at the top, so
+        // the two arrive together and neither covers a mark in flight.
         //
         // Only on a cold start. The re-lock path below calls `unlock` directly,
         // because returning from another app is not an entrance and a second
@@ -251,8 +266,11 @@ function Overlay({
             : undefined}
         >
           {/* A ring that breathes while the prompt is up, so a slow sensor
-              still looks like the app is doing something. */}
-          {working && (
+              still looks like the app is doing something. Not during
+              `checking`: that frame is the system splash's handover and the
+              splash has no ring, so one appearing at the cut would be the
+              flicker the handover work removed. */}
+          {working && state !== "checking" && (
             <span
               className="lock-anim absolute rounded-full border border-blue-500/60"
               style={{ width: 132, height: 132, animation: "lock-breathe 2.4s ease-in-out infinite" }}

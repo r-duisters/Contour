@@ -22,6 +22,20 @@ All four now draw a **112dp** blue disc with the mark at 86% of it. That is
 `MarkTile`'s rule, and the point of the whole exercise: the entrance is one
 picture that moves, not four that replace each other.
 
+**Pictures 3 and 4 swapped depth on 2026-09-06.** The lock used to mount
+inside `Providers`, so a cold start paid for the SQLite open (picture 3) and
+then the lock's ~1.1s entrance (picture 4) *in sequence*. `BiometricLock` is
+outermost now: its entrance plays while the database opens underneath, and on
+a locked device picture 3 is never seen at all — it is there behind the
+overlay for the case where the lock is unavailable or the open outlives the
+unlock. The lock's `checking` frame is therefore the WebView's first paint,
+which is what the splash release below hands over to; it draws exactly the
+splash picture (ground plus centred disc, no ring, no backdrop) so the cut
+stays invisible. In the same change the fingerprint prompt moved earlier:
+`MIN_SPLASH_MS` is now hold + travel — the sheet is *requested* the moment
+the mark lands and slides up while the title fades in, where it used to wait
+out the title and a rest beat (~800ms of stillness) first.
+
 ## What cannot be changed
 
 **Android 12 and above always show a splash screen.** An app chooses what is on

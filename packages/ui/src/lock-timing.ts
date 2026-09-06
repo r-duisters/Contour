@@ -78,9 +78,6 @@ export const SETTLE_MS = 900;
 /** The name, arriving only once the mark has stopped. */
 export const TITLE_MS = 560;
 
-/** Everything at rest, briefly, before the system takes the screen. */
-export const REST_MS = 260;
-
 /**
  * The easing of the travel, as a CSS timing function.
  *
@@ -94,13 +91,20 @@ export const ENTRANCE_EASE = "cubic-bezier(0.45, 0, 0.15, 1)";
 export const TITLE_DELAY_MS = SETTLE_DELAY_MS + SETTLE_MS;
 
 /**
- * How long the app's own screen is owed before the prompt covers it.
+ * How long the app's own screen is owed before the prompt is *requested*.
  *
- * Derived, not chosen: the entrance above, plus its beat of rest. Raising any
- * one of those raises this, which is the only way the sheet cannot arrive over
- * a mark still in flight.
+ * Derived, not chosen: the hold plus the travel — the moment the mark lands.
+ * It used to also wait out the title fade and a beat of rest before asking,
+ * and only then did the system sheet spend its own quarter second sliding up:
+ * ~800ms of finished animation admired in silence, every cold start. Now the
+ * request goes out as the mark arrives, the title fades in *while* the sheet
+ * rises, and the two finish together — the sheet covers the bottom of the
+ * screen and the title sits in the top third, so nothing collides.
+ *
+ * The invariant this guards is unchanged: the sheet cannot arrive over a mark
+ * still in flight, because the travel is inside the sum.
  */
-export const MIN_SPLASH_MS = SETTLE_DELAY_MS + SETTLE_MS + TITLE_MS + REST_MS;
+export const MIN_SPLASH_MS = SETTLE_DELAY_MS + SETTLE_MS;
 
 /**
  * Milliseconds still owed to the splash, given when it started.
