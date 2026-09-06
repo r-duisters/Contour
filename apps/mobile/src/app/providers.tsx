@@ -6,8 +6,7 @@ import Button from "@/components/Button";
 import { DataClientProvider } from "@/data/client/context";
 import { DEVICE_ROUTING, RoutingProvider } from "@/components/routing";
 import { SaveFileProvider } from "@/components/save-file";
-import { IconSourceProvider } from "@/components/CoinIcon";
-import { DEVICE_ICON_SOURCE } from "../lib/icon-source";
+import { DeviceIcons } from "../lib/icon-source";
 import { DEVICE_SAVE_FILE } from "../lib/save-file";
 import type { DataClient } from "@/data/client/data-client";
 // Relative, not `@/lib/deps`: in this app `@/lib/*` points at packages/core,
@@ -133,12 +132,13 @@ export default function Providers({ children }: { children: ReactNode }) {
       {/* An `<a download>` cannot start a download here, so exports are
           written to the cache and handed to the share sheet. */}
       <SaveFileProvider save={DEVICE_SAVE_FILE}>
-        {/* Bundled logos, not a CDN: the phone talking to one would tell it
-            what is held, which is exactly what the web build's proxy exists
-            to prevent. */}
-        <IconSourceProvider source={DEVICE_ICON_SOURCE}>
+        {/* Logos are fetched from a CDN and cached on the phone. That tells
+            the CDN which assets are held — the bundle this replaced existed
+            to prevent it, and the trade is written down in
+            `docs/asset-logos.md` rather than left to be discovered. */}
+        <DeviceIcons>
           <DataClientProvider client={ready}>{children}</DataClientProvider>
-        </IconSourceProvider>
+        </DeviceIcons>
       </SaveFileProvider>
     </RoutingProvider>
   );

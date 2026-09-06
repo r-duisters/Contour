@@ -12,31 +12,67 @@ for one, because the two builds must get logos differently:
 - **`apps/web`** proxies through `GET /api/icon`, which fetches each logo once
   and caches it in `.icon-cache/` at the repository root. The browser asks the
   app; the app asks the CDN. No third party learns which assets are held.
-- **`apps/mobile`** ships the logos inside the APK
-  (`apps/mobile/public/icons/assets/`, listed in `index.json`). A device has no
-  proxy, and calling a CDN from the phone would quietly break the promise the
-  proxy exists to keep — in an app whose whole pitch is that the portfolio does
-  not leave the phone.
+- **`apps/mobile`** fetches each logo the first time a holding needs it and
+  keeps it in the app's cache directory. A device has no proxy, so this tells
+  the CDN which assets are held. That is a real cost and it was taken
+  deliberately — see **Why the logos are no longer bundled** below.
 
 Anything with no logo gets coloured initials, which is the honest answer and
 already looks deliberate.
 
-`scripts/bundle-icons.mjs` builds the bundle, by hand rather than at build time:
-a build that fetched would need a network, would not be reproducible, and would
-fail exactly where the app is meant to work offline. Its upstreams are the ones
-`/api/icon` uses — CoinGecko for coins, `spothq/cryptocurrency-icons` as a
-fallback for older ones, `assets.parqet.com` for equities. Change one, change
-the other, or the two builds show different logos for the same asset.
+`scripts/icon-index.mjs` writes the three small data files the device needs to
+find a logo without shipping one: which tickers the CC0 set has, the CoinGecko
+image URL for the coins it lacks, and the upstream renames. Names and URLs, not
+artwork.
 
 ```bash
-node scripts/bundle-icons.mjs        # after editing scripts/icon-tickers.json
+node scripts/icon-index.mjs          # after editing scripts/icon-tickers.json
 ```
+
+## Why the logos are no longer bundled
+
+The device shipped 274 logos inside the APK until 31 August 2026. It stopped
+because we do not have the right to redistribute them.
+
+| upstream | what it says | verdict |
+|---|---|---|
+| `spothq/cryptocurrency-icons` | CC0 1.0, public domain | fine, and always was |
+| CoinGecko | names logos and trademarks; "not permitted to copy, replicate, modify, extract, download or howsoever use… without prior written consent". The API terms prohibit redistribution outright; it is an Enterprise negotiation. | no |
+| `assets.parqet.com` | nothing at all. The terms grant a personal, non-transferable licence to use the service and say nothing about the asset host. Parqet is itself an aggregator and owns none of the marks. | no |
+
+Underneath all three, the marks belong to Apple, Shell, ING and the projects —
+not to the aggregator serving them. Using a logo to identify the company whose
+price is on screen is a defensible referential use; it is not a licence, and
+F-Droid screens for exactly this (issue #20).
+
+**Fetching at runtime is not redistribution.** The phone asks the CDN directly,
+the way a browser does, and the app ships no copies. That removes us from the
+redistribution path entirely, which bundling could never do.
+
+**What it costs.** A request for a logo names the asset in its path, so the CDN
+learns that whoever asked holds that ticker. Fetching *every* logo rather than
+the held subset would have avoided that — the same trick `privateCoinPrices`
+uses against Binance, and about 1.3 MB once. It was considered and not taken:
+the decision (2026-08-31) is that only what a portfolio contains is fetched.
+Written here rather than left to be discovered, because the bundle existed to
+prevent precisely this and a reader is entitled to know it stopped.
+
+**spothq first, CoinGecko only for what it lacks.** Not a preference for the
+artwork — spothq is a stylised set whose last commit was August 2022, and
+CoinGecko carries the marks the projects actually use. It is first because it
+is the one licence that permits anything, so the fewer requests that go
+elsewhere, the smaller the part of this that rests on nobody having objected.
+Which tickers it has ships as a list of names, so a miss costs no request.
+
+**A cold start after a reinstall shows initials briefly**, and a phone with no
+network shows them until it has one. Everything else works offline as before;
+this is the one thing that does not.
 
 ## What is behind a logo
 
 `CoinIcon` draws each logo in a `rounded-full` span, and the span may or may not
 have a white background. Which of those it is, is decided per logo, from the
-artwork — and the reason is that the 274 bundled logos are not one kind of
+artwork — and the reason is that the 274 logos measured are not one kind of
 image but four:
 
 | kind | count | what shows behind the mark |
@@ -86,27 +122,35 @@ The result is `packages/core/src/logo-discs.ts`, generated. Do not edit it, and
 do not set a disc colour by hand in a component:
 
 ```bash
-node scripts/logo-disc.mjs           # regenerate from the bundle already on disk
+node scripts/logo-disc.mjs           # reuses anything already downloaded
+node scripts/logo-disc.mjs --fresh   # re-downloads first
 ```
 
-`bundle-icons.mjs` calls it as its last step, so a refreshed bundle cannot leave
-a stale manifest behind.
+**It downloads the artwork to measure it**, into a gitignored `.logo-measure/`,
+resolving each logo exactly as the device does. That is new: it used to read
+the bundle, and there is no bundle. Committing what it downloads would put the
+artwork back in the repository, which is the thing the runtime fetch exists to
+stop.
 
 ## What holds it
 
-`scripts/logo-discs.test.ts` recomputes the choices from the bundled artwork and
-compares them to the committed manifest. That is the failure worth catching:
-**new artwork with an old decision**, which draws a logo on the ground it was
-measured not to suit, and which nothing else would notice — the two files are
-written by different commands.
+`scripts/logo-discs.test.ts` checks the invariants that survive without the
+artwork: that the split has not collapsed to one answer, that Immutable X — the
+black-on-transparent mark the white disc was introduced for — is never in the
+discless list, and that every entry is a bare asset rather than a pair.
 
-It also checks that the manifest names only tickers that are bundled, that the
-split has not collapsed to one answer (a resize or a threshold edit could do
-that silently), and that Immutable X — the case the white disc was introduced
-for — still keeps it.
+**It no longer re-measures, and that is a loss worth naming.** It used to
+recompute the choices from the bundled artwork and compare, which caught the
+failure that matters: new artwork with an old decision, drawing a logo on the
+ground it was measured not to suit. Re-measuring now means downloading from
+three CDNs inside a unit test — slow, flaky, and failing on a train. So the
+check moved into `logo-disc.mjs`, which is run deliberately, and a stale list is
+no longer caught for you.
 
-The rule itself lives in one module, imported by the bundler, the regenerate
-command and the test, so none of them can hold a different opinion about it.
+A logo nobody has measured — a coin listed since the last run — gets the white
+disc. That is the safe default: it is the one that prevents a black mark
+becoming a hole, and its failure mode is a pale mark washing out, which is
+milder and rarer.
 
 ## If a logo looks wrong
 

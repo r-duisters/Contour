@@ -35,9 +35,12 @@ const Query = z.object({
  * icons themselves are cached on disk for far longer by the route below, so
  * this list is consulted once per coin and not once per render.
  *
- * `scripts/bundle-icons.mjs` resolves logos the same way and in the same
- * order. Change one, change the other, or the two builds show different logos
- * for the same coin.
+ * The two builds no longer resolve logos the same way, and that is deliberate.
+ * This proxy caches on the server, so the browser tells no CDN what is held and
+ * CoinGecko-first costs nothing. The device has no proxy: it asks the CDN
+ * itself, so `apps/mobile/src/lib/icons/upstreams.ts` tries the CC0 set first
+ * and reaches CoinGecko only for what that lacks. Same logos, different order,
+ * for a reason written down in `docs/asset-logos.md`.
  */
 let geckoAt = 0;
 let geckoBySymbol: Map<string, string> | null = null;

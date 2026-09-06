@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -19,18 +19,30 @@ import sharp from "sharp";
  * this app's ground rendered as a hole where a logo should be. A single colour
  * cannot serve both, so the colour is chosen per logo, from the artwork.
  *
- * Run standalone to regenerate the manifest from the bundle that is already on
- * disk, which is the usual case — the choice depends only on the images:
+ * **The artwork is no longer in the repository, so this downloads it.** The
+ * device used to ship the logos and this read them off disk; we have no right
+ * to redistribute most of them, so the app fetches at runtime and the only
+ * thing committed is the measurement. The images land in a gitignored scratch
+ * directory and are measured there.
  *
- *   node scripts/logo-disc.mjs
+ *   node scripts/logo-disc.mjs          # reuses anything already downloaded
+ *   node scripts/logo-disc.mjs --fresh  # re-downloads first
  *
- * `bundle-icons.mjs` calls it too, so a refreshed bundle cannot leave a stale
- * manifest behind.
+ * That makes this the one step that needs a network, which is why
+ * `logo-discs.test.ts` no longer re-measures: a unit test that depends on
+ * three CDNs is a unit test that fails on a train. It checks the invariants
+ * that hold without the artwork, and this script is what refreshes the list
+ * when the logos change.
  */
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
-const BUNDLE = join(ROOT, "apps/mobile/public/icons/assets");
+/*
+ * Gitignored: this is a working copy for measuring, not something to ship.
+ * Committing it would put the artwork back in the repository, which is the
+ * thing the runtime fetch was introduced to stop.
+ */
+const BUNDLE = join(ROOT, ".logo-measure");
 const MANIFEST = join(ROOT, "packages/core/src/logo-discs.ts");
 
 /** The size everything is judged at; the bundle ships 64px logos. */
@@ -118,12 +130,68 @@ export async function measure(png) {
   };
 }
 
-/** Every bundled logo's ticker, in the order the directory lists them. */
+/** Every ticker in the working copy, in the order the directory lists them. */
 export function bundledTickers() {
+  if (!existsSync(BUNDLE)) return [];
   return readdirSync(BUNDLE)
     .filter((f) => f.endsWith(".png"))
     .map((f) => f.replace(/\.png$/, ""))
     .sort();
+}
+
+/**
+ * Fetch the artwork to the working copy, resolving each logo exactly as the
+ * device does — `upstreams.ts` is the authority, and this reads its indexes so
+ * the two cannot disagree about which CDN serves a ticker.
+ *
+ * Normalised to 64px PNG on the way in, because the measurement compares
+ * pixels and an SVG and a 256px PNG are not comparable as they arrive.
+ */
+export async function download({ fresh = false } = {}) {
+  const list = JSON.parse(readFileSync(join(HERE, "icon-tickers.json"), "utf8"));
+  const dir = join(ROOT, "apps/mobile/src/lib/icons");
+  const spothq = new Set(JSON.parse(readFileSync(join(dir, "spothq.json"), "utf8")));
+  const gecko = JSON.parse(readFileSync(join(dir, "gecko.json"), "utf8"));
+  const aliases = JSON.parse(readFileSync(join(dir, "aliases.json"), "utf8"));
+  mkdirSync(BUNDLE, { recursive: true });
+
+  const urlFor = (ticker, kind) => {
+    const name = (aliases[ticker] ?? ticker).toUpperCase();
+    if (kind === "equity") {
+      return `https://assets.parqet.com/logos/symbol/${encodeURIComponent(name)}?format=png&size=64`;
+    }
+    if (spothq.has(name)) {
+      return `https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/${name.toLowerCase()}.svg`;
+    }
+    return gecko[name] ?? null;
+  };
+
+  let got = 0;
+  for (const [kind, tickers] of [["crypto", list.crypto], ["equity", list.equity]]) {
+    for (const ticker of tickers) {
+      const out = join(BUNDLE, `${ticker.toUpperCase()}.png`);
+      if (!fresh && existsSync(out)) { got++; continue; }
+      const url = urlFor(ticker.toUpperCase(), kind);
+      if (!url) continue;
+      try {
+        const res = await fetch(url, {
+          headers: { "User-Agent": "Contour/1.0 (+self-hosted portfolio tracker)" },
+        });
+        if (!res.ok) continue;
+        const bytes = Buffer.from(await res.arrayBuffer());
+        if (!bytes.byteLength) continue;
+        await sharp(bytes, { density: 300 })
+          .resize(N, N, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+          .png()
+          .toFile(out);
+        got++;
+      } catch {
+        // A logo that will not download is one this cannot measure. The app
+        // draws initials for it either way.
+      }
+    }
+  }
+  return got;
 }
 
 /** The tickers whose logo is drawn with no disc behind it. */
@@ -144,9 +212,9 @@ export async function writeManifest() {
     `/**
  * Logos that are drawn without a disc behind them.
  *
- * Generated by \`scripts/logo-disc.mjs\` from the bundled artwork — run it
- * rather than editing this list, and \`scripts/logo-discs.test.ts\` fails if the
- * two drift apart.
+ * Generated by \`scripts/logo-disc.mjs\`, which downloads the artwork to measure
+ * it — the images are not in this repository. Run that rather than editing
+ * this list.
  *
  * \`CoinIcon\` puts every logo on a white disc, which for most of them is
  * invisible: their artwork fills the circle. Where it is not invisible, white
@@ -156,7 +224,7 @@ export async function writeManifest() {
  * picked: a black-on-transparent mark like Immutable X needs the white disc or
  * it is a hole in the row.
  *
- * ${tickers.length} of ${bundledTickers().length} logos.
+ * ${tickers.length} of ${bundledTickers().length} logos measured.
  */
 export const DISCLESS_LOGOS: ReadonlySet<string> = new Set([
 ${body}
@@ -168,6 +236,8 @@ ${body}
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
+  const got = await download({ fresh: process.argv.includes("--fresh") });
+  console.log(`measuring ${got} logos in ${BUNDLE.replace(ROOT + "/", "")}`);
   const tickers = await writeManifest();
   console.log(`wrote ${MANIFEST.replace(ROOT + "/", "")} — ${tickers.length} logos drawn without a disc`);
   console.log(tickers.join(", "));

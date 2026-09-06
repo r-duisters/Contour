@@ -67,9 +67,13 @@ design question below resolves against it.
   repeats both every half hour with the app closed. That cannot be otherwise without a
   proxy the owner runs, and it is written here rather than glossed because the stronger
   claim — that nothing about the portfolio leaves — was made for months and was not true.
-  What *is* avoidable is avoided: logos are bundled rather than proxied, since asking a CDN
-  for a coin's icon tells it what is held, and `Net` is injected rather than reached for, so
-  what talks to the outside is countable. `docs/security-review-2026-08-30.md` has the full
+  **Logos are a third egress, added deliberately on 2026-08-31.** They used to be bundled
+  in the APK precisely because asking a CDN for a coin's icon tells it what is held; that
+  bundle was a redistribution of artwork this project has no licence to — CoinGecko forbids
+  it and parqet grants nothing — so the device fetches each held asset's logo once and
+  caches it. Fetching the whole set instead would have leaked nothing, and was not chosen.
+  `docs/asset-logos.md` argues both halves. `Net` is still injected rather than reached for,
+  so what talks to the outside is countable. `docs/security-review-2026-08-30.md` has the full
   egress list.
 - **A server may be added; it may never be required.** Alerting and sync are the two things a
   server would genuinely earn, and both must arrive as *capabilities that can be absent*, the way

@@ -75,7 +75,7 @@ sources(join(ROOT, "apps/mobile/src")).forEach(walk);
 const CARRIED = [
   "apps/mobile/public", "apps/mobile/next.config.ts", "apps/mobile/package.json",
   "apps/mobile/postcss.config.mjs", "apps/mobile/tsconfig.json",
-  "android", "capacitor.config.ts", "scripts/bundle-icons.mjs", "scripts/icon-tickers.json",
+  "android", "capacitor.config.ts", "scripts/icon-index.mjs", "scripts/icon-tickers.json",
   "package.json", "tsconfig.base.json", "tsconfig.json", "vitest.config.ts",
   "eslint.config.mjs", "LICENSE", "NOTICE", "BRAND.md",
 ];

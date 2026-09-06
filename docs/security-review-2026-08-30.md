@@ -24,9 +24,14 @@ overstate.
   `USE_BIOMETRIC`/`USE_FINGERPRINT`, and four that the background alert check
   needs (`SCHEDULE_EXACT_ALARM`, `RECEIVE_BOOT_COMPLETED`, `WAKE_LOCK`,
   `FOREGROUND_SERVICE`) plus `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`.
-- **Logos are bundled, not fetched.** 274 PNGs ship inside the APK, so no icon
-  CDN learns which assets are held. This is the one egress the project closed
-  deliberately and it stayed closed.
+- **Logos were bundled, not fetched.** 274 PNGs shipped inside the APK, so no
+  icon CDN learned which assets were held. **This is no longer true as of
+  2026-08-31** and the review's claim is left standing rather than quietly
+  edited: the bundle redistributed artwork this project has no licence to, so
+  the device now fetches each held asset's logo once, from jsDelivr, CoinGecko
+  or parqet, and caches it. Those CDNs learn the tickers held, on the same
+  terms Binance and Yahoo already do. Fetching the whole set instead would have
+  leaked nothing and was not chosen; `docs/asset-logos.md` has the argument.
 - **No remote content in the WebView.** `server.url` is unset for the
   standalone build, so the bridge is only ever exposed to local assets.
   External links carry `target="_blank"` and leave for the system browser.
@@ -112,7 +117,10 @@ documentation says, and the documentation is the part that is wrong.
 The full egress list from the shipped bundle is `api.binance.com`,
 `query1`/`query2`/`feeds`/`fc.finance.yahoo.com`, `api.coingecko.com`,
 `api.frankfurter.dev`, `api.alternative.me`, and — only if the user configures
-them — `api.twelvedata.com` and `www.alphavantage.co`. Every other host found
+them — `api.twelvedata.com` and `www.alphavantage.co`. **Since 2026-08-31 add
+`cdn.jsdelivr.net`, `coin-images.coingecko.com` and `assets.parqet.com`**, one
+request per held asset the first time its logo is drawn, then never again while
+the cache survives. Every other host found
 in the bundle (`nextjs.org`, `react.dev`, `w3.org`, `json-schema.org`,
 `github.com`, `gnu.org`, `www.tradingview.com`) is licence text, a type
 declaration or a credit link, not a request.
