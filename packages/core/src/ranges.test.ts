@@ -14,7 +14,7 @@ describe("ranges", () => {
   });
 
   it("orders periods from shortest to longest", () => {
-    expect(RANGE_KEYS).toEqual(["1d", "1w", "1m", "ytd", "1y", "2y", "5y", "all"]);
+    expect(RANGE_KEYS).toEqual(["4h", "12h", "1d", "1w", "1m", "ytd", "1y", "2y", "5y", "all"]);
   });
 
   it("only offers subsets that exist in the canonical list", () => {
@@ -51,6 +51,10 @@ describe("hiddenOnPhone", () => {
   });
 
   it("collapses the rest behind More", () => {
+    // The sub-day pair included: the row already holds five everyday periods
+    // and a sixth button is exactly the overflow the collapse exists to stop.
+    expect(hiddenOnPhone("4h", "1d")).toBe(true);
+    expect(hiddenOnPhone("12h", "1d")).toBe(true);
     expect(hiddenOnPhone("ytd", "1d")).toBe(true);
     expect(hiddenOnPhone("2y", "1d")).toBe(true);
     expect(hiddenOnPhone("5y", "1d")).toBe(true);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { TxSide } from "@/lib/portfolio";
 import TxForm, { type NewTx } from "@/components/TxForm";
 import Sheet from "@/components/Sheet";
@@ -22,6 +22,7 @@ import dynamic from "next/dynamic";
 import RangePicker from "@/components/RangePicker";
 import { usePrivacy } from "@/components/usePrivacy";
 import { useCachedValuation } from "@/components/useCachedValuation";
+import { useCachedSeries } from "@/components/useCachedSeries";
 import { pruneRememberedPortfolio } from "@/lib/valuation-cache";
 import StaleNote from "@/components/StaleNote";
 import { RANGE_KEYS, type RangeKey } from "@/lib/ranges";
@@ -207,6 +208,13 @@ export default function PortfolioScreen() {
    * `primed` is what makes waiting real. It is the valuation request having
    * *settled*, not having succeeded.
    */
+  // The last line drawn for this range, shown while the fresh one is built.
+  // A ref mirrors it for the fetch effect's failure branch: listing it as a
+  // dependency would refetch the moment the cache loads.
+  const { cached: cachedSeries, remember: rememberSeries } = useCachedSeries(selectedId, range);
+  const cachedSeriesRef = useRef(cachedSeries);
+  useEffect(() => { cachedSeriesRef.current = cachedSeries; }, [cachedSeries]);
+
   useEffect(() => {
     if (!selectedId || !rangeReady || !primed) return;
     let cancelled = false;
@@ -214,15 +222,32 @@ export default function PortfolioScreen() {
     client.getSeries(selectedId, range)
       .then((d) => {
         if (cancelled) return;
-        setSeries(d.series);
         // A portfolio holding nothing priceable answers with the thin shape,
         // which carries no period change at all.
-        setRangeChange("change" in d ? d.change : null);
+        const change = "change" in d ? d.change : null;
+        setSeries(d.series);
+        setRangeChange(change);
+        rememberSeries(selectedId, range, d.series, change);
       })
-      .catch(() => { if (!cancelled) { setSeries([]); setRangeChange(null); } });
+      .catch(() => {
+        if (cancelled) return;
+        // With a remembered line on screen a failed refresh keeps it — stale
+        // beats blank, the trade the headline figures already make. With
+        // nothing remembered, an empty chart says "no data" honestly.
+        if (!cachedSeriesRef.current) { setSeries([]); setRangeChange(null); }
+      });
     return () => { cancelled = true; };
-  }, [client, selectedId, range, rangeReady, primed]);
+  }, [client, selectedId, range, rangeReady, primed, rememberSeries]);
   useEffect(() => { loadSelected(); }, [loadSelected]);
+
+  // What the chart and the header's period line actually draw: the fresh
+  // answer once it lands, the remembered one until then. Derived rather than
+  // copied into state, for the reason the valuation fallback gives.
+  const chartSeries = series ?? cachedSeries?.series ?? null;
+  const shownChange = series !== null ? rangeChange : cachedSeries?.change ?? null;
+  // The chart's own staleness note, suppressed while the header's is up: on a
+  // cold open both caches appear at once, and one sentence covers them.
+  const chartStale = series === null && cachedSeries && stale === null ? cachedSeries.at : null;
 
   // Takes the form's own type, not this page's display row. They differ by
   // exactly the two fields cash and income need — `assetType` and
@@ -280,6 +305,7 @@ export default function PortfolioScreen() {
   });
 
   const periodWord = {
+    "4h": "past 4 hours", "12h": "past 12 hours",
     "1d": "today", "1w": "this week", "1m": "1M", ytd: "YTD",
     "1y": "1Y", "2y": "2Y", "5y": "5Y", all: "all time",
   }[range];
@@ -335,18 +361,18 @@ export default function PortfolioScreen() {
                 <div className="text-[34px] md:text-[42px] font-semibold tracking-tight leading-none">
                   {fmtUsd(shown.totals.value)}
                 </div>
-                {rangeChange && (
+                {shownChange && (
                   <div className="flex items-center gap-2 text-sm mt-1.5">
                     <span className={`font-medium inline-flex items-center gap-1 ${
-                      rangeChange.abs >= 0 ? "text-green-500" : "text-red-500"
+                      shownChange.abs >= 0 ? "text-green-500" : "text-red-500"
                     }`}>
-                      {rangeChange.abs >= 0
+                      {shownChange.abs >= 0
                         ? <TrendingUp size={14} aria-hidden />
                         : <TrendingDown size={14} aria-hidden />}
-                      {rangeChange.pct !== null && (
-                        <>{rangeChange.pct >= 0 ? "+" : ""}{rangeChange.pct.toFixed(2)}%</>
+                      {shownChange.pct !== null && (
+                        <>{shownChange.pct >= 0 ? "+" : ""}{shownChange.pct.toFixed(2)}%</>
                       )}
-                      <span>{fmtUsd(rangeChange.abs)}</span>
+                      <span>{fmtUsd(shownChange.abs)}</span>
                     </span>
                     <span
                       className="text-neutral-500"
@@ -362,8 +388,9 @@ export default function PortfolioScreen() {
               <div className="flex justify-center mb-2">
                 <RangePicker value={range} onChange={setRange} />
               </div>
+              <StaleNote at={chartStale} />
               <div className="mb-6 md:mb-8">
-                <ValueChart series={series} />
+                <ValueChart series={chartSeries} />
               </div>
 
               <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
@@ -430,7 +457,7 @@ export default function PortfolioScreen() {
                     value: h.value,
                     pct: periodChange ?? null,
                     heldSince: heldSinceBySymbol.get(h.symbol) ?? null,
-                    windowStart: series && series.length > 0 ? series[0]!.t : null,
+                    windowStart: chartSeries && chartSeries.length > 0 ? chartSeries[0]!.t : null,
                   });
                   const isCash = h.assetType === "cash";
                   const inner = (

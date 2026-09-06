@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { RANGE_KEYS, type RangeKey } from "@/core/ranges";
 import { NotFoundError } from "@/data/errors";
 import { series } from "@/data/services/series";
 import { deps } from "@/lib/deps";
@@ -7,7 +8,7 @@ import { deps } from "@/lib/deps";
 export const dynamic = "force-dynamic";
 
 const Query = z.object({
-  range: z.enum(["1d", "1w", "1m", "ytd", "1y", "2y", "5y", "all"]).default("all"),
+  range: z.enum(RANGE_KEYS as [RangeKey, ...RangeKey[]]).default("all"),
 });
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {

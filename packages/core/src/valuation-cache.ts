@@ -13,6 +13,8 @@
  * reused on a device.
  */
 
+import { forgetSeries } from "./series-cache";
+
 /** The part of `Storage` this needs — a device implementation supplies its own. */
 export type KeyValueStore = {
   getItem(key: string): string | null;
@@ -85,6 +87,9 @@ export function forgetPortfolio(
 ): void {
   try {
     store.removeItem(valuationKey(portfolioId));
+    // The chart's cache is remembered per range under the same id, and a
+    // deleted portfolio's line is as unreachable-yet-alive as its valuation.
+    forgetSeries(store, portfolioId);
     if (store.getItem(lastPortfolioKey) === portfolioId) store.removeItem(lastPortfolioKey);
   } catch {
     // Blocked storage: the pointers stay, and the screens correct themselves

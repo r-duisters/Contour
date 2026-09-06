@@ -59,7 +59,7 @@ function kline(t: number, close: number): unknown[] {
 function binanceKlines(closeAt: (t: number) => number) {
   return (url: string) => {
     const q = new URL(url).searchParams;
-    const step = q.get("interval") === "1h" ? HOUR_MS : DAY_MS;
+    const step = { "15m": 900_000, "30m": 1_800_000, "1h": HOUR_MS }[q.get("interval") ?? ""] ?? DAY_MS;
     const limit = Number(q.get("limit") ?? 1000);
     const end = Math.min(Number(q.get("endTime") ?? NOW), NOW);
     const lastSlot = Math.floor(end / step) * step;
@@ -101,6 +101,8 @@ function oneCryptoPortfolio(first = Date.parse("2020-01-01T00:00:00Z")) {
 
 /** What each range key means as a window start, spelled out independently. */
 const EXPECTED_FROM: Record<RangeKey, number> = {
+  "4h": NOW - 4 * HOUR_MS,
+  "12h": NOW - 12 * HOUR_MS,
   "1d": NOW - DAY_MS,
   "1w": NOW - 7 * DAY_MS,
   "1m": NOW - 31 * DAY_MS,
@@ -117,8 +119,10 @@ describe("series", () => {
     if (!("windowFrom" in out)) throw new Error("expected a populated series");
 
     expect(out.windowFrom).toBe(EXPECTED_FROM[range]);
-    // Only "1d" is drawn intraday; every longer window is daily.
-    expect(out.barMs).toBe(range === "1d" ? HOUR_MS : DAY_MS);
+    // The sub-day windows are drawn on finer bars; every daily window on days.
+    const expectedBarMs =
+      { "4h": 900_000, "12h": 1_800_000, "1d": HOUR_MS }[range as string] ?? DAY_MS;
+    expect(out.barMs).toBe(expectedBarMs);
     expect(out.range).toBe(range);
   });
 

@@ -1,4 +1,4 @@
-import { cached } from "@/core/cache";
+import { cached, peek, put } from "@/core/cache";
 import type { Net } from "../ports/net";
 
 /**
@@ -12,12 +12,78 @@ import type { Net } from "../ports/net";
  */
 const ISO = (t: number) => new Date(t).toISOString().slice(0, 10);
 
-export function fetchEcbRates(
+/**
+ * A published ECB rate never changes, so the whole multi-year series was the
+ * wrong thing to refetch every hour. One long-lived entry per pair instead,
+ * widening when a caller wants earlier days; a warm call fetches only from
+ * the last held day forward — a request for a handful of rows. Same shape and
+ * reasons as the klines store in `sources/binance.ts`: freshness lives in the
+ * value (`freshAt`, an hour, what the old TTL was), and the entry's own TTL
+ * only retires pairs nobody asks about.
+ */
+const FX_FRESH_MS = 3_600_000;
+const FX_STORE_TTL_MS = 30 * 86_400_000;
+
+/**
+ * `[from, until]` is what the rates cover, `until` being the `to` of the
+ * fetch that produced them. A request wholly inside it costs no network — a
+ * published rate never changes — and a request past `until` fetches only the
+ * missing days, unless `until` is under an hour old (the old TTL) in which
+ * case the entry answers as it stands.
+ */
+type HeldRates = { from: number; until: number; rates: Map<number, number> };
+
+const inflightFx = new Map<string, Promise<void>>();
+
+function coversRates(held: HeldRates, from: number, to: number): boolean {
+  return held.from <= from && (to <= held.until || Date.now() - held.until < FX_FRESH_MS);
+}
+
+export async function fetchEcbRates(
   net: Net, base: string, quote: string, from: number, to: number,
 ): Promise<Map<number, number>> {
-  return cached(`ecb:${base}:${quote}:${ISO(from)}:${ISO(to)}`, 3_600_000, () =>
-    fetchEcbRatesUncached(net, base, quote, from, to),
-  );
+  const key = `fxstore:${base.toUpperCase()}:${quote.toUpperCase()}`;
+  const slice = (held: HeldRates) =>
+    new Map([...held.rates].filter(([t]) => t >= from && t <= to));
+
+  // The same loop as the klines store: a concurrent refresh may cover less
+  // than this caller needs, so coverage is re-checked after awaiting it.
+  for (;;) {
+    const held = peek<HeldRates>(key);
+    if (held && coversRates(held, from, to)) return slice(held);
+    let pending = inflightFx.get(key);
+    if (!pending) {
+      pending = refreshRates(net, key, base, quote, from, to).finally(() => inflightFx.delete(key));
+      inflightFx.set(key, pending);
+    }
+    await pending;
+    const after = peek<HeldRates>(key);
+    if (after && coversRates(after, from, to)) return slice(after);
+  }
+}
+
+async function refreshRates(
+  net: Net, key: string, base: string, quote: string, from: number, to: number,
+): Promise<void> {
+  const held = peek<HeldRates>(key);
+  const lastDay = held && held.rates.size > 0 ? Math.max(...held.rates.keys()) : null;
+
+  if (held && lastDay !== null && held.from <= from) {
+    // Covered on the left: only the days since the last held rate are asked
+    // for. Weekends and holidays publish nothing, so the tail may well come
+    // back empty — that is an answer, and `until` records it was given.
+    const wantedTo = Math.max(to, held.until);
+    const tail = await fetchEcbRatesUncached(net, base, quote, lastDay, wantedTo);
+    const rates = new Map([...held.rates, ...tail]);
+    put(key, { from: held.from, until: wantedTo, rates }, FX_STORE_TTL_MS);
+    return;
+  }
+
+  const wantedFrom = Math.min(from, held?.from ?? from);
+  const wantedTo = Math.max(to, held?.until ?? to);
+  const fetched = await fetchEcbRatesUncached(net, base, quote, wantedFrom, wantedTo);
+  const rates = held ? new Map([...held.rates, ...fetched]) : fetched;
+  put(key, { from: wantedFrom, until: wantedTo, rates }, FX_STORE_TTL_MS);
 }
 
 async function fetchEcbRatesUncached(

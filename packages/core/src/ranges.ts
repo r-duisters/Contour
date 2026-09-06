@@ -8,6 +8,12 @@
  * spelling. Four separate definitions is what this replaces.
  */
 export const RANGES = [
+  // The sub-day pair sit outside the everyday set, so on a phone they live
+  // behind "More" and cost the row nothing. Crypto trades through the night;
+  // "what happened while I slept" is a real question, and 1D's rolling 24
+  // hours does not answer it.
+  { key: "4h", label: "4H", long: "4 hours" },
+  { key: "12h", label: "12H", long: "12 hours" },
   { key: "1d", label: "1D", long: "1 day" },
   { key: "1w", label: "1W", long: "1 week" },
   { key: "1m", label: "1M", long: "1 month" },

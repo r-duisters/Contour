@@ -48,6 +48,8 @@ const HOUR_MS = 3_600_000;
 function windowStart(range: RangeKey, allFrom: number): number {
   const now = Date.now();
   switch (range) {
+    case "4h": return now - 4 * HOUR_MS;
+    case "12h": return now - 12 * HOUR_MS;
     case "1d": return now - DAY_MS;
     case "1w": return now - 7 * DAY_MS;
     case "1m": return now - 31 * DAY_MS;
@@ -60,6 +62,27 @@ function windowStart(range: RangeKey, allFrom: number): number {
 }
 
 export type SeriesPoint = { t: number; value: number };
+
+/**
+ * How a sub-day window is drawn, or null for the daily ranges.
+ *
+ * The bar width follows the window so every intraday chart lands at a similar
+ * point count: 24-ish bars, the density `1d` has always had. `limit` is the
+ * window's bars plus a couple of spares, matching the 26 the hourly fetch has
+ * always asked for. `equityInterval` is Yahoo's vocabulary for the same width
+ * — Yahoo is the only provider with a `history` at all, and it passes the
+ * string through.
+ */
+function intraday(range: RangeKey): {
+  barMs: number; interval: "15m" | "30m" | "1h"; limit: number; equityInterval: string;
+} | null {
+  switch (range) {
+    case "4h": return { barMs: 900_000, interval: "15m", limit: 18, equityInterval: "15m" };
+    case "12h": return { barMs: 1_800_000, interval: "30m", limit: 26, equityInterval: "30m" };
+    case "1d": return { barMs: HOUR_MS, interval: "1h", limit: 26, equityInterval: "60m" };
+    default: return null;
+  }
+}
 
 /**
  * What a portfolio was worth over a window, with the two return measures.
@@ -168,7 +191,8 @@ async function computeSeries(
   );
   const firstTx = Math.min(...txs.map((t) => t.time));
   const windowFrom = windowStart(range, firstTx);
-  const barMs = range === "1d" ? HOUR_MS : DAY_MS;
+  const intra = intraday(range);
+  const barMs = intra?.barMs ?? DAY_MS;
   // Prices must cover the window, but holdings must be reconstructed from the
   // very first transaction, so history always starts at firstTx for dailies.
   const from = barMs === DAY_MS ? firstTx : windowFrom;
@@ -194,17 +218,17 @@ async function computeSeries(
       if (!equitySymbols.has(s)) {
         // Binance prices the pair; the store may hold either form.
         const pair = pricingPair(s);
-        return barMs === DAY_MS
+        return intra === null
           ? fetchKlinesRange(net, { symbol: pair, interval: "1d", from, to: Date.now() })
-          : cached(`h1:${pair}:${Math.floor(Date.now() / 300_000)}`, 300_000, () =>
-              fetchKlines(net, { symbol: pair, interval: "1h", limit: 26 }),
+          : cached(`h1:${pair}:${intra.interval}:${Math.floor(Date.now() / 300_000)}`, 300_000, () =>
+              fetchKlines(net, { symbol: pair, interval: intra.interval, limit: intra.limit }),
             );
       }
       const rows = await cached(
         `eqhist:${s}:${barMs}:${Math.floor(Date.now() / 3_600_000)}`,
         3_600_000,
         async () => (source.history
-          ? await source.history(s, barMs === DAY_MS ? "10y" : "1d", barMs === DAY_MS ? "1d" : "60m")
+          ? await source.history(s, intra === null ? "10y" : "1d", intra === null ? "1d" : intra.equityInterval)
           : []),
       );
       const cur = currencyForTicker(s);
@@ -358,18 +382,28 @@ export async function changes(
         `chg:${symbol}:${range}:${Math.floor(Date.now() / 900_000)}`,
         900_000,
         async (): Promise<number[]> => {
+          // The sub-day ranges draw a day's finest bars and cut the window
+          // out; a share's day is Yahoo's "1d", however much of it the range
+          // keeps.
+          const intra = intraday(range);
           if (equity.has(symbol)) {
             if (!source.history) return [];
             const rows = await source.history(
               symbol,
-              range === "1d" ? "1d" : `${years}y`,
-              range === "1d" ? "60m" : "1d",
+              intra === null ? `${years}y` : "1d",
+              intra === null ? "1d" : intra.equityInterval,
             );
             return rows.filter((r) => r.t >= from).map((r) => r.c);
           }
           // Crypto at "1d" never reaches here — it is answered above from the
           // batched rolling window.
           const pair = pricingPair(symbol);
+          if (intra !== null) {
+            const bars = await fetchKlines(net, {
+              symbol: pair, interval: intra.interval, limit: intra.limit,
+            });
+            return bars.filter((b) => b.t >= from).map((b) => b.c);
+          }
           const bars = await fetchKlinesRange(net, {
             symbol: pair, interval: "1d", from, to: Date.now(),
           });
@@ -529,6 +563,8 @@ async function simulateSameFlows(
 /** Yahoo takes its own vocabulary for the same idea. */
 function yahooRange(range: RangeKey): { range: string; interval: string } {
   switch (range) {
+    case "4h": return { range: "1d", interval: "15m" };
+    case "12h": return { range: "1d", interval: "30m" };
     case "1d": return { range: "1d", interval: "60m" };
     case "1w": return { range: "5d", interval: "60m" };
     case "1m": return { range: "1mo", interval: "1d" };
@@ -623,6 +659,14 @@ export async function history(
         // "all" here means everything the source will give, not the portfolio's
         // first transaction: this endpoint knows nothing about a portfolio.
         const from = windowStart(range, 0);
+        const intra = intraday(range);
+        // Sub-day: the day's finest bars, cut to the window. 1d keeps its
+        // rolling 25 hours unfiltered — the note under `changePct` below is
+        // about exactly that window.
+        if (intra !== null && range !== "1d") {
+          const raw = await fetchKlines(net, { symbol: pair, interval: intra.interval, limit: intra.limit });
+          return raw.filter((b) => b.t >= from).map((b) => ({ t: b.t, c: b.c }));
+        }
         const hourly = range === "1d" || range === "1w";
         if (hourly) {
           const limit = range === "1d" ? 25 : 168;

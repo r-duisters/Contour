@@ -290,3 +290,93 @@ describe("asking for everything", () => {
     expect(urls).toHaveLength(1);
   });
 });
+
+/**
+ * The widening klines store. A closed bar never changes, so re-downloading
+ * years of daily closes every fifteen minutes was paying for immutable data
+ * on a schedule: one entry per (symbol, interval) instead, sliced for
+ * narrower requests and extended by a tail fetch when asked past what it
+ * holds. The failure worth pinning is the quiet one — a store that refetches
+ * everything still returns the right bars, and only the call log says the
+ * cache stopped doing its job.
+ */
+describe("the widening klines store", () => {
+  const DAY = 86_400_000;
+  const FROM = Date.parse("2020-01-01T00:00:00Z");
+  const bar = (t: number, close = 3) =>
+    [t, "1", "2", "0", String(close), "10", t + DAY - 1, "0", 1, "0", "0", "0"];
+
+  beforeEach(() => invalidate());
+
+  /** A daily grid that honours startTime/endTime, with the close injectable. */
+  function gridNet(closeAt: (t: number) => number = () => 3) {
+    const net = FakeNet({
+      "/api/v3/klines": (url: string) => {
+        const q = new URL(url).searchParams;
+        const start = Number(q.get("startTime"));
+        const end = Number(q.get("endTime"));
+        const out = [];
+        for (let t = start; t <= end; t += DAY) out.push(bar(t, closeAt(t)));
+        return out.slice(0, Number(q.get("limit") ?? 1000));
+      },
+    });
+    return net;
+  }
+
+  it("answers a repeat of the same window without the network", async () => {
+    const net = gridNet();
+    const to = FROM + 100 * DAY - 1;
+    await fetchKlinesRange(net, { symbol: "BTCUSDT", interval: "1d", from: FROM, to });
+    const paid = net.calls.length;
+    const again = await fetchKlinesRange(net, { symbol: "BTCUSDT", interval: "1d", from: FROM, to });
+    expect(net.calls.length).toBe(paid);
+    expect(again).toHaveLength(100);
+  });
+
+  it("slices a narrower window out of a wider one already held", async () => {
+    // Moving 1M → 1Y → All used to be separate cache keys and separate
+    // fetches; the whole point of one entry per pair is that a subset of
+    // what is held costs nothing.
+    const net = gridNet();
+    await fetchKlinesRange(net, { symbol: "BTCUSDT", interval: "1d", from: FROM, to: FROM + 400 * DAY - 1 });
+    const paid = net.calls.length;
+    const month = await fetchKlinesRange(net, {
+      symbol: "BTCUSDT", interval: "1d", from: FROM + 369 * DAY, to: FROM + 400 * DAY - 1,
+    });
+    expect(net.calls.length).toBe(paid);
+    expect(month).toHaveLength(31);
+    expect(month[0]!.t).toBe(FROM + 369 * DAY);
+  });
+
+  it("fetches only the tail when asked past what it holds", async () => {
+    const closes = new Map<number, number>();
+    const net = gridNet((t) => closes.get(t) ?? 3);
+    const heldTo = FROM + 100 * DAY - 1;
+    await fetchKlinesRange(net, { symbol: "BTCUSDT", interval: "1d", from: FROM, to: heldTo });
+    const paid = net.calls.length;
+
+    // The last held bar closes differently on the next look — it was still
+    // forming when stored, which is why the tail starts *at* it, not after.
+    closes.set(FROM + 99 * DAY, 7);
+    const to = FROM + 130 * DAY - 1;
+    const bars = await fetchKlinesRange(net, { symbol: "BTCUSDT", interval: "1d", from: FROM, to });
+
+    const tailCalls = net.calls.slice(paid);
+    expect(tailCalls).toHaveLength(1);
+    expect(new URL(tailCalls[0]!.url).searchParams.get("startTime")).toBe(String(FROM + 99 * DAY));
+    expect(bars).toHaveLength(130);
+    expect(bars[99]!.c).toBe(7);
+  });
+
+  it("widens once when asked for earlier bars than it holds", async () => {
+    const net = gridNet();
+    await fetchKlinesRange(net, { symbol: "BTCUSDT", interval: "1d", from: FROM + 300 * DAY, to: FROM + 400 * DAY - 1 });
+    const all = await fetchKlinesRange(net, { symbol: "BTCUSDT", interval: "1d", from: FROM, to: FROM + 400 * DAY - 1 });
+    expect(all).toHaveLength(400);
+    expect(all[0]!.t).toBe(FROM);
+    // And the widened entry serves the next request by itself.
+    const paid = net.calls.length;
+    await fetchKlinesRange(net, { symbol: "BTCUSDT", interval: "1d", from: FROM, to: FROM + 400 * DAY - 1 });
+    expect(net.calls.length).toBe(paid);
+  });
+});

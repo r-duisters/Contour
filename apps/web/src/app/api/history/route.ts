@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { RANGE_KEYS, type RangeKey } from "@/core/ranges";
 import { history } from "@/data/services/series";
 import { deps } from "@/lib/deps";
 
@@ -8,7 +9,7 @@ export const dynamic = "force-dynamic";
 const Query = z.object({
   symbol: z.string().min(1).max(30),
   assetType: z.enum(["crypto", "equity"]).default("crypto"),
-  range: z.enum(["1d", "1w", "1m", "ytd", "1y", "2y", "5y", "all"]).default("2y"),
+  range: z.enum(RANGE_KEYS as [RangeKey, ...RangeKey[]]).default("2y"),
 });
 
 export async function GET(req: NextRequest) {

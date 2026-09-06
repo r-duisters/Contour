@@ -1,4 +1,4 @@
-import { cached } from "@/core/cache";
+import { cached, peek, put } from "@/core/cache";
 import { QUOTE_ASSETS } from "@/core/symbols";
 import type { Bar, Timeframe } from "@/core/types";
 import type { Net } from "../ports/net";
@@ -63,24 +63,102 @@ export async function fetchKlines(net: Net, opts: {
   return raw.map(toBar);
 }
 
-/** Paginated fetch covering [from, to] in ms. Cached: daily history barely moves. */
-export function fetchKlinesRange(net: Net, opts: {
+/**
+ * Paginated fetch covering [from, to] in ms — and the reason it is cheap to
+ * call again.
+ *
+ * A closed bar never changes, so re-downloading five years of daily closes
+ * every fifteen minutes was paying for immutable data on a schedule. This
+ * keeps one long-lived entry per (symbol, interval) — every history this pair
+ * has ever been asked for, widening when a caller wants earlier bars — and on
+ * a warm call fetches only from the last held bar forward: one small request
+ * that re-reads the still-forming bar and appends what closed since.
+ *
+ * `freshAt` is the freshness rule, kept inside the value rather than as the
+ * entry's TTL, because expiry would throw the immutable bars away with the
+ * staleness. The TTL is long instead: it exists so a pair nobody asks about
+ * eventually leaves the persisted cache, not to say when the data is stale.
+ *
+ * The predecessor's lesson still applies (no time bucket in the key — the TTL
+ * key'd freshness twice and a restart could never reuse anything); here the
+ * key carries no `from` either, so 1M and All stop being different entries.
+ */
+const KLINES_FRESH_MS = 900_000;
+const KLINES_STORE_TTL_MS = 30 * 86_400_000;
+
+/**
+ * `[from, until]` is what the bars cover: `until` is the `to` of the fetch
+ * that produced them, so a request wholly inside it needs no network at all —
+ * a closed bar cannot have changed. Only a request past `until` asks how old
+ * the entry is, and then only the tail is fetched.
+ */
+type HeldKlines = { from: number; until: number; bars: Bar[] };
+
+const inflightKlines = new Map<string, Promise<void>>();
+
+function coversKlines(held: HeldKlines, from: number, to: number): boolean {
+  return held.from <= from && (to <= held.until || Date.now() - held.until < KLINES_FRESH_MS);
+}
+
+export async function fetchKlinesRange(net: Net, opts: {
   symbol: string;
   interval: Timeframe;
   from: number;
   to: number;
 }): Promise<Bar[]> {
-  /*
-   * No time bucket in the key. The TTL already says how long this is good
-   * for, and putting the same fact in the key as well is what stopped a cold
-   * start ever reusing anything: the entry survived the restart and was not
-   * expired, but fifteen minutes later it was looked up under a different
-   * name. Freshness expressed twice, and the key's copy defeated the cache
-   * the TTL was keeping alive.
-   */
-  return cached(`klines:${opts.symbol}:${opts.interval}:${opts.from}`, 900_000, () =>
-    fetchKlinesRangeUncached(net, opts),
-  );
+  const key = `klinestore:${opts.symbol.toUpperCase()}:${opts.interval}`;
+  const slice = (held: HeldKlines) => held.bars.filter((b) => b.t >= opts.from && b.t <= opts.to);
+
+  // Loops because a concurrent refresh may have been for a narrower window
+  // than this caller wants: await it, re-check coverage, and only then start
+  // one of our own. A refresh that throws propagates, so this cannot spin.
+  for (;;) {
+    const held = peek<HeldKlines>(key);
+    if (held && coversKlines(held, opts.from, opts.to)) return slice(held);
+    let pending = inflightKlines.get(key);
+    if (!pending) {
+      pending = refreshKlines(net, key, opts).finally(() => inflightKlines.delete(key));
+      inflightKlines.set(key, pending);
+    }
+    await pending;
+    const after = peek<HeldKlines>(key);
+    if (after && coversKlines(after, opts.from, opts.to)) return slice(after);
+  }
+}
+
+async function refreshKlines(net: Net, key: string, opts: {
+  symbol: string;
+  interval: Timeframe;
+  from: number;
+  to: number;
+}): Promise<void> {
+  const held = peek<HeldKlines>(key);
+  const last = held?.bars[held.bars.length - 1];
+
+  if (held && last && held.from <= opts.from) {
+    // Covered on the left but stale on the right: fetch from the last held
+    // bar's open, inclusive, so the bar that was still forming when it was
+    // stored is replaced by its current state rather than kept at a close it
+    // never had.
+    const to = Math.max(opts.to, held.until);
+    const tail = await fetchKlinesRangeUncached(net, {
+      symbol: opts.symbol, interval: opts.interval, from: last.t, to,
+    });
+    const cut = tail[0]?.t ?? Number.POSITIVE_INFINITY;
+    const bars = [...held.bars.filter((b) => b.t < cut), ...tail];
+    put(key, { from: held.from, until: to, bars }, KLINES_STORE_TTL_MS);
+    return;
+  }
+
+  // Nothing held, or the caller wants earlier bars than the entry covers:
+  // fetch the whole widened window once. This is the only path that pages,
+  // and it runs at most once per widening, never on a schedule.
+  const from = Math.min(opts.from, held?.from ?? opts.from);
+  const to = Math.max(opts.to, held?.until ?? opts.to);
+  const bars = await fetchKlinesRangeUncached(net, {
+    symbol: opts.symbol, interval: opts.interval, from, to,
+  });
+  put(key, { from, until: to, bars }, KLINES_STORE_TTL_MS);
 }
 
 /**
