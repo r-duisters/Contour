@@ -76,6 +76,20 @@ describe("the background runner's wiring", () => {
     // And the runner has to be writing what it reports.
     expect(runner).toContain('writeJson("lastRun"');
     expect(runner).toContain('writeJson("lastError"');
+    /*
+     * The half that tells silence apart from quiet. `lastRun` is written even
+     * when every fetch failed and nothing priced, so on its own it dresses a
+     * dead run up as a calm market. `lastPriced`/`lastWanted` say whether the
+     * run checked anything, `lastUnchecked` names the rules it could not, and
+     * `lastNotifiedAt` survives quiet runs — the last run's count alone can
+     * never answer "has the background ever notified me at all?".
+     */
+    for (const key of ["lastPriced", "lastWanted", "lastUnchecked", "lastNotifiedAt"]) {
+      expect(runner, `the runner must record ${key}`).toContain(`writeJson("${key}"`);
+    }
+    for (const field of ["notifiedAt", "priced", "wanted", "unchecked"]) {
+      expect(dispatcher0, `the alerts page must read ${field}`).toContain(field);
+    }
   });
 
   it("words a notification the same way the shared module does", () => {

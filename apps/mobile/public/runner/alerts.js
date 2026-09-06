@@ -191,6 +191,13 @@ addEventListener("getStatus", (resolve, reject) => {
       lastError: readJson("lastError", null),
       ruleCount: (readJson("alertRules", []) || []).length,
       notified: readJson("lastNotified", 0),
+      // When this runner last posted anything, ever — the last run's count
+      // alone cannot say "never", which is the answer that matters when
+      // notifications only seem to arrive with the app open.
+      notifiedAt: readJson("lastNotifiedAt", null),
+      priced: readJson("lastPriced", null),
+      wanted: readJson("lastWanted", null),
+      unchecked: readJson("lastUnchecked", []),
     });
   } catch (err) {
     reject(err);
@@ -296,12 +303,14 @@ addEventListener("alertCheck", async (resolve, reject) => {
       ...pHoldings.filter((h) => !isEquity(h)).map((h) => h.symbol),
     ]);
 
+    const wantEquity = uniq([
+      ...rules.filter(isEquity).map((r) => r.symbol),
+      ...pHoldings.filter(isEquity).map((h) => h.symbol),
+    ]);
+
     const [coin, share] = await Promise.all([
       priceCrypto(wantPrice, wantDayAgo),
-      priceEquities(uniq([
-        ...rules.filter(isEquity).map((r) => r.symbol),
-        ...pHoldings.filter(isEquity).map((h) => h.symbol),
-      ])),
+      priceEquities(wantEquity),
     ]);
     const prices = { ...coin.prices, ...share.prices };
     const dayAgo = { ...coin.dayAgo, ...share.dayAgo };
@@ -419,11 +428,29 @@ addEventListener("alertCheck", async (resolve, reject) => {
      * and reporting every symbol as broken then is noise that trains people
      * to ignore the one time it is true.
      */
+    const priced = Object.keys(prices).length;
+    const unchecked = priced === 0 ? [] : [...new Set(
+      rules
+        .filter((r) => prices[r.symbol] === undefined ||
+          (r.kind === "pct_move" && dayAgo[r.symbol] === undefined))
+        .map((r) => r.name || r.symbol),
+    )];
+    writeJson("lastUnchecked", unchecked);
+    /*
+     * How much of what was wanted actually came back. `lastRun` alone cannot
+     * tell a quiet market from a run whose every fetch failed — both finish,
+     * both write a timestamp — and only this pair tells them apart.
+     */
+    writeJson("lastPriced", priced);
+    writeJson("lastWanted", wantPrice.length + wantEquity.length);
     // Forget yesterday's marks so the store cannot grow without bound.
     for (const key of Object.keys(sent)) if (sent[key] < day - 1) delete sent[key];
     writeJson("alertsSent", sent);
     writeJson("lastRun", Date.now());
     writeJson("lastNotified", notified);
+    // Cumulative, unlike the count above: a quiet run must not erase the
+    // evidence that this runner has ever notified at all.
+    if (notified > 0) writeJson("lastNotifiedAt", Date.now());
     // A run that finished clears the last failure: keeping it would make one
     // bad night look like a runner that is still broken.
     writeJson("lastError", null);

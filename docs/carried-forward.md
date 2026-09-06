@@ -336,8 +336,18 @@ function, and a price-alert tracker is not on Android's list of those. The
 plugin now opens the battery-optimisation *list* instead — same destination, no
 permission, one tap further away, and the copy says so.
 `SCHEDULE_EXACT_ALARM` was never ours: two Capacitor plugins declare it and the
-merger folded it in, but every `LocalNotifications.schedule` call here omits the
-`schedule` field, so nothing in this app sets an alarm.
+merger folded it in, and every `LocalNotifications.schedule` call here omits the
+`schedule` field. But "nothing in this app sets an alarm", which this paragraph
+used to claim, was wrong: `@capacitor/background-runner`'s Android side posts
+*every* notification through an `AlarmManager` alarm, `scheduleAt` defaulting
+to now — and without the permission that alarm is `setAndAllowWhileIdle`,
+inexact and Doze-deferred. So the background runner would evaluate in a
+maintenance window, "send", and Android would hold the notification until the
+phone woke — alerts that only ever seemed to arrive when the app was opened
+(reported 2026-09-06). `patches/@capacitor+background-runner+3.0.0.patch`
+makes an immediate notification post directly, inside the run Android already
+granted; `scripts/runner-notify.test.ts` pins the patch, the `postinstall`
+that applies it, and the patched state of `node_modules`.
 `scripts/android-manifest.test.ts` fails on either of them now, because both
 would otherwise build, install and run perfectly and be caught weeks later by a
 review queue.
@@ -350,7 +360,8 @@ have opened Android's "Alarms & reminders" screen instead of posting.
 `scripts/exact-alarm.test.ts` pins the option that avoids it. Nothing else in
 the repository could have caught it: it type-checked, built, and passed every
 other test, and it misbehaves only on a physical Android 12+ phone at the moment
-an alert fires.
+an alert fires. The background-runner deferral above is the same shape of
+regression in the second notification path, found later for the same reason.
 
 **#67 is the user-facing half of the same cost.** Without the one-tap dialog,
 lifting battery optimisation is something a person does themselves, and on

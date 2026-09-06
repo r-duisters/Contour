@@ -1,0 +1,44 @@
+diff --git a/node_modules/@capacitor/background-runner/android/src/main/java/io/ionic/backgroundrunner/plugin/api/Notification.kt b/node_modules/@capacitor/background-runner/android/src/main/java/io/ionic/backgroundrunner/plugin/api/Notification.kt
+index 406e572..1627450 100644
+--- a/node_modules/@capacitor/background-runner/android/src/main/java/io/ionic/backgroundrunner/plugin/api/Notification.kt
++++ b/node_modules/@capacitor/background-runner/android/src/main/java/io/ionic/backgroundrunner/plugin/api/Notification.kt
+@@ -15,6 +15,7 @@ class Notification(jsonObject: JSONObject) {
+     var ongoing: Boolean
+     var autoCancel: Boolean
+     var scheduleAt: Date
++    var hasScheduleAt: Boolean = false
+     var largeBody: String? = null
+     var summaryText: String? = null
+     var sound: String? = null
+@@ -42,6 +43,7 @@ class Notification(jsonObject: JSONObject) {
+             val sdf = SimpleDateFormat(jsDateFormat)
+             val parsedDate = sdf.parse(scheduleDateString)
+ 
++            hasScheduleAt = true
+             scheduleAt = parsedDate ?: Date()
+         } else {
+             scheduleAt = Date()
+diff --git a/node_modules/@capacitor/background-runner/android/src/main/java/io/ionic/backgroundrunner/plugin/api/Notifications.kt b/node_modules/@capacitor/background-runner/android/src/main/java/io/ionic/backgroundrunner/plugin/api/Notifications.kt
+index 9eb28f3..3bec2d5 100644
+--- a/node_modules/@capacitor/background-runner/android/src/main/java/io/ionic/backgroundrunner/plugin/api/Notifications.kt
++++ b/node_modules/@capacitor/background-runner/android/src/main/java/io/ionic/backgroundrunner/plugin/api/Notifications.kt
+@@ -120,7 +120,18 @@ class Notifications(context: Context) : NotificationsAPI {
+                 style.setSummaryText(it.summaryText)
+             }
+ 
+-            scheduleNotification(builder.build(), it)
++            // Patched (patch-package): a notification with no `scheduleAt` is
++            // meant to post now. Routing it through AlarmManager — as the
++            // scheduled path below does — turns it into an inexact while-idle
++            // alarm whenever SCHEDULE_EXACT_ALARM is absent, and Doze then
++            // defers delivery until the device wakes. Post it directly instead,
++            // the way TimedNotificationPublisher would have.
++            if (it.hasScheduleAt) {
++                scheduleNotification(builder.build(), it)
++            } else {
++                val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
++                notificationManager.notify(it.id, builder.build())
++            }
+         }
+     }
+ 

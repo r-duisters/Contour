@@ -228,11 +228,31 @@ export default function AlertsPage() {
             {runner.lastRun
               ? <>In the background: last ran {sinceWords(runner.lastRun)}, watching{" "}
                   {runner.ruleCount} {runner.ruleCount === 1 ? "check" : "checks"}
-                  {runner.notified > 0 && <> · {runner.notified} sent that time</>}.</>
+                  {runner.notified > 0 && <> · {runner.notified} sent that time</>}
+                  {runner.notifiedAt
+                    ? <> · last sent a notification {sinceWords(runner.notifiedAt)}</>
+                    : <> · none sent from the background yet</>}.</>
               : <span className="text-amber-500">
                   In the background: has not run yet. Android schedules it when it
                   chooses to, and a new install may wait a while for the first one.
                 </span>}
+          </p>
+        )}
+        {/*
+          The line above says a run finished; only this can say whether it
+          checked anything. A run whose every request failed still writes a
+          timestamp, and on the screen it looked exactly like a quiet market.
+        */}
+        {runner?.lastRun != null && runner.priced === 0 && (runner.wanted ?? 0) > 0 && (
+          <p className="text-xs text-amber-500 mt-1">
+            The last background run priced none of the {runner.wanted} symbols it
+            watches — the network may have been unreachable. Checks when you open
+            the app are separate, and unaffected.
+          </p>
+        )}
+        {runner && runner.unchecked.length > 0 && (
+          <p className="text-xs text-amber-500 mt-1">
+            The last background run couldn&rsquo;t price {runner.unchecked.join(", ")}.
           </p>
         )}
         {runner?.lastError && (
@@ -352,6 +372,13 @@ type RunnerStatus = {
   lastError: { at: number; message: string } | null;
   ruleCount: number;
   notified: number;
+  /** When the runner last posted a notification, ever — not just last run. */
+  notifiedAt: number | null;
+  /** How many symbols the last run priced, out of how many it wanted. */
+  priced: number | null;
+  wanted: number | null;
+  /** Rules the last run could not price while other symbols did price. */
+  unchecked: string[];
 };
 
 /**
