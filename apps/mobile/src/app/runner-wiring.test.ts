@@ -84,12 +84,34 @@ describe("the background runner's wiring", () => {
      * `lastNotifiedAt` survives quiet runs — the last run's count alone can
      * never answer "has the background ever notified me at all?".
      */
-    for (const key of ["lastPriced", "lastWanted", "lastUnchecked", "lastNotifiedAt"]) {
+    for (const key of ["lastPriced", "lastWanted", "lastUnchecked", "lastNotifiedAt", "lastFetchError"]) {
       expect(runner, `the runner must record ${key}`).toContain(`writeJson("${key}"`);
     }
-    for (const field of ["notifiedAt", "priced", "wanted", "unchecked"]) {
+    for (const field of ["notifiedAt", "priced", "wanted", "unchecked", "fetchError"]) {
       expect(dispatcher0, `the alerts page must read ${field}`).toContain(field);
     }
+    // And asked to run right now, from the screen — waiting half an hour for a
+    // run Android may defer anyway is no way to diagnose anything.
+    expect(dispatcher0).toContain('event: "alertCheck"');
+  });
+
+  /**
+   * One bad symbol must not silence the rest.
+   *
+   * Binance rejects the whole `symbols=[...]` request with `-1121 Invalid
+   * symbol` when any one entry is unknown, and a real ledger holds one — a
+   * delisted coin stays in the portfolio. The plain batch this replaces
+   * priced *nothing* on every background run for as long as that coin was
+   * held, which the app-side pass survived only because `fetchPricesSafe`
+   * and `fetchDailyStatsTolerant` learnt the same lesson against live data.
+   * The runner cannot import them, so its copy is pinned here instead.
+   */
+  it("prices through the tolerant batch, so a delisted holding costs itself only", () => {
+    expect(runner).toMatch(/tolerantBatch\(`\$\{BINANCE\}\/ticker\/price`/);
+    expect(runner).toMatch(/tolerantBatch\(`\$\{BINANCE\}\/ticker\/24hr`/);
+    // The fragile form must not come back alongside it.
+    expect(runner).not.toMatch(/ticker\/price\?symbols/);
+    expect(runner).not.toMatch(/ticker\/24hr\?symbols/);
   });
 
   it("words a notification the same way the shared module does", () => {

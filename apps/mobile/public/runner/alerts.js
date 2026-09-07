@@ -198,6 +198,7 @@ addEventListener("getStatus", (resolve, reject) => {
       priced: readJson("lastPriced", null),
       wanted: readJson("lastWanted", null),
       unchecked: readJson("lastUnchecked", []),
+      fetchError: readJson("lastFetchError", null),
     });
   } catch (err) {
     reject(err);
@@ -211,27 +212,64 @@ addEventListener("getStatus", (resolve, reject) => {
  * to the second — not an hour-aligned bar close, which would make the window
  * run 24 to 25 hours and disagree with what the app shows.
  */
-async function priceCrypto(symbols, needBaseline) {
+async function priceCrypto(symbols, needBaseline, errors) {
   const prices = {};
   const dayAgo = {};
   if (!symbols.length) return { prices, dayAgo };
 
-  const query = encodeURIComponent(JSON.stringify(symbols));
-  const priced = await fetch(`${BINANCE}/ticker/price?symbols=${query}`)
-    .then((r) => (r.ok ? r.json() : []))
-    .catch(() => []);
-  for (const row of priced) prices[row.symbol] = Number(row.price);
+  for (const row of await tolerantBatch(`${BINANCE}/ticker/price`, symbols, "", errors)) {
+    prices[row.symbol] = Number(row.price);
+  }
 
   if (needBaseline.length) {
-    const stats = await fetch(
-      `${BINANCE}/ticker/24hr?symbols=${encodeURIComponent(JSON.stringify(needBaseline))}&type=MINI`,
-    ).then((r) => (r.ok ? r.json() : [])).catch(() => []);
+    const stats = await tolerantBatch(`${BINANCE}/ticker/24hr`, needBaseline, "&type=MINI", errors);
     for (const row of stats) {
       const open = Number(row.openPrice);
       if (open > 0) dayAgo[row.symbol] = open;
     }
   }
   return { prices, dayAgo };
+}
+
+/**
+ * A batched Binance request that survives one bad symbol.
+ *
+ * Binance rejects the *whole* `symbols=[...]` request with `-1121 Invalid
+ * symbol` when any one entry is unknown to it — and a real ledger carries
+ * one, because a delisted coin stays held. For as long as this runner sent
+ * the plain batch, that single symbol silenced every crypto check it made:
+ * the batch answered 400, `r.ok ? … : []` read that as an empty market, and
+ * a runner with nothing priced looks exactly like a market that did not
+ * move. The app-side pass survived the same ledger because
+ * `fetchPricesSafe` and `fetchDailyStatsTolerant` in
+ * packages/data/src/sources/binance.ts learnt this against live data — "every
+ * unit test passed with a fake that answered whatever it was asked" — and
+ * the hand-maintained mirror here never got the lesson.
+ *
+ * Same shape as theirs: try the batch, and on any failure ask one by one, so
+ * a bad symbol costs itself and nothing else. `errors` collects what went
+ * wrong for the status the alerts screen shows.
+ */
+async function tolerantBatch(base, symbols, extra, errors) {
+  const url = (list) =>
+    `${base}?symbols=${encodeURIComponent(JSON.stringify(list))}${extra}`;
+  try {
+    const res = await fetch(url(symbols));
+    if (res.ok) return await res.json();
+    errors.push(`${base.slice(base.lastIndexOf("/") + 1)}: HTTP ${res.status}`);
+  } catch (err) {
+    errors.push(String((err && err.message) || err));
+  }
+  const out = [];
+  await Promise.all(symbols.map(async (symbol) => {
+    try {
+      const res = await fetch(url([symbol]));
+      if (res.ok) out.push(...(await res.json()));
+    } catch (err) {
+      // One symbol that will not price is not a reason to skip the others.
+    }
+  }));
+  return out;
 }
 
 /**
@@ -248,7 +286,7 @@ async function priceCrypto(symbols, needBaseline) {
  * for a share: a market that is shut has not moved, and a rolling 24 hours
  * across a weekend would report zero.
  */
-async function priceEquities(symbols) {
+async function priceEquities(symbols, errors) {
   const prices = {};
   const dayAgo = {};
   const currencies = {};
@@ -258,7 +296,7 @@ async function priceEquities(symbols) {
         `${YAHOO}/${encodeURIComponent(symbol)}?range=1d&interval=1d`,
         { headers: YAHOO_HEADERS },
       );
-      if (!res.ok) continue;
+      if (!res.ok) { errors.push(`${symbol}: HTTP ${res.status}`); continue; }
       const meta = ((await res.json()).chart?.result || [])[0]?.meta;
       const price = meta && meta.regularMarketPrice;
       if (typeof price !== "number") continue;
@@ -269,7 +307,10 @@ async function priceEquities(symbols) {
       const prev = meta.chartPreviousClose ?? meta.previousClose;
       if (typeof prev === "number" && prev > 0) dayAgo[symbol] = prev;
     } catch (err) {
-      // One share that will not price is not a reason to skip the others.
+      // One share that will not price is not a reason to skip the others —
+      // but what went wrong is recorded, because for months a failed fetch in
+      // here was indistinguishable from a quiet market.
+      errors.push(`${symbol}: ${String((err && err.message) || err)}`);
     }
   }
   return { prices, dayAgo, currencies };
@@ -308,9 +349,14 @@ addEventListener("alertCheck", async (resolve, reject) => {
       ...pHoldings.filter(isEquity).map((h) => h.symbol),
     ]);
 
+    // What went wrong while pricing, in order of occurrence. The first entry
+    // is what the alerts screen shows when a run priced nothing: "HTTP 400"
+    // and "Unable to resolve host" call for different fixes, and until this
+    // existed both wore the same silence.
+    const errors = [];
     const [coin, share] = await Promise.all([
-      priceCrypto(wantPrice, wantDayAgo),
-      priceEquities(wantEquity),
+      priceCrypto(wantPrice, wantDayAgo, errors),
+      priceEquities(wantEquity, errors),
     ]);
     const prices = { ...coin.prices, ...share.prices };
     const dayAgo = { ...coin.dayAgo, ...share.dayAgo };
@@ -443,6 +489,7 @@ addEventListener("alertCheck", async (resolve, reject) => {
      */
     writeJson("lastPriced", priced);
     writeJson("lastWanted", wantPrice.length + wantEquity.length);
+    writeJson("lastFetchError", errors.length ? String(errors[0]).slice(0, 200) : null);
     // Forget yesterday's marks so the store cannot grow without bound.
     for (const key of Object.keys(sent)) if (sent[key] < day - 1) delete sent[key];
     writeJson("alertsSent", sent);

@@ -67,6 +67,25 @@ export default function AlertsPage() {
    * registered yet on a first launch.
    */
   const [runner, setRunner] = useState<RunnerStatus | null>(null);
+  /** Whether the on-demand background check is in flight. */
+  const [checkingNow, setCheckingNow] = useState(false);
+
+  async function runNow(): Promise<void> {
+    setCheckingNow(true);
+    try {
+      const { BackgroundRunner } = await import("@capacitor/background-runner");
+      await BackgroundRunner.dispatchEvent({
+        label: "app.contour.standalone.alerts",
+        event: "alertCheck",
+        details: {},
+      });
+    } catch {
+      // Not a phone, or the runner is not registered yet. The status lines
+      // below keep saying whatever was true before the tap.
+    }
+    setRunner(await runnerStatus());
+    setCheckingNow(false);
+  }
 
   // Inlined rather than a `void load()` in the effect: the lint rule cannot
   // see through a callback to know the assignment happens after an await, and
@@ -246,8 +265,10 @@ export default function AlertsPage() {
         {runner?.lastRun != null && runner.priced === 0 && (runner.wanted ?? 0) > 0 && (
           <p className="text-xs text-amber-500 mt-1">
             The last background run priced none of the {runner.wanted} symbols it
-            watches — the network may have been unreachable. Checks when you open
-            the app are separate, and unaffected.
+            watches{runner.fetchError
+              ? <> — the first failure was &ldquo;{runner.fetchError}&rdquo;</>
+              : <> — the network may have been unreachable</>}. Checks when you
+            open the app are separate, and unaffected.
           </p>
         )}
         {runner && runner.unchecked.length > 0 && (
@@ -259,6 +280,25 @@ export default function AlertsPage() {
           <p className="text-xs text-amber-500 mt-1">
             Last background attempt failed {sinceWords(runner.lastError.at)}: {runner.lastError.message}
           </p>
+        )}
+
+        {/*
+          The same check Android runs on its schedule, on demand — so whether
+          the background half works is answerable in ten seconds, not after
+          half an hour of waiting for a run that Android may defer anyway. It
+          dispatches into the same runtime with the same rules; dedupe means
+          it can notify at most what the next scheduled run would have.
+        */}
+        {runner && (
+          <div className="mt-3">
+            <Button
+              variant="secondary"
+              disabled={checkingNow}
+              onClick={() => void runNow()}
+            >
+              {checkingNow ? "Checking…" : "Run the background check now"}
+            </Button>
+          </div>
         )}
 
         {/*
@@ -379,6 +419,10 @@ type RunnerStatus = {
   wanted: number | null;
   /** Rules the last run could not price while other symbols did price. */
   unchecked: string[];
+  /** The first fetch failure of the last run — "HTTP 400" and "Unable to
+      resolve host" call for different fixes, and both used to wear the same
+      silence. Null when everything answered. */
+  fetchError: string | null;
 };
 
 /**
