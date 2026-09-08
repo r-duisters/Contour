@@ -37,6 +37,7 @@ public class MainActivity extends BridgeActivity {
         // Before super: Capacitor builds the bridge there, and a plugin
         // registered afterwards is not in it.
         registerPlugin(BatteryOptimizationPlugin.class);
+        registerPlugin(NotificationTapPlugin.class);
         // Also before super, and before the first layout pass: this is what
         // applies `postSplashScreenTheme`, and what gives us the handle needed
         // to hold the launch window past its default single frame.
@@ -76,6 +77,63 @@ public class MainActivity extends BridgeActivity {
         handleBackButton();
         keepPortfolioOutOfRecents();
         brandTheRecentsCard();
+        // A cold start from a background alert's tap: the payload rides the
+        // launch intent, and the page collects it once it exists.
+        stashNotificationTap(getIntent());
+    }
+
+    /**
+     * What a tapped background notification is about, waiting for the page.
+     *
+     * The patched background-runner plugin puts the notification's `extra` on
+     * its tap intent under this key (see patches/). It cannot be handed
+     * straight to the WebView: on a cold start there is no document yet, and
+     * `evaluateJavascript` before the first load is silently dropped. So it
+     * waits here and `NotificationTapPlugin.consume()` collects it — the app
+     * asks on mount and on coming to the foreground, and the doorbell below
+     * covers the warm case where neither is about to happen.
+     *
+     * Static because the plugin and the activity are separate objects with no
+     * channel between them, and this process only ever has one MainActivity.
+     */
+    private static String pendingNotificationTap = null;
+
+    static synchronized String takePendingNotificationTap() {
+        String value = pendingNotificationTap;
+        pendingNotificationTap = null;
+        return value;
+    }
+
+    private static synchronized void stashTap(String value) {
+        pendingNotificationTap = value;
+    }
+
+    private void stashNotificationTap(Intent intent) {
+        if (intent == null) return;
+        String extra = intent.getStringExtra("notificationExtra");
+        if (extra == null) return;
+        // Consumed from the intent as well as delivered once: singleTask
+        // redelivers the same intent on recents and rotation, and a stale tap
+        // navigating the app hours later would be a haunting.
+        intent.removeExtra("notificationExtra");
+        stashTap(extra);
+    }
+
+    /** A warm tap: the activity already runs, so onCreate never fires again. */
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        stashNotificationTap(intent);
+        // The page may already be visible with no visibility change coming,
+        // so ring rather than wait: the event carries nothing, and the
+        // listener collects the payload through the plugin like every other
+        // path. Bridge readiness is not guaranteed this early on a relaunch —
+        // a missed ring costs nothing, because the visibility listener asks
+        // again on the next foreground.
+        if (getBridge() != null) {
+            getBridge().triggerWindowJSEvent("contourNotificationTap", "{}");
+        }
     }
 
     /**

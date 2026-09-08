@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import BiometricLock from "@/components/BiometricLock";
 import DeviceAlerts from "./device-alerts";
+import NotificationTaps from "./notification-taps";
 import FirstRun from "./first-run";
 import Nav from "./nav";
 import Providers from "./providers";
@@ -70,6 +71,10 @@ export default function RootLayout({
           web app puts behind More is server-only.
         */}
         <BiometricLock>
+          {/* Outside Providers: routing a notification tap needs no data, and
+              a cold start's tap should be waiting at the router the moment
+              hydration finishes, not after the database opens. */}
+          <NotificationTaps />
           <Providers>
             {/* An empty device gets the setup flow instead of an empty
                 portfolio — and instead of the tab bar, so the wizard has the

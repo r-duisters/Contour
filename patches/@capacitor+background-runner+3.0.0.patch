@@ -1,16 +1,27 @@
 diff --git a/node_modules/@capacitor/background-runner/android/src/main/java/io/ionic/backgroundrunner/plugin/api/Notification.kt b/node_modules/@capacitor/background-runner/android/src/main/java/io/ionic/backgroundrunner/plugin/api/Notification.kt
-index 406e572..1627450 100644
+index 406e572..68a360b 100644
 --- a/node_modules/@capacitor/background-runner/android/src/main/java/io/ionic/backgroundrunner/plugin/api/Notification.kt
 +++ b/node_modules/@capacitor/background-runner/android/src/main/java/io/ionic/backgroundrunner/plugin/api/Notification.kt
-@@ -15,6 +15,7 @@ class Notification(jsonObject: JSONObject) {
+@@ -15,6 +15,11 @@ class Notification(jsonObject: JSONObject) {
      var ongoing: Boolean
      var autoCancel: Boolean
      var scheduleAt: Date
 +    var hasScheduleAt: Boolean = false
++    // Patched (patch-package): the field below exists but nothing filled it,
++    // so a notification's `extra` was silently dropped. Kept as the raw JSON
++    // string — the tap intent carries it verbatim and the web layer parses it.
++    var extraJson: String? = null
      var largeBody: String? = null
      var summaryText: String? = null
      var sound: String? = null
-@@ -42,6 +43,7 @@ class Notification(jsonObject: JSONObject) {
+@@ -36,12 +41,14 @@ class Notification(jsonObject: JSONObject) {
+         ongoing = jsonObject.optBoolean("ongoing", false)
+         autoCancel = jsonObject.optBoolean("autoCancel", false)
+         actionTypeId = jsonObject.optString("actionTypeId", null)
++        extraJson = jsonObject.optJSONObject("extra")?.toString()
+ 
+         val scheduleDateString = jsonObject.optString("scheduleAt", "")
+         if (scheduleDateString.isNotEmpty()) {
              val sdf = SimpleDateFormat(jsDateFormat)
              val parsedDate = sdf.parse(scheduleDateString)
  
@@ -19,10 +30,31 @@ index 406e572..1627450 100644
          } else {
              scheduleAt = Date()
 diff --git a/node_modules/@capacitor/background-runner/android/src/main/java/io/ionic/backgroundrunner/plugin/api/Notifications.kt b/node_modules/@capacitor/background-runner/android/src/main/java/io/ionic/backgroundrunner/plugin/api/Notifications.kt
-index 9eb28f3..3bec2d5 100644
+index 9eb28f3..7486f9e 100644
 --- a/node_modules/@capacitor/background-runner/android/src/main/java/io/ionic/backgroundrunner/plugin/api/Notifications.kt
 +++ b/node_modules/@capacitor/background-runner/android/src/main/java/io/ionic/backgroundrunner/plugin/api/Notifications.kt
-@@ -120,7 +120,18 @@ class Notifications(context: Context) : NotificationsAPI {
+@@ -92,11 +92,17 @@ class Notifications(context: Context) : NotificationsAPI {
+             builder.setGroupSummary(it.groupSummary != null)
+             builder.setSmallIcon(it.smallIcon(this.context, getDefaultSmallIcon()))
+ 
+-            // Add action intent handling
+-            val actionIntent = Intent(".NOTIFICATION_CLICKED").apply {
+-                `package` = context.packageName
++            // Patched (patch-package): the original built an intent for the
++            // action ".NOTIFICATION_CLICKED", which no activity declares — so
++            // tapping one of these notifications did nothing at all. The
++            // launcher intent reaches the app's single activity directly, and
++            // carries the notification's `extra` for it to hand to the page.
++            val actionIntent = (context.packageManager.getLaunchIntentForPackage(context.packageName)
++                ?: Intent(".NOTIFICATION_CLICKED").apply { `package` = context.packageName }).apply {
+                 putExtra("actionTypeId", it.actionTypeId)
+                 putExtra("notificationId", it.id)
++                if (it.extraJson != null) putExtra("notificationExtra", it.extraJson)
++                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+             }
+             
+             val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+@@ -120,7 +126,18 @@ class Notifications(context: Context) : NotificationsAPI {
                  style.setSummaryText(it.summaryText)
              }
  

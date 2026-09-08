@@ -142,7 +142,7 @@ export default function DeviceAlerts() {
             name: rule.name, direction, target: rule.price,
             price: quote.price, currency: quote.currency, oneShot,
           });
-          await notify(id++, notice, rule.name);
+          await notify(id++, notice, rule.symbol, rule.assetType);
           sent[key] = day;
           // Only a rule that named its own symbol is deleted — a portfolio-wide
           // rule is not one target, and one holding reaching a level is no
@@ -159,7 +159,7 @@ export default function DeviceAlerts() {
           await notify(id++, positionPnlNotice({
             name: rule.name, direction: rule.pnlDirection ?? "up", pct: hit.pct,
             avgCost: rule.avgCost ?? 0, price: quote.price, currency: quote.currency,
-          }), rule.name);
+          }), rule.symbol, rule.assetType);
           sent[key] = day;
         } else if (rule.kind === "pct_move" && rule.threshold !== undefined) {
           const was = base[rule.symbol];
@@ -174,7 +174,7 @@ export default function DeviceAlerts() {
             // An expanded rule carries a suffixed id, which is how this knows
             // it fired on a holding rather than on a symbol somebody picked.
             portfolio: rule.portfolioId ? portfolioNames[rule.portfolioId] ?? null : null,
-          }), rule.name);
+          }), rule.symbol, rule.assetType);
           sent[key] = day;
         }
       }
@@ -205,7 +205,10 @@ export default function DeviceAlerts() {
           portfolio: portfolioNames[rule.portfolioId] ?? "your portfolio",
           direction: hit.direction, pct: hit.pct,
           from: hit.from, value: hit.value, currency, skipped: hit.skipped,
-        }), rule.holdings[0]?.symbol ?? "");
+          // No symbol: this notice is about the whole book, and a tap landing
+          // on whichever holding happened to be first would be a wrong answer
+          // dressed as a helpful one. The app opens on the portfolio itself.
+        }), "");
         sent[key] = day;
       }
 
@@ -351,9 +354,12 @@ async function dispatchToRunner(
  *
  * `extra` is what a tap can read: the alert named one asset and the app opened
  * wherever it happened to be, so the thing that woke you was two navigations
- * from the screen about it. `device-notifications.tsx` reads this back.
+ * from the screen about it. `notification-taps.tsx` reads this back through
+ * the plugin's `localNotificationActionPerformed` and navigates. An empty
+ * symbol means a portfolio-wide notice — no one asset to land on, and the app
+ * opens on the portfolio anyway.
  */
-async function notify(id: number, notice: Notice, symbol: string): Promise<void> {
+async function notify(id: number, notice: Notice, symbol: string, assetType?: string): Promise<void> {
   const { LocalNotifications } = await import("@capacitor/local-notifications");
   await LocalNotifications.schedule({
     /*
@@ -376,7 +382,7 @@ async function notify(id: number, notice: Notice, symbol: string): Promise<void>
      * were owed would never arrive.
      */
     notifications: [{
-      id, title: notice.title, body: notice.body, extra: { symbol },
+      id, title: notice.title, body: notice.body, extra: { symbol, assetType },
       isExactNotification: false,
     }],
   });
