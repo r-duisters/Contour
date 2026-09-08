@@ -32,8 +32,43 @@
  */
 
 const BINANCE = "https://api.binance.com/api/v3";
+/**
+ * Binance's public market-data host, for networks the main one refuses.
+ *
+ * A hotel or office NAT shares one IP, and `api.binance.com` blocks by IP —
+ * geo-restriction (451), WAF (403), rate-limit bans (418/429) earned by
+ * everyone behind it together. `data-api.binance.vision` serves the same
+ * endpoints with the same payloads, and being a different domain it also
+ * survives DNS blocks on `binance.com`. Mirrors `binanceJson` in
+ * packages/data/src/sources/binance.ts, by hand like everything else here.
+ */
+const BINANCE_FALLBACK = "https://data-api.binance.vision/api/v3";
 const YAHOO = "https://query1.finance.yahoo.com/v8/finance/chart";
 const DAY_MS = 86400000;
+
+/** A status that refuses the network or IP, not the request. */
+function refusesNetwork(status) {
+  return status === 403 || status === 418 || status === 429 || status === 451;
+}
+
+/** Which host answered last. Per run: this runtime is rebuilt every wake. */
+let binanceBase = BINANCE;
+
+/** One GET against Binance, trying the other host when this network is refused. */
+async function binanceGet(pathAndQuery) {
+  const other = binanceBase === BINANCE ? BINANCE_FALLBACK : BINANCE;
+  let res = null;
+  try {
+    res = await fetch(`${binanceBase}${pathAndQuery}`);
+  } catch (err) {
+    // Unreachable is a reason to try the other host too: a network that
+    // blocks binance.com in DNS resolves the fallback's domain fine.
+  }
+  if (res && (res.ok || !refusesNetwork(res.status))) return res;
+  const second = await fetch(`${other}${pathAndQuery}`);
+  if (second.ok) binanceBase = other;
+  return second;
+}
 
 /**
  * Yahoo answers 429 to a bare request; it wants the headers a browser XHR
@@ -69,8 +104,19 @@ function writeJson(key, value) {
   }
 }
 
-function notify(id, title, body) {
-  CapacitorNotifications.schedule([{ id, title, body }]);
+/**
+ * `extra` is what a tap can read — the patched plugin carries it on the tap's
+ * launch intent, and `notification-taps.tsx` turns it into a navigation to
+ * the asset the alert names. Omitted for a portfolio-wide notice, which has
+ * no one asset to land on: the app opens on the portfolio anyway.
+ */
+function notify(id, title, body, extra) {
+  CapacitorNotifications.schedule([{ id, title, body, extra }]);
+}
+
+/** Where a tap on this rule's notification should land. */
+function tapExtra(rule) {
+  return { symbol: rule.symbol, assetType: rule.assetType === "equity" ? "equity" : "crypto" };
 }
 
 /**
@@ -217,12 +263,12 @@ async function priceCrypto(symbols, needBaseline, errors) {
   const dayAgo = {};
   if (!symbols.length) return { prices, dayAgo };
 
-  for (const row of await tolerantBatch(`${BINANCE}/ticker/price`, symbols, "", errors)) {
+  for (const row of await tolerantBatch("/ticker/price", symbols, "", errors)) {
     prices[row.symbol] = Number(row.price);
   }
 
   if (needBaseline.length) {
-    const stats = await tolerantBatch(`${BINANCE}/ticker/24hr`, needBaseline, "&type=MINI", errors);
+    const stats = await tolerantBatch("/ticker/24hr", needBaseline, "&type=MINI", errors);
     for (const row of stats) {
       const open = Number(row.openPrice);
       if (open > 0) dayAgo[row.symbol] = open;
@@ -250,25 +296,41 @@ async function priceCrypto(symbols, needBaseline, errors) {
  * a bad symbol costs itself and nothing else. `errors` collects what went
  * wrong for the status the alerts screen shows.
  */
-async function tolerantBatch(base, symbols, extra, errors) {
+async function tolerantBatch(path, symbols, extra, errors) {
   const url = (list) =>
-    `${base}?symbols=${encodeURIComponent(JSON.stringify(list))}${extra}`;
+    `${path}?symbols=${encodeURIComponent(JSON.stringify(list))}${extra}`;
+  let batchStatus;
   try {
-    const res = await fetch(url(symbols));
+    const res = await binanceGet(url(symbols));
     if (res.ok) return await res.json();
-    errors.push(`${base.slice(base.lastIndexOf("/") + 1)}: HTTP ${res.status}`);
+    batchStatus = res.status;
+    errors.push(`${path.slice(1)}: HTTP ${res.status}`);
   } catch (err) {
     errors.push(String((err && err.message) || err));
   }
+  /*
+   * One by one, with a stop for what one-by-one cannot fix.
+   *
+   * The fallback exists for one bad symbol in the batch. When the *network*
+   * is what failed — both hosts refusing — every single fails the same way,
+   * and pressing on turns one blocked request into dozens: not just waste,
+   * because Binance's 418 ban escalates for traffic that keeps arriving. Two
+   * matching failures stop it; two, not one, so a genuinely delisted symbol
+   * at the front cannot mask a feed that works. Sequential on purpose — an
+   * early stop is only possible for requests not yet sent.
+   */
   const out = [];
-  await Promise.all(symbols.map(async (symbol) => {
+  let matching = 0;
+  for (const symbol of symbols) {
     try {
-      const res = await fetch(url([symbol]));
-      if (res.ok) out.push(...(await res.json()));
+      const res = await binanceGet(url([symbol]));
+      if (res.ok) { out.push(...(await res.json())); continue; }
+      if (res.status === batchStatus && refusesNetwork(res.status) && ++matching >= 2) break;
     } catch (err) {
-      // One symbol that will not price is not a reason to skip the others.
+      // The batch threw too (batchStatus undefined) means nothing answers.
+      if (batchStatus === undefined && ++matching >= 2) break;
     }
-  }));
+  }
   return out;
 }
 
@@ -290,13 +352,22 @@ async function priceEquities(symbols, errors) {
   const prices = {};
   const dayAgo = {};
   const currencies = {};
+  // Consecutive refusals of the network itself, not of one symbol. Yahoo has
+  // no batch form, so a blocked IP would otherwise cost one doomed request
+  // per share, every half hour.
+  let refusals = 0;
   for (const symbol of symbols) {
     try {
       const res = await fetch(
         `${YAHOO}/${encodeURIComponent(symbol)}?range=1d&interval=1d`,
         { headers: YAHOO_HEADERS },
       );
-      if (!res.ok) { errors.push(`${symbol}: HTTP ${res.status}`); continue; }
+      if (!res.ok) {
+        errors.push(`${symbol}: HTTP ${res.status}`);
+        if (refusesNetwork(res.status) && ++refusals >= 3) break;
+        continue;
+      }
+      refusals = 0;
       const meta = ((await res.json()).chart?.result || [])[0]?.meta;
       const price = meta && meta.regularMarketPrice;
       if (typeof price !== "number") continue;
@@ -381,7 +452,7 @@ addEventListener("alertCheck", async (resolve, reject) => {
             name, direction: rule.direction, target: rule.price,
             price, currency, oneShot: !rule.repeat,
           });
-          notify(id++, n.title, n.body);
+          notify(id++, n.title, n.body, tapExtra(rule));
           sent[key] = day;
           notified++;
         }
@@ -397,7 +468,7 @@ addEventListener("alertCheck", async (resolve, reject) => {
           const n = positionPnlNotice({
             name, direction: dir, pct, avgCost: rule.avgCost, price, currency,
           });
-          notify(id++, n.title, n.body);
+          notify(id++, n.title, n.body, tapExtra(rule));
           sent[key] = day;
           notified++;
         }
@@ -411,7 +482,7 @@ addEventListener("alertCheck", async (resolve, reject) => {
             name, direction: pct >= 0 ? "up" : "down", pct,
             from: base, price, currency, portfolio: rule.portfolio || null,
           });
-          notify(id++, n.title, n.body);
+          notify(id++, n.title, n.body, tapExtra(rule));
           sent[key] = day;
           notified++;
         }

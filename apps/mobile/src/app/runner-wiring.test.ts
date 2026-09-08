@@ -107,11 +107,33 @@ describe("the background runner's wiring", () => {
    * The runner cannot import them, so its copy is pinned here instead.
    */
   it("prices through the tolerant batch, so a delisted holding costs itself only", () => {
-    expect(runner).toMatch(/tolerantBatch\(`\$\{BINANCE\}\/ticker\/price`/);
-    expect(runner).toMatch(/tolerantBatch\(`\$\{BINANCE\}\/ticker\/24hr`/);
+    expect(runner).toContain('tolerantBatch("/ticker/price"');
+    expect(runner).toContain('tolerantBatch("/ticker/24hr"');
     // The fragile form must not come back alongside it.
     expect(runner).not.toMatch(/ticker\/price\?symbols/);
     expect(runner).not.toMatch(/ticker\/24hr\?symbols/);
+  });
+
+  /**
+   * Issue #23's pair of lessons, hand-copied here like everything else.
+   *
+   * A hotel or office NAT shares one IP and `api.binance.com` blocks by IP,
+   * so every Binance request must be able to try the public market-data host
+   * — and a network that is refusing must stop the per-symbol fallback,
+   * because Binance's 418 ban escalates for traffic that keeps arriving.
+   * `sources/binance.ts` carries the same two behaviours for the app side;
+   * this runtime cannot import them.
+   */
+  it("fails over to the public data host, and stops retrying a refused network", () => {
+    expect(runner).toContain("data-api.binance.vision");
+    expect(runner).toContain("binanceGet(");
+    expect(runner).toContain("refusesNetwork(");
+    // The sources' copy, so the two cannot drift apart silently.
+    const sources = readFileSync(
+      join(ROOT, "packages/data/src/sources/binance.ts"), "utf8",
+    );
+    expect(sources).toContain("data-api.binance.vision");
+    expect(sources).toContain("singlesUntilHopeless");
   });
 
   it("words a notification the same way the shared module does", () => {

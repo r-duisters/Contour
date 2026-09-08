@@ -81,6 +81,9 @@ type Valuation = {
   };
   currency?: DisplayCurrency;
   rate?: number;
+  /** Set when holdings are unpriced because the price host refused this
+      network, not because an asset has no market. See issue #23. */
+  priceFailure?: { status?: number };
 };
 
 // Formatting lives in lib/display so hiding amounts applies everywhere at once.
@@ -384,6 +387,20 @@ export default function PortfolioScreen() {
                 )}
               </header>
               <StaleNote at={stale} />
+              {/*
+                The one sentence a blocked hotel or office network is owed.
+                Without it, refused prices read as holdings that lost their
+                markets — the silence issue #23 is about. Only on a fresh
+                valuation: a cached one predates the refusal and its figures
+                are already covered by the stale note above.
+              */}
+              {valuation?.priceFailure && (
+                <p className="text-xs text-amber-500 mb-3">
+                  This network is refusing price requests
+                  {valuation.priceFailure.status ? <> (HTTP {valuation.priceFailure.status})</> : null}
+                  {" "}— holdings without a live price are left out of the total.
+                </p>
+              )}
               {/* Centred above its chart, the same as the asset page's. */}
               <div className="flex justify-center mb-2">
                 <RangePicker value={range} onChange={setRange} />

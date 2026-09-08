@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { invalidate } from "@/core/cache";
 import { QUOTE_ASSETS } from "@/core/symbols";
 import { FakeNet, respondWith } from "../testing/fake-net";
-import { fetchDailyStats, fetchPricesSafe, fetchQuotesFor, fetchKlinesRange } from "./binance";
+import { binanceRefusal, fetchDailyStats, fetchPrices, fetchPricesSafe, fetchQuotesFor, fetchKlinesRange } from "./binance";
 import type { Net } from "../ports/net";
 
 /**
@@ -378,5 +378,91 @@ describe("the widening klines store", () => {
     const paid = net.calls.length;
     await fetchKlinesRange(net, { symbol: "BTCUSDT", interval: "1d", from: FROM, to: FROM + 400 * DAY - 1 });
     expect(net.calls.length).toBe(paid);
+  });
+});
+
+/**
+ * Issue #23: `api.binance.com` refuses whole IP addresses — a hotel NAT, a
+ * geo-block — and every price on every screen quietly stopped. The fallback
+ * host serves identical payloads, so a refusal of the network is the one
+ * failure that must not be taken at its word.
+ */
+describe("host failover", () => {
+  beforeEach(() => invalidate());
+
+  const PRICES = [{ symbol: "BTCUSDT", price: "67000" }];
+
+  it("answers from the fallback host when the primary refuses the network", async () => {
+    const net = FakeNet({
+      "api.binance.com": respondWith(451),
+      "data-api.binance.vision/api/v3/ticker/price": PRICES,
+    });
+    const out = await fetchPrices(net, ["BTCUSDT"]);
+    expect(out).toEqual({ BTCUSDT: 67000 });
+    expect(net.calls.map((c) => new URL(c.url).host)).toEqual([
+      "api.binance.com", "data-api.binance.vision",
+    ]);
+  });
+
+  it("remembers the host that answered, so a blocked network pays one probe", async () => {
+    const net = FakeNet({
+      "api.binance.com": respondWith(451),
+      "data-api.binance.vision/api/v3/ticker/price": PRICES,
+    });
+    await fetchPrices(net, ["BTCUSDT"]);
+    invalidate("prices:");
+    await fetchPrices(net, ["BTCUSDT"]);
+    // Second call goes straight to the fallback: three requests, not four.
+    expect(net.calls).toHaveLength(3);
+    expect(new URL(net.calls[2]!.url).host).toBe("data-api.binance.vision");
+  });
+
+  it("does not fail over for a request that is simply wrong", async () => {
+    // A 400 means the same thing on both hosts — retrying it elsewhere would
+    // double every invalid-symbol batch for nothing.
+    const net = FakeNet({ "api.binance.com": respondWith(400) });
+    await expect(fetchPrices(net, ["NOTREAL"])).rejects.toThrow();
+    expect(net.calls).toHaveLength(1);
+  });
+
+  it("records a refusal only when both hosts refuse, and clears it on success", async () => {
+    const blocked = FakeNet({
+      "api.binance.com": respondWith(451),
+      "data-api.binance.vision": respondWith(451),
+    });
+    await expect(fetchPrices(blocked, ["BTCUSDT"])).rejects.toThrow();
+    expect(binanceRefusal()?.status).toBe(451);
+
+    const healthy = FakeNet({ "api.binance.com/api/v3/ticker/price": PRICES });
+    await fetchPrices(healthy, ["BTCUSDT"]);
+    expect(binanceRefusal()).toBeNull();
+  });
+
+  it("stops the per-symbol fallback when the network is what failed", async () => {
+    // Binance's 418 ban escalates for traffic that keeps arriving, so a
+    // blocked batch must not become dozens of blocked singles. Two matching
+    // failures end it: batch (2 hosts) + two singles (2 hosts each) = 6.
+    const net = FakeNet({
+      "api.binance.com": respondWith(451),
+      "data-api.binance.vision": respondWith(451),
+    });
+    const symbols = Array.from({ length: 10 }, (_, i) => `COIN${i}USDT`);
+    const out = await fetchPricesSafe(net, symbols);
+    expect(out).toEqual({});
+    expect(net.calls.length).toBeLessThanOrEqual(6);
+  });
+
+  it("still lets one delisted symbol cost itself and nothing else", async () => {
+    // The stop is for refusals of the network. An invalid-symbol 400 is not
+    // one, so the fallback walks every symbol exactly as before.
+    const net = FakeNet({
+      "api.binance.com/api/v3/ticker/price": (url: string) => {
+        const list = JSON.parse(new URL(url).searchParams.get("symbols")!) as string[];
+        if (list.includes("DEADUSDT")) return respondWith(400, { code: -1121 });
+        return list.map((s) => ({ symbol: s, price: "5" }));
+      },
+    });
+    const out = await fetchPricesSafe(net, ["DEADUSDT", "BTCUSDT", "ETHUSDT"]);
+    expect(out).toEqual({ BTCUSDT: 5, ETHUSDT: 5 });
   });
 });

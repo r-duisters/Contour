@@ -52,8 +52,11 @@ describe("FakeNet reports failures the way the port requires", () => {
    */
   it("lets a service propagate a failure a client can classify without reading the message", async () => {
     __resetSymbolsCacheForTests();
+    // Keyed on the path, not the host: an unreachable network is unreachable
+    // on the fallback host too, and the failover in `sources/binance.ts`
+    // tries it before letting the error out.
     const dead = FakeNet({
-      "https://api.binance.com/api/v3/exchangeInfo": rejectWith(new TypeError("fetch failed")),
+      "/api/v3/exchangeInfo": rejectWith(new TypeError("fetch failed")),
     });
 
     const err = await symbols(dead).catch((e: unknown) => e);

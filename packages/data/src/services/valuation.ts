@@ -17,7 +17,7 @@ import { computeHoldings, valueHoldings, type ValuedHolding } from "@/core/portf
 import { pricingPair } from "@/core/symbols";
 import type { Net } from "../ports/net";
 import type { Store, Transaction } from "../ports/store";
-import { fetchKlinesRange, fetchPricesSafe } from "../sources/binance";
+import { binanceRefusal, fetchKlinesRange, fetchPricesSafe } from "../sources/binance";
 import { makeEquitySource } from "../sources/equity";
 import { fetchEcbRates } from "../sources/fx";
 import { getPortfolio } from "./portfolios";
@@ -88,6 +88,14 @@ export type Valuation = {
   currency: DisplayCurrency;
   /** Always 1: the figures above are already in `currency`. Kept for compatibility. */
   rate: number;
+  /**
+   * Present when holdings are unpriced because the price host refused this
+   * network — a hotel or office IP Binance blocks (issue #23) — rather than
+   * because an asset has no market. Optional, so an older cached response and
+   * both builds degrade to drawing nothing; the screen turns it into one
+   * amber sentence instead of letting missing prices read as missing assets.
+   */
+  priceFailure?: { status?: number };
 };
 
 /**
@@ -222,6 +230,13 @@ export async function valuation(store: Store, net: Net, id: string): Promise<Val
       : null,
   };
 
+  // Only blamed on the network when the network was in fact refused just now
+  // *and* something is actually unpriced — a delisted coin on a healthy
+  // network keeps reading as what it is.
+  const refusal = valued.some((h) => h.quantity > 0 && h.value === null)
+    ? binanceRefusal()
+    : null;
+
   return {
     holdings: all,
     totals,
@@ -231,6 +246,7 @@ export async function valuation(store: Store, net: Net, id: string): Promise<Val
     // caller sees is relabelled here.
     currency: displayUsd > 0 ? currency : "USD",
     rate: 1,
+    ...(refusal ? { priceFailure: { status: refusal.status } } : {}),
   };
 }
 

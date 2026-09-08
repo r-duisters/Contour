@@ -1,7 +1,7 @@
-import { cached, peek, put } from "@/core/cache";
+import { cached, invalidate, peek, put } from "@/core/cache";
 import { QUOTE_ASSETS } from "@/core/symbols";
 import type { Bar, Timeframe } from "@/core/types";
-import type { Net } from "../ports/net";
+import { NetError, type Net } from "../ports/net";
 
 /**
  * Binance's public REST surface, and the only copy of it — the `fetch`-based
@@ -27,6 +27,69 @@ import type { Net } from "../ports/net";
  * without that is how a green test starts meaning nothing.
  */
 const REST = "https://api.binance.com";
+
+/**
+ * Binance's public market-data host, and the way around a blocked network.
+ *
+ * `api.binance.com` refuses whole IP addresses — geo-restriction (451), WAF
+ * blocks (403), and rate-limit bans (418/429) earned collectively by everyone
+ * behind a hotel or office NAT. Observed 2026-09-08 from a hotel: every price
+ * on every screen quietly stopped, which is issue #23. `data-api.binance.vision`
+ * is Binance's own host for exactly this data — verified identical for every
+ * endpoint this file calls, payloads and error codes included — and, being a
+ * different domain, it also survives networks that block `binance.com` in DNS.
+ *
+ * So every request goes through `binanceJson`: the primary first, and on a
+ * refusal that means "this network" rather than "this request", the same path
+ * on the fallback. A host that answered is remembered for ten minutes through
+ * the shared cache — `peek`/`put` rather than a module variable, so tests
+ * reset it with the `invalidate()` they already call, and the persisted copy
+ * carries a hotel stay across an app restart. When *both* hosts refuse, the
+ * refusal is recorded the same way for `binanceRefusal()` below.
+ */
+const FALLBACK = "https://data-api.binance.vision";
+const HOST_STICKY_MS = 600_000;
+const REFUSAL_TTL_MS = 120_000;
+
+/** A refusal of the network or IP, as opposed to a request that is wrong. */
+function refusesNetwork(e: unknown): e is NetError {
+  if (!(e instanceof NetError)) return false;
+  if (e.kind === "unreachable") return true;
+  return e.status === 403 || e.status === 418 || e.status === 429 || e.status === 451;
+}
+
+/**
+ * The last time both hosts refused, if it was recent — for the valuation to
+ * say "this network refuses prices" instead of quietly excluding holdings.
+ * Null once anything succeeds, or after two minutes without a retry.
+ */
+export function binanceRefusal(): { status?: number; at: number } | null {
+  return peek<{ status?: number; at: number }>("binance:refusal") ?? null;
+}
+
+async function binanceJson<T>(net: Net, path: string): Promise<T> {
+  const sticky = peek<string>("binance:host");
+  const first = sticky ?? REST;
+  const second = first === REST ? FALLBACK : REST;
+  try {
+    const out = await net.json<T>(`${first}${path}`);
+    invalidate("binance:refusal");
+    return out;
+  } catch (e) {
+    if (!refusesNetwork(e)) throw e;
+    try {
+      const out = await net.json<T>(`${second}${path}`);
+      put("binance:host", second, HOST_STICKY_MS);
+      invalidate("binance:refusal");
+      return out;
+    } catch (e2) {
+      if (refusesNetwork(e2)) {
+        put("binance:refusal", { status: e2.status, at: Date.now() }, REFUSAL_TTL_MS);
+      }
+      throw e2;
+    }
+  }
+}
 
 type RawKline = [
   number, string, string, string, string, string,
@@ -59,7 +122,7 @@ export async function fetchKlines(net: Net, opts: {
   if (opts.startTime) params.set("startTime", String(opts.startTime));
   if (opts.endTime) params.set("endTime", String(opts.endTime));
 
-  const raw = await net.json<RawKline[]>(`${REST}/api/v3/klines?${params}`);
+  const raw = await binanceJson<RawKline[]>(net, `/api/v3/klines?${params}`);
   return raw.map(toBar);
 }
 
@@ -249,9 +312,9 @@ export function fetchUsdtSymbols(net: Net): Promise<string[]> {
 }
 
 async function fetchUsdtSymbolsUncached(net: Net): Promise<string[]> {
-  const raw = await net.json<{
+  const raw = await binanceJson<{
     symbols: { symbol: string; status: string; quoteAsset: string; isSpotTradingAllowed: boolean }[];
-  }>(`${REST}/api/v3/exchangeInfo`);
+  }>(net, `/api/v3/exchangeInfo`);
   return raw.symbols
     .filter((s) => s.status === "TRADING" && s.quoteAsset === "USDT" && s.isSpotTradingAllowed)
     .map((s) => s.symbol)
@@ -271,11 +334,11 @@ async function fetchUsdtSymbolsUncached(net: Net): Promise<string[]> {
 export function fetchQuotesFor(net: Net, base: string): Promise<string[]> {
   const b = base.toUpperCase();
   return cached(`quotes:${b}`, 3_600_000, async () => {
-    const raw = await net.json<{
+    const raw = await binanceJson<{
       symbols: {
         baseAsset: string; quoteAsset: string; status: string; isSpotTradingAllowed: boolean;
       }[];
-    }>(`${REST}/api/v3/exchangeInfo`);
+    }>(net, `/api/v3/exchangeInfo`);
     const known = new Set<string>(QUOTE_ASSETS);
     const found = raw.symbols
       .filter((s) => s.baseAsset === b && s.status === "TRADING" && s.isSpotTradingAllowed)
@@ -291,9 +354,7 @@ export async function fetchPrices(net: Net, symbols: string[]): Promise<Record<s
   const params = new URLSearchParams({
     symbols: JSON.stringify(symbols.map((s) => s.toUpperCase())),
   });
-  const raw = await net.json<{ symbol: string; price: string }[]>(
-    `${REST}/api/v3/ticker/price?${params}`,
-  );
+  const raw = await binanceJson<{ symbol: string; price: string }[]>(net, `/api/v3/ticker/price?${params}`);
   return Object.fromEntries(raw.map((r) => [r.symbol, Number(r.price)]));
 }
 
@@ -314,7 +375,7 @@ export async function fetchPrices(net: Net, symbols: string[]): Promise<Record<s
  */
 export function fetchAllPrices(net: Net): Promise<Record<string, number>> {
   return cached("prices:all", 30_000, async () => {
-    const raw = await net.json<{ symbol: string; price: string }[]>(`${REST}/api/v3/ticker/price`);
+    const raw = await binanceJson<{ symbol: string; price: string }[]>(net, `/api/v3/ticker/price`);
     return Object.fromEntries(raw.map((r) => [r.symbol, Number(r.price)]));
   });
 }
@@ -352,14 +413,44 @@ function pick<T>(all: Record<string, T>, symbols: string[]): Record<string, T> {
 async function fetchPricesSafeUncached(net: Net, symbols: string[]): Promise<Record<string, number>> {
   try {
     return await fetchPrices(net, symbols);
-  } catch {
-    const out: Record<string, number> = {};
-    const results = await Promise.allSettled(symbols.map((s) => fetchPrices(net, [s])));
-    for (const r of results) {
-      if (r.status === "fulfilled") Object.assign(out, r.value);
-    }
-    return out;
+  } catch (e) {
+    return singlesUntilHopeless(symbols, (s) => fetchPrices(net, [s]), e);
   }
+}
+
+/**
+ * The per-symbol fallback, with a stop for the case it cannot fix.
+ *
+ * The fallback exists for one bad symbol in the batch. When the *network* is
+ * what failed — both hosts refusing, issue #23 — every single fails the same
+ * way, and pressing on turns one blocked request into dozens. That is not
+ * just waste: Binance's 418 ban escalates for traffic that keeps arriving, so
+ * the retries lengthen the ban that caused them. Two matching failures, not
+ * one, so a genuinely delisted symbol at the front of the list cannot mask a
+ * feed that works.
+ *
+ * Sequential where it used to fan out, for the same reason: an early stop is
+ * only possible for requests that have not been sent yet.
+ */
+async function singlesUntilHopeless<T>(
+  symbols: string[],
+  fetchOne: (symbol: string) => Promise<Record<string, T>>,
+  batchError: unknown,
+): Promise<Record<string, T>> {
+  const batchStatus = batchError instanceof NetError ? batchError.status : undefined;
+  const out: Record<string, T> = {};
+  let matching = 0;
+  for (const symbol of symbols) {
+    try {
+      Object.assign(out, await fetchOne(symbol));
+    } catch (e) {
+      const status = e instanceof NetError ? e.status : undefined;
+      const sameAsBatch = status === batchStatus &&
+        (refusesNetwork(e) || refusesNetwork(batchError));
+      if (sameAsBatch && ++matching >= 2) break;
+    }
+  }
+  return out;
 }
 
 /** What a pair costs now, and what it cost exactly twenty-four hours ago. */
@@ -416,9 +507,7 @@ export function fetchDailyStats(
  */
 export function fetchAllDailyStats(net: Net): Promise<Record<string, DailyStat>> {
   return cached("daily:all", 300_000, async () => {
-    const raw = await net.json<{ symbol: string; openPrice: string; lastPrice: string }[]>(
-      `${REST}/api/v3/ticker/24hr`,
-    );
+    const raw = await binanceJson<{ symbol: string; openPrice: string; lastPrice: string }[]>(net, `/api/v3/ticker/24hr`);
     const out: Record<string, DailyStat> = {};
     for (const r of raw) {
       const open24h = Number(r.openPrice);
@@ -445,13 +534,10 @@ async function fetchDailyStatsTolerant(
 ): Promise<Record<string, DailyStat>> {
   try {
     return await fetchDailyStatsBatch(net, symbols);
-  } catch {
-    const out: Record<string, DailyStat> = {};
-    const results = await Promise.allSettled(
-      symbols.map((s) => fetchDailyStatsBatch(net, [s])),
-    );
-    for (const r of results) if (r.status === "fulfilled") Object.assign(out, r.value);
-    return out;
+  } catch (e) {
+    // Same stop as `fetchPricesSafeUncached`: a blocked network fails every
+    // single the same way, and retrying extends the ban doing the blocking.
+    return singlesUntilHopeless(symbols, (s) => fetchDailyStatsBatch(net, [s]), e);
   }
 }
 
@@ -460,9 +546,7 @@ async function fetchDailyStatsBatch(
   symbols: string[],
 ): Promise<Record<string, DailyStat>> {
   const params = new URLSearchParams({ symbols: JSON.stringify(symbols), type: "MINI" });
-  const raw = await net.json<{ symbol: string; openPrice: string; lastPrice: string }[]>(
-    `${REST}/api/v3/ticker/24hr?${params}`,
-  );
+  const raw = await binanceJson<{ symbol: string; openPrice: string; lastPrice: string }[]>(net, `/api/v3/ticker/24hr?${params}`);
   const out: Record<string, DailyStat> = {};
   for (const r of raw) {
     const open24h = Number(r.openPrice);
@@ -493,12 +577,12 @@ export type Ticker = {
  */
 export function fetch24hTicker(net: Net): Promise<Ticker[]> {
   return cached("binance:ticker24h", 60_000, async () => {
-    const raw = await net.json<{
+    const raw = await binanceJson<{
       symbol: string;
       lastPrice: string;
       priceChangePercent: string;
       quoteVolume: string;
-    }[]>(`${REST}/api/v3/ticker/24hr`);
+    }[]>(net, `/api/v3/ticker/24hr`);
     return raw.map((r) => ({
       symbol: r.symbol,
       lastPrice: Number(r.lastPrice),
